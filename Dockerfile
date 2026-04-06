@@ -1,6 +1,9 @@
 FROM php:8.3-apache
 
-RUN a2enmod rewrite \
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends libpq-dev \
+  && rm -rf /var/lib/apt/lists/* \
+  && a2enmod rewrite \
   && docker-php-ext-install -j"$(nproc)" pdo_mysql mysqli pdo_pgsql pgsql
 
 # Allow .htaccess overrides (needed for the app routes)
