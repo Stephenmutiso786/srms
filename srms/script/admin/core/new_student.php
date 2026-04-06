@@ -23,7 +23,10 @@ try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-$stmt = $conn->prepare("SELECT id, email FROM tbl_staff WHERE email = ? OR id = ? UNION SELECT id, email FROM tbl_students WHERE email = ? OR id = ?");
+$isPgsql = (defined('DBDriver') && DBDriver === 'pgsql');
+$stmt = $isPgsql
+? $conn->prepare("SELECT id::text AS id, email FROM tbl_staff WHERE email = ? OR id::text = ? UNION SELECT id::text AS id, email FROM tbl_students WHERE email = ? OR id::text = ?")
+: $conn->prepare("SELECT id, email FROM tbl_staff WHERE email = ? OR id = ? UNION SELECT id, email FROM tbl_students WHERE email = ? OR id = ?");
 $stmt->execute([$email, $reg_no, $email, $reg_no]);
 $result = $stmt->fetchAll();
 

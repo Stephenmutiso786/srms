@@ -20,8 +20,15 @@ try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
+$isPgsql = (defined('DBDriver') && DBDriver === 'pgsql');
+
+if ($isPgsql) {
+$stmt = $conn->prepare("SELECT id::text AS id, fname, email, level FROM tbl_staff WHERE id::text = ? OR email = ?
+UNION SELECT id::text AS id, fname, email, level FROM tbl_students WHERE id::text = ? OR email = ?");
+} else {
 $stmt = $conn->prepare("SELECT id, fname, email, level FROM tbl_staff WHERE id = ? OR email = ?
 UNION SELECT id, fname, email, level FROM tbl_students WHERE id = ? OR email = ?");
+}
 $stmt->execute([$_username, $_username, $_username, $_username]);
 $result = $stmt->fetchAll();
 
@@ -82,7 +89,9 @@ header("location:../");
 
 if ($level < 3) {
 
-$stmt = $conn->prepare("UPDATE tbl_staff SET password = ? WHERE id = ?");
+$stmt = $isPgsql
+? $conn->prepare("UPDATE tbl_staff SET password = ? WHERE id = CAST(? AS integer)")
+: $conn->prepare("UPDATE tbl_staff SET password = ? WHERE id = ?");
 $stmt->execute([$npassword, $account]);
 
 }else{

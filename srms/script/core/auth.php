@@ -14,8 +14,15 @@ try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
+$isPgsql = (defined('DBDriver') && DBDriver === 'pgsql');
+
+if ($isPgsql) {
+$stmt = $conn->prepare("SELECT id::text AS id, email, password, level, status FROM tbl_staff WHERE id::text = ? OR email = ?
+UNION SELECT id::text AS id, email, password, level, status FROM tbl_students WHERE id::text = ? OR email = ?");
+} else {
 $stmt = $conn->prepare("SELECT id, email, password, level, status FROM tbl_staff WHERE id = ? OR email = ?
 UNION SELECT id, email, password, level, status FROM tbl_students WHERE id = ? OR email = ?");
+}
 $stmt->execute([$_username, $_username, $_username, $_username]);
 $result = $stmt->fetchAll();
 
@@ -34,13 +41,16 @@ $account_id = $row[0];
 $session_id = mb_strtoupper(GRS(20));
 $ip =  $_SERVER['REMOTE_ADDR'];
 
-$stmt = $conn->prepare("DELETE FROM tbl_login_sessions WHERE staff = ? OR student = ?");
-$stmt->execute([$account_id, $account_id]);
-
 if ($row[3] > 2) {
+$stmt = $conn->prepare("DELETE FROM tbl_login_sessions WHERE student = ?");
+$stmt->execute([$account_id]);
+
 $stmt = $conn->prepare("INSERT INTO tbl_login_sessions (session_key, student, ip_address) VALUES (?,?,?)");
 $stmt->execute([$session_id, $account_id, $ip]);
 }else{
+$stmt = $conn->prepare("DELETE FROM tbl_login_sessions WHERE staff = ?");
+$stmt->execute([$account_id]);
+
 $stmt = $conn->prepare("INSERT INTO tbl_login_sessions (session_key, staff, ip_address) VALUES (?,?,?)");
 $stmt->execute([$session_id, $account_id, $ip]);
 }
