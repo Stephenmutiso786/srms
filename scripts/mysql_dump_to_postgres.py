@@ -33,6 +33,7 @@ def convert(mysql_sql: str) -> str:
     # Types
     sql = re.sub(r"\blongtext\b", "text", sql, flags=re.I)
     sql = re.sub(r"\bdatetime\b", "timestamp", sql, flags=re.I)
+    sql = re.sub(r"\bdouble\b", "double precision", sql, flags=re.I)
 
     # Remove collation / comments on columns
     sql = re.sub(r" COLLATE [a-zA-Z0-9_]+", "", sql)
