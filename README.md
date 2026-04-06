@@ -28,7 +28,8 @@ This repo includes a `Dockerfile` so Render can run the PHP app as a single web 
 1. Create a new **Render Web Service** from this repo (environment: **Docker**).
 2. Create a database:
    - MySQL: use `srms/database/srms_makumbusho.sql`
-   - Postgres (Neon/Supabase/etc.): use `srms/database/srms_postgres.sql`
+   - Postgres (Neon/Supabase/etc.): use `srms/database/srms_postgres_schema.sql`
+     - Optional demo seed (only if you want sample accounts/data): `srms/database/srms_postgres_seed_demo.sql`
 3. In Render → Service → **Environment**, set:
    - `DB_DRIVER` (`mysql` or `pgsql`)
    - `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS`
