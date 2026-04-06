@@ -9,7 +9,11 @@ $fname = ucfirst($_POST['fname']);
 $lname = ucfirst($_POST['lname']);
 $email = $_POST['email'];
 $gender = $_POST['gender'];
-$role = '2';
+$role = (string)($_POST['role'] ?? '2');
+$allowedRoles = ['2', '5'];
+if (!in_array($role, $allowedRoles, true)) {
+	$role = '2';
+}
 $id = $_POST['id'];
 $status = $_POST['status'];
 
@@ -29,10 +33,10 @@ $_SESSION['reply'] = array (array("error",'Email is already added'));
 header("location:../teachers");
 }else{
 
-$stmt = $conn->prepare("UPDATE tbl_staff SET fname=?, lname=?, gender=?, email=?, status=? WHERE id = ?");
-$stmt->execute([$fname, $lname, $gender, $email, $status, $id]);
+$stmt = $conn->prepare("UPDATE tbl_staff SET fname=?, lname=?, gender=?, email=?, level=?, status=? WHERE id = ? AND level IN (2,5)");
+$stmt->execute([$fname, $lname, $gender, $email, (int)$role, $status, $id]);
 
-$_SESSION['reply'] = array (array("success",'Teacher updated successfully'));
+$_SESSION['reply'] = array (array("success",'Staff updated successfully'));
 header("location:../teachers");
 }
 

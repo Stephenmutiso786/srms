@@ -30,9 +30,10 @@ This repo includes a `Dockerfile` so Render can run the PHP app as a single web 
    - MySQL: use `srms/database/srms_makumbusho.sql`
    - Postgres (Neon/Supabase/etc.): use `srms/database/srms_postgres_schema.sql`
      - Optional demo seed (only if you want sample accounts/data): `srms/database/srms_postgres_seed_demo.sql`
-     - Then run migrations (recommended):
+    - Then run migrations (recommended):
        - `srms/database/pg_migrations/001_rbac_attendance.sql`
        - `srms/database/pg_migrations/002_parent_sessions.sql`
+       - `srms/database/pg_migrations/003_fees_finance.sql`
 3. In Render → Service → **Environment**, set:
    - `DB_DRIVER` (`mysql` or `pgsql`)
    - `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS`
@@ -48,8 +49,24 @@ If your DB has **no staff accounts**, create the first admin via:
 ## Attendance + Parent Portal
 
 - Teachers: `Teacher → Attendance` → create a session → mark and save
+- Teachers: `Teacher → Staff Attendance` → clock in/out
 - Students: `Student → My Attendance`
 - Parents: Admin creates parent + links students in `Admin → Parents` (requires migrations 001 + 002)
+- Admin: `Admin → Staff Attendance` → mark/update daily staff attendance
+
+## Fees & Finance (Phase 3)
+
+- Admin: `Admin → Fees & Finance`
+  - Set fee items/amounts in `Admin → Fee Structure`
+  - Generate invoices + record payments in `Admin → Invoices`
+- Student: `Student → Fees`
+- Parent: `Parent → Fees`
+
+## Accountant role (Phase 4)
+
+- Create an accountant from `Admin → Teachers` (now Staff) and choose Role = Accountant.
+- Accountant login redirects to `/accountant`.
+- Accountant can manage fee structure, invoices, and payments.
 
 Notes:
 - Uploads (student photos / logos) need persistent storage; Render’s filesystem is ephemeral unless you attach a disk or move uploads to object storage.

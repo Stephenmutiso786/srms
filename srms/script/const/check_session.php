@@ -17,7 +17,8 @@ try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-	if ($levelInt >= 0 && $levelInt <= 2) {
+	// Staff roles: admin(0), academic(1), teacher(2), accountant(5), etc.
+	if ($levelInt !== 3 && $levelInt !== 4) {
 		$stmt = $conn->prepare("SELECT ls.session_key, ls.ip_address, s.*
 			FROM tbl_login_sessions ls
 			JOIN tbl_staff s ON s.id = ls.staff
@@ -136,4 +137,3 @@ try {
 } catch (PDOException $e) {
 	// Keep $res=0 (treat as not logged in).
 }
-

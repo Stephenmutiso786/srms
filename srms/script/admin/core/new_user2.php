@@ -9,7 +9,11 @@ $fname = ucfirst($_POST['fname']);
 $lname = ucfirst($_POST['lname']);
 $email = $_POST['email'];
 $gender = $_POST['gender'];
-$role = '2';
+$role = (string)($_POST['role'] ?? '2');
+$allowedRoles = ['2', '5'];
+if (!in_array($role, $allowedRoles, true)) {
+	$role = '2';
+}
 $pass = password_hash($_POST['password'], PASSWORD_DEFAULT);
 $status = $_POST['status'];
 
@@ -17,7 +21,10 @@ try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-$stmt = $conn->prepare("SELECT email FROM tbl_staff WHERE email = ? UNION SELECT email FROM tbl_students WHERE email = ?");
+$isPgsql = (defined('DBDriver') && DBDriver === 'pgsql');
+$stmt = $isPgsql
+	? $conn->prepare("SELECT email FROM tbl_staff WHERE email = ? UNION SELECT email FROM tbl_students WHERE email = ?")
+	: $conn->prepare("SELECT email FROM tbl_staff WHERE email = ? UNION SELECT email FROM tbl_students WHERE email = ?");
 $stmt->execute([$email, $email]);
 $result = $stmt->fetchAll();
 
@@ -29,7 +36,7 @@ header("location:../teachers");
 $stmt = $conn->prepare("INSERT INTO tbl_staff (fname, lname, gender, email, password, level, status) VALUES (?,?,?,?,?,?,?)");
 $stmt->execute([$fname, $lname, $gender, $email, $pass, $role, $status]);
 
-$_SESSION['reply'] = array (array("success",'Teacher registered successfully'));
+$_SESSION['reply'] = array (array("success",'Staff registered successfully'));
 header("location:../teachers");
 }
 

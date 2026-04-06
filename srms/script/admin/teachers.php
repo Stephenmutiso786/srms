@@ -10,7 +10,7 @@ if ($res == "1" && $level == "0") {}else{header("location:../");}
 <html lang="en">
 <meta http-equiv="content-type" content="text/html;charset=utf-8" />
 <head>
-<title><?php echo APP_NAME; ?> - Teachers</title>
+<title><?php echo APP_NAME; ?> - Staff</title>
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -65,7 +65,7 @@ if ($res == "1" && $level == "0") {}else{header("location:../");}
 <main class="app-content">
 <div class="app-title">
 <div>
-<h1>Teachers</h1>
+<h1>Staff</h1>
 </div>
 <ul class="app-breadcrumb breadcrumb">
 <li class="breadcrumb-item"><button class="btn btn-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#addModal">Add</button></li>
@@ -77,7 +77,7 @@ if ($res == "1" && $level == "0") {}else{header("location:../");}
 <div class="modal-dialog">
 <div class="modal-content">
 <div class="modal-header">
-<h5 class="modal-title" id="addModalLabel">Add Teachers</h5>
+<h5 class="modal-title" id="addModalLabel">Add Staff</h5>
 </div>
 <div class="modal-body">
 <form class="app_frm" method="POST" autocomplete="OFF" action="admin/core/new_user2">
@@ -110,6 +110,14 @@ if ($res == "1" && $level == "0") {}else{header("location:../");}
 </select>
 </div>
 
+<div class="mb-2">
+<label class="form-label">Role</label>
+<select class="form-control" name="role" required>
+<option value="2" selected>Teacher</option>
+<option value="5">Accountant</option>
+</select>
+</div>
+
 
 <div class="mb-3">
 <label class="form-label">Status</label>
@@ -133,7 +141,7 @@ if ($res == "1" && $level == "0") {}else{header("location:../");}
 <div class="modal-dialog">
 <div class="modal-content">
 <div class="modal-header">
-<h5 class="modal-title" id="editModalLabel">Edit Teacher</h5>
+<h5 class="modal-title" id="editModalLabel">Edit Staff</h5>
 </div>
 <div class="modal-body">
 <form class="app_frm" method="POST" autocomplete="OFF" action="admin/core/update_user2">
@@ -155,6 +163,14 @@ if ($res == "1" && $level == "0") {}else{header("location:../");}
 <option selected disabled value="">Select gender</option>
 <option value="Male">Male</option>
 <option value="Female">Female</option>
+</select>
+</div>
+
+<div class="mb-2">
+<label class="form-label">Role</label>
+<select id="role" class="form-control" name="role" required>
+<option value="2">Teacher</option>
+<option value="5">Accountant</option>
 </select>
 </div>
 
@@ -208,7 +224,7 @@ Download excel template from <a download href="templates/import_teachers.xlsx" c
 <div class="tile">
 <div class="tile-body">
 <div class="table-responsive">
-<h3 class="tile-title">Teachers</h3>
+<h3 class="tile-title">Staff</h3>
 <table class="table table-hover table-bordered" id="srmsTable">
 <thead>
 <tr>
@@ -216,6 +232,7 @@ Download excel template from <a download href="templates/import_teachers.xlsx" c
 <th>Last Name</th>
 <th>Email</th>
 <th>Gender</th>
+<th>Role</th>
 <th width="120" align="center">Status</th>
 <th width="120" align="center"></th>
 </tr>
@@ -227,7 +244,7 @@ try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-$stmt = $conn->prepare("SELECT * FROM tbl_staff WHERE level > 1");
+$stmt = $conn->prepare("SELECT * FROM tbl_staff WHERE level IN (2,5)");
 $stmt->execute();
 $result = $stmt->fetchAll();
 
@@ -245,12 +262,14 @@ $st = '<span class="me-1 badge badge-pill bg-danger">Blocked</span>';
 <td><?php echo $row[2];?></td>
 <td><?php echo $row[4];?></td>
 <td><?php echo $row[3];?></td>
+<td><?php echo ((int)$row[6] === 5) ? 'Accountant' : 'Teacher'; ?></td>
 <td width="100" align="center"><?php echo $st;?></td>
 <td width="120" align="center">
 <textarea style="display:none;" id="fname_<?php echo $row[0]; ?>"><?php echo $row[1]; ?></textarea>
 <textarea style="display:none;" id="lname_<?php echo $row[0]; ?>"><?php echo $row[2]; ?></textarea>
 <textarea style="display:none;" id="email_<?php echo $row[0]; ?>"><?php echo $row[4]; ?></textarea>
-<button onclick="set_user('<?php echo $row[0]; ?>', '<?php echo $row[3]; ?>', '<?php echo $row[7]; ?>');" data-bs-toggle="modal" data-bs-target="#editModal" class="btn btn-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#editModal">Edit</button>
+<textarea style="display:none;" id="role_<?php echo $row[0]; ?>"><?php echo $row[6]; ?></textarea>
+<button onclick="set_user('<?php echo $row[0]; ?>', '<?php echo $row[3]; ?>', '<?php echo $row[7]; ?>', '<?php echo $row[6]; ?>');" data-bs-toggle="modal" data-bs-target="#editModal" class="btn btn-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#editModal">Edit</button>
 <a onclick="del('admin/core/drop_user2?id=<?php echo $row[0]; ?>', 'Delete Teacher?');" href="javascript:void(0);" class="btn btn-danger btn-sm">Delete</a>
 </td>
 </tr>
@@ -282,6 +301,17 @@ echo "Connection failed: " . $e->getMessage();
 <script type="text/javascript" src="js/plugins/jquery.dataTables.min.js"></script>
 <script type="text/javascript" src="js/plugins/dataTables.bootstrap.min.html"></script>
 <script type="text/javascript">$('#srmsTable').DataTable({"sort" : false});</script>
+<script type="text/javascript">
+function set_user(id, gender, status, role){
+	document.getElementById("id").value = id;
+	document.getElementById("fname").value = document.getElementById("fname_"+id).value;
+	document.getElementById("lname").value = document.getElementById("lname_"+id).value;
+	document.getElementById("email").value = document.getElementById("email_"+id).value;
+	document.getElementById("gender").value = gender;
+	document.getElementById("status").value = status;
+	document.getElementById("role").value = role;
+}
+</script>
 <?php require_once('const/check-reply.php'); ?>
 </body>
 

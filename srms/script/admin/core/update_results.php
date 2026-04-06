@@ -2,6 +2,8 @@
 chdir('../../');
 session_start();
 require_once('db/config.php');
+require_once('const/check_session.php');
+if (!isset($res) || $res !== "1" || !isset($level) || $level !== "0") { header("location:../../"); exit; }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
@@ -13,6 +15,12 @@ $class = $_POST['class'];
 try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+if (app_results_locked($conn, (int)$class, (int)$term)) {
+	$_SESSION['reply'] = array (array("error","Results are locked for this class/term."));
+	header("location:../single_results");
+	exit;
+}
 
 foreach ($_POST as $key => $value) {
 if ($key !== "student" AND $key !== "term" AND $key !== "class") {

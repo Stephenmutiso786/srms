@@ -58,6 +58,9 @@ if ($res == "1" && $level == "0") {}else{header("location:../");}
 </li>
 <li><a class="app-menu__item" href="admin/parents"><i class="app-menu__icon feather icon-user-plus"></i><span class="app-menu__label">Parents</span></a></li>
 <li><a class="app-menu__item" href="admin/attendance"><i class="app-menu__icon feather icon-check-square"></i><span class="app-menu__label">Attendance</span></a></li>
+<li><a class="app-menu__item" href="admin/staff_attendance"><i class="app-menu__icon feather icon-clock"></i><span class="app-menu__label">Staff Attendance</span></a></li>
+<li><a class="app-menu__item" href="admin/fees"><i class="app-menu__icon feather icon-credit-card"></i><span class="app-menu__label">Fees & Finance</span></a></li>
+<li><a class="app-menu__item" href="admin/results_locks"><i class="app-menu__icon feather icon-lock"></i><span class="app-menu__label">Results Locks</span></a></li>
 <li><a class="app-menu__item" href="admin/report"><i class="app-menu__icon feather icon-bar-chart-2"></i><span class="app-menu__label">Report Tool</span></a></li>
 <li><a class="app-menu__item" href="admin/smtp"><i class="app-menu__icon feather icon-mail"></i><span class="app-menu__label">SMTP Settings</span></a></li>
 <li><a class="app-menu__item" href="admin/system"><i class="app-menu__icon feather icon-settings"></i><span class="app-menu__label">System Settings</span></a></li>

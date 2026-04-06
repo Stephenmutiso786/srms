@@ -2,6 +2,8 @@
 chdir('../../');
 session_start();
 require_once('db/config.php');
+require_once('const/check_session.php');
+if (!isset($res) || $res !== "1" || !isset($level) || $level !== "2") { header("location:../../"); exit; }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $file = $_FILES['file']['tmp_name'];
@@ -15,6 +17,12 @@ $subject = $_POST['subject'];
 try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+if (app_results_locked($conn, (int)$class, (int)$term)) {
+	$_SESSION['reply'] = array (array("error","Results are locked for this class/term. Contact admin."));
+	header("location:../import_results");
+	exit;
+}
 
 while (($r = fgetcsv($file, 10000, ",")) !== FALSE) {
 

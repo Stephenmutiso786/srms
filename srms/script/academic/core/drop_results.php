@@ -2,6 +2,8 @@
 chdir('../../');
 session_start();
 require_once('db/config.php');
+require_once('const/check_session.php');
+if (!isset($res) || $res !== "1" || !isset($level) || $level !== "1") { header("location:../../"); exit; }
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 $src = $_GET['src'];
@@ -12,6 +14,12 @@ $term = $_GET['term'];
 try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+if (app_results_locked($conn, (int)$class, (int)$term)) {
+	$_SESSION['reply'] = array (array("error",'Results are locked for this class/term.'));
+	header("location:../$src");
+	exit;
+}
 
 $stmt = $conn->prepare("DELETE FROM tbl_exam_results WHERE student = ? AND class = ? AND term = ?");
 $stmt->execute([$std, $class, $term]);

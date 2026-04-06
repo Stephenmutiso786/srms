@@ -73,7 +73,7 @@ if ($loginLevel === 4) {
 
 	$stmt = $conn->prepare("INSERT INTO tbl_login_sessions (session_key, parent, ip_address) VALUES (?,?,?)");
 	$stmt->execute([$session_id, (int)$account_id, $ip]);
-} elseif ($loginLevel > 2) {
+} elseif ($loginLevel === 3) {
 $stmt = $conn->prepare("DELETE FROM tbl_login_sessions WHERE student = ?");
 $stmt->execute([$account_id]);
 
@@ -110,6 +110,10 @@ break;
 
 case '4':
 header("location:../parent");
+break;
+
+case '5':
+header("location:../accountant");
 break;
 }
 

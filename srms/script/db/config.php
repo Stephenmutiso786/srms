@@ -148,6 +148,25 @@ function app_audit_log(PDO $conn, string $actorType, string $actorId, string $ac
 	}
 }
 
+function app_results_locked(PDO $conn, int $classId, int $termId): bool
+{
+	if ($classId < 1 || $termId < 1) {
+		return false;
+	}
+	if (!app_table_exists($conn, 'tbl_results_locks')) {
+		return false;
+	}
+
+	try {
+		$stmt = $conn->prepare("SELECT locked FROM tbl_results_locks WHERE class_id = ? AND term_id = ? LIMIT 1");
+		$stmt->execute([$classId, $termId]);
+		$locked = $stmt->fetchColumn();
+		return (int)$locked === 1;
+	} catch (Throwable $e) {
+		return false;
+	}
+}
+
 function app_unserialize($value): array
 {
 	if (!is_string($value) || $value === '') {
