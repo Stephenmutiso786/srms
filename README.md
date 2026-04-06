@@ -68,6 +68,12 @@ If your DB has **no staff accounts**, create the first admin via:
 - Accountant login redirects to `/accountant`.
 - Accountant can manage fee structure, invoices, and payments.
 
+## Results analytics + ranking (Phase 6)
+
+- Admin: `Admin → Results Analytics` (pick class + term to see ranking + charts)
+- Student: `Student → My Ranking`
+- Approvals: lock/unlock via `Admin → Results Locks` (requires `004_results_locking.sql`)
+
 Notes:
 - Uploads (student photos / logos) need persistent storage; Render’s filesystem is ephemeral unless you attach a disk or move uploads to object storage.
 
