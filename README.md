@@ -30,10 +30,26 @@ This repo includes a `Dockerfile` so Render can run the PHP app as a single web 
    - MySQL: use `srms/database/srms_makumbusho.sql`
    - Postgres (Neon/Supabase/etc.): use `srms/database/srms_postgres_schema.sql`
      - Optional demo seed (only if you want sample accounts/data): `srms/database/srms_postgres_seed_demo.sql`
+     - Then run migrations (recommended):
+       - `srms/database/pg_migrations/001_rbac_attendance.sql`
+       - `srms/database/pg_migrations/002_parent_sessions.sql`
 3. In Render → Service → **Environment**, set:
    - `DB_DRIVER` (`mysql` or `pgsql`)
    - `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS`
 4. If your DB provider requires TLS, set `DB_SSL_MODE=REQUIRED`.
+
+## Initial admin setup (no demo data)
+
+If your DB has **no staff accounts**, create the first admin via:
+
+- Open `/setup?token=YOUR_TOKEN`
+- Set `SETUP_TOKEN` in Render Environment first
+
+## Attendance + Parent Portal
+
+- Teachers: `Teacher → Attendance` → create a session → mark and save
+- Students: `Student → My Attendance`
+- Parents: Admin creates parent + links students in `Admin → Parents` (requires migrations 001 + 002)
 
 Notes:
 - Uploads (student photos / logos) need persistent storage; Render’s filesystem is ephemeral unless you attach a disk or move uploads to object storage.

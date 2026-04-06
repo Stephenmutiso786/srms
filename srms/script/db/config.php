@@ -82,6 +82,72 @@ function app_db(): PDO
 	return $pdo;
 }
 
+function app_table_exists(PDO $conn, string $table): bool
+{
+	static $cache = [];
+	$key = DBDriver . ':' . DBName . ':' . $table;
+	if (array_key_exists($key, $cache)) {
+		return (bool)$cache[$key];
+	}
+
+	try {
+		if (DBDriver === 'pgsql') {
+			$stmt = $conn->prepare("SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = ? LIMIT 1");
+			$stmt->execute([$table]);
+		} else {
+			$stmt = $conn->prepare("SELECT 1 FROM information_schema.tables WHERE table_schema = ? AND table_name = ? LIMIT 1");
+			$stmt->execute([DBName, $table]);
+		}
+		$exists = (bool)$stmt->fetchColumn();
+		$cache[$key] = $exists;
+		return $exists;
+	} catch (Throwable $e) {
+		$cache[$key] = false;
+		return false;
+	}
+}
+
+function app_column_exists(PDO $conn, string $table, string $column): bool
+{
+	static $cache = [];
+	$key = DBDriver . ':' . DBName . ':' . $table . ':' . $column;
+	if (array_key_exists($key, $cache)) {
+		return (bool)$cache[$key];
+	}
+
+	try {
+		if (DBDriver === 'pgsql') {
+			$stmt = $conn->prepare("SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = ? AND column_name = ? LIMIT 1");
+			$stmt->execute([$table, $column]);
+		} else {
+			$stmt = $conn->prepare("SELECT 1 FROM information_schema.columns WHERE table_schema = ? AND table_name = ? AND column_name = ? LIMIT 1");
+			$stmt->execute([DBName, $table, $column]);
+		}
+		$exists = (bool)$stmt->fetchColumn();
+		$cache[$key] = $exists;
+		return $exists;
+	} catch (Throwable $e) {
+		$cache[$key] = false;
+		return false;
+	}
+}
+
+function app_audit_log(PDO $conn, string $actorType, string $actorId, string $action, string $entity, string $entityId = ''): void
+{
+	try {
+		if (!app_table_exists($conn, 'tbl_audit_logs')) {
+			return;
+		}
+
+		$ip = $_SERVER['REMOTE_ADDR'] ?? '';
+		$ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
+		$stmt = $conn->prepare("INSERT INTO tbl_audit_logs (actor_type, actor_id, action, entity, entity_id, ip, user_agent) VALUES (?,?,?,?,?,?,?)");
+		$stmt->execute([$actorType, $actorId, $action, $entity, $entityId, $ip, $ua]);
+	} catch (Throwable $e) {
+		// Best-effort only.
+	}
+}
+
 function app_unserialize($value): array
 {
 	if (!is_string($value) || $value === '') {
