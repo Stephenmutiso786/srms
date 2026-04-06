@@ -34,6 +34,7 @@ function app_db(): PDO
 
 	// TLS (Aiven MySQL and many managed DBs require SSL).
 	// Prefer pasting the PEM into an env var on Render (DB_SSL_CA_PEM).
+	$sslMode = strtoupper(trim(getenv('DB_SSL_MODE') ?: ''));
 	$caPem = getenv('DB_SSL_CA_PEM') ?: '';
 	$caPath = getenv('DB_SSL_CA') ?: '';
 	if ($caPem !== '') {
@@ -43,6 +44,12 @@ function app_db(): PDO
 			file_put_contents($tmpPath, $caPem);
 		}
 		$caPath = $tmpPath;
+	}
+
+	// If you set DB_SSL_MODE=REQUIRED, we enable TLS without requiring a CA file.
+	// If a CA is provided we verify the server certificate by default.
+	if ($sslMode === 'REQUIRED' && $caPath === '') {
+		$options[PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT] = false;
 	}
 
 	if ($caPath !== '') {

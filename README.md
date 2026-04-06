@@ -31,8 +31,9 @@ This repo includes a `Dockerfile` so Render can run the PHP app as a single web 
    - `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS`
 4. Import the DB schema/data using `srms/database/srms_makumbusho.sql` into your MySQL.
 5. If your MySQL provider requires TLS (Aiven does), also set:
-   - `DB_SSL_CA_PEM` = paste the provider CA certificate content (PEM)
-   - (optional) `DB_SSL_VERIFY=0` to disable certificate verification (not recommended)
+   - Simple: `DB_SSL_MODE=REQUIRED` (fastest)
+   - Safer: `DB_SSL_CA_PEM` = paste the provider CA certificate content (PEM)
+     - (optional) `DB_SSL_VERIFY=0` to disable certificate verification (not recommended)
 
 Notes:
 - Uploads (student photos / logos) need persistent storage; Render’s filesystem is ephemeral unless you attach a disk or move uploads to object storage.
