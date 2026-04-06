@@ -167,7 +167,7 @@ $t_subjects = 0;
 $subssss = array();
 
 foreach ($result as $key => $row) {
-$class_list = unserialize($row[1]);
+$class_list = app_unserialize($row[1]);
 
 if (in_array($class[0], $class_list))
 {
@@ -275,7 +275,7 @@ $t_subjects = 0;
 $subssss = array();
 
 foreach ($result as $key => $row) {
-$class_list = unserialize($row[1]);
+$class_list = app_unserialize($row[1]);
 
 if (in_array($class[0], $class_list))
 {

@@ -24,7 +24,7 @@ $result = $stmt->fetchAll();
 
 foreach($result as $row)
 {
-$class_list = unserialize($row[0]);
+$class_list = app_unserialize($row[0]);
 
 foreach ($class_list as $key => $value) {
 if (in_array($value, $usable_classes))

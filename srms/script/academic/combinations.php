@@ -240,7 +240,7 @@ $result = $stmt->fetchAll();
 
 foreach($result as $row)
 {
-$class_list = unserialize($row[1]);
+$class_list = app_unserialize($row[1]);
 ?>
 
 <tr>

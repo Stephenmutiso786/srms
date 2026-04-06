@@ -17,7 +17,7 @@ $result = $stmt->fetchAll();
 
 foreach($result as $rowx)
 {
-$cls = unserialize($rowx[1]);
+$cls = app_unserialize($rowx[1]);
 ?>
 
 <form class="app_frm" method="POST" autocomplete="OFF" action="academic/core/update_comb">

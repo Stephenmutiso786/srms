@@ -123,7 +123,7 @@ $stmt->execute();
 $result = $stmt->fetchAll();
 
 foreach ($result as $key => $row) {
-$class_list = unserialize($row[1]);
+$class_list = app_unserialize($row[1]);
 
 if (in_array($std_data[0][6], $class_list))
 {

@@ -19,7 +19,7 @@ $result = $stmt->fetchAll();
 ?><option selected disabled value="">Select One</option><?php
 foreach($result as $rowx)
 {
-$cls = unserialize($rowx[1]);
+$cls = app_unserialize($rowx[1]);
 
 if (in_array($id, $cls))
 {

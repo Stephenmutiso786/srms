@@ -98,7 +98,7 @@ $result = $stmt->fetchAll();
 $myclasses = array();
 
 foreach ($result as $value) {
-$class_arr = unserialize($value[1]);
+$class_arr = app_unserialize($value[1]);
 
 foreach ($class_arr as $value) {
 array_push($myclasses, $value);

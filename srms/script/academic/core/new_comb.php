@@ -31,7 +31,7 @@ $result = $stmt->fetchAll();
 $hasCombination = false;
 
 foreach($result as $res){
-    $hasCombination = count(array_intersect($_POST['class'], unserialize($res["class"]))) > 0;
+    $hasCombination = count(array_intersect($_POST['class'], app_unserialize($res["class"]))) > 0;
     if($hasCombination)
     break;
 }

@@ -82,5 +82,22 @@ function app_db(): PDO
 	return $pdo;
 }
 
+function app_unserialize($value): array
+{
+	if (!is_string($value) || $value === '') {
+		return [];
+	}
+
+	// When importing MySQL dumps into Postgres, strings that contain serialized
+	// PHP data may keep backslashes (e.g. \" inside the stored value). Normalize
+	// so unserialize works the same as on MySQL.
+	if (defined('DBDriver') && DBDriver === 'pgsql') {
+		$value = str_replace(['\\"', '\\\\'], ['"', '\\'], $value);
+	}
+
+	$decoded = @unserialize($value);
+	return is_array($decoded) ? $decoded : [];
+}
+
 date_default_timezone_set('Africa/Dar_es_Salaam');
 ?>
