@@ -1,7 +1,7 @@
 FROM php:8.3-apache
 
 RUN a2enmod rewrite \
-  && docker-php-ext-install -j"$(nproc)" pdo pdo_mysql mysqli
+  && docker-php-ext-install -j"$(nproc)" pdo_mysql mysqli pdo_pgsql pgsql
 
 # Allow .htaccess overrides (needed for the app routes)
 RUN sed -i 's/AllowOverride None/AllowOverride All/g' /etc/apache2/apache2.conf
@@ -14,4 +14,3 @@ COPY srms/script/ ./
 RUN chown -R www-data:www-data /var/www/html
 
 EXPOSE 80
-

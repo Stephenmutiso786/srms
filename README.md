@@ -26,14 +26,13 @@ Open `http://localhost:8000`.
 This repo includes a `Dockerfile` so Render can run the PHP app as a single web service.
 
 1. Create a new **Render Web Service** from this repo (environment: **Docker**).
-2. Create a **managed MySQL** database somewhere (Render doesn’t provide first-party MySQL): e.g. Aiven / DigitalOcean / Railway / PlanetScale / etc.
+2. Create a database:
+   - MySQL: use `srms/database/srms_makumbusho.sql`
+   - Postgres (Neon/Supabase/etc.): use `srms/database/srms_postgres.sql`
 3. In Render → Service → **Environment**, set:
+   - `DB_DRIVER` (`mysql` or `pgsql`)
    - `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS`
-4. Import the DB schema/data using `srms/database/srms_makumbusho.sql` into your MySQL.
-5. If your MySQL provider requires TLS (Aiven does), also set:
-   - Simple: `DB_SSL_MODE=REQUIRED` (fastest)
-   - Safer: `DB_SSL_CA_PEM` = paste the provider CA certificate content (PEM)
-     - (optional) `DB_SSL_VERIFY=0` to disable certificate verification (not recommended)
+4. If your DB provider requires TLS, set `DB_SSL_MODE=REQUIRED`.
 
 Notes:
 - Uploads (student photos / logos) need persistent storage; Render’s filesystem is ephemeral unless you attach a disk or move uploads to object storage.
