@@ -494,10 +494,8 @@ ALTER TABLE tbl_subject_combinations
 -- Set identity sequences after inserts
 SELECT setval(pg_get_serial_sequence('tbl_announcements', 'id'), COALESCE((SELECT MAX(id) FROM tbl_announcements), 1), true);
 SELECT setval(pg_get_serial_sequence('tbl_classes', 'id'), COALESCE((SELECT MAX(id) FROM tbl_classes), 1), true);
-SELECT setval(pg_get_serial_sequence('tbl_division_system', 'id'), COALESCE((SELECT MAX(id) FROM tbl_division_system), 1), true);
 SELECT setval(pg_get_serial_sequence('tbl_exam_results', 'id'), COALESCE((SELECT MAX(id) FROM tbl_exam_results), 1), true);
 SELECT setval(pg_get_serial_sequence('tbl_grade_system', 'id'), COALESCE((SELECT MAX(id) FROM tbl_grade_system), 1), true);
-SELECT setval(pg_get_serial_sequence('tbl_login_sessions', 'id'), COALESCE((SELECT MAX(id) FROM tbl_login_sessions), 1), true);
 SELECT setval(pg_get_serial_sequence('tbl_school', 'id'), COALESCE((SELECT MAX(id) FROM tbl_school), 1), true);
 SELECT setval(pg_get_serial_sequence('tbl_smtp', 'id'), COALESCE((SELECT MAX(id) FROM tbl_smtp), 1), true);
 SELECT setval(pg_get_serial_sequence('tbl_staff', 'id'), COALESCE((SELECT MAX(id) FROM tbl_staff), 1), true);

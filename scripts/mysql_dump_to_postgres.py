@@ -6,10 +6,8 @@ from pathlib import Path
 IDENTITY_TABLES = [
     "tbl_announcements",
     "tbl_classes",
-    "tbl_division_system",
     "tbl_exam_results",
     "tbl_grade_system",
-    "tbl_login_sessions",
     "tbl_school",
     "tbl_smtp",
     "tbl_staff",
@@ -103,4 +101,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
