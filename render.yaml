@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: elimu-hub
+    env: docker
+    plan: free
+    autoDeploy: true
+    envVars:
+      - key: APP_NAME
+        value: Elimu Hub
+      # Set these in Render after you create a MySQL database elsewhere
+      - key: DB_HOST
+        value: ""
+      - key: DB_PORT
+        value: "3306"
+      - key: DB_NAME
+        value: "srms_makumbusho"
+      - key: DB_USER
+        value: ""
+      - key: DB_PASS
+        value: ""
+

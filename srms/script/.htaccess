@@ -1,0 +1,14 @@
+## Safe defaults for shared hosting / PHP-FPM:
+## - Avoid php_flag unless mod_php is enabled (php_flag can cause HTTP 500 on PHP-FPM)
+## - Wrap rewrite rules to avoid errors if mod_rewrite is disabled
+
+<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME}.php -f
+RewriteRule ^(.+)$ $1.php [L]
+</IfModule>
+
+<IfModule mod_php.c>
+php_flag output_buffering on
+</IfModule>
