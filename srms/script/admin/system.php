@@ -6,6 +6,44 @@ require_once('const/school.php');
 require_once('const/check_session.php');
 
 if ($res == "1" && $level == "0") {}else{header("location:../");}
+
+$settings = [
+	'best_of' => 0,
+	'use_weights' => 1,
+	'require_fees_clear' => 0,
+];
+$subjects = [];
+$weights = [];
+
+try {
+	$conn = app_db();
+	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+	if (app_table_exists($conn, 'tbl_result_settings')) {
+		$stmt = $conn->prepare("SELECT best_of, use_weights, require_fees_clear FROM tbl_result_settings ORDER BY id DESC LIMIT 1");
+		$stmt->execute();
+		$row = $stmt->fetch(PDO::FETCH_ASSOC);
+		if ($row) {
+			$settings['best_of'] = (int)$row['best_of'];
+			$settings['use_weights'] = (int)$row['use_weights'];
+			$settings['require_fees_clear'] = (int)$row['require_fees_clear'];
+		}
+	}
+
+	$stmt = $conn->prepare("SELECT id, name FROM tbl_subjects ORDER BY name");
+	$stmt->execute();
+	$subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+	if (app_table_exists($conn, 'tbl_subject_weights')) {
+		$stmt = $conn->prepare("SELECT subject_id, weight FROM tbl_subject_weights");
+		$stmt->execute();
+		foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+			$weights[(int)$row['subject_id']] = (float)$row['weight'];
+		}
+	}
+} catch (Throwable $e) {
+	// defaults only
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -92,6 +130,67 @@ if ($res == "1" && $level == "0") {}else{header("location:../");}
 </form>
 
 
+</div>
+</div>
+</div>
+
+<div class="row">
+<div class="col-md-6">
+<div class="tile">
+<h3 class="tile-title">Result Processing Settings</h3>
+<form class="app_frm" action="admin/core/save_report_settings" method="POST">
+<div class="mb-3">
+<label class="form-label">Best Of Subjects (0 = all)</label>
+<input type="number" class="form-control" name="best_of" min="0" value="<?php echo $settings['best_of']; ?>" required>
+</div>
+<div class="mb-3">
+<label class="form-label">Use Subject Weights</label>
+<select class="form-control" name="use_weights">
+<option value="1" <?php echo $settings['use_weights'] ? 'selected' : ''; ?>>Yes</option>
+<option value="0" <?php echo !$settings['use_weights'] ? 'selected' : ''; ?>>No</option>
+</select>
+</div>
+<div class="mb-3">
+<label class="form-label">Block Reports If Fees Due</label>
+<select class="form-control" name="require_fees_clear">
+<option value="1" <?php echo $settings['require_fees_clear'] ? 'selected' : ''; ?>>Yes</option>
+<option value="0" <?php echo !$settings['require_fees_clear'] ? 'selected' : ''; ?>>No</option>
+</select>
+</div>
+<button class="btn btn-primary app_btn">Save Settings</button>
+</form>
+</div>
+</div>
+
+<div class="col-md-6">
+<div class="tile">
+<h3 class="tile-title">Subject Weights</h3>
+<div class="table-responsive">
+<table class="table table-hover">
+<thead>
+<tr>
+<th>Subject</th>
+<th style="width:140px;">Weight</th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<?php foreach ($subjects as $subject): ?>
+<tr>
+<td><?php echo htmlspecialchars($subject['name']); ?></td>
+<td>
+<form class="d-flex gap-2" action="admin/core/save_subject_weight" method="POST">
+<input type="hidden" name="subject_id" value="<?php echo $subject['id']; ?>">
+<input type="number" step="0.1" min="0" class="form-control" name="weight" value="<?php echo isset($weights[$subject['id']]) ? $weights[$subject['id']] : 1; ?>">
+<button class="btn btn-outline-primary btn-sm">Save</button>
+</form>
+</td>
+<td></td>
+</tr>
+<?php endforeach; ?>
+</tbody>
+</table>
+</div>
 </div>
 </div>
 </div>
