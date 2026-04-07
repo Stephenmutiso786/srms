@@ -62,19 +62,7 @@ try {
 </ul>
 </header>
 
-<div class="app-sidebar__overlay" data-toggle="sidebar"></div>
-<aside class="app-sidebar">
-<div class="app-sidebar__user">
-<div>
-<p class="app-sidebar__user-name"><?php echo $fname.' '.$lname; ?></p>
-<p class="app-sidebar__user-designation"><?php echo ($level == "5") ? "Accountant" : "Administrator"; ?></p>
-</div>
-</div>
-<ul class="app-menu">
-<li><a class="app-menu__item" href="<?php echo ($level == "5") ? 'accountant' : 'admin'; ?>"><i class="app-menu__icon feather icon-monitor"></i><span class="app-menu__label">Dashboard</span></a></li>
-<li><a class="app-menu__item active" href="admin/mpesa_pay?invoice_id=<?php echo $invoiceId; ?>"><i class="app-menu__icon feather icon-smartphone"></i><span class="app-menu__label">M-Pesa Pay</span></a></li>
-</ul>
-</aside>
+<?php include('admin/partials/sidebar.php'); ?>
 
 <main class="app-content">
 <div class="app-title">

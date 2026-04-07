@@ -77,20 +77,7 @@ try {
 </ul>
 </header>
 
-<div class="app-sidebar__overlay" data-toggle="sidebar"></div>
-<aside class="app-sidebar">
-<div class="app-sidebar__user">
-<div>
-<p class="app-sidebar__user-name"><?php echo $fname.' '.$lname; ?></p>
-<p class="app-sidebar__user-designation">Administrator</p>
-</div>
-</div>
-<ul class="app-menu">
-<li><a class="app-menu__item" href="admin/fees"><i class="app-menu__icon feather icon-credit-card"></i><span class="app-menu__label">Fees & Finance</span></a></li>
-<li><a class="app-menu__item active" href="admin/fee_structure"><i class="app-menu__icon feather icon-sliders"></i><span class="app-menu__label">Fee Structure</span></a></li>
-<li><a class="app-menu__item" href="admin/invoices"><i class="app-menu__icon feather icon-file-text"></i><span class="app-menu__label">Invoices</span></a></li>
-</ul>
-</aside>
+<?php include('admin/partials/sidebar.php'); ?>
 
 <main class="app-content">
 <div class="app-title">
