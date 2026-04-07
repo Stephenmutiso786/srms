@@ -32,6 +32,15 @@ try {
 	$stmt->execute();
 	$subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+	$subjectClassMap = [];
+	if (app_table_exists($conn, 'tbl_subject_class_assignments')) {
+		$stmt = $conn->prepare("SELECT subject_id, class_id FROM tbl_subject_class_assignments");
+		$stmt->execute();
+		foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+			$subjectClassMap[(int)$row['subject_id']][] = (int)$row['class_id'];
+		}
+	}
+
 	$stmt = $conn->prepare("SELECT id, name FROM tbl_terms ORDER BY id");
 	$stmt->execute();
 	$terms = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -119,8 +128,10 @@ try {
 <label class="form-label">Subject</label>
 <select class="form-control" name="subject_id" id="subject_id" required>
 <option value="">Select subject</option>
-<?php foreach ($subjects as $row): ?>
-<option value="<?php echo $row['id']; ?>"><?php echo htmlspecialchars($row['name']); ?></option>
+<?php foreach ($subjects as $row): $classesMap = $subjectClassMap[(int)$row['id']] ?? []; ?>
+<option value="<?php echo $row['id']; ?>" data-classes="<?php echo htmlspecialchars(json_encode($classesMap)); ?>">
+	<?php echo htmlspecialchars($row['name']); ?>
+</option>
 <?php endforeach; ?>
 </select>
 </div>
@@ -215,6 +226,26 @@ $('#resetForm').on('click', function () {
 	$('#subject_id').val('');
 	$('#term_id').val('');
 	$('#year').val('<?php echo $year; ?>');
+});
+$('#class_id').on('change', function () {
+	const classId = parseInt($(this).val(), 10);
+	$('#subject_id option').each(function () {
+		const allowed = $(this).data('classes');
+		if (!allowed) {
+			$(this).show();
+			return;
+		}
+		if (!classId) {
+			$(this).show();
+			return;
+		}
+		if (Array.isArray(allowed) && allowed.length > 0) {
+			$(this).toggle(allowed.includes(classId));
+		} else {
+			$(this).show();
+		}
+	});
+	$('#subject_id').val('');
 });
 </script>
 </body>
