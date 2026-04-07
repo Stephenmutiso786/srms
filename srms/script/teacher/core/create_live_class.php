@@ -17,6 +17,12 @@ $meetingLink = trim($_POST['meeting_link'] ?? '');
 $platform = trim($_POST['platform'] ?? 'Google Meet');
 $startTime = $_POST['start_time'] ?? '';
 $endTime = $_POST['end_time'] ?? null;
+if (is_string($startTime)) {
+  $startTime = str_replace('T', ' ', $startTime);
+}
+if (is_string($endTime)) {
+  $endTime = str_replace('T', ' ', $endTime);
+}
 
 if ($courseId < 1 || $title === '' || $meetingLink === '' || $startTime === '') {
   $_SESSION['reply'] = array (array("danger", "Missing live class details."));

@@ -15,6 +15,9 @@ $courseId = (int)($_POST['course_id'] ?? 0);
 $title = trim($_POST['title'] ?? '');
 $instructions = trim($_POST['instructions'] ?? '');
 $dueDate = $_POST['due_date'] ?? null;
+if (is_string($dueDate)) {
+  $dueDate = str_replace('T', ' ', $dueDate);
+}
 $attachmentPath = '';
 
 if ($courseId < 1 || $title === '' || $instructions === '') {
