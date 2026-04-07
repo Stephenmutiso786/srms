@@ -82,6 +82,12 @@ If your DB has **no staff accounts**, create the first admin via:
 - Teacher: `Teacher → Exam Timetable` (shows schedule for their subjects)
 - Student: `Student → Exam Timetable` (shows schedule for their class)
 
+## Audit logs (Phase 8)
+
+- Requires DB migration `srms/database/pg_migrations/001_rbac_attendance.sql` (creates `tbl_audit_logs`)
+- Admin: `Admin → Audit Logs`
+- Auto logged events: login/logout, attendance, finance, timetable, results locks
+
 Notes:
 - Uploads (student photos / logos) need persistent storage; Render’s filesystem is ephemeral unless you attach a disk or move uploads to object storage.
 
