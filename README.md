@@ -34,6 +34,7 @@ This repo includes a `Dockerfile` so Render can run the PHP app as a single web 
        - `srms/database/pg_migrations/001_rbac_attendance.sql`
        - `srms/database/pg_migrations/002_parent_sessions.sql`
        - `srms/database/pg_migrations/003_fees_finance.sql`
+       - `srms/database/pg_migrations/005_exam_timetable.sql`
 3. In Render → Service → **Environment**, set:
    - `DB_DRIVER` (`mysql` or `pgsql`)
    - `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS`
@@ -73,6 +74,13 @@ If your DB has **no staff accounts**, create the first admin via:
 - Admin: `Admin → Results Analytics` (pick class + term to see ranking + charts)
 - Student: `Student → My Ranking`
 - Approvals: lock/unlock via `Admin → Results Locks` (requires `004_results_locking.sql`)
+
+## Exam timetable (Phase 7)
+
+- Run DB migration: `srms/database/pg_migrations/005_exam_timetable.sql`
+- Admin: `Admin → Exam Timetable` (create entries per class + term)
+- Teacher: `Teacher → Exam Timetable` (shows schedule for their subjects)
+- Student: `Student → Exam Timetable` (shows schedule for their class)
 
 Notes:
 - Uploads (student photos / logos) need persistent storage; Render’s filesystem is ephemeral unless you attach a disk or move uploads to object storage.
