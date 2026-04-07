@@ -13441,6 +13441,30 @@ textarea.form-control-lg {
   }
 }
 
+.app-footer {
+  padding: 12px 30px;
+  background-color: #ffffff;
+  color: #6c757d;
+  border-top: 1px solid #e0e0e0;
+  font-size: 13px;
+  margin-left: 0;
+}
+@media (min-width: 768px) {
+  .app-footer {
+    margin-left: 230px;
+  }
+}
+@media (max-width: 767px) {
+  .app-footer {
+    margin-left: 0;
+  }
+}
+@media print {
+  .app-footer {
+    display: none;
+  }
+}
+
 .light-text {
   font-weight: 300 !important;
 }
