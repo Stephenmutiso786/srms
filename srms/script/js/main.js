@@ -14,9 +14,7 @@
 	// Activate sidebar treeview toggle
 	$("[data-toggle='treeview']").click(function(event) {
 		event.preventDefault();
-		if(!$(this).parent().hasClass('is-expanded')) {
-			treeviewMenu.find("[data-toggle='treeview']").parent().removeClass('is-expanded');
-		}
+		// Allow multiple treeviews to stay open
 		$(this).parent().toggleClass('is-expanded');
 	});
 

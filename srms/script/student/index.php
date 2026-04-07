@@ -7,12 +7,91 @@ require_once('const/check_session.php');
 if ($res == "1" && $level == "3") {}else{header("location:../");}
 $notifications = [];
 $studentClassId = 0;
+$summary = ['attendance_rate' => 0, 'avg_score' => 0, 'fees_balance' => 0, 'subjects' => 0];
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 	$stmt = $conn->prepare("SELECT class FROM tbl_students WHERE id = ? LIMIT 1");
 	$stmt->execute([$account_id]);
 	$studentClassId = (int)$stmt->fetchColumn();
+
+	// Attendance rate last 30 days
+	if (app_table_exists($conn, 'tbl_attendance_sessions') && app_table_exists($conn, 'tbl_attendance_records')) {
+		$driver = $conn->getAttribute(PDO::ATTR_DRIVER_NAME);
+		$dateExpr = $driver === 'mysql' ? "DATE_SUB(CURDATE(), INTERVAL 30 DAY)" : "CURRENT_DATE - INTERVAL '30 days'";
+		$stmt = $conn->prepare("SELECT SUM(CASE WHEN r.status = 'present' THEN 1 ELSE 0 END) AS present_count,
+			COUNT(*) AS total_count
+			FROM tbl_attendance_records r
+			JOIN tbl_attendance_sessions s ON s.id = r.session_id
+			WHERE r.student_id = ? AND s.session_date >= $dateExpr");
+		$stmt->execute([$account_id]);
+		$row = $stmt->fetch(PDO::FETCH_ASSOC);
+		if ($row && (int)$row['total_count'] > 0) {
+			$summary['attendance_rate'] = ((int)$row['present_count'] / (int)$row['total_count']) * 100;
+		}
+	}
+
+	// Current term avg score
+	$termId = 0;
+	$stmt = $conn->prepare("SELECT id FROM tbl_terms WHERE status = 1 ORDER BY id DESC LIMIT 1");
+	$stmt->execute();
+	$termId = (int)$stmt->fetchColumn();
+	if ($termId < 1) {
+		$stmt = $conn->prepare("SELECT id FROM tbl_terms ORDER BY id DESC LIMIT 1");
+		$stmt->execute();
+		$termId = (int)$stmt->fetchColumn();
+	}
+	if ($termId > 0 && app_table_exists($conn, 'tbl_exam_results')) {
+		$stmt = $conn->prepare("SELECT AVG(score) FROM tbl_exam_results WHERE term = ? AND student = ?");
+		$stmt->execute([$termId, $account_id]);
+		$summary['avg_score'] = (float)$stmt->fetchColumn();
+	}
+
+	// Fees balance
+	if (app_table_exists($conn, 'tbl_invoices') && app_table_exists($conn, 'tbl_invoice_lines')) {
+		if (app_table_exists($conn, 'tbl_payments')) {
+			$stmt = $conn->prepare("
+				SELECT COALESCE(SUM(lines.total_amount - COALESCE(paid.total_paid, 0)), 0) AS outstanding
+				FROM (
+					SELECT i.id, SUM(l.amount) AS total_amount
+					FROM tbl_invoices i
+					INNER JOIN tbl_invoice_lines l ON l.invoice_id = i.id
+					WHERE i.student_id = ? AND i.status <> 'void'
+					GROUP BY i.id
+				) lines
+				LEFT JOIN (
+					SELECT invoice_id, SUM(amount) AS total_paid
+					FROM tbl_payments
+					GROUP BY invoice_id
+				) paid ON paid.invoice_id = lines.id
+			");
+			$stmt->execute([$account_id]);
+			$summary['fees_balance'] = (float)$stmt->fetchColumn();
+		} else {
+			$stmt = $conn->prepare("
+				SELECT COALESCE(SUM(l.amount), 0) AS outstanding
+				FROM tbl_invoices i
+				INNER JOIN tbl_invoice_lines l ON l.invoice_id = i.id
+				WHERE i.student_id = ? AND i.status <> 'void'
+			");
+			$stmt->execute([$account_id]);
+			$summary['fees_balance'] = (float)$stmt->fetchColumn();
+		}
+	}
+
+	// Subjects count for class
+	if ($studentClassId > 0 && app_table_exists($conn, 'tbl_subject_combinations')) {
+		$stmt = $conn->prepare("SELECT id, class FROM tbl_subject_combinations");
+		$stmt->execute();
+		$count = 0;
+		foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+			$classList = app_unserialize($row['class']);
+			if (in_array((string)$studentClassId, array_map('strval', $classList), true)) {
+				$count++;
+			}
+		}
+		$summary['subjects'] = $count;
+	}
 	if (app_table_exists($conn, 'tbl_notifications')) {
 		$stmt = $conn->prepare("SELECT title, message, link, created_at FROM tbl_notifications
 			WHERE audience IN ('all','students') OR (audience = 'class' AND class_id = ?)
@@ -102,6 +181,40 @@ echo "Good evening ".$fname."";
 }
 ?>!
 </h4>
+</div>
+<div class="row mb-3">
+  <div class="col-md-6 col-lg-3">
+	<div class="widget-small primary coloured-icon"><i class="icon feather icon-book-open fs-1"></i>
+	  <div class="info">
+		<h4>Subjects</h4>
+		<p><b><?php echo number_format((int)$summary['subjects']); ?></b></p>
+	  </div>
+	</div>
+  </div>
+  <div class="col-md-6 col-lg-3">
+	<div class="widget-small primary coloured-icon"><i class="icon feather icon-check-circle fs-1"></i>
+	  <div class="info">
+		<h4>Attendance</h4>
+		<p><b><?php echo number_format((float)$summary['attendance_rate'], 1); ?>%</b></p>
+	  </div>
+	</div>
+  </div>
+  <div class="col-md-6 col-lg-3">
+	<div class="widget-small primary coloured-icon"><i class="icon feather icon-activity fs-1"></i>
+	  <div class="info">
+		<h4>Avg Score</h4>
+		<p><b><?php echo number_format((float)$summary['avg_score'], 2); ?></b></p>
+	  </div>
+	</div>
+  </div>
+  <div class="col-md-6 col-lg-3">
+	<div class="widget-small primary coloured-icon"><i class="icon feather icon-credit-card fs-1"></i>
+	  <div class="info">
+		<h4>Fees Balance</h4>
+		<p><b><?php echo number_format((float)$summary['fees_balance'], 2); ?></b></p>
+	  </div>
+	</div>
+  </div>
 </div>
 <div class="row">
 <div class="col-md-12">

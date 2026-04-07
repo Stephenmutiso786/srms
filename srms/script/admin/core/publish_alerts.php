@@ -4,6 +4,7 @@ session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/rbac.php');
+require_once('const/notify.php');
 
 if ($res != "1" || $level != "0") { header("location:../"); exit; }
 app_require_permission('results.approve', '../analytics_engine');
@@ -36,6 +37,30 @@ try {
 		$message = (string)$alert['message'];
 		$insert->execute([$title, $message, $audience, $alert['class_id'], $alert['term_id'], 'notifications', $account_id]);
 		$update->execute([$alert['id']]);
+
+		if ($alert['student_id']) {
+			$stmt = $conn->prepare("SELECT p.phone, p.email
+				FROM tbl_parent_students ps
+				JOIN tbl_parents p ON p.id = ps.parent_id
+				WHERE ps.student_id = ?");
+			$stmt->execute([$alert['student_id']]);
+			foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $parent) {
+				if (!empty($parent['phone'])) {
+					app_send_sms($conn, $parent['phone'], $title.': '.$message);
+				}
+				if (!empty($parent['email'])) {
+					app_send_email($conn, $parent['email'], $title, $message);
+				}
+			}
+		} else {
+			$stmt = $conn->prepare("SELECT email FROM tbl_staff WHERE level IN (0,2)");
+			$stmt->execute();
+			foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $staffRow) {
+				if (!empty($staffRow['email'])) {
+					app_send_email($conn, $staffRow['email'], $title, $message);
+				}
+			}
+		}
 	}
 
 	$_SESSION['reply'] = array (array("success", "Published ".count($alerts)." alerts to notifications."));

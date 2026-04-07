@@ -15,6 +15,7 @@ $emailLogs = [];
 $students = [];
 $parents = [];
 $staff = [];
+$smsSettings = ['provider' => 'custom', 'api_url' => '', 'api_key' => '', 'sender_id' => '', 'status' => 0];
 
 try {
 	$conn = app_db();
@@ -42,6 +43,13 @@ try {
 		$stmt = $conn->prepare("SELECT * FROM tbl_email_logs ORDER BY created_at DESC LIMIT 20");
 		$stmt->execute();
 		$emailLogs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	}
+
+	if (app_table_exists($conn, 'tbl_sms_settings')) {
+		$stmt = $conn->prepare("SELECT provider, api_url, api_key, sender_id, status FROM tbl_sms_settings ORDER BY id DESC LIMIT 1");
+		$stmt->execute();
+		$row = $stmt->fetch(PDO::FETCH_ASSOC);
+		if ($row) { $smsSettings = $row; }
 	}
 
 	$stmt = $conn->prepare("SELECT id, concat_ws(' ', fname, mname, lname) AS name FROM tbl_students ORDER BY id");
@@ -182,6 +190,38 @@ try {
 </div>
 
 <div class="row">
+<div class="col-md-6">
+<div class="tile">
+<h3 class="tile-title">SMS Gateway Settings</h3>
+<form class="app_frm" action="admin/core/save_sms_settings" method="POST">
+<div class="mb-3">
+<label class="form-label">Provider Name</label>
+<input class="form-control" name="provider" value="<?php echo htmlspecialchars((string)$smsSettings['provider']); ?>" placeholder="Africa's Talking / Twilio / Custom">
+</div>
+<div class="mb-3">
+<label class="form-label">API URL (POST)</label>
+<input class="form-control" name="api_url" value="<?php echo htmlspecialchars((string)$smsSettings['api_url']); ?>" placeholder="https://api.provider.com/send">
+</div>
+<div class="mb-3">
+<label class="form-label">API Key</label>
+<input class="form-control" name="api_key" value="<?php echo htmlspecialchars((string)$smsSettings['api_key']); ?>" placeholder="Bearer token">
+</div>
+<div class="mb-3">
+<label class="form-label">Sender ID</label>
+<input class="form-control" name="sender_id" value="<?php echo htmlspecialchars((string)$smsSettings['sender_id']); ?>" placeholder="SchoolName">
+</div>
+<div class="mb-3">
+<label class="form-label">Enabled</label>
+<select class="form-control" name="status">
+<option value="1" <?php echo ((int)$smsSettings['status'] === 1) ? 'selected' : ''; ?>>Yes</option>
+<option value="0" <?php echo ((int)$smsSettings['status'] === 0) ? 'selected' : ''; ?>>No</option>
+</select>
+</div>
+<button class="btn btn-primary">Save SMS Settings</button>
+</form>
+</div>
+</div>
+
 <div class="col-md-6">
 <div class="tile">
 <h3 class="tile-title">SMS Hook</h3>

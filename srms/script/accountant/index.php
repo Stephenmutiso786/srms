@@ -5,6 +5,53 @@ require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
 if ($res == "1" && $level == "5") {}else{header("location:../"); exit;}
+$summary = ['open_invoices' => 0, 'paid_today' => 0, 'outstanding' => 0, 'payments_month' => 0];
+
+try {
+	$conn = app_db();
+	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+	if (app_table_exists($conn, 'tbl_invoices')) {
+		$summary['open_invoices'] = (int)$conn->query("SELECT COUNT(*) FROM tbl_invoices WHERE status = 'open'")->fetchColumn();
+	}
+
+	if (app_table_exists($conn, 'tbl_payments')) {
+		$driver = $conn->getAttribute(PDO::ATTR_DRIVER_NAME);
+		$todayExpr = $driver === 'mysql' ? "DATE(paid_at)" : "paid_at::date";
+		$todayValue = $driver === 'mysql' ? "CURDATE()" : "CURRENT_DATE";
+		$monthExpr = $driver === 'mysql' ? "DATE_FORMAT(paid_at, '%Y-%m')" : "TO_CHAR(paid_at, 'YYYY-MM')";
+		$currentMonth = date('Y-m');
+
+		$summary['paid_today'] = (float)$conn->query("SELECT COALESCE(SUM(amount),0) FROM tbl_payments WHERE $todayExpr = $todayValue")->fetchColumn();
+		$stmt = $conn->prepare("SELECT COALESCE(SUM(amount),0) FROM tbl_payments WHERE $monthExpr = ?");
+		$stmt->execute([$currentMonth]);
+		$summary['payments_month'] = (float)$stmt->fetchColumn();
+	}
+
+	if (app_table_exists($conn, 'tbl_invoice_lines') && app_table_exists($conn, 'tbl_invoices')) {
+		if (app_table_exists($conn, 'tbl_payments')) {
+			$stmt = $conn->prepare("
+				SELECT COALESCE(SUM(lines.total_amount - COALESCE(paid.total_paid, 0)), 0) AS outstanding
+				FROM (
+					SELECT i.id, SUM(l.amount) AS total_amount
+					FROM tbl_invoices i
+					INNER JOIN tbl_invoice_lines l ON l.invoice_id = i.id
+					WHERE i.status <> 'void'
+					GROUP BY i.id
+				) lines
+				LEFT JOIN (
+					SELECT invoice_id, SUM(amount) AS total_paid
+					FROM tbl_payments
+					GROUP BY invoice_id
+				) paid ON paid.invoice_id = lines.id
+			");
+			$stmt->execute();
+			$summary['outstanding'] = (float)$stmt->fetchColumn();
+		}
+	}
+} catch (Throwable $e) {
+	// keep defaults
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -58,6 +105,41 @@ if ($res == "1" && $level == "5") {}else{header("location:../"); exit;}
 </div>
 </div>
 
+<div class="row mb-3">
+  <div class="col-md-6 col-lg-3">
+	<div class="widget-small primary coloured-icon"><i class="icon feather icon-file-text fs-1"></i>
+	  <div class="info">
+		<h4>Open Invoices</h4>
+		<p><b><?php echo number_format((int)$summary['open_invoices']); ?></b></p>
+	  </div>
+	</div>
+  </div>
+  <div class="col-md-6 col-lg-3">
+	<div class="widget-small primary coloured-icon"><i class="icon feather icon-cash-stack fs-1"></i>
+	  <div class="info">
+		<h4>Paid Today</h4>
+		<p><b><?php echo number_format((float)$summary['paid_today'], 2); ?></b></p>
+	  </div>
+	</div>
+  </div>
+  <div class="col-md-6 col-lg-3">
+	<div class="widget-small primary coloured-icon"><i class="icon feather icon-credit-card fs-1"></i>
+	  <div class="info">
+		<h4>Outstanding</h4>
+		<p><b><?php echo number_format((float)$summary['outstanding'], 2); ?></b></p>
+	  </div>
+	</div>
+  </div>
+  <div class="col-md-6 col-lg-3">
+	<div class="widget-small primary coloured-icon"><i class="icon feather icon-bar-chart-2 fs-1"></i>
+	  <div class="info">
+		<h4>Month Total</h4>
+		<p><b><?php echo number_format((float)$summary['payments_month'], 2); ?></b></p>
+	  </div>
+	</div>
+  </div>
+</div>
+
 <div class="row">
   <div class="col-lg-4 mb-3">
 	<div class="tile">
@@ -78,4 +160,3 @@ if ($res == "1" && $level == "5") {}else{header("location:../"); exit;}
 <script src="js/main.js"></script>
 </body>
 </html>
-

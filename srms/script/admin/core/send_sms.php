@@ -4,6 +4,7 @@ session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/rbac.php');
+require_once('const/notify.php');
 
 if ($res != "1" || $level != "0") { header("location:../"); }
 app_require_permission('communication.manage', '../communication');
@@ -33,12 +34,15 @@ try {
 		exit;
 	}
 
-	$stmt = $conn->prepare("INSERT INTO tbl_sms_logs (recipient, message, status, provider) VALUES (?,?,?,?)");
-	$stmt->execute([$recipient, $message, 'queued', '']);
-
-	$_SESSION['reply'] = array (array("success", "SMS queued. Hook your gateway to process queued logs."));
+	$result = app_send_sms($conn, $recipient, $message);
+	if ($result['ok']) {
+		$_SESSION['reply'] = array (array("success", "SMS sent successfully."));
+	} else {
+		$msg = $result['error'] !== '' ? $result['error'] : 'Failed to send SMS.';
+		$_SESSION['reply'] = array (array("danger", $msg));
+	}
 	header("location:../communication");
 } catch (Throwable $e) {
-	$_SESSION['reply'] = array (array("danger", "Failed to queue SMS: " . $e->getMessage()));
+	$_SESSION['reply'] = array (array("danger", "Failed to send SMS: " . $e->getMessage()));
 	header("location:../communication");
 }
