@@ -69,6 +69,7 @@ try {
 	$pdf = new TCPDF(PDF_PAGE_ORIENTATION, PDF_UNIT, PDF_PAGE_FORMAT, true, 'UTF-8', false);
 	$pdf->setPrintHeader(false);
 	$pdf->setPrintFooter(false);
+	$pdf->SetProtection([], '', APP_SECRET !== '' ? APP_SECRET : null);
 	$pdf->SetTitle("Report Card");
 	$pdf->AddPage();
 	$pdf->SetFont('helvetica', '', 10);
@@ -83,6 +84,12 @@ try {
 
 	$logoPath = 'images/logo/' . WBLogo;
 	$logoHtml = file_exists($logoPath) ? '<img src="' . $logoPath . '" width="60" />' : '';
+	$principalSign = REPORT_PRINCIPAL_SIGN !== '' ? 'images/signatures/' . REPORT_PRINCIPAL_SIGN : '';
+	$teacherSign = REPORT_TEACHER_SIGN !== '' ? 'images/signatures/' . REPORT_TEACHER_SIGN : '';
+	$stampPath = REPORT_SCHOOL_STAMP !== '' ? 'images/stamps/' . REPORT_SCHOOL_STAMP : '';
+	$principalImg = ($principalSign !== '' && file_exists($principalSign)) ? '<img src="' . $principalSign . '" width="80" />' : '';
+	$teacherImg = ($teacherSign !== '' && file_exists($teacherSign)) ? '<img src="' . $teacherSign . '" width="80" />' : '';
+	$stampImg = ($stampPath !== '' && file_exists($stampPath)) ? '<img src="' . $stampPath . '" width="80" />' : '';
 
 	$html = '
 	<table width="100%" cellpadding="4">
@@ -150,6 +157,20 @@ try {
 	<tr>
 		<td><strong>Verification Code:</strong> ' . $card['verification_code'] . '</td>
 		<td><strong>Generated:</strong> ' . date('F d, Y H:i') . '</td>
+	</tr>
+	</table>
+	<table width="100%" cellpadding="4">
+	<tr>
+		<td><strong>Report Hash:</strong> ' . substr($card['report_hash'], 0, 24) . '...</td>
+		<td><strong>System ID:</strong> RPT-' . $reportId . '</td>
+	</tr>
+	</table>
+	<br>
+	<table width="100%" cellpadding="4">
+	<tr>
+		<td width="40%"><strong>Class Teacher</strong><br>' . $teacherImg . '</td>
+		<td width="30%"><strong>Principal</strong><br>' . $principalImg . '</td>
+		<td width="30%"><strong>School Stamp</strong><br>' . $stampImg . '</td>
 	</tr>
 	</table>
 	';

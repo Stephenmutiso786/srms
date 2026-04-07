@@ -54,6 +54,9 @@ This repo includes a `Dockerfile` so Render can run the PHP app as a single web 
 5. Optional (report verification):
    - `APP_URL` (public base URL, e.g. `https://your-app.onrender.com`)
    - `APP_SECRET` (used to hash report cards)
+   - `REPORT_PRINCIPAL_SIGN` (filename under `srms/script/images/signatures/`)
+   - `REPORT_TEACHER_SIGN` (filename under `srms/script/images/signatures/`)
+   - `REPORT_SCHOOL_STAMP` (filename under `srms/script/images/stamps/`)
 
 ## Initial admin setup (no demo data)
 

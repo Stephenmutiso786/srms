@@ -45,6 +45,9 @@ DEFINE('APP_NAME', getenv('APP_NAME') ?: 'Elimu Hub');
 DEFINE('APP_TAGLINE', getenv('APP_TAGLINE') ?: 'Student Results Management System');
 DEFINE('APP_URL', rtrim(getenv('APP_URL') ?: '', '/'));
 DEFINE('APP_SECRET', getenv('APP_SECRET') ?: '');
+DEFINE('REPORT_PRINCIPAL_SIGN', getenv('REPORT_PRINCIPAL_SIGN') ?: '');
+DEFINE('REPORT_TEACHER_SIGN', getenv('REPORT_TEACHER_SIGN') ?: '');
+DEFINE('REPORT_SCHOOL_STAMP', getenv('REPORT_SCHOOL_STAMP') ?: '');
 
 function app_db(): PDO
 {
