@@ -14928,6 +14928,121 @@ margin: auto !important;
   object-fit: cover !important;
 }
 
+/* Report card styling */
+.report-card {
+  background: #ffffff;
+  border-radius: 18px;
+  padding: 2rem;
+  box-shadow: 0 18px 36px rgba(16, 41, 38, 0.12);
+  border: 1px solid #e4ecea;
+}
+
+.report-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1.5rem;
+  align-items: center;
+  border-bottom: 1px solid #e8efee;
+  padding-bottom: 1.2rem;
+  margin-bottom: 1.5rem;
+}
+
+.report-header h2 {
+  margin: 0;
+  font-size: 1.6rem;
+  color: #083b33;
+}
+
+.report-meta {
+  display: grid;
+  gap: 0.4rem;
+  font-size: 0.9rem;
+  color: #4a6b66;
+}
+
+.report-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(0, 105, 92, 0.12);
+  color: #00695c;
+  padding: 0.35rem 0.8rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.report-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.report-stat {
+  background: #f7fbfa;
+  border: 1px solid #e1ecea;
+  padding: 0.9rem 1rem;
+  border-radius: 14px;
+}
+
+.report-stat .label {
+  font-size: 0.8rem;
+  color: #6b7b79;
+}
+
+.report-stat .value {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #102926;
+}
+
+.report-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1.5rem;
+}
+
+.report-table th,
+.report-table td {
+  padding: 0.7rem 0.9rem;
+  border-bottom: 1px solid #e9efee;
+}
+
+.report-table th {
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  color: #5f7471;
+  letter-spacing: 0.08em;
+}
+
+.report-progress {
+  height: 10px;
+  border-radius: 999px;
+  background: #e7f1ef;
+  overflow: hidden;
+}
+
+.report-progress span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #00695c, #2aa58c);
+}
+
+.report-comments {
+  background: #f7fbfa;
+  border-radius: 14px;
+  padding: 1rem;
+  border: 1px solid #e1ecea;
+}
+
+.report-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+
 /* Admin dashboard refresh */
 .dashboard .app-title {
   margin-bottom: 0;

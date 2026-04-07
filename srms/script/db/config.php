@@ -43,6 +43,8 @@ if (getenv('DB_DSN')) {
 // App branding
 DEFINE('APP_NAME', getenv('APP_NAME') ?: 'Elimu Hub');
 DEFINE('APP_TAGLINE', getenv('APP_TAGLINE') ?: 'Student Results Management System');
+DEFINE('APP_URL', rtrim(getenv('APP_URL') ?: '', '/'));
+DEFINE('APP_SECRET', getenv('APP_SECRET') ?: '');
 
 function app_db(): PDO
 {

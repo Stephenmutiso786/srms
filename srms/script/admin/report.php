@@ -72,11 +72,86 @@ if ($res == "1" && $level == "0") {}else{header("location:../");}
 
 </div>
 <div class="row">
-<div class="col-md-4 center_form">
+<div class="col-md-5 center_form">
 <div class="tile">
 <div class="tile-body">
 <div class="table-responsive">
-<h3 class="tile-title">Report Tool</h3>
+<h3 class="tile-title">Generate Report Cards</h3>
+<p class="text-muted mb-3">Lock results first, then generate official report cards for the selected class and term.</p>
+<form enctype="multipart/form-data" action="admin/core/process_results" class="app_frm" method="POST" autocomplete="OFF">
+
+<div class="mb-2">
+<label class="form-label">Select Class</label>
+<select class="form-control select2" name="class_id" required style="width: 100%;">
+<option value="" selected disabled> Select One</option>
+<?php
+try {
+$conn = app_db();
+$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+$stmt = $conn->prepare("SELECT * FROM tbl_classes");
+$stmt->execute();
+$result = $stmt->fetchAll();
+
+foreach($result as $row)
+{
+?>
+<option value="<?php echo $row[0]; ?>"><?php echo $row[1]; ?> </option>
+<?php
+}
+
+}catch(PDOException $e)
+{
+echo "Connection failed: " . $e->getMessage();
+}
+?>
+</select>
+</div>
+
+<div class="mb-3">
+<label class="form-label">Select Term</label>
+<select class="form-control select2" name="term_id" required style="width: 100%;">
+<option selected disabled value="">Select One</option>
+<?php
+try {
+$conn = app_db();
+$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+$stmt = $conn->prepare("SELECT * FROM tbl_terms WHERE status = '1'");
+$stmt->execute();
+$result = $stmt->fetchAll();
+
+foreach($result as $row)
+{
+?>
+<option value="<?php echo $row[0]; ?>"><?php echo $row[1]; ?> </option>
+<?php
+}
+
+}catch(PDOException $e)
+{
+echo "Connection failed: " . $e->getMessage();
+}
+?>
+</select>
+</div>
+
+<div class="">
+<button class="btn btn-primary app_btn" type="submit">Generate Report Cards</button>
+</div>
+</form>
+</div>
+
+</div>
+</div>
+</div>
+
+<div class="col-md-5 center_form">
+<div class="tile">
+<div class="tile-body">
+<div class="table-responsive">
+<h3 class="tile-title">Performance Summary</h3>
+<p class="text-muted mb-3">Generate a class-level performance summary PDF.</p>
 <form enctype="multipart/form-data" action="admin/core/start_report" class="app_frm" method="POST" autocomplete="OFF">
 
 <div class="mb-2">
@@ -136,7 +211,7 @@ echo "Connection failed: " . $e->getMessage();
 </div>
 
 <div class="">
-<button class="btn btn-primary app_btn" type="submit">Generate Report</button>
+<button class="btn btn-outline-primary app_btn" type="submit">Generate Summary Report</button>
 </div>
 </form>
 </div>

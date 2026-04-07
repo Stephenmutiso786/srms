@@ -66,6 +66,7 @@ try {
 <ul class="app-menu">
 <li><a class="app-menu__item active" href="parent"><i class="app-menu__icon feather icon-monitor"></i><span class="app-menu__label">Dashboard</span></a></li>
 <li><a class="app-menu__item" href="parent/attendance"><i class="app-menu__icon feather icon-check-square"></i><span class="app-menu__label">Attendance</span></a></li>
+<li><a class="app-menu__item" href="parent/report_card"><i class="app-menu__icon feather icon-file-text"></i><span class="app-menu__label">Report Card</span></a></li>
 <li><a class="app-menu__item" href="parent/fees"><i class="app-menu__icon feather icon-credit-card"></i><span class="app-menu__label">Fees</span></a></li>
 </ul>
 </aside>
@@ -102,7 +103,10 @@ try {
 			<td><?php echo htmlspecialchars((string)$st['id']); ?></td>
 			<td><?php echo htmlspecialchars((string)$st['name']); ?></td>
 			<td><?php echo htmlspecialchars((string)($st['class_name'] ?? '')); ?></td>
-			<td><a class="btn btn-sm btn-outline-primary" href="parent/attendance?student_id=<?php echo htmlspecialchars((string)$st['id']); ?>">View Attendance</a></td>
+			<td>
+			  <a class="btn btn-sm btn-outline-primary" href="parent/attendance?student_id=<?php echo htmlspecialchars((string)$st['id']); ?>">Attendance</a>
+			  <a class="btn btn-sm btn-outline-secondary" href="parent/report_card?student=<?php echo htmlspecialchars((string)$st['id']); ?>">Report Card</a>
+			</td>
 		  </tr>
 		<?php } ?>
 		</tbody>

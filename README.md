@@ -46,10 +46,14 @@ This repo includes a `Dockerfile` so Render can run the PHP app as a single web 
        - `srms/database/pg_migrations/002_parent_sessions.sql`
        - `srms/database/pg_migrations/003_fees_finance.sql`
        - `srms/database/pg_migrations/005_exam_timetable.sql`
+       - `srms/database/pg_migrations/007_exam_engine.sql`
 3. In Render → Service → **Environment**, set:
    - `DB_DRIVER` (`mysql` or `pgsql`)
    - `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS`
 4. If your DB provider requires TLS, set `DB_SSL_MODE=REQUIRED`.
+5. Optional (report verification):
+   - `APP_URL` (public base URL, e.g. `https://your-app.onrender.com`)
+   - `APP_SECRET` (used to hash report cards)
 
 ## Initial admin setup (no demo data)
 
@@ -117,6 +121,14 @@ If your DB has **no staff accounts**, create the first admin via:
 
 Notes:
 - Uploads (student photos / logos) need persistent storage; Render’s filesystem is ephemeral unless you attach a disk or move uploads to object storage.
+
+## Report cards (Exam engine)
+
+1. Run migration: `srms/database/pg_migrations/007_exam_engine.sql`
+2. Lock results: `Admin → Results Locks`
+3. Generate report cards: `Admin → Report Tool → Generate Report Cards`
+4. Student/Parent: `Report Card` menu
+5. Verify by code: `/verify_report?code=YOUR_CODE`
 
 ## Vercel (frontend)
 
