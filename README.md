@@ -49,6 +49,11 @@ This repo includes a `Dockerfile` so Render can run the PHP app as a single web 
        - `srms/database/pg_migrations/005_exam_timetable.sql`
        - `srms/database/pg_migrations/007_exam_engine.sql`
        - `srms/database/pg_migrations/008_notifications.sql`
+       - `srms/database/pg_migrations/009_communication.sql`
+       - `srms/database/pg_migrations/010_library_inventory.sql`
+       - `srms/database/pg_migrations/011_transport_fleet.sql`
+       - `srms/database/pg_migrations/012_rbac_enterprise.sql`
+       - `srms/database/pg_migrations/013_import_export.sql`
 3. In Render → Service → **Environment**, set:
    - `DB_DRIVER` (`mysql` or `pgsql`)
    - `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS`
@@ -141,6 +146,35 @@ Notes:
 - Exam management: `Admin → Exams` (types + create exams + status)
 - Notifications: `Admin → Notifications`
 - Auto alerts: report card generation triggers class notifications for students + parents
+
+## Communication + Library + Inventory + Transport
+
+- Communication: `Admin → Communication` (announcements, internal messages, SMS/email hooks)
+- Library: `Admin → Library` (books + loans)
+- Inventory: `Admin → Inventory` (assets + stock adjustments)
+- Transport: `Admin → Transport` (vehicles, routes, stops, assignments)
+
+## RBAC + Module Locks
+
+- Run migration: `srms/database/pg_migrations/012_rbac_enterprise.sql`
+- Super Admin: set `tbl_staff.level = 9` for the system owner (full access)
+- Roles & permissions: use `tbl_roles`, `tbl_permissions`, `tbl_user_roles`
+- Roles UI: `Admin → Roles & Permissions` (assign roles to staff)
+- Module locks: `Admin → Module Locks` (requires `system.manage` permission)
+- Migrations: `Admin → Migrations` (applies all Postgres migrations)
+
+## Import / Export + PDF
+
+- Run migration: `srms/database/pg_migrations/013_import_export.sql`
+- Import/Export: `Admin → Import / Export`
+- Imports supported: Students, Teachers, Marks, CBC assessments (CSV)
+- Exports supported: Students (CSV/PDF), Results (CSV), CBC (CSV)
+
+## Fix “module not installed” errors
+
+- Open `Admin → Migrations`
+- Click **Apply All Migrations**
+- Reload the module page
 
 ## Vercel (frontend)
 

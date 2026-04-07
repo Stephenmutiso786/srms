@@ -4,11 +4,14 @@ session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/report_engine.php');
+require_once('const/rbac.php');
 
 if (!isset($res) || $res !== "1" || !isset($level) || $level !== "0") {
 	header("location:../");
 	exit;
 }
+app_require_permission('report.generate', '../report');
+app_require_unlocked('reports', '../report');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 	header("location:../report");

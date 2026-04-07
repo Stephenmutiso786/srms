@@ -4,7 +4,10 @@ session_start();
 require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
+require_once('const/rbac.php');
 if ($res == "1" && $level == "0") {}else{header("location:../"); exit;}
+app_require_permission('finance.manage', 'admin');
+app_require_unlocked('finance', 'admin');
 
 $counts = ['invoiced' => 0, 'paid' => 0, 'balance' => 0, 'open_invoices' => 0];
 $topDefaulters = [];
@@ -188,4 +191,3 @@ try {
 <?php require_once('const/check-reply.php'); ?>
 </body>
 </html>
-

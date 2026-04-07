@@ -50,6 +50,10 @@ try {
 		$email = (string)$row['email'];
 		$login = (string)$row['password'];
 		$level = (string)$row['level'];
+		if ($level === "9") {
+			$super_admin = true;
+			$level = "0";
+		}
 		$res = "1";
 		return;
 	}

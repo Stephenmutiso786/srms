@@ -4,7 +4,10 @@ session_start();
 require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
+require_once('const/rbac.php');
 if ($res == "1" && $level == "0") {}else{header("location:../"); exit;}
+app_require_permission('results.lock', 'admin');
+app_require_unlocked('reports', 'admin');
 
 $classes = [];
 $terms = [];
@@ -12,6 +15,7 @@ $locks = [];
 $filterClass = (int)($_GET['class_id'] ?? 0);
 $filterTerm = (int)($_GET['term_id'] ?? 0);
 $currentLock = null;
+$canUnlock = false;
 $error = '';
 
 try {
@@ -29,6 +33,8 @@ try {
 	$stmt = $conn->prepare("SELECT id, name FROM tbl_terms ORDER BY id DESC");
 	$stmt->execute();
 	$terms = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+	$canUnlock = app_has_permission($conn, (string)$account_id, (string)$level, 'results.unlock');
 
 	$stmt = $conn->prepare("SELECT rl.class_id, c.name AS class_name, rl.term_id, t.name AS term_name, rl.locked, rl.reason, rl.locked_at
 		FROM tbl_results_locks rl
@@ -151,7 +157,11 @@ try {
 	  </div>
 	  <div class="col-md-4 d-grid align-items-end">
 		<?php if ((int)$currentLock['locked'] === 1) { ?>
-		  <button class="btn btn-success" type="submit" name="locked" value="0"><i class="bi bi-unlock me-1"></i>Unlock</button>
+		  <?php if ($canUnlock) { ?>
+			<button class="btn btn-success" type="submit" name="locked" value="0"><i class="bi bi-unlock me-1"></i>Unlock</button>
+		  <?php } else { ?>
+			<button class="btn btn-outline-secondary" type="button" disabled><i class="bi bi-lock me-1"></i>Unlock (Super Admin)</button>
+		  <?php } ?>
 		<?php } else { ?>
 		  <button class="btn btn-danger" type="submit" name="locked" value="1"><i class="bi bi-lock me-1"></i>Lock</button>
 		<?php } ?>
@@ -198,4 +208,3 @@ try {
 <?php require_once('const/check-reply.php'); ?>
 </body>
 </html>
-

@@ -70,16 +70,24 @@ try {
 <li><a class="app-menu__item" href="admin/attendance"><i class="app-menu__icon feather icon-check-square"></i><span class="app-menu__label">Attendance</span></a></li>
 <li><a class="app-menu__item" href="admin/staff_attendance"><i class="app-menu__icon feather icon-clock"></i><span class="app-menu__label">Staff Attendance</span></a></li>
 <li><a class="app-menu__item" href="admin/fees"><i class="app-menu__icon feather icon-credit-card"></i><span class="app-menu__label">Fees & Finance</span></a></li>
+<li><a class="app-menu__item" href="admin/import_export"><i class="app-menu__icon feather icon-upload-cloud"></i><span class="app-menu__label">Import / Export</span></a></li>
+<li><a class="app-menu__item" href="admin/communication"><i class="app-menu__icon feather icon-message-circle"></i><span class="app-menu__label">Communication</span></a></li>
+<li><a class="app-menu__item" href="admin/library"><i class="app-menu__icon feather icon-book"></i><span class="app-menu__label">Library</span></a></li>
+<li><a class="app-menu__item" href="admin/inventory"><i class="app-menu__icon feather icon-box"></i><span class="app-menu__label">Inventory</span></a></li>
+<li><a class="app-menu__item" href="admin/transport"><i class="app-menu__icon feather icon-truck"></i><span class="app-menu__label">Transport</span></a></li>
 <li><a class="app-menu__item" href="admin/results_locks"><i class="app-menu__icon feather icon-lock"></i><span class="app-menu__label">Results Locks</span></a></li>
 <li><a class="app-menu__item" href="admin/results_analytics"><i class="app-menu__icon feather icon-bar-chart-2"></i><span class="app-menu__label">Results Analytics</span></a></li>
 <li><a class="app-menu__item" href="admin/exams"><i class="app-menu__icon feather icon-file-text"></i><span class="app-menu__label">Exams</span></a></li>
 <li><a class="app-menu__item" href="admin/exam_timetable"><i class="app-menu__icon feather icon-calendar"></i><span class="app-menu__label">Exam Timetable</span></a></li>
 <li><a class="app-menu__item" href="admin/notifications"><i class="app-menu__icon feather icon-bell"></i><span class="app-menu__label">Notifications</span></a></li>
 <li><a class="app-menu__item" href="admin/audit_logs"><i class="app-menu__icon feather icon-shield"></i><span class="app-menu__label">Audit Logs</span></a></li>
+<li><a class="app-menu__item" href="admin/roles"><i class="app-menu__icon feather icon-shield"></i><span class="app-menu__label">Roles & Permissions</span></a></li>
 <li><a class="app-menu__item" href="admin/mpesa"><i class="app-menu__icon feather icon-smartphone"></i><span class="app-menu__label">M-Pesa</span></a></li>
 <li><a class="app-menu__item" href="admin/report"><i class="app-menu__icon feather icon-bar-chart-2"></i><span class="app-menu__label">Report Tool</span></a></li>
 <li><a class="app-menu__item" href="admin/report_settings"><i class="app-menu__icon feather icon-settings"></i><span class="app-menu__label">Report Settings</span></a></li>
 <li><a class="app-menu__item" href="admin/smtp"><i class="app-menu__icon feather icon-mail"></i><span class="app-menu__label">SMTP Settings</span></a></li>
+<li><a class="app-menu__item" href="admin/migrations"><i class="app-menu__icon feather icon-database"></i><span class="app-menu__label">Migrations</span></a></li>
+<li><a class="app-menu__item" href="admin/module_locks"><i class="app-menu__icon feather icon-lock"></i><span class="app-menu__label">Module Locks</span></a></li>
 <li><a class="app-menu__item" href="admin/system"><i class="app-menu__icon feather icon-settings"></i><span class="app-menu__label">System Settings</span></a></li>
 </ul>
 </aside>

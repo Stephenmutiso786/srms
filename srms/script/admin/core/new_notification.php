@@ -3,8 +3,11 @@ chdir('../../');
 session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
+require_once('const/rbac.php');
 
 if ($res != "1" || $level != "0") { header("location:../"); }
+app_require_permission('communication.manage', '../notifications');
+app_require_unlocked('communication', '../notifications');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 	header("location:../notifications");

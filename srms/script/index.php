@@ -32,7 +32,10 @@ require_once('const/school.php');
 </div>
 <div class="mb-3">
 <label class="form-label">PASSWORD</label>
-<input class="form-control" type="password" placeholder="Login Password" required name="password">
+<div class="input-group">
+<input class="form-control" id="loginPassword" type="password" placeholder="Login Password" required name="password">
+<button class="btn btn-outline-secondary" type="button" id="toggleLoginPassword"><i class="bi bi-eye"></i></button>
+</div>
 </div>
 <div class="mb-3">
 <div class="utility">
@@ -72,6 +75,13 @@ require_once('const/school.php');
 $('.login-content [data-toggle="flip"]').click(function() {
 $('.login-box').toggleClass('flipped');
 return false;
+});
+$('#toggleLoginPassword').on('click', function () {
+  var input = document.getElementById('loginPassword');
+  if (!input) return;
+  var isPassword = input.getAttribute('type') === 'password';
+  input.setAttribute('type', isPassword ? 'text' : 'password');
+  this.innerHTML = isPassword ? '<i class="bi bi-eye-slash"></i>' : '<i class="bi bi-eye"></i>';
 });
 </script>
 <?php require_once('const/check-reply.php'); ?>

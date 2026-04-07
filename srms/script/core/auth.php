@@ -98,6 +98,9 @@ switch ($row[3]) {
 case '0':
 header("location:../admin");
 break;
+case '9':
+header("location:../admin");
+break;
 
 case '1':
 header("location:../academic");
