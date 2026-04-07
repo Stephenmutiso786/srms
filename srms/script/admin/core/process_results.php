@@ -125,6 +125,21 @@ try {
 	}
 
 	$conn->commit();
+
+	if (app_table_exists($conn, 'tbl_notifications')) {
+		$stmt = $conn->prepare("SELECT name FROM tbl_terms WHERE id = ? LIMIT 1");
+		$stmt->execute([$termId]);
+		$termName = (string)$stmt->fetchColumn();
+		$stmt = $conn->prepare("SELECT name FROM tbl_classes WHERE id = ? LIMIT 1");
+		$stmt->execute([$classId]);
+		$className = (string)$stmt->fetchColumn();
+		$title = "Results Released";
+		$message = "Report cards for " . ($className !== '' ? $className : "the class") . " (" . ($termName !== '' ? $termName : "term") . ") are now available.";
+
+		$stmt = $conn->prepare("INSERT INTO tbl_notifications (title, message, audience, class_id, term_id, link, created_by) VALUES (?,?,?,?,?,?,?)");
+		$stmt->execute([$title, $message, 'class', $classId, $termId, 'report_card?term=' . $termId, $myid]);
+	}
+
 	$_SESSION['reply'] = array (array("success", "Report cards generated successfully."));
 	header("location:../report");
 } catch (Throwable $e) {

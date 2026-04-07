@@ -7,6 +7,8 @@ require_once('const/check_session.php');
 if ($res == "1" && $level == "4") {}else{header("location:../"); exit;}
 
 $students = [];
+$notifications = [];
+$classIds = [];
 $error = '';
 
 try {
@@ -17,7 +19,7 @@ try {
 		throw new RuntimeException("Parent module is not installed on the server.");
 	}
 
-	$stmt = $conn->prepare("SELECT st.id, concat_ws(' ', st.fname, st.mname, st.lname) AS name, c.name AS class_name
+	$stmt = $conn->prepare("SELECT st.id, st.class AS class_id, concat_ws(' ', st.fname, st.mname, st.lname) AS name, c.name AS class_name
 		FROM tbl_parent_students ps
 		JOIN tbl_students st ON st.id = ps.student_id
 		LEFT JOIN tbl_classes c ON c.id = st.class
@@ -25,6 +27,29 @@ try {
 		ORDER BY st.id");
 	$stmt->execute([(int)$account_id]);
 	$students = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+	foreach ($students as $st) {
+		if (!empty($st['class_id'])) {
+			$classIds[(int)$st['class_id']] = true;
+		}
+	}
+
+	if (app_table_exists($conn, 'tbl_notifications')) {
+		if (count($classIds) > 0) {
+			$placeholders = implode(',', array_fill(0, count($classIds), '?'));
+			$params = array_keys($classIds);
+			$stmt = $conn->prepare("SELECT title, message, link, created_at FROM tbl_notifications
+				WHERE audience IN ('all','parents') OR (audience = 'class' AND class_id IN ($placeholders))
+				ORDER BY created_at DESC LIMIT 5");
+			$stmt->execute($params);
+		} else {
+			$stmt = $conn->prepare("SELECT title, message, link, created_at FROM tbl_notifications
+				WHERE audience IN ('all','parents')
+				ORDER BY created_at DESC LIMIT 5");
+			$stmt->execute();
+		}
+		$notifications = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	}
 } catch (Throwable $e) {
 	$error = $e->getMessage();
 }
@@ -115,6 +140,33 @@ try {
   <?php } ?>
 </div>
 <?php } ?>
+
+<div class="tile mt-3">
+  <h3 class="tile-title">Notifications</h3>
+  <?php if (count($notifications) < 1) { ?>
+	<div class="alert alert-info mb-0">No notifications yet.</div>
+  <?php } else { ?>
+	<div class="list-group">
+	<?php foreach ($notifications as $note) {
+		$link = trim((string)($note['link'] ?? ''));
+		if ($link !== '' && strpos($link, '://') === false && strpos($link, '/') !== 0) {
+			$link = 'parent/' . $link;
+		}
+	?>
+	  <div class="list-group-item">
+		<div class="d-flex justify-content-between">
+		  <strong><?php echo htmlspecialchars((string)$note['title']); ?></strong>
+		  <small class="text-muted"><?php echo htmlspecialchars((string)$note['created_at']); ?></small>
+		</div>
+		<div class="text-muted"><?php echo htmlspecialchars((string)$note['message']); ?></div>
+		<?php if ($link !== '') { ?>
+		  <a class="btn btn-sm btn-outline-primary mt-2" href="<?php echo htmlspecialchars($link); ?>">View</a>
+		<?php } ?>
+	  </div>
+	<?php } ?>
+	</div>
+  <?php } ?>
+</div>
 
 </main>
 

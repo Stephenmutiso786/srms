@@ -5,6 +5,24 @@ require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
 if ($res == "1" && $level == "3") {}else{header("location:../");}
+$notifications = [];
+$studentClassId = 0;
+try {
+	$conn = app_db();
+	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	$stmt = $conn->prepare("SELECT class FROM tbl_students WHERE id = ? LIMIT 1");
+	$stmt->execute([$account_id]);
+	$studentClassId = (int)$stmt->fetchColumn();
+	if (app_table_exists($conn, 'tbl_notifications')) {
+		$stmt = $conn->prepare("SELECT title, message, link, created_at FROM tbl_notifications
+			WHERE audience IN ('all','students') OR (audience = 'class' AND class_id = ?)
+			ORDER BY created_at DESC LIMIT 5");
+		$stmt->execute([$studentClassId]);
+		$notifications = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	}
+} catch (Throwable $e) {
+	$notifications = [];
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -84,6 +102,37 @@ echo "Good evening ".$fname."";
 }
 ?>!
 </h4>
+</div>
+<div class="row">
+<div class="col-md-12">
+<div class="tile">
+<h4 class="tile-title">Notifications</h4>
+
+<?php if (count($notifications) < 1) { ?>
+<div class="alert alert-dismissible alert-info">
+<strong>No notifications yet</strong>
+</div>
+<?php } else { foreach ($notifications as $note) {
+	$link = trim((string)($note['link'] ?? ''));
+	if ($link !== '' && strpos($link, '://') === false && strpos($link, '/') !== 0) {
+		$link = 'student/' . $link;
+	}
+?>
+<div class="col-lg-12 mb-3">
+<div class="bs-component">
+<div class="list-group">
+<a class="list-group-item list-group-item-action active"><?php echo htmlspecialchars((string)$note['title']); ?></a>
+<a class="list-group-item list-group-item-action"><?php echo htmlspecialchars((string)$note['message']); ?></a>
+<a class="list-group-item list-group-item-action disabled"><?php echo htmlspecialchars((string)$note['created_at']); ?></a>
+<?php if ($link !== '') { ?>
+<a class="list-group-item list-group-item-action text-primary" href="<?php echo htmlspecialchars($link); ?>">View</a>
+<?php } ?>
+</div>
+</div>
+</div>
+<?php } } ?>
+</div>
+</div>
 </div>
 <div class="row">
 <div class="col-md-12">

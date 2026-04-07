@@ -58,6 +58,7 @@ if ($res == "1" && $level == "0") {}else{header("location:../");}
 </ul>
 </li>
 <li><a class="app-menu__item active" href="admin/report"><i class="app-menu__icon feather icon-bar-chart-2"></i><span class="app-menu__label">Report Tool</span></a></li>
+<li><a class="app-menu__item" href="admin/report_settings"><i class="app-menu__icon feather icon-settings"></i><span class="app-menu__label">Report Settings</span></a></li>
 <li><a class="app-menu__item" href="admin/smtp"><i class="app-menu__icon feather icon-mail"></i><span class="app-menu__label">SMTP Settings</span></a></li>
 <li><a class="app-menu__item" href="admin/system"><i class="app-menu__icon feather icon-settings"></i><span class="app-menu__label">System Settings</span></a></li>
 </ul>

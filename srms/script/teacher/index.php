@@ -6,6 +6,20 @@ require_once('const/school.php');
 require_once('const/check_session.php');
 require_once('const/teacher_dashboard.php');
 if ($res == "1" && $level == "2") {}else{header("location:../");}
+$notifications = [];
+try {
+	$conn = app_db();
+	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	if (app_table_exists($conn, 'tbl_notifications')) {
+		$stmt = $conn->prepare("SELECT title, message, link, created_at FROM tbl_notifications
+			WHERE audience IN ('all','staff')
+			ORDER BY created_at DESC LIMIT 5");
+		$stmt->execute();
+		$notifications = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	}
+} catch (Throwable $e) {
+	$notifications = [];
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -101,6 +115,37 @@ if ($res == "1" && $level == "2") {}else{header("location:../");}
 </div>
 </div>
 
+</div>
+<div class="row">
+<div class="col-md-12">
+<div class="tile">
+<h4 class="tile-title">Notifications</h4>
+
+<?php if (count($notifications) < 1) { ?>
+<div class="alert alert-dismissible alert-info">
+<strong>No notifications yet</strong>
+</div>
+<?php } else { foreach ($notifications as $note) {
+	$link = trim((string)($note['link'] ?? ''));
+	if ($link !== '' && strpos($link, '://') === false && strpos($link, '/') !== 0) {
+		$link = 'teacher/' . $link;
+	}
+?>
+<div class="col-lg-12 mb-3">
+<div class="bs-component">
+<div class="list-group">
+<a class="list-group-item list-group-item-action active"><?php echo htmlspecialchars((string)$note['title']); ?></a>
+<a class="list-group-item list-group-item-action"><?php echo htmlspecialchars((string)$note['message']); ?></a>
+<a class="list-group-item list-group-item-action disabled"><?php echo htmlspecialchars((string)$note['created_at']); ?></a>
+<?php if ($link !== '') { ?>
+<a class="list-group-item list-group-item-action text-primary" href="<?php echo htmlspecialchars($link); ?>">View</a>
+<?php } ?>
+</div>
+</div>
+</div>
+<?php } } ?>
+</div>
+</div>
 </div>
 <div class="row">
 <div class="col-md-12">

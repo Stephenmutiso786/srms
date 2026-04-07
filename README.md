@@ -40,13 +40,15 @@ This repo includes a `Dockerfile` so Render can run the PHP app as a single web 
 2. Create a database:
    - MySQL: use `srms/database/srms_mysql_schema_clean.sql`
    - Postgres (Neon/Supabase/etc.): use `srms/database/srms_postgres_schema.sql`
-     - Optional demo seed (only if you want sample accounts/data): `srms/database/srms_postgres_seed_demo.sql`
+    - Optional demo seed (only if you want sample accounts/data): `srms/database/srms_postgres_seed_demo.sql`
     - Then run migrations (recommended):
        - `srms/database/pg_migrations/001_rbac_attendance.sql`
        - `srms/database/pg_migrations/002_parent_sessions.sql`
        - `srms/database/pg_migrations/003_fees_finance.sql`
+       - `srms/database/pg_migrations/004_results_locking.sql`
        - `srms/database/pg_migrations/005_exam_timetable.sql`
        - `srms/database/pg_migrations/007_exam_engine.sql`
+       - `srms/database/pg_migrations/008_notifications.sql`
 3. In Render → Service → **Environment**, set:
    - `DB_DRIVER` (`mysql` or `pgsql`)
    - `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS`
@@ -132,6 +134,13 @@ Notes:
 3. Generate report cards: `Admin → Report Tool → Generate Report Cards`
 4. Student/Parent: `Report Card` menu
 5. Verify by code: `/verify_report?code=YOUR_CODE`
+
+## Exam settings + notifications
+
+- Report settings: `Admin → Report Settings` (best-of, weights, fees lock)
+- Exam management: `Admin → Exams` (types + create exams + status)
+- Notifications: `Admin → Notifications`
+- Auto alerts: report card generation triggers class notifications for students + parents
 
 ## Vercel (frontend)
 
