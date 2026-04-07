@@ -157,7 +157,7 @@ try {
 		  <th>Total</th>
 		  <th>Paid</th>
 		  <th>Balance</th>
-		  <th style="width:360px;">Record Payment</th>
+		  <th style="width:420px;">Payments</th>
 		</tr>
 	  </thead>
 	  <tbody>
@@ -174,7 +174,8 @@ try {
 		  <td><?php echo number_format($paid, 2); ?></td>
 		  <td><b><?php echo number_format($bal, 2); ?></b></td>
 		  <td>
-			<form class="row g-2" method="POST" action="admin/core/add_payment" style="min-width:340px;">
+			<div class="d-flex gap-2 align-items-start" style="min-width:400px;">
+			<form class="row g-2" method="POST" action="admin/core/add_payment" style="margin:0; flex:1;">
 			  <input type="hidden" name="invoice_id" value="<?php echo (int)$inv['id']; ?>">
 			  <input type="hidden" name="class_id" value="<?php echo $filterClass; ?>">
 			  <input type="hidden" name="term_id" value="<?php echo $filterTerm; ?>">
@@ -197,6 +198,11 @@ try {
 				<button class="btn btn-sm btn-outline-primary" type="submit">Add Payment</button>
 			  </div>
 			</form>
+			<div style="width:140px;">
+			  <a class="btn btn-sm btn-primary w-100" href="admin/mpesa_pay?invoice_id=<?php echo (int)$inv['id']; ?>"><i class="bi bi-phone me-1"></i>STK Push</a>
+			  <div class="text-muted mt-1" style="font-size:12px;">Auto posts payment</div>
+			</div>
+			</div>
 		  </td>
 		</tr>
 	  <?php } } ?>
@@ -216,4 +222,3 @@ try {
 <?php require_once('const/check-reply.php'); ?>
 </body>
 </html>
-

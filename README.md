@@ -88,6 +88,22 @@ If your DB has **no staff accounts**, create the first admin via:
 - Admin: `Admin → Audit Logs`
 - Auto logged events: login/logout, attendance, finance, timetable, results locks
 
+## M-Pesa STK Push (Phase 9)
+
+- Run DB migration: `srms/database/pg_migrations/006_mpesa_stk.sql`
+- Admin: `Admin → M-Pesa` (configure)
+- Callback URL: `https://YOUR-RENDER.onrender.com/api/mpesa_callback`
+  - Optional security: set `MPESA_CALLBACK_TOKEN` env var and it will be required by the callback endpoint
+- Invoices: `Admin/Accountant → Invoices` → **STK Push**
+- Environment variables (recommended on Render):
+  - `MPESA_ENABLED=1`
+  - `MPESA_ENV=sandbox` (or `live`)
+  - `MPESA_SHORTCODE=...`
+  - `MPESA_PASSKEY=...`
+  - `MPESA_CONSUMER_KEY=...`
+  - `MPESA_CONSUMER_SECRET=...`
+  - `MPESA_CALLBACK_URL=https://YOUR-RENDER.onrender.com/api/mpesa_callback`
+
 Notes:
 - Uploads (student photos / logos) need persistent storage; Render’s filesystem is ephemeral unless you attach a disk or move uploads to object storage.
 
