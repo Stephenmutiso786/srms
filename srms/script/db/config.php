@@ -15,7 +15,7 @@ DEFINE('DBHost', getenv('DB_HOST') ?: 'localhost');
 DEFINE('DBPort', getenv('DB_PORT') ?: '');
 DEFINE('DBUser', getenv('DB_USER') ?: 'root');
 DEFINE('DBPass', getenv('DB_PASS') ?: '');
-DEFINE('DBName', getenv('DB_NAME') ?: 'srms_makumbusho');
+DEFINE('DBName', getenv('DB_NAME') ?: 'srms');
 DEFINE('DBCharset', getenv('DB_CHARSET') ?: 'utf8mb4');
 DEFINE('DBCollation', getenv('DB_COLLATION') ?: 'utf8_general_ci');
 DEFINE('DBPrefix', getenv('DB_PREFIX') ?: '');

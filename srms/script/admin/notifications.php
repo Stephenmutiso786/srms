@@ -41,7 +41,7 @@ try {
 <html lang="en">
 <meta http-equiv="content-type" content="text/html;charset=utf-8" />
 <head>
-<title>Notifications - Elimu Hub</title>
+<title><?php echo APP_NAME; ?> - Notifications</title>
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -51,7 +51,7 @@ try {
 <link rel="stylesheet" type="text/css" href="cdn.jsdelivr.net/npm/bootstrap-icons%401.10.5/font/bootstrap-icons.css">
 </head>
 <body class="app sidebar-mini">
-<header class="app-header"><a class="app-header__logo" href="javascript:void(0);">Elimu Hub</a>
+<header class="app-header"><a class="app-header__logo" href="javascript:void(0);"><?php echo APP_NAME; ?></a>
 <a class="app-sidebar__toggle" href="#" data-toggle="sidebar" aria-label="Hide Sidebar"></a>
 <ul class="app-nav">
 <li class="dropdown"><a class="app-nav__item" href="#" data-bs-toggle="dropdown" aria-label="Open Profile Menu"><i class="bi bi-person fs-4"></i></a>
@@ -139,13 +139,22 @@ try {
 <div class="tile">
 <h3 class="tile-title">Recent Notifications</h3>
 <div class="table-responsive">
+<form id="bulkNotificationsForm" method="POST" action="admin/core/bulk_delete_notifications" onsubmit="return confirmBulkDeleteNotifications();">
+<div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+  <button type="submit" class="btn btn-danger btn-sm">Delete Selected</button>
+  <div class="form-check ms-2">
+	<input class="form-check-input" type="checkbox" id="selectAllNotifications">
+	<label class="form-check-label" for="selectAllNotifications">Select all</label>
+  </div>
+</div>
 <table class="table table-hover">
 <thead>
-<tr><th>Title</th><th>Audience</th><th>Class</th><th>Term</th><th>Date</th></tr>
+<tr><th width="40"><input class="form-check-input" type="checkbox" id="selectAllNotificationsHead"></th><th>Title</th><th>Audience</th><th>Class</th><th>Term</th><th>Date</th></tr>
 </thead>
 <tbody>
 <?php foreach ($items as $item): ?>
 <tr>
+<td><input class="form-check-input notification-checkbox" type="checkbox" name="notification_ids[]" value="<?php echo (int)$item['id']; ?>"></td>
 <td><?php echo htmlspecialchars($item['title']); ?></td>
 <td><?php echo htmlspecialchars($item['audience']); ?></td>
 <td><?php echo htmlspecialchars($item['class_name'] ?? '-'); ?></td>
@@ -155,6 +164,7 @@ try {
 <?php endforeach; ?>
 </tbody>
 </table>
+</form>
 </div>
 </div>
 </div>
@@ -165,5 +175,26 @@ try {
 <script src="js/bootstrap.min.js"></script>
 <script src="js/main.js"></script>
 <?php require_once('const/check-reply.php'); ?>
+<script>
+function confirmBulkDeleteNotifications(){
+  var checked = document.querySelectorAll('.notification-checkbox:checked');
+  if (!checked.length) {
+    alert('Please select at least one notification to delete.');
+    return false;
+  }
+  return confirm('Delete selected notifications? This action cannot be undone.');
+}
+function bindSelectAllNotifications(sourceId, targetClass) {
+  var source = document.getElementById(sourceId);
+  if (!source) return;
+  source.addEventListener('change', function(){
+    document.querySelectorAll(targetClass).forEach(function(cb){
+      cb.checked = source.checked;
+    });
+  });
+}
+bindSelectAllNotifications('selectAllNotifications', '.notification-checkbox');
+bindSelectAllNotifications('selectAllNotificationsHead', '.notification-checkbox');
+</script>
 </body>
 </html>

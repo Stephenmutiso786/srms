@@ -10,8 +10,18 @@ try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-$stmt = $conn->prepare("UPDATE tbl_school SET name = ?");
-$stmt->execute([$_POST['name']]);
+$stmt = $conn->prepare("SELECT id FROM tbl_school LIMIT 1");
+$stmt->execute();
+$existingId = $stmt->fetchColumn();
+
+if ($existingId) {
+	$stmt = $conn->prepare("UPDATE tbl_school SET name = ?");
+	$stmt->execute([$_POST['name']]);
+} else {
+	$logo = $_POST['old_logo'] ?? 'school_logo1711003619.png';
+	$stmt = $conn->prepare("INSERT INTO tbl_school (name, logo, result_system, allow_results) VALUES (?,?,?,?)");
+	$stmt->execute([$_POST['name'], $logo, 1, 1]);
+}
 
 
 $_SESSION['reply'] = array (array("success","System settings updated"));
@@ -42,8 +52,17 @@ try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-$stmt = $conn->prepare("UPDATE tbl_school SET name = ?, logo = ?");
-$stmt->execute([$_POST['name'], $destn_file]);
+$stmt = $conn->prepare("SELECT id FROM tbl_school LIMIT 1");
+$stmt->execute();
+$existingId = $stmt->fetchColumn();
+
+if ($existingId) {
+	$stmt = $conn->prepare("UPDATE tbl_school SET name = ?, logo = ?");
+	$stmt->execute([$_POST['name'], $destn_file]);
+} else {
+	$stmt = $conn->prepare("INSERT INTO tbl_school (name, logo, result_system, allow_results) VALUES (?,?,?,?)");
+	$stmt->execute([$_POST['name'], $destn_file, 1, 1]);
+}
 
 $_SESSION['reply'] = array (array("success","System settings updated"));
 header("location:../system");

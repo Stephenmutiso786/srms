@@ -121,17 +121,27 @@ try {
   </form>
 
   <div class="table-responsive mt-3">
+	<form id="bulkFeeItemsForm" method="POST" action="admin/core/bulk_delete_fee_items" onsubmit="return confirmBulkDeleteFees('items');">
+	<div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+	  <button type="submit" class="btn btn-danger btn-sm">Delete Selected</button>
+	  <div class="form-check ms-2">
+		<input class="form-check-input" type="checkbox" id="selectAllFeeItems">
+		<label class="form-check-label" for="selectAllFeeItems">Select all</label>
+	  </div>
+	</div>
 	<table class="table table-hover table-striped">
-	  <thead><tr><th>Name</th><th>Status</th></tr></thead>
+	  <thead><tr><th width="40"><input class="form-check-input" type="checkbox" id="selectAllFeeItemsHead"></th><th>Name</th><th>Status</th></tr></thead>
 	  <tbody>
 	  <?php foreach ($items as $it) { ?>
 		<tr>
+		  <td><input class="form-check-input feeitem-checkbox" type="checkbox" name="item_ids[]" value="<?php echo (int)$it['id']; ?>"></td>
 		  <td><?php echo htmlspecialchars((string)$it['name']); ?></td>
 		  <td><?php echo ((int)$it['status'] === 1) ? '<span class="badge bg-success">ACTIVE</span>' : '<span class="badge bg-danger">DISABLED</span>'; ?></td>
 		</tr>
 	  <?php } ?>
 	  </tbody>
 	</table>
+	</form>
   </div>
 </div>
 
@@ -207,5 +217,26 @@ try {
 <script src="js/bootstrap.min.js"></script>
 <script src="js/main.js"></script>
 <?php require_once('const/check-reply.php'); ?>
+<script>
+function confirmBulkDeleteFees(label){
+  var selector = label === 'items' ? '.feeitem-checkbox:checked' : 'input[type="checkbox"]:checked';
+  if (!document.querySelectorAll(selector).length) {
+    alert('Please select at least one fee item to delete.');
+    return false;
+  }
+  return confirm('Delete selected fee items? This action cannot be undone.');
+}
+function bindSelectAll(sourceId, targetClass) {
+  var source = document.getElementById(sourceId);
+  if (!source) return;
+  source.addEventListener('change', function(){
+    document.querySelectorAll(targetClass).forEach(function(cb){
+      cb.checked = source.checked;
+    });
+  });
+}
+bindSelectAll('selectAllFeeItems', '.feeitem-checkbox');
+bindSelectAll('selectAllFeeItemsHead', '.feeitem-checkbox');
+</script>
 </body>
 </html>

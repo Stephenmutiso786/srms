@@ -65,7 +65,7 @@ try {
 <html lang="en">
 <meta http-equiv="content-type" content="text/html;charset=utf-8" />
 <head>
-<title>Transport - Elimu Hub</title>
+<title><?php echo APP_NAME; ?> - Transport</title>
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -75,7 +75,7 @@ try {
 <link rel="stylesheet" type="text/css" href="cdn.jsdelivr.net/npm/bootstrap-icons%401.10.5/font/bootstrap-icons.css">
 </head>
 <body class="app sidebar-mini">
-<header class="app-header"><a class="app-header__logo" href="javascript:void(0);">Elimu Hub</a>
+<header class="app-header"><a class="app-header__logo" href="javascript:void(0);"><?php echo APP_NAME; ?></a>
 <a class="app-sidebar__toggle" href="#" data-toggle="sidebar" aria-label="Hide Sidebar"></a>
 <ul class="app-nav">
 <li class="dropdown"><a class="app-nav__item" href="#" data-bs-toggle="dropdown" aria-label="Open Profile Menu"><i class="bi bi-person fs-4"></i></a>
@@ -230,11 +230,20 @@ try {
 <div class="tile">
 <h3 class="tile-title">Assignments</h3>
 <div class="table-responsive">
+<form id="bulkAssignmentsForm" method="POST" action="admin/core/bulk_delete_transport_assignments" onsubmit="return confirmBulkDeleteTransport('assignments');">
+<div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+<button type="submit" class="btn btn-danger btn-sm">Delete Selected</button>
+<div class="form-check ms-2">
+<input class="form-check-input" type="checkbox" id="selectAllAssignments">
+<label class="form-check-label" for="selectAllAssignments">Select all</label>
+</div>
+</div>
 <table class="table table-hover">
-<thead><tr><th>Student</th><th>Route</th><th>Stop</th></tr></thead>
+<thead><tr><th width="40"><input class="form-check-input" type="checkbox" id="selectAllAssignmentsHead"></th><th>Student</th><th>Route</th><th>Stop</th></tr></thead>
 <tbody>
 <?php foreach ($assignments as $a): ?>
 <tr>
+<td><input class="form-check-input assignment-checkbox" type="checkbox" name="assignment_ids[]" value="<?php echo (int)$a['id']; ?>"></td>
 <td><?php echo htmlspecialchars($a['student_id']); ?></td>
 <td><?php echo htmlspecialchars($a['route_name'] ?? ''); ?></td>
 <td><?php echo htmlspecialchars($a['stop_name'] ?? '-'); ?></td>
@@ -242,6 +251,7 @@ try {
 <?php endforeach; ?>
 </tbody>
 </table>
+</form>
 </div>
 </div>
 </div>
@@ -252,11 +262,20 @@ try {
 <div class="tile">
 <h3 class="tile-title">Vehicles</h3>
 <div class="table-responsive">
+<form id="bulkVehiclesForm" method="POST" action="admin/core/bulk_delete_vehicles" onsubmit="return confirmBulkDeleteTransport('vehicles');">
+<div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+<button type="submit" class="btn btn-danger btn-sm">Delete Selected</button>
+<div class="form-check ms-2">
+<input class="form-check-input" type="checkbox" id="selectAllVehicles">
+<label class="form-check-label" for="selectAllVehicles">Select all</label>
+</div>
+</div>
 <table class="table table-hover">
-<thead><tr><th>Plate</th><th>Model</th><th>Capacity</th><th>Status</th></tr></thead>
+<thead><tr><th width="40"><input class="form-check-input" type="checkbox" id="selectAllVehiclesHead"></th><th>Plate</th><th>Model</th><th>Capacity</th><th>Status</th></tr></thead>
 <tbody>
 <?php foreach ($vehicles as $v): ?>
 <tr>
+<td><input class="form-check-input vehicle-checkbox" type="checkbox" name="vehicle_ids[]" value="<?php echo (int)$v['id']; ?>"></td>
 <td><?php echo htmlspecialchars($v['plate_number']); ?></td>
 <td><?php echo htmlspecialchars($v['model']); ?></td>
 <td><?php echo (int)$v['capacity']; ?></td>
@@ -265,6 +284,7 @@ try {
 <?php endforeach; ?>
 </tbody>
 </table>
+</form>
 </div>
 </div>
 </div>
@@ -273,17 +293,59 @@ try {
 <div class="tile">
 <h3 class="tile-title">Routes</h3>
 <div class="table-responsive">
+<form id="bulkRoutesForm" method="POST" action="admin/core/bulk_delete_routes" onsubmit="return confirmBulkDeleteTransport('routes');">
+<div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+<button type="submit" class="btn btn-danger btn-sm">Delete Selected</button>
+<div class="form-check ms-2">
+<input class="form-check-input" type="checkbox" id="selectAllRoutes">
+<label class="form-check-label" for="selectAllRoutes">Select all</label>
+</div>
+</div>
 <table class="table table-hover">
-<thead><tr><th>Name</th><th>Vehicle</th></tr></thead>
+<thead><tr><th width="40"><input class="form-check-input" type="checkbox" id="selectAllRoutesHead"></th><th>Name</th><th>Vehicle</th></tr></thead>
 <tbody>
 <?php foreach ($routes as $r): ?>
 <tr>
+<td><input class="form-check-input route-checkbox" type="checkbox" name="route_ids[]" value="<?php echo (int)$r['id']; ?>"></td>
 <td><?php echo htmlspecialchars($r['name']); ?></td>
 <td><?php echo htmlspecialchars($r['plate_number'] ?? '-'); ?></td>
 </tr>
 <?php endforeach; ?>
 </tbody>
 </table>
+</form>
+</div>
+</div>
+</div>
+</div>
+
+<div class="row">
+<div class="col-md-12">
+<div class="tile">
+<h3 class="tile-title">Route Stops</h3>
+<div class="table-responsive">
+<form id="bulkStopsForm" method="POST" action="admin/core/bulk_delete_route_stops" onsubmit="return confirmBulkDeleteTransport('stops');">
+<div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+<button type="submit" class="btn btn-danger btn-sm">Delete Selected</button>
+<div class="form-check ms-2">
+<input class="form-check-input" type="checkbox" id="selectAllStops">
+<label class="form-check-label" for="selectAllStops">Select all</label>
+</div>
+</div>
+<table class="table table-hover">
+<thead><tr><th width="40"><input class="form-check-input" type="checkbox" id="selectAllStopsHead"></th><th>Route</th><th>Stop</th><th>Order</th></tr></thead>
+<tbody>
+<?php foreach ($stops as $s): ?>
+<tr>
+<td><input class="form-check-input stop-checkbox" type="checkbox" name="stop_ids[]" value="<?php echo (int)$s['id']; ?>"></td>
+<td><?php echo htmlspecialchars($s['route_name'] ?? ''); ?></td>
+<td><?php echo htmlspecialchars($s['stop_name']); ?></td>
+<td><?php echo (int)$s['stop_order']; ?></td>
+</tr>
+<?php endforeach; ?>
+</tbody>
+</table>
+</form>
 </div>
 </div>
 </div>
@@ -294,5 +356,38 @@ try {
 <script src="js/bootstrap.min.js"></script>
 <script src="js/main.js"></script>
 <?php require_once('const/check-reply.php'); ?>
+<script>
+function confirmBulkDeleteTransport(label){
+  var map = {
+    assignments: '.assignment-checkbox:checked',
+    vehicles: '.vehicle-checkbox:checked',
+    routes: '.route-checkbox:checked',
+    stops: '.stop-checkbox:checked'
+  };
+  var selector = map[label] || 'input[type="checkbox"]:checked';
+  if (!document.querySelectorAll(selector).length) {
+    alert('Please select at least one ' + label + ' record to delete.');
+    return false;
+  }
+  return confirm('Delete selected ' + label + '? This action cannot be undone.');
+}
+function bindSelectAll(sourceId, targetClass) {
+  var source = document.getElementById(sourceId);
+  if (!source) return;
+  source.addEventListener('change', function(){
+    document.querySelectorAll(targetClass).forEach(function(cb){
+      cb.checked = source.checked;
+    });
+  });
+}
+bindSelectAll('selectAllAssignments', '.assignment-checkbox');
+bindSelectAll('selectAllAssignmentsHead', '.assignment-checkbox');
+bindSelectAll('selectAllVehicles', '.vehicle-checkbox');
+bindSelectAll('selectAllVehiclesHead', '.vehicle-checkbox');
+bindSelectAll('selectAllRoutes', '.route-checkbox');
+bindSelectAll('selectAllRoutesHead', '.route-checkbox');
+bindSelectAll('selectAllStops', '.stop-checkbox');
+bindSelectAll('selectAllStopsHead', '.stop-checkbox');
+</script>
 </body>
 </html>

@@ -2,6 +2,7 @@
 session_start();
 require_once('db/config.php');
 require_once('const/school.php');
+$schoolTitle = (defined('WBName') && WBName !== '') ? WBName : APP_NAME;
 ?>
 <!DOCTYPE html>
 <html>
@@ -14,7 +15,7 @@ require_once('const/school.php');
 <link rel="icon" href="images/icon.ico">
 <link rel="stylesheet" type="text/css" href="cdn.jsdelivr.net/npm/bootstrap-icons%401.10.5/font/bootstrap-icons.css">
 <link type="text/css" rel="stylesheet" href="loader/waitMe.css">
-<title><?php echo APP_NAME; ?> - Login</title>
+<title><?php echo $schoolTitle; ?> - Login</title>
 </head>
 <body>
 
@@ -24,8 +25,8 @@ require_once('const/school.php');
 
 <form class="login-form app_frm" action="core/auth" autocomplete="OFF" method="POST">
 <center><img height="140" src="images/logo/<?php echo WBLogo; ?>"></center>
-<h4 class="login-head"><?php echo WBName; ?></h4>
-<p class="text-center"><?php echo APP_NAME; ?> — <?php echo APP_TAGLINE; ?></p>
+<h4 class="login-head"><?php echo $schoolTitle; ?></h4>
+<p class="text-center"><?php echo $schoolTitle; ?> — <?php echo APP_TAGLINE; ?></p>
 <div class="mb-3">
 <label class="form-label">USERNAME</label>
 <input class="form-control" type="text" placeholder="Email or Registration Number" required name="username">
@@ -49,8 +50,8 @@ require_once('const/school.php');
 
 <form class="forget-form app_frm" action="core/forgot_pw" method="POST" autocomplete="OFF">
 <center><img height="140" src="images/logo/<?php echo WBLogo; ?>"></center>
-<h4 class="login-head"><?php echo WBName; ?></h4>
-<p class="text-center"><?php echo APP_NAME; ?> — <?php echo APP_TAGLINE; ?></p>
+<h4 class="login-head"><?php echo $schoolTitle; ?></h4>
+<p class="text-center"><?php echo $schoolTitle; ?> — <?php echo APP_TAGLINE; ?></p>
 <div class="mb-3">
 <label class="form-label">USERNAME</label>
 <input class="form-control" type="text" placeholder="Email or Registration Number" required name="username">

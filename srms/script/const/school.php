@@ -23,4 +23,8 @@ if (!defined('WBLogo')) { DEFINE('WBLogo', 'school_logo1711003619.png'); }
 if (!defined('WBResSys')) { DEFINE('WBResSys', 1); }
 if (!defined('WBResAvi')) { DEFINE('WBResAvi', 1); }
 }
+
+if (defined('APP_NAME') && (!defined('WBName') || WBName === '')) {
+	DEFINE('WBName', APP_NAME);
+}
 ?>

@@ -65,7 +65,7 @@ try {
 <html lang="en">
 <meta http-equiv="content-type" content="text/html;charset=utf-8" />
 <head>
-<title>Communication - Elimu Hub</title>
+<title><?php echo APP_NAME; ?> - Communication</title>
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -75,7 +75,7 @@ try {
 <link rel="stylesheet" type="text/css" href="cdn.jsdelivr.net/npm/bootstrap-icons%401.10.5/font/bootstrap-icons.css">
 </head>
 <body class="app sidebar-mini">
-<header class="app-header"><a class="app-header__logo" href="javascript:void(0);">Elimu Hub</a>
+<header class="app-header"><a class="app-header__logo" href="javascript:void(0);"><?php echo APP_NAME; ?></a>
 <a class="app-sidebar__toggle" href="#" data-toggle="sidebar" aria-label="Hide Sidebar"></a>
 <ul class="app-nav">
 <li class="dropdown"><a class="app-nav__item" href="#" data-bs-toggle="dropdown" aria-label="Open Profile Menu"><i class="bi bi-person fs-4"></i></a>
@@ -226,11 +226,20 @@ try {
 <div class="tile">
 <h3 class="tile-title">Recent Announcements</h3>
 <div class="table-responsive">
+<form id="bulkAnnouncementsForm" method="POST" action="admin/core/bulk_delete_announcements" onsubmit="return confirmBulkDelete('announcement');">
+<div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+  <button type="submit" class="btn btn-danger btn-sm">Delete Selected</button>
+  <div class="form-check ms-2">
+	<input class="form-check-input" type="checkbox" id="selectAllAnnouncements">
+	<label class="form-check-label" for="selectAllAnnouncements">Select all</label>
+  </div>
+</div>
 <table class="table table-hover">
-<thead><tr><th>Title</th><th>Audience</th><th>Date</th></tr></thead>
+<thead><tr><th width="40"><input class="form-check-input" type="checkbox" id="selectAllAnnouncementsHead"></th><th>Title</th><th>Audience</th><th>Date</th></tr></thead>
 <tbody>
 <?php foreach ($announcements as $a): ?>
 <tr>
+<td><input class="form-check-input announcement-checkbox" type="checkbox" name="announcement_ids[]" value="<?php echo (int)$a['id']; ?>"></td>
 <td><?php echo htmlspecialchars($a['title']); ?></td>
 <td><?php echo ((int)$a['level'] === 2) ? 'Both' : (((int)$a['level'] === 1) ? 'Students' : 'Staff'); ?></td>
 <td><?php echo htmlspecialchars($a['create_date']); ?></td>
@@ -238,6 +247,7 @@ try {
 <?php endforeach; ?>
 </tbody>
 </table>
+</form>
 </div>
 </div>
 </div>
@@ -246,11 +256,20 @@ try {
 <div class="tile">
 <h3 class="tile-title">Recent Messages</h3>
 <div class="table-responsive">
+<form id="bulkMessagesForm" method="POST" action="admin/core/bulk_delete_messages" onsubmit="return confirmBulkDelete('message');">
+<div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+  <button type="submit" class="btn btn-danger btn-sm">Delete Selected</button>
+  <div class="form-check ms-2">
+	<input class="form-check-input" type="checkbox" id="selectAllMessages">
+	<label class="form-check-label" for="selectAllMessages">Select all</label>
+  </div>
+</div>
 <table class="table table-hover">
-<thead><tr><th>From</th><th>To</th><th>Subject</th><th>Date</th></tr></thead>
+<thead><tr><th width="40"><input class="form-check-input" type="checkbox" id="selectAllMessagesHead"></th><th>From</th><th>To</th><th>Subject</th><th>Date</th></tr></thead>
 <tbody>
 <?php foreach ($messages as $m): ?>
 <tr>
+<td><input class="form-check-input message-checkbox" type="checkbox" name="message_ids[]" value="<?php echo (int)$m['id']; ?>"></td>
 <td><?php echo htmlspecialchars($m['sender_type'].'#'.$m['sender_id']); ?></td>
 <td><?php echo htmlspecialchars($m['recipient_type'].'#'.$m['recipient_id']); ?></td>
 <td><?php echo htmlspecialchars($m['subject']); ?></td>
@@ -259,6 +278,7 @@ try {
 <?php endforeach; ?>
 </tbody>
 </table>
+</form>
 </div>
 </div>
 </div>
@@ -269,11 +289,20 @@ try {
 <div class="tile">
 <h3 class="tile-title">SMS Log</h3>
 <div class="table-responsive">
+<form id="bulkSmsLogsForm" method="POST" action="admin/core/bulk_delete_sms_logs" onsubmit="return confirmBulkDelete('SMS log');">
+<div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+  <button type="submit" class="btn btn-danger btn-sm">Delete Selected</button>
+  <div class="form-check ms-2">
+	<input class="form-check-input" type="checkbox" id="selectAllSmsLogs">
+	<label class="form-check-label" for="selectAllSmsLogs">Select all</label>
+  </div>
+</div>
 <table class="table table-hover">
-<thead><tr><th>Recipient</th><th>Status</th><th>Date</th></tr></thead>
+<thead><tr><th width="40"><input class="form-check-input" type="checkbox" id="selectAllSmsLogsHead"></th><th>Recipient</th><th>Status</th><th>Date</th></tr></thead>
 <tbody>
 <?php foreach ($smsLogs as $s): ?>
 <tr>
+<td><input class="form-check-input smslog-checkbox" type="checkbox" name="sms_log_ids[]" value="<?php echo (int)$s['id']; ?>"></td>
 <td><?php echo htmlspecialchars($s['recipient']); ?></td>
 <td><?php echo htmlspecialchars($s['status']); ?></td>
 <td><?php echo htmlspecialchars($s['created_at']); ?></td>
@@ -281,6 +310,7 @@ try {
 <?php endforeach; ?>
 </tbody>
 </table>
+</form>
 </div>
 </div>
 </div>
@@ -289,11 +319,20 @@ try {
 <div class="tile">
 <h3 class="tile-title">Email Log</h3>
 <div class="table-responsive">
+<form id="bulkEmailLogsForm" method="POST" action="admin/core/bulk_delete_email_logs" onsubmit="return confirmBulkDelete('email log');">
+<div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+  <button type="submit" class="btn btn-danger btn-sm">Delete Selected</button>
+  <div class="form-check ms-2">
+	<input class="form-check-input" type="checkbox" id="selectAllEmailLogs">
+	<label class="form-check-label" for="selectAllEmailLogs">Select all</label>
+  </div>
+</div>
 <table class="table table-hover">
-<thead><tr><th>Recipient</th><th>Status</th><th>Date</th></tr></thead>
+<thead><tr><th width="40"><input class="form-check-input" type="checkbox" id="selectAllEmailLogsHead"></th><th>Recipient</th><th>Status</th><th>Date</th></tr></thead>
 <tbody>
 <?php foreach ($emailLogs as $e): ?>
 <tr>
+<td><input class="form-check-input emaillog-checkbox" type="checkbox" name="email_log_ids[]" value="<?php echo (int)$e['id']; ?>"></td>
 <td><?php echo htmlspecialchars($e['recipient']); ?></td>
 <td><?php echo htmlspecialchars($e['status']); ?></td>
 <td><?php echo htmlspecialchars($e['created_at']); ?></td>
@@ -301,6 +340,7 @@ try {
 <?php endforeach; ?>
 </tbody>
 </table>
+</form>
 </div>
 </div>
 </div>
@@ -311,5 +351,38 @@ try {
 <script src="js/bootstrap.min.js"></script>
 <script src="js/main.js"></script>
 <?php require_once('const/check-reply.php'); ?>
+<script>
+function confirmBulkDelete(label){
+  var map = {
+    announcement: '.announcement-checkbox:checked',
+    message: '.message-checkbox:checked',
+    'SMS log': '.smslog-checkbox:checked',
+    'email log': '.emaillog-checkbox:checked'
+  };
+  var selector = map[label] || 'input[type="checkbox"]:checked';
+  if (!document.querySelectorAll(selector).length) {
+    alert('Please select at least one ' + label + ' to delete.');
+    return false;
+  }
+  return confirm('Delete selected ' + label + ' records? This action cannot be undone.');
+}
+function bindSelectAll(sourceId, targetClass) {
+  var source = document.getElementById(sourceId);
+  if (!source) return;
+  source.addEventListener('change', function(){
+    document.querySelectorAll(targetClass).forEach(function(cb){
+      cb.checked = source.checked;
+    });
+  });
+}
+bindSelectAll('selectAllAnnouncements', '.announcement-checkbox');
+bindSelectAll('selectAllAnnouncementsHead', '.announcement-checkbox');
+bindSelectAll('selectAllMessages', '.message-checkbox');
+bindSelectAll('selectAllMessagesHead', '.message-checkbox');
+bindSelectAll('selectAllSmsLogs', '.smslog-checkbox');
+bindSelectAll('selectAllSmsLogsHead', '.smslog-checkbox');
+bindSelectAll('selectAllEmailLogs', '.emaillog-checkbox');
+bindSelectAll('selectAllEmailLogsHead', '.emaillog-checkbox');
+</script>
 </body>
 </html>

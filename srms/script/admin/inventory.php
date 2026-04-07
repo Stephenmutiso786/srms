@@ -37,7 +37,7 @@ try {
 <html lang="en">
 <meta http-equiv="content-type" content="text/html;charset=utf-8" />
 <head>
-<title>Inventory - Elimu Hub</title>
+<title><?php echo APP_NAME; ?> - Inventory</title>
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -47,7 +47,7 @@ try {
 <link rel="stylesheet" type="text/css" href="cdn.jsdelivr.net/npm/bootstrap-icons%401.10.5/font/bootstrap-icons.css">
 </head>
 <body class="app sidebar-mini">
-<header class="app-header"><a class="app-header__logo" href="javascript:void(0);">Elimu Hub</a>
+<header class="app-header"><a class="app-header__logo" href="javascript:void(0);"><?php echo APP_NAME; ?></a>
 <a class="app-sidebar__toggle" href="#" data-toggle="sidebar" aria-label="Hide Sidebar"></a>
 <ul class="app-nav">
 <li class="dropdown"><a class="app-nav__item" href="#" data-bs-toggle="dropdown" aria-label="Open Profile Menu"><i class="bi bi-person fs-4"></i></a>
@@ -151,11 +151,20 @@ try {
 <div class="tile">
 <h3 class="tile-title">Assets</h3>
 <div class="table-responsive">
+<form id="bulkAssetsForm" method="POST" action="admin/core/bulk_delete_assets" onsubmit="return confirmBulkDeleteInventory('assets');">
+<div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+<button type="submit" class="btn btn-danger btn-sm">Delete Selected</button>
+<div class="form-check ms-2">
+<input class="form-check-input" type="checkbox" id="selectAllAssets">
+<label class="form-check-label" for="selectAllAssets">Select all</label>
+</div>
+</div>
 <table class="table table-hover">
-<thead><tr><th>Name</th><th>Category</th><th>Qty</th><th>Location</th><th>Status</th></tr></thead>
+<thead><tr><th width="40"><input class="form-check-input" type="checkbox" id="selectAllAssetsHead"></th><th>Name</th><th>Category</th><th>Qty</th><th>Location</th><th>Status</th></tr></thead>
 <tbody>
 <?php foreach ($assets as $a): ?>
 <tr>
+<td><input class="form-check-input asset-checkbox" type="checkbox" name="asset_ids[]" value="<?php echo (int)$a['id']; ?>"></td>
 <td><?php echo htmlspecialchars($a['name']); ?></td>
 <td><?php echo htmlspecialchars($a['category']); ?></td>
 <td><?php echo (int)$a['quantity']; ?></td>
@@ -165,6 +174,7 @@ try {
 <?php endforeach; ?>
 </tbody>
 </table>
+</form>
 </div>
 </div>
 </div>
@@ -175,11 +185,20 @@ try {
 <div class="tile">
 <h3 class="tile-title">Recent Adjustments</h3>
 <div class="table-responsive">
+<form id="bulkAssetLogsForm" method="POST" action="admin/core/bulk_delete_asset_logs" onsubmit="return confirmBulkDeleteInventory('logs');">
+<div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+<button type="submit" class="btn btn-danger btn-sm">Delete Selected</button>
+<div class="form-check ms-2">
+<input class="form-check-input" type="checkbox" id="selectAllAssetLogs">
+<label class="form-check-label" for="selectAllAssetLogs">Select all</label>
+</div>
+</div>
 <table class="table table-hover">
-<thead><tr><th>Asset</th><th>Action</th><th>Qty</th><th>Note</th><th>Date</th></tr></thead>
+<thead><tr><th width="40"><input class="form-check-input" type="checkbox" id="selectAllAssetLogsHead"></th><th>Asset</th><th>Action</th><th>Qty</th><th>Note</th><th>Date</th></tr></thead>
 <tbody>
 <?php foreach ($logs as $l): ?>
 <tr>
+<td><input class="form-check-input assetlog-checkbox" type="checkbox" name="log_ids[]" value="<?php echo (int)$l['id']; ?>"></td>
 <td><?php echo htmlspecialchars($l['name'] ?? ''); ?></td>
 <td><?php echo htmlspecialchars($l['action']); ?></td>
 <td><?php echo (int)$l['quantity']; ?></td>
@@ -189,6 +208,7 @@ try {
 <?php endforeach; ?>
 </tbody>
 </table>
+</form>
 </div>
 </div>
 </div>
@@ -199,5 +219,28 @@ try {
 <script src="js/bootstrap.min.js"></script>
 <script src="js/main.js"></script>
 <?php require_once('const/check-reply.php'); ?>
+<script>
+function confirmBulkDeleteInventory(label){
+  var selector = label === 'assets' ? '.asset-checkbox:checked' : '.assetlog-checkbox:checked';
+  if (!document.querySelectorAll(selector).length) {
+    alert('Please select at least one ' + label + ' record to delete.');
+    return false;
+  }
+  return confirm('Delete selected ' + label + '? This action cannot be undone.');
+}
+function bindSelectAll(sourceId, targetClass) {
+  var source = document.getElementById(sourceId);
+  if (!source) return;
+  source.addEventListener('change', function(){
+    document.querySelectorAll(targetClass).forEach(function(cb){
+      cb.checked = source.checked;
+    });
+  });
+}
+bindSelectAll('selectAllAssets', '.asset-checkbox');
+bindSelectAll('selectAllAssetsHead', '.asset-checkbox');
+bindSelectAll('selectAllAssetLogs', '.assetlog-checkbox');
+bindSelectAll('selectAllAssetLogsHead', '.assetlog-checkbox');
+</script>
 </body>
 </html>

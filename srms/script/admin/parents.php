@@ -133,9 +133,18 @@ try {
 <div class="tile">
   <h3 class="tile-title">Manage Parents</h3>
   <div class="table-responsive">
+	<form id="bulkParentsForm" method="POST" action="admin/core/bulk_delete_parents" onsubmit="return confirmBulkDeleteParents();">
+	<div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+	  <button type="submit" class="btn btn-danger btn-sm">Delete Selected</button>
+	  <div class="form-check ms-2">
+		<input class="form-check-input" type="checkbox" id="selectAllParents">
+		<label class="form-check-label" for="selectAllParents">Select all</label>
+	  </div>
+	</div>
 	<table class="table table-hover table-striped">
 	  <thead>
 		<tr>
+		  <th width="40"><input class="form-check-input" type="checkbox" id="selectAllParentsHead"></th>
 		  <th>ID</th>
 		  <th>Name</th>
 		  <th>Email</th>
@@ -151,6 +160,9 @@ try {
 		$linked = $links[$pid] ?? [];
 	  ?>
 		<tr>
+		  <td>
+			<input class="form-check-input parent-checkbox" type="checkbox" name="parent_ids[]" value="<?php echo $pid; ?>">
+		  </td>
 		  <td><?php echo $pid; ?></td>
 		  <td><?php echo htmlspecialchars((string)$p['fname'].' '.(string)$p['lname']); ?></td>
 		  <td><?php echo htmlspecialchars((string)$p['email']); ?></td>
@@ -192,6 +204,7 @@ try {
 	  <?php } ?>
 	  </tbody>
 	</table>
+	</form>
   </div>
 </div>
 
@@ -203,6 +216,26 @@ try {
 <script src="js/bootstrap.min.js"></script>
 <script src="js/main.js"></script>
 <?php require_once('const/check-reply.php'); ?>
+<script>
+function confirmBulkDeleteParents(){
+  var checked = document.querySelectorAll('.parent-checkbox:checked');
+  if (!checked.length) {
+    alert('Please select at least one parent to delete.');
+    return false;
+  }
+  return confirm('Delete selected parents? This action cannot be undone.');
+}
+function bindSelectAllParents(sourceId, targetClass) {
+  var source = document.getElementById(sourceId);
+  if (!source) return;
+  source.addEventListener('change', function(){
+    document.querySelectorAll(targetClass).forEach(function(cb){
+      cb.checked = source.checked;
+    });
+  });
+}
+bindSelectAllParents('selectAllParents', '.parent-checkbox');
+bindSelectAllParents('selectAllParentsHead', '.parent-checkbox');
+</script>
 </body>
 </html>
-

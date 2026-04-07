@@ -47,7 +47,7 @@ try {
 <html lang="en">
 <meta http-equiv="content-type" content="text/html;charset=utf-8" />
 <head>
-<title>Library - Elimu Hub</title>
+<title><?php echo APP_NAME; ?> - Library</title>
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -57,7 +57,7 @@ try {
 <link rel="stylesheet" type="text/css" href="cdn.jsdelivr.net/npm/bootstrap-icons%401.10.5/font/bootstrap-icons.css">
 </head>
 <body class="app sidebar-mini">
-<header class="app-header"><a class="app-header__logo" href="javascript:void(0);">Elimu Hub</a>
+<header class="app-header"><a class="app-header__logo" href="javascript:void(0);"><?php echo APP_NAME; ?></a>
 <a class="app-sidebar__toggle" href="#" data-toggle="sidebar" aria-label="Hide Sidebar"></a>
 <ul class="app-nav">
 <li class="dropdown"><a class="app-nav__item" href="#" data-bs-toggle="dropdown" aria-label="Open Profile Menu"><i class="bi bi-person fs-4"></i></a>
@@ -164,13 +164,56 @@ try {
 <div class="row">
 <div class="col-md-12">
 <div class="tile">
+<h3 class="tile-title">Books</h3>
+<div class="table-responsive">
+<form id="bulkBooksForm" method="POST" action="admin/core/bulk_delete_books" onsubmit="return confirmBulkDeleteLibrary('books');">
+<div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+<button type="submit" class="btn btn-danger btn-sm">Delete Selected</button>
+<div class="form-check ms-2">
+<input class="form-check-input" type="checkbox" id="selectAllBooks">
+<label class="form-check-label" for="selectAllBooks">Select all</label>
+</div>
+</div>
+<table class="table table-hover">
+<thead><tr><th width="40"><input class="form-check-input" type="checkbox" id="selectAllBooksHead"></th><th>ISBN</th><th>Title</th><th>Author</th><th>Category</th><th>Available</th></tr></thead>
+<tbody>
+<?php foreach ($books as $b): ?>
+<tr>
+<td><input class="form-check-input book-checkbox" type="checkbox" name="book_ids[]" value="<?php echo (int)$b['id']; ?>"></td>
+<td><?php echo htmlspecialchars($b['isbn'] ?? ''); ?></td>
+<td><?php echo htmlspecialchars($b['title']); ?></td>
+<td><?php echo htmlspecialchars($b['author'] ?? ''); ?></td>
+<td><?php echo htmlspecialchars($b['category'] ?? ''); ?></td>
+<td><?php echo (int)($b['available'] ?? 0); ?></td>
+</tr>
+<?php endforeach; ?>
+</tbody>
+</table>
+</form>
+</div>
+</div>
+</div>
+</div>
+
+<div class="row">
+<div class="col-md-12">
+<div class="tile">
 <h3 class="tile-title">Recent Loans</h3>
 <div class="table-responsive">
+<form id="bulkLoansForm" method="POST" action="admin/core/bulk_delete_loans" onsubmit="return confirmBulkDeleteLibrary('loans');">
+<div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+<button type="submit" class="btn btn-danger btn-sm">Delete Selected</button>
+<div class="form-check ms-2">
+<input class="form-check-input" type="checkbox" id="selectAllLoans">
+<label class="form-check-label" for="selectAllLoans">Select all</label>
+</div>
+</div>
 <table class="table table-hover">
-<thead><tr><th>Book</th><th>Borrower</th><th>Issued</th><th>Due</th><th>Status</th><th></th></tr></thead>
+<thead><tr><th width="40"><input class="form-check-input" type="checkbox" id="selectAllLoansHead"></th><th>Book</th><th>Borrower</th><th>Issued</th><th>Due</th><th>Status</th><th></th></tr></thead>
 <tbody>
 <?php foreach ($loans as $loan): ?>
 <tr>
+<td><input class="form-check-input loan-checkbox" type="checkbox" name="loan_ids[]" value="<?php echo (int)$loan['id']; ?>"></td>
 <td><?php echo htmlspecialchars($loan['title'] ?? ''); ?></td>
 <td><?php echo htmlspecialchars($loan['borrower_type'].'#'.$loan['borrower_id']); ?></td>
 <td><?php echo htmlspecialchars($loan['issued_at']); ?></td>
@@ -188,6 +231,7 @@ try {
 <?php endforeach; ?>
 </tbody>
 </table>
+</form>
 </div>
 </div>
 </div>
@@ -198,5 +242,28 @@ try {
 <script src="js/bootstrap.min.js"></script>
 <script src="js/main.js"></script>
 <?php require_once('const/check-reply.php'); ?>
+<script>
+function confirmBulkDeleteLibrary(label){
+  var checked = document.querySelectorAll('.' + (label === 'books' ? 'book-checkbox' : 'loan-checkbox') + ':checked');
+  if (!checked.length) {
+    alert('Please select at least one ' + label + ' record to delete.');
+    return false;
+  }
+  return confirm('Delete selected ' + label + '? This action cannot be undone.');
+}
+function bindSelectAll(sourceId, targetClass) {
+  var source = document.getElementById(sourceId);
+  if (!source) return;
+  source.addEventListener('change', function(){
+    document.querySelectorAll(targetClass).forEach(function(cb){
+      cb.checked = source.checked;
+    });
+  });
+}
+bindSelectAll('selectAllBooks', '.book-checkbox');
+bindSelectAll('selectAllBooksHead', '.book-checkbox');
+bindSelectAll('selectAllLoans', '.loan-checkbox');
+bindSelectAll('selectAllLoansHead', '.loan-checkbox');
+</script>
 </body>
 </html>

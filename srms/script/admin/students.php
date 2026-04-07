@@ -88,9 +88,23 @@ $matches = implode(',', $matches);
 <div class="tile-body">
 <div class="table-responsive">
 <h3 class="tile-title">Manage Students</h3>
+<form id="bulkStudentsForm" method="POST" action="admin/core/bulk_delete_students" onsubmit="return confirmBulkDelete('students');">
+<div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+<select class="form-control form-control-sm" name="bulk_action" style="max-width:200px;">
+<option value="delete" selected>Delete selected</option>
+<option value="set_active">Set status: Active</option>
+<option value="set_blocked">Set status: Blocked</option>
+</select>
+<button type="submit" class="btn btn-primary btn-sm">Apply</button>
+<div class="form-check ms-2">
+<input class="form-check-input" type="checkbox" id="selectAllStudents">
+<label class="form-check-label" for="selectAllStudents">Select all</label>
+</div>
+</div>
 <table class="table table-hover table-bordered" id="srmsTable">
 <thead>
 <tr>
+<th width="40"><input class="form-check-input" type="checkbox" id="selectAllStudentsHead"></th>
 <th></th>
 <th>Registration Number</th>
 <th>Firstname</th>
@@ -129,6 +143,9 @@ foreach($result as $row)
 ?>
 
 <tr>
+<td>
+<input class="form-check-input student-checkbox" type="checkbox" name="student_ids[]" value="<?php echo $row[0]; ?>">
+</td>
 <td width="10">
 <?php
 if ($row[9] == "DEFAULT") {
@@ -175,6 +192,7 @@ echo "Connection failed: " . $e->getMessage();
 
 </tbody>
 </table>
+</form>
 </div>
 </div>
 </div>
@@ -278,7 +296,30 @@ echo "Connection failed: " . $e->getMessage();
 <script src="select2/dist/js/select2.full.min.js"></script>
 <?php require_once('const/check-reply.php'); ?>
 <script>
-
+function confirmBulkDelete(label){
+  var checked = document.querySelectorAll('.student-checkbox:checked');
+  if (!checked.length) {
+    alert('Please select at least one student.');
+    return false;
+  }
+  var action = document.querySelector('select[name="bulk_action"]');
+  var val = action ? action.value : 'delete';
+  if (val === 'delete') {
+    return confirm('Delete selected ' + label + '? This action cannot be undone.');
+  }
+  return confirm('Update status for selected ' + label + '?');
+}
+function bindSelectAll(sourceId, targetClass) {
+  var source = document.getElementById(sourceId);
+  if (!source) return;
+  source.addEventListener('change', function(){
+    document.querySelectorAll(targetClass).forEach(function(cb){
+      cb.checked = source.checked;
+    });
+  });
+}
+bindSelectAll('selectAllStudents', '.student-checkbox');
+bindSelectAll('selectAllStudentsHead', '.student-checkbox');
 </script>
 </body>
 

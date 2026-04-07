@@ -49,7 +49,7 @@ try {
 <html lang="en">
 <meta http-equiv="content-type" content="text/html;charset=utf-8" />
 <head>
-<title>Exams - Elimu Hub</title>
+<title><?php echo APP_NAME; ?> - Exams</title>
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -59,7 +59,7 @@ try {
 <link rel="stylesheet" type="text/css" href="cdn.jsdelivr.net/npm/bootstrap-icons%401.10.5/font/bootstrap-icons.css">
 </head>
 <body class="app sidebar-mini">
-<header class="app-header"><a class="app-header__logo" href="javascript:void(0);">Elimu Hub</a>
+<header class="app-header"><a class="app-header__logo" href="javascript:void(0);"><?php echo APP_NAME; ?></a>
 <a class="app-sidebar__toggle" href="#" data-toggle="sidebar" aria-label="Hide Sidebar"></a>
 <ul class="app-nav">
 <li class="dropdown"><a class="app-nav__item" href="#" data-bs-toggle="dropdown" aria-label="Open Profile Menu"><i class="bi bi-person fs-4"></i></a>
@@ -109,17 +109,27 @@ try {
 <hr>
 <h3 class="tile-title">Exam Types</h3>
 <div class="table-responsive">
+<form id="bulkExamTypesForm" method="POST" action="admin/core/bulk_delete_exam_types" onsubmit="return confirmBulkDeleteExams('types');">
+<div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+  <button type="submit" class="btn btn-danger btn-sm">Delete Selected</button>
+  <div class="form-check ms-2">
+	<input class="form-check-input" type="checkbox" id="selectAllExamTypes">
+	<label class="form-check-label" for="selectAllExamTypes">Select all</label>
+  </div>
+</div>
 <table class="table table-hover">
-<thead><tr><th>Name</th><th>Status</th></tr></thead>
+<thead><tr><th width="40"><input class="form-check-input" type="checkbox" id="selectAllExamTypesHead"></th><th>Name</th><th>Status</th></tr></thead>
 <tbody>
 <?php foreach ($types as $type): ?>
 <tr>
+<td><input class="form-check-input examtype-checkbox" type="checkbox" name="type_ids[]" value="<?php echo (int)$type['id']; ?>"></td>
 <td><?php echo htmlspecialchars($type['name']); ?></td>
 <td><?php echo ((int)$type['status'] === 1) ? 'Active' : 'Inactive'; ?></td>
 </tr>
 <?php endforeach; ?>
 </tbody>
 </table>
+</form>
 </div>
 </div>
 </div>
@@ -171,13 +181,22 @@ try {
 <hr>
 <h3 class="tile-title">Recent Exams</h3>
 <div class="table-responsive">
+<form id="bulkExamsForm" method="POST" action="admin/core/bulk_delete_exams" onsubmit="return confirmBulkDeleteExams('exams');">
+<div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+  <button type="submit" class="btn btn-danger btn-sm">Delete Selected</button>
+  <div class="form-check ms-2">
+	<input class="form-check-input" type="checkbox" id="selectAllExams">
+	<label class="form-check-label" for="selectAllExams">Select all</label>
+  </div>
+</div>
 <table class="table table-hover">
 <thead>
-<tr><th>Name</th><th>Type</th><th>Class</th><th>Term</th><th>Status</th><th>Action</th></tr>
+<tr><th width="40"><input class="form-check-input" type="checkbox" id="selectAllExamsHead"></th><th>Name</th><th>Type</th><th>Class</th><th>Term</th><th>Status</th><th>Action</th></tr>
 </thead>
 <tbody>
 <?php foreach ($exams as $exam): ?>
 <tr>
+<td><input class="form-check-input exam-checkbox" type="checkbox" name="exam_ids[]" value="<?php echo (int)$exam['id']; ?>"></td>
 <td><?php echo htmlspecialchars($exam['name']); ?></td>
 <td><?php echo htmlspecialchars($exam['type_name'] ?? ''); ?></td>
 <td><?php echo htmlspecialchars($exam['class_name'] ?? ''); ?></td>
@@ -197,6 +216,7 @@ try {
 <?php endforeach; ?>
 </tbody>
 </table>
+</form>
 </div>
 </div>
 </div>
@@ -207,5 +227,28 @@ try {
 <script src="js/bootstrap.min.js"></script>
 <script src="js/main.js"></script>
 <?php require_once('const/check-reply.php'); ?>
+<script>
+function confirmBulkDeleteExams(label){
+  var selector = label === 'types' ? '.examtype-checkbox:checked' : '.exam-checkbox:checked';
+  if (!document.querySelectorAll(selector).length) {
+    alert('Please select at least one ' + label + ' record to delete.');
+    return false;
+  }
+  return confirm('Delete selected ' + label + '? This action cannot be undone.');
+}
+function bindSelectAll(sourceId, targetClass) {
+  var source = document.getElementById(sourceId);
+  if (!source) return;
+  source.addEventListener('change', function(){
+    document.querySelectorAll(targetClass).forEach(function(cb){
+      cb.checked = source.checked;
+    });
+  });
+}
+bindSelectAll('selectAllExamTypes', '.examtype-checkbox');
+bindSelectAll('selectAllExamTypesHead', '.examtype-checkbox');
+bindSelectAll('selectAllExams', '.exam-checkbox');
+bindSelectAll('selectAllExamsHead', '.exam-checkbox');
+</script>
 </body>
 </html>

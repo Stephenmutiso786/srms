@@ -154,9 +154,20 @@ try {
 <div class="tile">
   <h3 class="tile-title">Invoices</h3>
   <div class="table-responsive">
+	<form id="bulkInvoicesForm" method="POST" action="admin/core/bulk_delete_invoices" onsubmit="return confirmBulkDeleteInvoices();">
+	<input type="hidden" name="class_id" value="<?php echo $filterClass; ?>">
+	<input type="hidden" name="term_id" value="<?php echo $filterTerm; ?>">
+	<div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+	  <button type="submit" class="btn btn-danger btn-sm">Delete Selected</button>
+	  <div class="form-check ms-2">
+		<input class="form-check-input" type="checkbox" id="selectAllInvoices">
+		<label class="form-check-label" for="selectAllInvoices">Select all</label>
+	  </div>
+	</div>
 	<table class="table table-hover table-striped">
 	  <thead>
 		<tr>
+		  <th width="40"><input class="form-check-input" type="checkbox" id="selectAllInvoicesHead"></th>
 		  <th>Student</th>
 		  <th>Total</th>
 		  <th>Paid</th>
@@ -173,6 +184,7 @@ try {
 		$bal = max(0, $total - $paid);
 	  ?>
 		<tr>
+		  <td><input class="form-check-input invoice-checkbox" type="checkbox" name="invoice_ids[]" value="<?php echo (int)$inv['id']; ?>"></td>
 		  <td><?php echo htmlspecialchars((string)$inv['student_id'].' — '.$inv['student_name']); ?></td>
 		  <td><?php echo number_format($total, 2); ?></td>
 		  <td><?php echo number_format($paid, 2); ?></td>
@@ -212,6 +224,7 @@ try {
 	  <?php } } ?>
 	  </tbody>
 	</table>
+	</form>
   </div>
 </div>
 <?php } ?>
@@ -224,5 +237,26 @@ try {
 <script src="js/bootstrap.min.js"></script>
 <script src="js/main.js"></script>
 <?php require_once('const/check-reply.php'); ?>
+<script>
+function confirmBulkDeleteInvoices(){
+  var checked = document.querySelectorAll('.invoice-checkbox:checked');
+  if (!checked.length) {
+    alert('Please select at least one invoice to delete.');
+    return false;
+  }
+  return confirm('Delete selected invoices? This action cannot be undone.');
+}
+function bindSelectAll(sourceId, targetClass) {
+  var source = document.getElementById(sourceId);
+  if (!source) return;
+  source.addEventListener('change', function(){
+    document.querySelectorAll(targetClass).forEach(function(cb){
+      cb.checked = source.checked;
+    });
+  });
+}
+bindSelectAll('selectAllInvoices', '.invoice-checkbox');
+bindSelectAll('selectAllInvoicesHead', '.invoice-checkbox');
+</script>
 </body>
 </html>

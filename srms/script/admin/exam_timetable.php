@@ -211,9 +211,20 @@ try {
 <div class="tile">
   <h3 class="tile-title">Timetable Entries</h3>
   <div class="table-responsive">
+	<form id="bulkExamScheduleForm" method="POST" action="admin/core/bulk_delete_exam_schedule" onsubmit="return confirmBulkDeleteExamSchedule();">
+	<input type="hidden" name="class_id" value="<?php echo $classId; ?>">
+	<input type="hidden" name="term_id" value="<?php echo $termId; ?>">
+	<div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+	  <button type="submit" class="btn btn-danger btn-sm">Delete Selected</button>
+	  <div class="form-check ms-2">
+		<input class="form-check-input" type="checkbox" id="selectAllExamSchedule">
+		<label class="form-check-label" for="selectAllExamSchedule">Select all</label>
+	  </div>
+	</div>
 	<table class="table table-hover table-striped">
 	  <thead>
 		<tr>
+		  <th width="40"><input class="form-check-input" type="checkbox" id="selectAllExamScheduleHead"></th>
 		  <th>Date</th>
 		  <th>Time</th>
 		  <th>Subject</th>
@@ -227,6 +238,7 @@ try {
 		<tr><td colspan="6" class="text-muted">No entries yet.</td></tr>
 	  <?php } else { foreach ($rows as $r) { ?>
 		<tr>
+		  <td><input class="form-check-input schedule-checkbox" type="checkbox" name="schedule_ids[]" value="<?php echo (int)$r['id']; ?>"></td>
 		  <td><?php echo htmlspecialchars((string)$r['exam_date']); ?></td>
 		  <td><?php echo htmlspecialchars(substr((string)$r['start_time'], 0, 5).' - '.substr((string)$r['end_time'], 0, 5)); ?></td>
 		  <td><?php echo htmlspecialchars((string)$r['subject_name']); ?></td>
@@ -239,6 +251,7 @@ try {
 	  <?php } } ?>
 	  </tbody>
 	</table>
+	</form>
   </div>
 </div>
 
@@ -252,6 +265,26 @@ try {
 <script src="js/bootstrap.min.js"></script>
 <script src="js/main.js"></script>
 <?php require_once('const/check-reply.php'); ?>
+<script>
+function confirmBulkDeleteExamSchedule(){
+  var checked = document.querySelectorAll('.schedule-checkbox:checked');
+  if (!checked.length) {
+    alert('Please select at least one timetable entry to delete.');
+    return false;
+  }
+  return confirm('Delete selected timetable entries? This action cannot be undone.');
+}
+function bindSelectAll(sourceId, targetClass) {
+  var source = document.getElementById(sourceId);
+  if (!source) return;
+  source.addEventListener('change', function(){
+    document.querySelectorAll(targetClass).forEach(function(cb){
+      cb.checked = source.checked;
+    });
+  });
+}
+bindSelectAll('selectAllExamSchedule', '.schedule-checkbox');
+bindSelectAll('selectAllExamScheduleHead', '.schedule-checkbox');
+</script>
 </body>
 </html>
-
