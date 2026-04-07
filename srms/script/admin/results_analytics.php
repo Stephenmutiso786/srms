@@ -139,7 +139,9 @@ try {
 </div>
 <ul class="app-menu">
 <li><a class="app-menu__item" href="admin"><i class="app-menu__icon feather icon-monitor"></i><span class="app-menu__label">Dashboard</span></a></li>
+<li><a class="app-menu__item" href="admin/analytics_engine"><i class="app-menu__icon feather icon-activity"></i><span class="app-menu__label">Analytics Engine</span></a></li>
 <li><a class="app-menu__item active" href="admin/results_analytics"><i class="app-menu__icon feather icon-bar-chart-2"></i><span class="app-menu__label">Results Analytics</span></a></li>
+<li><a class="app-menu__item" href="admin/benchmarking"><i class="app-menu__icon feather icon-trending-up"></i><span class="app-menu__label">Benchmarking</span></a></li>
 </ul>
 </aside>
 
@@ -318,4 +320,3 @@ try {
 <?php require_once('const/check-reply.php'); ?>
 </body>
 </html>
-

@@ -77,6 +77,8 @@ try {
 <li><a class="app-menu__item" href="admin/transport"><i class="app-menu__icon feather icon-truck"></i><span class="app-menu__label">Transport</span></a></li>
 <li><a class="app-menu__item" href="admin/results_locks"><i class="app-menu__icon feather icon-lock"></i><span class="app-menu__label">Results Locks</span></a></li>
 <li><a class="app-menu__item" href="admin/results_analytics"><i class="app-menu__icon feather icon-bar-chart-2"></i><span class="app-menu__label">Results Analytics</span></a></li>
+<li><a class="app-menu__item" href="admin/analytics_engine"><i class="app-menu__icon feather icon-activity"></i><span class="app-menu__label">Analytics Engine</span></a></li>
+<li><a class="app-menu__item" href="admin/benchmarking"><i class="app-menu__icon feather icon-trending-up"></i><span class="app-menu__label">Benchmarking</span></a></li>
 <li><a class="app-menu__item" href="admin/exams"><i class="app-menu__icon feather icon-file-text"></i><span class="app-menu__label">Exams</span></a></li>
 <li><a class="app-menu__item" href="admin/exam_timetable"><i class="app-menu__icon feather icon-calendar"></i><span class="app-menu__label">Exam Timetable</span></a></li>
 <li><a class="app-menu__item" href="admin/notifications"><i class="app-menu__icon feather icon-bell"></i><span class="app-menu__label">Notifications</span></a></li>
@@ -172,78 +174,78 @@ try {
 		</div>
 	</div>
 
-	<div class="intel-portals">
-		<div class="intel-card portal-card portal-super">
-			<div class="portal-title"><i class="bi bi-gem"></i> Super Admin</div>
-			<ul>
-				<li>System control</li>
-				<li>School subscriptions</li>
-				<li>Analytics + audits</li>
-			</ul>
+		<div class="intel-portals">
+			<a class="intel-card portal-card portal-super" href="admin/system">
+				<div class="portal-title"><i class="bi bi-gem"></i> Super Admin</div>
+				<ul>
+					<li>System control</li>
+					<li>School subscriptions</li>
+					<li>Analytics + audits</li>
+				</ul>
+			</a>
+			<a class="intel-card portal-card portal-admin" href="admin/academic">
+				<div class="portal-title"><i class="bi bi-building"></i> School Admin</div>
+				<ul>
+					<li>Manage staff & students</li>
+					<li>Approve results</li>
+					<li>Reports & finance</li>
+				</ul>
+			</a>
+			<a class="intel-card portal-card portal-teacher" href="teacher/marks_entry">
+				<div class="portal-title"><i class="bi bi-mortarboard"></i> Teacher</div>
+				<ul>
+					<li>Marks entry (CBC/KNEC)</li>
+					<li>Attendance</li>
+					<li>Class reports</li>
+				</ul>
+			</a>
+			<a class="intel-card portal-card portal-parent" href="parent">
+				<div class="portal-title"><i class="bi bi-people"></i> Parent</div>
+				<ul>
+					<li>Child progress</li>
+					<li>Attendance alerts</li>
+					<li>Fees status</li>
+				</ul>
+			</a>
+			<a class="intel-card portal-card portal-student" href="student">
+				<div class="portal-title"><i class="bi bi-journal-text"></i> Student</div>
+				<ul>
+					<li>Results & feedback</li>
+					<li>Assignments</li>
+					<li>Timetable</li>
+				</ul>
+			</a>
+			<a class="intel-card portal-card portal-accountant" href="accountant">
+				<div class="portal-title"><i class="bi bi-cash-coin"></i> Accountant</div>
+				<ul>
+					<li>Fees collection</li>
+					<li>Invoices & receipts</li>
+					<li>Financial reports</li>
+				</ul>
+			</a>
+			<a class="intel-card portal-card portal-others" href="admin/roles">
+				<div class="portal-title"><i class="bi bi-diagram-3"></i> Other Roles</div>
+				<ul>
+					<li>HR, Librarian, Nurse</li>
+					<li>Transport manager</li>
+					<li>Custom access</li>
+				</ul>
+			</a>
 		</div>
-		<div class="intel-card portal-card portal-admin">
-			<div class="portal-title"><i class="bi bi-building"></i> School Admin</div>
-			<ul>
-				<li>Manage staff & students</li>
-				<li>Approve results</li>
-				<li>Reports & finance</li>
-			</ul>
-		</div>
-		<div class="intel-card portal-card portal-teacher">
-			<div class="portal-title"><i class="bi bi-mortarboard"></i> Teacher</div>
-			<ul>
-				<li>Marks entry (CBC/KNEC)</li>
-				<li>Attendance</li>
-				<li>Class reports</li>
-			</ul>
-		</div>
-		<div class="intel-card portal-card portal-parent">
-			<div class="portal-title"><i class="bi bi-people"></i> Parent</div>
-			<ul>
-				<li>Child progress</li>
-				<li>Attendance alerts</li>
-				<li>Fees status</li>
-			</ul>
-		</div>
-		<div class="intel-card portal-card portal-student">
-			<div class="portal-title"><i class="bi bi-journal-text"></i> Student</div>
-			<ul>
-				<li>Results & feedback</li>
-				<li>Assignments</li>
-				<li>Timetable</li>
-			</ul>
-		</div>
-		<div class="intel-card portal-card portal-accountant">
-			<div class="portal-title"><i class="bi bi-cash-coin"></i> Accountant</div>
-			<ul>
-				<li>Fees collection</li>
-				<li>Invoices & receipts</li>
-				<li>Financial reports</li>
-			</ul>
-		</div>
-		<div class="intel-card portal-card portal-others">
-			<div class="portal-title"><i class="bi bi-diagram-3"></i> Other Roles</div>
-			<ul>
-				<li>HR, Librarian, Nurse</li>
-				<li>Transport manager</li>
-				<li>Custom access</li>
-			</ul>
-		</div>
-	</div>
 
 	<div class="intel-flow">
-		<div class="intel-card intel-block">
-			<div class="block-title"><i class="bi bi-hdd-network"></i> Data Sources</div>
-			<ul>
-				<li>Web & mobile apps</li>
-				<li>CSV / Excel imports</li>
-				<li>M-Pesa & payments</li>
-				<li>Biometric / QR devices</li>
-				<li>GPS trackers & APIs</li>
-			</ul>
-		</div>
-		<div class="intel-card intel-block">
-			<div class="block-title"><i class="bi bi-grid-1x2"></i> Core Platform</div>
+			<a class="intel-card intel-block" href="admin/import_export">
+				<div class="block-title"><i class="bi bi-hdd-network"></i> Data Sources</div>
+				<ul>
+					<li>Web & mobile apps</li>
+					<li>CSV / Excel imports</li>
+					<li>M-Pesa & payments</li>
+					<li>Biometric / QR devices</li>
+					<li>GPS trackers & APIs</li>
+				</ul>
+			</a>
+			<a class="intel-card intel-block" href="admin">
+				<div class="block-title"><i class="bi bi-grid-1x2"></i> Core Platform</div>
 			<div class="block-grid">
 				<div>
 					<strong>Academic</strong>
@@ -262,36 +264,36 @@ try {
 					<span>HR, Library, Transport</span>
 				</div>
 			</div>
-			<div class="block-footer">
-				<span>RBAC</span>
-				<span>Workflows</span>
-				<span>Audit Logs</span>
-				<span>Notifications</span>
-			</div>
+				<div class="block-footer">
+					<span>RBAC</span>
+					<span>Workflows</span>
+					<span>Audit Logs</span>
+					<span>Notifications</span>
+				</div>
+			</a>
+			<a class="intel-card intel-block" href="admin/analytics_engine">
+				<div class="block-title"><i class="bi bi-graph-up-arrow"></i> Analytics Engine</div>
+				<ul>
+					<li>Data processing + validation</li>
+					<li>ETL cleaning & aggregation</li>
+					<li>AI models & insights</li>
+					<li>Alert generation</li>
+					<li>Visualization layer</li>
+				</ul>
+			</a>
 		</div>
-		<div class="intel-card intel-block">
-			<div class="block-title"><i class="bi bi-graph-up-arrow"></i> Analytics Engine</div>
-			<ul>
-				<li>Data processing + validation</li>
-				<li>ETL cleaning & aggregation</li>
-				<li>AI models & insights</li>
-				<li>Alert generation</li>
-				<li>Visualization layer</li>
-			</ul>
-		</div>
-	</div>
 
 	<div class="intel-dashboards">
 		<div>
 			<h3>Analytics Dashboards</h3>
 			<p>Academic, finance, attendance, and operations dashboards with real-time insights.</p>
 		</div>
-		<div class="dashboard-badges">
-			<span><i class="bi bi-mortarboard"></i> Academic</span>
-			<span><i class="bi bi-cash-stack"></i> Finance</span>
-			<span><i class="bi bi-check2-square"></i> Attendance</span>
-			<span><i class="bi bi-truck"></i> Operations</span>
-		</div>
+			<div class="dashboard-badges">
+				<a href="admin/results_analytics"><span><i class="bi bi-mortarboard"></i> Academic</span></a>
+				<a href="admin/fees"><span><i class="bi bi-cash-stack"></i> Finance</span></a>
+				<a href="admin/attendance"><span><i class="bi bi-check2-square"></i> Attendance</span></a>
+				<a href="admin/transport"><span><i class="bi bi-truck"></i> Operations</span></a>
+			</div>
 	</div>
 </section>
 
