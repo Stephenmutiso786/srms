@@ -107,6 +107,16 @@ try {
 	$usePoints = app_column_exists($conn, 'tbl_cbc_assessments', 'points');
 	$useUpdated = app_column_exists($conn, 'tbl_cbc_assessments', 'updated_at');
 
+	if (app_table_exists($conn, 'tbl_cbc_mark_submissions')) {
+		$stmt = $conn->prepare("SELECT status FROM tbl_cbc_mark_submissions WHERE term_id = ? AND class_id = ? AND subject_combination_id = ? LIMIT 1");
+		$stmt->execute([$termId, $classId, $combinationId]);
+		$submissionStatus = (string)$stmt->fetchColumn();
+		if (in_array($submissionStatus, ['submitted','approved'], true)) {
+			echo json_encode(['ok' => false, 'message' => 'Marks are submitted and locked']);
+			exit;
+		}
+	}
+
 	$where = $useSubjectId ? "class_id = ? AND term_id = ? AND subject_id = ? AND student_id = ? AND strand = ?" : "class_id = ? AND term_id = ? AND learning_area = ? AND student_id = ? AND strand = ?";
 	$args = $useSubjectId ? [$classId, $termId, $subjectId, $studentId, $strand] : [$classId, $termId, $learningArea, $studentId, $strand];
 

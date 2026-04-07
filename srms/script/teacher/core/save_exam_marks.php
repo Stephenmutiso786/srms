@@ -31,6 +31,15 @@ try {
     throw new RuntimeException("Results are locked for this class/term.");
   }
 
+  if (app_table_exists($conn, 'tbl_exam_mark_submissions')) {
+    $stmt = $conn->prepare("SELECT status FROM tbl_exam_mark_submissions WHERE exam_id = ? AND subject_combination_id = ? LIMIT 1");
+    $stmt->execute([$examId, $subjectComb]);
+    $status = (string)$stmt->fetchColumn();
+    if (in_array($status, ['submitted','approved'], true)) {
+      throw new RuntimeException("Marks are submitted and locked.");
+    }
+  }
+
   $stmt = $conn->prepare("SELECT * FROM tbl_exams WHERE id = ? AND status = 'open' LIMIT 1");
   $stmt->execute([$examId]);
   $exam = $stmt->fetch(PDO::FETCH_ASSOC);

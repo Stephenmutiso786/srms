@@ -23,6 +23,8 @@ $subjectName = '';
 $students = [];
 $scores = [];
 $isLocked = false;
+$submissionStatus = 'draft';
+$avgScore = 0;
 $error = '';
 
 try {
@@ -81,8 +83,12 @@ try {
   foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
     $scores[(string)$row['student']] = $row['score'];
   }
+  if (count($scores) > 0) {
+    $avgScore = array_sum(array_map('floatval', $scores)) / count($scores);
+  }
 
   $isLocked = app_results_locked($conn, $classId, $termId);
+  $submissionStatus = app_exam_submission_status($conn, $examId, $subjectComb);
 } catch (Throwable $e) {
   $error = $e->getMessage();
 }
@@ -124,6 +130,7 @@ try {
 </div>
 <ul class="app-menu">
 <li><a class="app-menu__item" href="teacher"><i class="app-menu__icon feather icon-monitor"></i><span class="app-menu__label">Dashboard</span></a></li>
+<li><a class="app-menu__item" href="teacher/elearning"><i class="app-menu__icon feather icon-book-open"></i><span class="app-menu__label">E-Learning</span></a></li>
 <li><a class="app-menu__item" href="teacher/terms"><i class="app-menu__icon feather icon-folder"></i><span class="app-menu__label">Academic Terms</span></a></li>
 <li><a class="app-menu__item" href="teacher/combinations"><i class="app-menu__icon feather icon-book-open"></i><span class="app-menu__label">Subject Combinations</span></a></li>
 <li class="treeview"><a class="app-menu__item" href="javascript:void(0);" data-toggle="treeview"><i class="app-menu__icon feather icon-users"></i><span class="app-menu__label">Students</span><i class="treeview-indicator bi bi-chevron-right"></i></a>
@@ -159,9 +166,17 @@ try {
 <?php if ($isLocked) { ?>
   <div class="tile"><div class="alert alert-warning mb-0">Results are locked for this class and term. Edits are disabled.</div></div>
 <?php } ?>
+<?php if (!$isLocked && in_array($submissionStatus, ['submitted','approved'], true)) { ?>
+  <div class="tile"><div class="alert alert-info mb-0">Marks are <?php echo htmlspecialchars($submissionStatus); ?> and read-only.</div></div>
+<?php } ?>
 
 <div class="tile">
 <h3 class="tile-title">Subject: <?php echo htmlspecialchars($subjectName); ?></h3>
+<p><b>Status:</b> <?php echo htmlspecialchars(ucfirst($submissionStatus)); ?> · <b>Class Average:</b> <?php echo number_format($avgScore, 2); ?></p>
+<div class="small text-muted" id="autoSaveStatus">Autosave ready</div>
+<div class="mb-2">
+  <a class="btn btn-sm btn-outline-secondary" href="teacher/import_results"><i class="bi bi-upload me-1"></i>Bulk Import CSV</a>
+</div>
 <form class="app_frm" method="POST" action="teacher/core/save_exam_marks">
 <input type="hidden" name="exam_id" value="<?php echo (int)$examId; ?>">
 <input type="hidden" name="class_id" value="<?php echo (int)$classId; ?>">
@@ -180,15 +195,22 @@ try {
 <tr>
   <td><?php echo htmlspecialchars($fullName); ?></td>
   <td>
-    <input class="form-control" type="number" min="0" max="100" step="0.01" name="scores[<?php echo htmlspecialchars($sid); ?>]" value="<?php echo htmlspecialchars($scoreVal); ?>" <?php echo $isLocked ? 'readonly' : ''; ?>>
+    <input class="form-control exam-score" type="number" min="0" max="100" step="0.01" data-student="<?php echo htmlspecialchars($sid); ?>" name="scores[<?php echo htmlspecialchars($sid); ?>]" value="<?php echo htmlspecialchars($scoreVal); ?>" <?php echo ($isLocked || in_array($submissionStatus, ['submitted','approved'], true)) ? 'readonly' : ''; ?>>
   </td>
 </tr>
 <?php endforeach; ?>
 </tbody>
 </table>
 </div>
-<button class="btn btn-primary" <?php echo $isLocked ? 'disabled' : ''; ?>>Save Marks</button>
+<button class="btn btn-primary" <?php echo ($isLocked || in_array($submissionStatus, ['submitted','approved'], true)) ? 'disabled' : ''; ?>>Save Marks</button>
 </form>
+<?php if (!$isLocked && in_array($submissionStatus, ['draft','rejected'], true)) { ?>
+  <form class="mt-2" method="POST" action="teacher/core/submit_exam_marks">
+    <input type="hidden" name="exam_id" value="<?php echo (int)$examId; ?>">
+    <input type="hidden" name="subject_combination" value="<?php echo (int)$subjectComb; ?>">
+    <button class="btn btn-outline-success">Submit Marks</button>
+  </form>
+<?php } ?>
 </div>
 <?php } ?>
 </main>
@@ -196,6 +218,40 @@ try {
 <script src="js/jquery-3.7.0.min.js"></script>
 <script src="js/bootstrap.min.js"></script>
 <script src="js/main.js"></script>
+<script>
+const autoStatus = document.getElementById('autoSaveStatus');
+function setStatus(text, ok=true){
+  if (!autoStatus) return;
+  autoStatus.textContent = text;
+  autoStatus.style.color = ok ? '#198754' : '#dc3545';
+}
+
+const basePayload = {
+  exam_id: <?php echo (int)$examId; ?>,
+  class_id: <?php echo (int)$classId; ?>,
+  term_id: <?php echo (int)$termId; ?>,
+  subject_combination: <?php echo (int)$subjectComb; ?>
+};
+
+document.querySelectorAll('.exam-score').forEach((el) => {
+  el.addEventListener('change', async (e) => {
+    const value = e.target.value;
+    const studentId = e.target.dataset.student;
+    setStatus('Saving...', true);
+    const res = await fetch('teacher/core/save_exam_mark_single', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(Object.assign({}, basePayload, { student_id: studentId, score: value }))
+    });
+    const data = await res.json().catch(() => ({ ok: false }));
+    if (data && data.ok) {
+      setStatus('Saved', true);
+    } else {
+      setStatus(data.message || 'Save failed', false);
+    }
+  });
+});
+</script>
 <?php require_once('const/check-reply.php'); ?>
 </body>
 </html>

@@ -182,6 +182,42 @@ function app_results_locked(PDO $conn, int $classId, int $termId): bool
 	}
 }
 
+function app_exam_submission_status(PDO $conn, int $examId, int $subjectCombinationId): string
+{
+	if ($examId < 1 || $subjectCombinationId < 1) {
+		return 'draft';
+	}
+	if (!app_table_exists($conn, 'tbl_exam_mark_submissions')) {
+		return 'draft';
+	}
+	try {
+		$stmt = $conn->prepare("SELECT status FROM tbl_exam_mark_submissions WHERE exam_id = ? AND subject_combination_id = ? LIMIT 1");
+		$stmt->execute([$examId, $subjectCombinationId]);
+		$status = (string)$stmt->fetchColumn();
+		return $status !== '' ? $status : 'draft';
+	} catch (Throwable $e) {
+		return 'draft';
+	}
+}
+
+function app_cbc_submission_status(PDO $conn, int $termId, int $classId, int $subjectCombinationId): string
+{
+	if ($termId < 1 || $classId < 1 || $subjectCombinationId < 1) {
+		return 'draft';
+	}
+	if (!app_table_exists($conn, 'tbl_cbc_mark_submissions')) {
+		return 'draft';
+	}
+	try {
+		$stmt = $conn->prepare("SELECT status FROM tbl_cbc_mark_submissions WHERE term_id = ? AND class_id = ? AND subject_combination_id = ? LIMIT 1");
+		$stmt->execute([$termId, $classId, $subjectCombinationId]);
+		$status = (string)$stmt->fetchColumn();
+		return $status !== '' ? $status : 'draft';
+	} catch (Throwable $e) {
+		return 'draft';
+	}
+}
+
 function app_unserialize($value): array
 {
 	if (!is_string($value) || $value === '') {

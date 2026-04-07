@@ -113,6 +113,7 @@ try {
 </div>
 <ul class="app-menu">
 <li><a class="app-menu__item" href="student"><i class="app-menu__icon feather icon-monitor"></i><span class="app-menu__label">Dashboard</span></a></li>
+<li><a class="app-menu__item" href="student/elearning"><i class="app-menu__icon feather icon-book-open"></i><span class="app-menu__label">E-Learning</span></a></li>
 <li><a class="app-menu__item" href="student/results"><i class="app-menu__icon feather icon-file-text"></i><span class="app-menu__label">My Results</span></a></li>
 <li><a class="app-menu__item active" href="student/ranking"><i class="app-menu__icon feather icon-bar-chart-2"></i><span class="app-menu__label">My Ranking</span></a></li>
 </ul>

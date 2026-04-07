@@ -29,6 +29,7 @@ $error = '';
 $isLocked = false;
 $grading = [];
 $levels = [];
+$submissionStatus = 'draft';
 
 try {
 	$conn = app_db();
@@ -99,6 +100,7 @@ try {
 	}
 
 	$isLocked = app_results_locked($conn, $class, $term);
+	$submissionStatus = app_cbc_submission_status($conn, $term, $class, $subjectComb);
 } catch (Throwable $e) {
 	$error = $e->getMessage();
 }
@@ -165,6 +167,7 @@ $levels = array_values(array_unique($levels));
 </div>
 <ul class="app-menu">
 <li><a class="app-menu__item" href="teacher"><i class="app-menu__icon feather icon-monitor"></i><span class="app-menu__label">Dashboard</span></a></li>
+<li><a class="app-menu__item" href="teacher/elearning"><i class="app-menu__icon feather icon-book-open"></i><span class="app-menu__label">E-Learning</span></a></li>
 <li><a class="app-menu__item" href="teacher/terms"><i class="app-menu__icon feather icon-folder"></i><span class="app-menu__label">Academic Terms</span></a></li>
 <li><a class="app-menu__item" href="teacher/combinations"><i class="app-menu__icon feather icon-book-open"></i><span class="app-menu__label">Subject Combinations</span></a></li>
 <li class="treeview is-expanded"><a class="app-menu__item" href="javascript:void(0);" data-toggle="treeview"><i class="app-menu__icon feather icon-file-text"></i><span class="app-menu__label">Examination Results</span><i class="treeview-indicator bi bi-chevron-right"></i></a>
@@ -193,6 +196,9 @@ $levels = array_values(array_unique($levels));
 <?php if ($isLocked) { ?>
   <div class="tile"><div class="alert alert-warning mb-0">Results are locked for this class and term. Edits are disabled.</div></div>
 <?php } ?>
+<?php if (!$isLocked && in_array($submissionStatus, ['submitted','approved'], true)) { ?>
+  <div class="tile"><div class="alert alert-info mb-0">Marks are <?php echo htmlspecialchars($submissionStatus); ?> and read-only.</div></div>
+<?php } ?>
 
 <div class="row mb-2">
 <div class="col-md-4">
@@ -201,6 +207,7 @@ $levels = array_values(array_unique($levels));
 <div><b>Class:</b> <?php echo htmlspecialchars($classData['name'] ?? ''); ?></div>
 <div><b>Term:</b> <?php echo htmlspecialchars($termData['name'] ?? ''); ?></div>
 <div><b>Subject:</b> <?php echo htmlspecialchars($subjectName); ?></div>
+<div><b>Status:</b> <?php echo htmlspecialchars(ucfirst($submissionStatus)); ?></div>
 </div>
 </div>
 </div>
@@ -308,6 +315,18 @@ $levels = array_values(array_unique($levels));
 <?php } ?>
 </main>
 
+<?php if (!$isLocked && in_array($submissionStatus, ['draft','rejected'], true)) { ?>
+<div class="app-content">
+  <form class="app_frm" method="POST" action="teacher/core/submit_cbc_marks">
+    <input type="hidden" name="term_id" value="<?php echo (int)$term; ?>">
+    <input type="hidden" name="class_id" value="<?php echo (int)$class; ?>">
+    <input type="hidden" name="subject_combination" value="<?php echo (int)$subjectComb; ?>">
+    <input type="hidden" name="subject_id" value="<?php echo (int)$subjectId; ?>">
+    <button class="btn btn-outline-success">Submit Marks</button>
+  </form>
+</div>
+<?php } ?>
+
 <script src="js/jquery-3.7.0.min.js"></script>
 <script src="js/bootstrap.min.js"></script>
 <script src="js/main.js"></script>
@@ -395,7 +414,7 @@ function applyLevelBadge(badge, level){
 }
 
 document.querySelectorAll('.cbc-level').forEach((el) => {
-  if (<?php echo $isLocked ? 'true' : 'false'; ?>) { el.disabled = true; }
+  if (<?php echo ($isLocked || in_array($submissionStatus, ['submitted','approved'], true)) ? 'true' : 'false'; ?>) { el.disabled = true; }
   el.addEventListener('change', async (e) => {
     const studentId = e.target.dataset.student;
     const strand = e.target.dataset.strand;
@@ -406,7 +425,7 @@ document.querySelectorAll('.cbc-level').forEach((el) => {
 });
 
 document.querySelectorAll('.cbc-marks').forEach((el) => {
-  if (<?php echo $isLocked ? 'true' : 'false'; ?>) { el.disabled = true; }
+  if (<?php echo ($isLocked || in_array($submissionStatus, ['submitted','approved'], true)) ? 'true' : 'false'; ?>) { el.disabled = true; }
   el.addEventListener('change', async (e) => {
     const studentId = e.target.dataset.student;
     const strand = e.target.dataset.strand;

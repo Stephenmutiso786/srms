@@ -7,12 +7,12 @@ function app_default_permissions_for_level(int $level): array
 	}
 
 	switch ($level) {
-		case 0:
-			return [
-				'system.manage','audit.view','students.manage','staff.manage','attendance.manage','exams.manage',
-				'results.approve','results.lock','report.generate','report.view','finance.manage','finance.view',
-				'communication.manage','transport.manage','library.manage','inventory.manage'
-			];
+			case 0:
+				return [
+					'system.manage','audit.view','students.manage','staff.manage','attendance.manage','exams.manage',
+					'results.approve','results.lock','marks.review','report.generate','report.view','finance.manage','finance.view',
+					'communication.manage','transport.manage','library.manage','inventory.manage'
+				];
 		case 1:
 			return ['attendance.manage','exams.manage','results.approve','report.generate','report.view'];
 		case 2:
