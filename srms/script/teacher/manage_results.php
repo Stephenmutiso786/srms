@@ -86,7 +86,7 @@ if ($res == "1" && $level == "2") {}else{header("location:../");}
 
 <div class="mb-2">
 <label class="form-label">Select Term</label>
-<select class="form-control select2" name="term" required style="width: 100%;">
+<select class="form-control select2" name="term" id="termSelect" required style="width: 100%;">
 <option selected disabled value="">Select Term</option>
 <?php
 try {
@@ -121,31 +121,36 @@ try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-$stmt = $conn->prepare("SELECT * FROM tbl_subject_combinations
-LEFT JOIN tbl_subjects ON tbl_subject_combinations.subject = tbl_subjects.id
-LEFT JOIN tbl_staff ON tbl_subject_combinations.teacher = tbl_staff.id WHERE tbl_subject_combinations.teacher = ?");
-$stmt->execute([$account_id]);
-$result = $stmt->fetchAll();
+if (app_table_exists($conn, 'tbl_teacher_assignments')) {
+  $year = (int)date('Y');
+  $stmt = $conn->prepare("SELECT DISTINCT class_id FROM tbl_teacher_assignments WHERE teacher_id = ? AND year = ? AND status = 1");
+  $stmt->execute([$account_id, $year]);
+  $myclasses = $stmt->fetchAll(PDO::FETCH_COLUMN);
+} else {
+  $stmt = $conn->prepare("SELECT * FROM tbl_subject_combinations
+  LEFT JOIN tbl_subjects ON tbl_subject_combinations.subject = tbl_subjects.id
+  LEFT JOIN tbl_staff ON tbl_subject_combinations.teacher = tbl_staff.id WHERE tbl_subject_combinations.teacher = ?");
+  $stmt->execute([$account_id]);
+  $result = $stmt->fetchAll();
 
-$myclasses = array();
-
-foreach ($result as $value) {
-$class_arr = app_unserialize($value[1]);
-
-foreach ($class_arr as $value) {
-array_push($myclasses, $value);
+  $myclasses = array();
+  foreach ($result as $value) {
+    $class_arr = app_unserialize($value[1]);
+    foreach ($class_arr as $value) {
+      array_push($myclasses, $value);
+    }
+  }
 }
+
+if (!empty($myclasses)) {
+  $matches = str_split(str_repeat("?", count($myclasses)));
+  $matches = implode(",", $matches);
+  $stmt = $conn->prepare("SELECT * FROM tbl_classes WHERE id IN ($matches)");
+  $stmt->execute($myclasses);
+  $result = $stmt->fetchAll();
+} else {
+  $result = [];
 }
-
-// $matches = implode(',', $myclasses);
-// $matches = preg_replace('/[A-Z0-9]/', '?', $matches);
-$matches = str_split(str_repeat("?", count($myclasses)));
-$matches = implode(",", $matches);
-
-
-$stmt = $conn->prepare("SELECT * FROM tbl_classes WHERE id IN ($matches)");
-$stmt->execute($myclasses);
-$result = $stmt->fetchAll();
 
 foreach($result as $row)
 {

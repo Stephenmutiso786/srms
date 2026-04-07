@@ -20,13 +20,32 @@ try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-	$stmt = $conn->prepare("SELECT id, name FROM tbl_classes ORDER BY id");
-	$stmt->execute();
-	$classes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	if (app_table_exists($conn, 'tbl_teacher_assignments')) {
+		$year = (int)date('Y');
+		$stmt = $conn->prepare("SELECT DISTINCT c.id, c.name
+			FROM tbl_teacher_assignments ta
+			JOIN tbl_classes c ON c.id = ta.class_id
+			WHERE ta.teacher_id = ? AND ta.year = ? AND ta.status = 1
+			ORDER BY c.name");
+		$stmt->execute([$account_id, $year]);
+		$classes = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-	$stmt = $conn->prepare("SELECT id, name FROM tbl_subjects ORDER BY name");
-	$stmt->execute();
-	$subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		$stmt = $conn->prepare("SELECT DISTINCT s.id, s.name
+			FROM tbl_teacher_assignments ta
+			JOIN tbl_subjects s ON s.id = ta.subject_id
+			WHERE ta.teacher_id = ? AND ta.year = ? AND ta.status = 1
+			ORDER BY s.name");
+		$stmt->execute([$account_id, $year]);
+		$subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	} else {
+		$stmt = $conn->prepare("SELECT id, name FROM tbl_classes ORDER BY id");
+		$stmt->execute();
+		$classes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+		$stmt = $conn->prepare("SELECT id, name FROM tbl_subjects ORDER BY name");
+		$stmt->execute();
+		$subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	}
 
 	if (app_table_exists($conn, 'tbl_courses')) {
 		$stmt = $conn->prepare("SELECT c.*, cl.name AS class_name, sb.name AS subject_name

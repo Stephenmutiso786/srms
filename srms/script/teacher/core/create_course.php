@@ -25,6 +25,15 @@ try {
   $conn = app_db();
   $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
+  if (app_table_exists($conn, 'tbl_teacher_assignments')) {
+    $year = (int)date('Y');
+    $stmt = $conn->prepare("SELECT id FROM tbl_teacher_assignments WHERE teacher_id = ? AND class_id = ? AND subject_id = ? AND year = ? AND status = 1 LIMIT 1");
+    $stmt->execute([(int)$account_id, $classId, $subjectId, $year]);
+    if (!$stmt->fetchColumn()) {
+      throw new RuntimeException("You are not assigned to this class/subject.");
+    }
+  }
+
   $stmt = $conn->prepare("INSERT INTO tbl_courses (name, class_id, subject_id, teacher_id) VALUES (?,?,?,?)");
   $stmt->execute([$name, $classId, $subjectId, (int)$account_id]);
   app_audit_log($conn, 'staff', (string)$account_id, 'elearning.course.create', 'course', (string)$conn->lastInsertId());

@@ -8,12 +8,15 @@ if ($res == "1" && $level == "2") {}else{header("location:../");}
 
 $exams = [];
 $classSubjects = [];
+$useTeacherAssignments = false;
 
 try {
   $conn = app_db();
   $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-  $stmt = $conn->prepare("SELECT sc.id, sc.class, s.name AS subject_name
+  $combos = [];
+  $useTeacherAssignments = app_table_exists($conn, 'tbl_teacher_assignments');
+  $stmt = $conn->prepare("SELECT sc.id, sc.class, sc.subject, s.name AS subject_name
     FROM tbl_subject_combinations sc
     LEFT JOIN tbl_subjects s ON sc.subject = s.id
     WHERE sc.teacher = ?");
@@ -21,28 +24,84 @@ try {
   $combos = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
   $classIds = [];
-  foreach ($combos as $combo) {
-    $classes = app_unserialize($combo['class']);
-    foreach ($classes as $cid) {
-      $classIds[] = (int)$cid;
-      $classSubjects[(int)$cid][] = [
-        'id' => (int)$combo['id'],
-        'name' => $combo['subject_name']
-      ];
-    }
-  }
-  $classIds = array_values(array_unique(array_filter($classIds)));
 
-  if (!empty($classIds)) {
-    $placeholders = implode(',', array_fill(0, count($classIds), '?'));
-    $stmt = $conn->prepare("SELECT e.id, e.name, e.class_id, e.term_id, c.name AS class_name, t.name AS term_name
-      FROM tbl_exams e
-      LEFT JOIN tbl_classes c ON c.id = e.class_id
-      LEFT JOIN tbl_terms t ON t.id = e.term_id
-      WHERE e.status = 'open' AND e.class_id IN ($placeholders)
-      ORDER BY e.created_at DESC");
-    $stmt->execute($classIds);
-    $exams = $stmt->fetchAll(PDO::FETCH_ASSOC);
+  if ($useTeacherAssignments) {
+    $year = (int)date('Y');
+    $stmt = $conn->prepare("SELECT ta.class_id, ta.subject_id, ta.term_id, s.name AS subject_name
+      FROM tbl_teacher_assignments ta
+      JOIN tbl_subjects s ON s.id = ta.subject_id
+      WHERE ta.teacher_id = ? AND ta.year = ? AND ta.status = 1");
+    $stmt->execute([$account_id, $year]);
+    $assignments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    foreach ($assignments as $assignment) {
+      $classIds[] = (int)$assignment['class_id'];
+    }
+    $classIds = array_values(array_unique(array_filter($classIds)));
+
+    if (!empty($classIds)) {
+      $placeholders = implode(',', array_fill(0, count($classIds), '?'));
+      $stmt = $conn->prepare("SELECT e.id, e.name, e.class_id, e.term_id, c.name AS class_name, t.name AS term_name
+        FROM tbl_exams e
+        LEFT JOIN tbl_classes c ON c.id = e.class_id
+        LEFT JOIN tbl_terms t ON t.id = e.term_id
+        WHERE e.status = 'open' AND e.class_id IN ($placeholders)
+        ORDER BY e.created_at DESC");
+      $stmt->execute($classIds);
+      $exams = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    foreach ($exams as $exam) {
+      foreach ($assignments as $assignment) {
+        if ((int)$assignment['class_id'] !== (int)$exam['class_id']) {
+          continue;
+        }
+        if ((int)$assignment['term_id'] !== (int)$exam['term_id']) {
+          continue;
+        }
+        $comboId = 0;
+        foreach ($combos as $combo) {
+          if ((int)$combo['subject'] !== (int)$assignment['subject_id']) {
+            continue;
+          }
+          $classes = app_unserialize($combo['class']);
+          if (in_array((string)$exam['class_id'], array_map('strval', $classes), true)) {
+            $comboId = (int)$combo['id'];
+            break;
+          }
+        }
+        if ($comboId > 0) {
+          $classSubjects[(int)$exam['id']][] = [
+            'id' => $comboId,
+            'name' => $assignment['subject_name']
+          ];
+        }
+      }
+    }
+  } else {
+    foreach ($combos as $combo) {
+      $classes = app_unserialize($combo['class']);
+      foreach ($classes as $cid) {
+        $classIds[] = (int)$cid;
+        $classSubjects[(int)$cid][] = [
+          'id' => (int)$combo['id'],
+          'name' => $combo['subject_name']
+        ];
+      }
+    }
+    $classIds = array_values(array_unique(array_filter($classIds)));
+
+    if (!empty($classIds)) {
+      $placeholders = implode(',', array_fill(0, count($classIds), '?'));
+      $stmt = $conn->prepare("SELECT e.id, e.name, e.class_id, e.term_id, c.name AS class_name, t.name AS term_name
+        FROM tbl_exams e
+        LEFT JOIN tbl_classes c ON c.id = e.class_id
+        LEFT JOIN tbl_terms t ON t.id = e.term_id
+        WHERE e.status = 'open' AND e.class_id IN ($placeholders)
+        ORDER BY e.created_at DESC");
+      $stmt->execute($classIds);
+      $exams = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
   }
 } catch (Throwable $e) {
   $_SESSION['reply'] = array (array("danger", "Failed to load exams."));
@@ -157,9 +216,12 @@ try {
 <script>
   $('.select2').select2();
   const classSubjects = <?php echo json_encode($classSubjects); ?>;
+  const mapByExam = <?php echo $useTeacherAssignments ? 'true' : 'false'; ?>;
   $('#examSelect').on('change', function () {
     const classId = $(this).find(':selected').data('class');
-    const subjects = classSubjects[classId] || [];
+    const examId = $(this).val();
+    const key = mapByExam ? examId : classId;
+    const subjects = classSubjects[key] || [];
     const $subject = $('#subjectSelect');
     $subject.empty().append('<option value="" selected disabled>Select subject</option>');
     subjects.forEach(item => {

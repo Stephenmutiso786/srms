@@ -27,6 +27,7 @@ function app_tree_active($page)
     <li><a class="app-menu__item<?php echo app_menu_active('index'); ?>" href="admin"><i class="app-menu__icon feather icon-monitor"></i><span class="app-menu__label">Dashboard</span></a></li>
     <li><a class="app-menu__item<?php echo app_menu_active('academic'); ?>" href="admin/academic"><i class="app-menu__icon feather icon-user"></i><span class="app-menu__label">Academic Account</span></a></li>
     <li><a class="app-menu__item<?php echo app_menu_active('teachers'); ?>" href="admin/teachers"><i class="app-menu__icon feather icon-user"></i><span class="app-menu__label">Teachers</span></a></li>
+    <li><a class="app-menu__item<?php echo app_menu_active('teacher_allocation'); ?>" href="admin/teacher_allocation"><i class="app-menu__icon feather icon-users"></i><span class="app-menu__label">Teacher Allocation</span></a></li>
     <li class="treeview<?php echo $isStudentsOpen ? ' is-expanded' : ''; ?>">
       <a class="app-menu__item" href="javascript:void(0);" data-toggle="treeview"><i class="app-menu__icon feather icon-users"></i><span class="app-menu__label">Students</span><i class="treeview-indicator bi bi-chevron-right"></i></a>
       <ul class="treeview-menu">

@@ -31,7 +31,7 @@ try {
     throw new RuntimeException("Exam not found or closed.");
   }
 
-  $stmt = $conn->prepare("SELECT id, class, teacher FROM tbl_subject_combinations WHERE id = ?");
+  $stmt = $conn->prepare("SELECT id, class, teacher, subject FROM tbl_subject_combinations WHERE id = ?");
   $stmt->execute([$subjectComb]);
   $combo = $stmt->fetch(PDO::FETCH_ASSOC);
   if (!$combo || (int)$combo['teacher'] !== (int)$account_id) {
@@ -40,6 +40,15 @@ try {
   $classList = app_unserialize($combo['class']);
   if (!in_array((string)$exam['class_id'], array_map('strval', $classList), true)) {
     throw new RuntimeException("Subject not assigned to exam class.");
+  }
+
+  if (app_table_exists($conn, 'tbl_teacher_assignments')) {
+    $year = (int)date('Y');
+    $stmt = $conn->prepare("SELECT id FROM tbl_teacher_assignments WHERE teacher_id = ? AND class_id = ? AND subject_id = ? AND term_id = ? AND year = ? AND status = 1 LIMIT 1");
+    $stmt->execute([(int)$account_id, (int)$exam['class_id'], (int)$combo['subject'], (int)$exam['term_id'], $year]);
+    if (!$stmt->fetchColumn()) {
+      throw new RuntimeException("No active assignment for this class/subject/term.");
+    }
   }
 
   $_SESSION['exam_entry'] = [

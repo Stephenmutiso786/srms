@@ -149,10 +149,11 @@ onClose: function() {}
 
 $('#sub_imp').find('option').remove();
 
+var termId = $('#termSelect').val() || '';
 $.ajax({
 type: 'POST',
 url: 'app/ajax/fetch_subjects.php',
-data: 'id=' + class_id + '&submit=1',
+data: 'id=' + class_id + '&term_id=' + termId + '&submit=1',
 success: function (data) {
 $('#sub_imp').append(data)
 $('.app_frm').waitMe('hide');
