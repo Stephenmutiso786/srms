@@ -1,6 +1,16 @@
 <?php
 // Prefer environment variables for cloud hosting (Render, etc.)
-DEFINE('DBDriver', strtolower(getenv('DB_DRIVER') ?: 'mysql')); // mysql | pgsql
+$driverEnv = strtolower(getenv('DB_DRIVER') ?: '');
+$dsnEnv = getenv('DB_DSN') ?: '';
+$driverFromDsn = '';
+if ($dsnEnv !== '') {
+	if (stripos($dsnEnv, 'pgsql:') === 0) {
+		$driverFromDsn = 'pgsql';
+	} elseif (stripos($dsnEnv, 'mysql:') === 0) {
+		$driverFromDsn = 'mysql';
+	}
+}
+DEFINE('DBDriver', $driverEnv !== '' ? $driverEnv : ($driverFromDsn !== '' ? $driverFromDsn : 'mysql')); // mysql | pgsql
 DEFINE('DBHost', getenv('DB_HOST') ?: 'localhost');
 DEFINE('DBPort', getenv('DB_PORT') ?: '');
 DEFINE('DBUser', getenv('DB_USER') ?: 'root');

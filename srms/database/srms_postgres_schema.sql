@@ -41,7 +41,6 @@ CREATE TABLE IF NOT EXISTS tbl_classes (
   PRIMARY KEY (id)
 );
 --
--- Dumping data for table tbl_classes
 --
 
 
@@ -62,7 +61,6 @@ CREATE TABLE IF NOT EXISTS tbl_division_system (
   PRIMARY KEY (division)
 );
 --
--- Dumping data for table tbl_division_system
 --
 
 
@@ -83,7 +81,6 @@ CREATE TABLE IF NOT EXISTS tbl_exam_results (
   PRIMARY KEY (id)
 );
 --
--- Dumping data for table tbl_exam_results
 --
 
 
@@ -103,7 +100,6 @@ CREATE TABLE IF NOT EXISTS tbl_grade_system (
   PRIMARY KEY (id)
 );
 --
--- Dumping data for table tbl_grade_system
 --
 
 
@@ -122,7 +118,6 @@ CREATE TABLE IF NOT EXISTS tbl_login_sessions (
   PRIMARY KEY (session_key)
 );
 --
--- Dumping data for table tbl_login_sessions
 --
 
 
@@ -142,7 +137,6 @@ CREATE TABLE IF NOT EXISTS tbl_school (
   PRIMARY KEY (id)
 );
 --
--- Dumping data for table tbl_school
 --
 
 
@@ -164,7 +158,6 @@ CREATE TABLE IF NOT EXISTS tbl_smtp (
   PRIMARY KEY (id)
 );
 --
--- Dumping data for table tbl_smtp
 --
 
 
@@ -187,7 +180,6 @@ CREATE TABLE IF NOT EXISTS tbl_staff (
   PRIMARY KEY (id)
 );
 --
--- Dumping data for table tbl_staff
 --
 
 
@@ -213,7 +205,6 @@ CREATE TABLE IF NOT EXISTS tbl_students (
   PRIMARY KEY (id)
 );
 --
--- Dumping data for table tbl_students
 --
 
 
@@ -230,7 +221,6 @@ CREATE TABLE IF NOT EXISTS tbl_subjects (
   PRIMARY KEY (id)
 );
 --
--- Dumping data for table tbl_subjects
 --
 
 
@@ -250,7 +240,6 @@ CREATE TABLE IF NOT EXISTS tbl_subject_combinations (
   PRIMARY KEY (id)
 );
 --
--- Dumping data for table tbl_subject_combinations
 --
 
 (2, 'a:2:{i:0;s:1:\"3\";i:1;s:1:\"4\";}', 11, 4, '2024-03-18 14:01:12'),
@@ -285,7 +274,6 @@ CREATE TABLE IF NOT EXISTS tbl_terms (
   PRIMARY KEY (id)
 );
 --
--- Dumping data for table tbl_terms
 --
 
 
@@ -326,4 +314,3 @@ ALTER TABLE tbl_subject_combinations
 -- Set identity sequences after inserts
 
 COMMIT;
-

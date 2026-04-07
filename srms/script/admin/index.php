@@ -6,6 +6,16 @@ require_once('const/school.php');
 require_once('const/check_session.php');
 require_once('const/academic_dashboard.php');
 if ($res == "1" && $level == "0") {}else{header("location:../");}
+$students_total = $my_students;
+$teachers_total = $teachers;
+try {
+	$conn = app_db();
+	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	$students_total = (int)$conn->query("SELECT COUNT(*) FROM tbl_students")->fetchColumn();
+	$teachers_total = (int)$conn->query("SELECT COUNT(*) FROM tbl_staff WHERE level = 2")->fetchColumn();
+} catch (Throwable $e) {
+	// Keep fallback values from academic dashboard.
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -70,49 +80,100 @@ if ($res == "1" && $level == "0") {}else{header("location:../");}
 <li><a class="app-menu__item" href="admin/system"><i class="app-menu__icon feather icon-settings"></i><span class="app-menu__label">System Settings</span></a></li>
 </ul>
 </aside>
-<main class="app-content">
-<div class="app-title">
-<div>
-<h1>Dashboard</h1>
+<main class="app-content dashboard">
+<div class="dashboard-hero">
+	<div class="hero-main">
+		<span class="hero-kicker">Administrator Overview</span>
+		<h1>Welcome back, <?php echo $fname; ?></h1>
+		<p>Track enrollment, attendance, and finance performance at a glance.</p>
+		<div class="hero-actions">
+			<a class="btn btn-light" href="admin/register_students"><i class="bi bi-plus-circle me-2"></i>New Student</a>
+			<a class="btn btn-outline-light" href="admin/fees"><i class="bi bi-cash-coin me-2"></i>Fees & Finance</a>
+			<a class="btn btn-outline-light" href="admin/attendance"><i class="bi bi-check2-square me-2"></i>Attendance</a>
+		</div>
+	</div>
+	<div class="hero-meta">
+		<div class="meta-card">
+			<span class="meta-label">Today</span>
+			<strong class="meta-value"><?php echo date('l, d M Y'); ?></strong>
+		</div>
+		<div class="meta-card">
+			<span class="meta-label">Active Terms</span>
+			<strong class="meta-value"><?php echo number_format($academic_terms); ?></strong>
+		</div>
+	</div>
 </div>
 
-</div>
-<div class="row">
-<div class="col-md-6 col-lg-3">
-<div class="widget-small primary coloured-icon"><i class="icon feather icon-folder fs-1"></i>
-<div class="info">
-<h4>Academic Terms</h4>
-<p><b><?php echo number_format($academic_terms); ?></b></p>
-</div>
-</div>
-</div>
-<div class="col-md-6 col-lg-3">
-<div class="widget-small primary coloured-icon"><i class="icon feather icon-user fs-1"></i>
-<div class="info">
-<h4>Teachers</h4>
-<p><b><?php echo number_format($teachers); ?></b></p>
-</div>
-</div>
-</div>
-<div class="col-md-6 col-lg-3">
-<div class="widget-small primary coloured-icon"><i class="icon feather icon-users fs-1"></i>
-<div class="info">
-<h4>Students</h4>
-<p><b><?php echo number_format($my_students); ?></b></p>
-</div>
-</div>
-</div>
-<div class="col-md-6 col-lg-3">
-<div class="widget-small primary coloured-icon"><i class="icon feather icon-book-open fs-1"></i>
-<div class="info">
-<h4>Subjects</h4>
-<p><b><?php echo number_format($subjects); ?></b></p>
-</div>
-</div>
+<div class="dashboard-stats">
+	<div class="stat-card">
+		<div>
+			<div class="stat-label">Students</div>
+			<div class="stat-value" data-stat="students"><?php echo number_format($students_total); ?></div>
+		</div>
+		<div class="stat-icon"><i class="bi bi-people"></i></div>
+	</div>
+	<div class="stat-card">
+		<div>
+			<div class="stat-label">Teachers</div>
+			<div class="stat-value" data-stat="teachers"><?php echo number_format($teachers_total); ?></div>
+		</div>
+		<div class="stat-icon"><i class="bi bi-person-badge"></i></div>
+	</div>
+	<div class="stat-card">
+		<div>
+			<div class="stat-label">Staff Present Today</div>
+			<div class="stat-value" data-stat="staffToday">0</div>
+		</div>
+		<div class="stat-icon"><i class="bi bi-clock-history"></i></div>
+	</div>
+	<div class="stat-card">
+		<div>
+			<div class="stat-label">Open Invoices</div>
+			<div class="stat-value" data-stat="openInvoices">0</div>
+		</div>
+		<div class="stat-icon"><i class="bi bi-receipt"></i></div>
+	</div>
+	<div class="stat-card">
+		<div>
+			<div class="stat-label">Payments Today</div>
+			<div class="stat-value" data-stat="paymentsToday">0</div>
+		</div>
+		<div class="stat-icon"><i class="bi bi-cash-stack"></i></div>
+	</div>
+	<div class="stat-card">
+		<div>
+			<div class="stat-label">Outstanding Balance</div>
+			<div class="stat-value" data-stat="outstandingBalance">0</div>
+		</div>
+		<div class="stat-icon"><i class="bi bi-wallet2"></i></div>
+	</div>
 </div>
 
-
-
+<div class="dashboard-grid">
+	<div class="tile">
+		<h3 class="tile-title">Students by Class</h3>
+		<div id="chartStudentsByClass" class="chart-lg"></div>
+	</div>
+	<div class="tile">
+		<h3 class="tile-title">Students by Gender</h3>
+		<div id="chartStudentsByGender" class="chart-lg"></div>
+	</div>
+	<div class="tile">
+		<h3 class="tile-title">Attendance Today</h3>
+		<div id="chartAttendanceToday" class="chart-lg"></div>
+	</div>
+	<div class="tile">
+		<h3 class="tile-title">Payments (Last 7 Days)</h3>
+		<div id="chartPaymentsByDay" class="chart-lg"></div>
+	</div>
+	<div class="tile">
+		<h3 class="tile-title">Payment Methods</h3>
+		<div id="chartPaymentsByMethod" class="chart-lg"></div>
+	</div>
+	<div class="tile">
+		<h3 class="tile-title">Average Score by Term</h3>
+		<div id="chartAvgScoreByTerm" class="chart-lg"></div>
+	</div>
 </div>
 
 </main>
@@ -141,44 +202,39 @@ if ($res == "1" && $level == "0") {}else{header("location:../");}
     return fetch(url, { credentials: 'same-origin' }).then(function (r) { return r.json(); });
   }
 
-  function ensureChartsSection() {
-    if (el('chartStudentsByClass')) return;
-
-    var container = document.createElement('div');
-    container.className = 'row mt-4';
-    container.innerHTML = ''
-      + '<div class="col-lg-8 mb-3">'
-      + '  <div class="tile">'
-      + '    <h3 class="tile-title">Students by Class</h3>'
-      + '    <div id="chartStudentsByClass" style="height:320px;"></div>'
-      + '  </div>'
-      + '</div>'
-      + '<div class="col-lg-4 mb-3">'
-      + '  <div class="tile">'
-      + '    <h3 class="tile-title">Students by Gender</h3>'
-      + '    <div id="chartStudentsByGender" style="height:320px;"></div>'
-      + '  </div>'
-      + '</div>'
-      + '<div class="col-12 mb-3">'
-      + '  <div class="tile">'
-      + '    <h3 class="tile-title">Average Score by Term</h3>'
-      + '    <div id="chartAvgScoreByTerm" style="height:280px;"></div>'
-      + '  </div>'
-      + '</div>';
-
-    var main = document.querySelector('main.app-content');
-    if (main) main.appendChild(container);
+  function formatCurrency(value) {
+    return new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', maximumFractionDigits: 0 }).format(value || 0);
   }
-
-  ensureChartsSection();
 
   var chartStudentsByClass = initChart('chartStudentsByClass');
   var chartStudentsByGender = initChart('chartStudentsByGender');
+  var chartAttendanceToday = initChart('chartAttendanceToday');
+  var chartPaymentsByDay = initChart('chartPaymentsByDay');
+  var chartPaymentsByMethod = initChart('chartPaymentsByMethod');
   var chartAvgScoreByTerm = initChart('chartAvgScoreByTerm');
 
   fetchJson('admin/api/dashboard_stats')
     .then(function (data) {
       if (!data || data.error) return;
+
+      if (data.counts) {
+        var students = document.querySelector('[data-stat=\"students\"]');
+        var teachers = document.querySelector('[data-stat=\"teachers\"]');
+        if (students) students.textContent = data.counts.students || 0;
+        if (teachers) teachers.textContent = data.counts.teachers || 0;
+      }
+
+      var staffToday = document.querySelector('[data-stat=\"staffToday\"]');
+      if (staffToday) staffToday.textContent = data.staffAttendanceToday || 0;
+
+      var openInvoices = document.querySelector('[data-stat=\"openInvoices\"]');
+      var paymentsToday = document.querySelector('[data-stat=\"paymentsToday\"]');
+      var outstanding = document.querySelector('[data-stat=\"outstandingBalance\"]');
+      if (data.fees) {
+        if (openInvoices) openInvoices.textContent = data.fees.open_invoices || 0;
+        if (paymentsToday) paymentsToday.textContent = formatCurrency(data.fees.payments_today || 0);
+        if (outstanding) outstanding.textContent = formatCurrency(data.fees.outstanding_total || 0);
+      }
 
       if (chartStudentsByClass) {
         var labels = (data.studentsByClass || []).map(function (r) { return r.name; });
@@ -188,7 +244,7 @@ if ($res == "1" && $level == "0") {}else{header("location:../");}
           grid: { left: 40, right: 20, top: 20, bottom: 60 },
           xAxis: { type: 'category', data: labels, axisLabel: { rotate: 30 } },
           yAxis: { type: 'value' },
-          series: [{ type: 'bar', data: values, itemStyle: { color: '#0d6efd' } }]
+          series: [{ type: 'bar', data: values, itemStyle: { color: '#00695c' } }]
         });
       }
 
@@ -208,6 +264,52 @@ if ($res == "1" && $level == "0") {}else{header("location:../");}
         });
       }
 
+      if (chartAttendanceToday) {
+        var att = data.attendanceToday || {};
+        var attItems = [
+          { name: 'Present', value: Number(att.present || 0) },
+          { name: 'Absent', value: Number(att.absent || 0) },
+          { name: 'Late', value: Number(att.late || 0) },
+          { name: 'Excused', value: Number(att.excused || 0) }
+        ];
+        chartAttendanceToday.setOption({
+          tooltip: { trigger: 'item' },
+          series: [{
+            type: 'pie',
+            radius: ['30%', '70%'],
+            label: { show: true },
+            data: attItems
+          }]
+        });
+      }
+
+      if (chartPaymentsByDay) {
+        var payLabels = (data.paymentsByDay || []).map(function (r) { return r.day; });
+        var payValues = (data.paymentsByDay || []).map(function (r) { return Number(r.total || 0); });
+        chartPaymentsByDay.setOption({
+          tooltip: { trigger: 'axis' },
+          grid: { left: 40, right: 20, top: 20, bottom: 40 },
+          xAxis: { type: 'category', data: payLabels },
+          yAxis: { type: 'value' },
+          series: [{ type: 'line', smooth: true, data: payValues, itemStyle: { color: '#198754' } }]
+        });
+      }
+
+      if (chartPaymentsByMethod) {
+        var methodItems = (data.paymentsByMethod || []).map(function (r) {
+          return { name: r.method || 'unknown', value: Number(r.total || 0) };
+        });
+        chartPaymentsByMethod.setOption({
+          tooltip: { trigger: 'item' },
+          series: [{
+            type: 'pie',
+            radius: ['35%', '70%'],
+            label: { show: true },
+            data: methodItems
+          }]
+        });
+      }
+
       if (chartAvgScoreByTerm) {
         var tLabels = (data.avgScoreByTerm || []).map(function (r) { return r.name; });
         var tValues = (data.avgScoreByTerm || []).map(function (r) { return Number(r.avg_score || 0); });
@@ -216,7 +318,7 @@ if ($res == "1" && $level == "0") {}else{header("location:../");}
           grid: { left: 40, right: 20, top: 20, bottom: 60 },
           xAxis: { type: 'category', data: tLabels, axisLabel: { rotate: 20 } },
           yAxis: { type: 'value', min: 0, max: 100 },
-          series: [{ type: 'line', smooth: true, data: tValues, itemStyle: { color: '#198754' } }]
+          series: [{ type: 'line', smooth: true, data: tValues, itemStyle: { color: '#0d6efd' } }]
         });
       }
     })

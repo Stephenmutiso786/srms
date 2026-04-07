@@ -1,10 +1,12 @@
 # Elimu Hub
 
-Elimu Hub is a PHP + MySQL Student Results Management System.
+Elimu Hub is a PHP Student Results Management System (MySQL or Postgres).
 
 ## Setup
 
-- Import the database: `srms/database/srms_makumbusho.sql`
+- Import the schema:
+  - MySQL: `srms/database/srms_mysql_schema_clean.sql`
+  - Postgres: `srms/database/srms_postgres_schema.sql`
 - Configure DB: `srms/script/db/config.php`
 - Web root should be: `srms/script/`
 
@@ -17,9 +19,18 @@ php -S localhost:8000 router.php
 
 Open `http://localhost:8000`.
 
-## Demo logins
+## Demo data (optional)
 
-`srms/login_credentials.txt`
+If you want sample data and logins for testing, import:
+
+- Postgres demo seed: `srms/database/srms_postgres_seed_demo.sql`
+
+Demo credentials (only after seeding): `srms/login_credentials.txt`
+
+Legacy demo dumps (avoid for production):
+
+- `srms/database/srms_makumbusho.sql`
+- `srms/database/srms_postgres.sql`
 
 ## Deploy on Render (backend)
 
@@ -27,7 +38,7 @@ This repo includes a `Dockerfile` so Render can run the PHP app as a single web 
 
 1. Create a new **Render Web Service** from this repo (environment: **Docker**).
 2. Create a database:
-   - MySQL: use `srms/database/srms_makumbusho.sql`
+   - MySQL: use `srms/database/srms_mysql_schema_clean.sql`
    - Postgres (Neon/Supabase/etc.): use `srms/database/srms_postgres_schema.sql`
      - Optional demo seed (only if you want sample accounts/data): `srms/database/srms_postgres_seed_demo.sql`
     - Then run migrations (recommended):
