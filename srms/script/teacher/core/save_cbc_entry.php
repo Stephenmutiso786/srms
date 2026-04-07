@@ -38,32 +38,50 @@ if ($termId < 1 || $classId < 1 || $subjectId < 1 || $studentId === '' || $stran
 	exit;
 }
 
-if ($mode === 'marks') {
-	if ($marksVal === null) {
-		echo json_encode(['ok' => false, 'message' => 'Marks required']);
-		exit;
-	}
-	if ($marksVal < 0) { $marksVal = 0; }
-	if ($marksVal > 100) { $marksVal = 100; }
-	if ($marksVal >= 90) { $levelVal = 'EE'; $pointsVal = 8; }
-	elseif ($marksVal >= 75) { $levelVal = 'EE'; $pointsVal = 7; }
-	elseif ($marksVal >= 58) { $levelVal = 'ME'; $pointsVal = 6; }
-	elseif ($marksVal >= 41) { $levelVal = 'ME'; $pointsVal = 5; }
-	elseif ($marksVal >= 31) { $levelVal = 'AE'; $pointsVal = 4; }
-	elseif ($marksVal >= 21) { $levelVal = 'AE'; $pointsVal = 3; }
-	elseif ($marksVal >= 11) { $levelVal = 'BE'; $pointsVal = 2; }
-	elseif ($marksVal >= 1) { $levelVal = 'BE'; $pointsVal = 1; }
-	else { $levelVal = 'BE'; $pointsVal = 0; }
-}
-
-if (!in_array($levelVal, ['EE','ME','AE','BE'], true)) {
-	echo json_encode(['ok' => false, 'message' => 'Invalid level']);
-	exit;
-}
-
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+	$grading = [];
+	if (app_table_exists($conn, 'tbl_cbc_grading')) {
+		$stmt = $conn->prepare("SELECT level, min_mark, max_mark, points, sort_order FROM tbl_cbc_grading WHERE active = 1 ORDER BY sort_order, min_mark DESC");
+		$stmt->execute();
+		$grading = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	}
+	if (count($grading) < 1) {
+		$grading = [
+			['level' => 'EE', 'min_mark' => 80, 'max_mark' => 100, 'points' => 4, 'sort_order' => 1],
+			['level' => 'ME', 'min_mark' => 60, 'max_mark' => 79, 'points' => 3, 'sort_order' => 2],
+			['level' => 'AE', 'min_mark' => 40, 'max_mark' => 59, 'points' => 2, 'sort_order' => 3],
+			['level' => 'BE', 'min_mark' => 0, 'max_mark' => 39, 'points' => 1, 'sort_order' => 4],
+		];
+	}
+	$validLevels = array_values(array_unique(array_map(function ($row) {
+		return strtoupper((string)$row['level']);
+	}, $grading)));
+
+	if ($mode === 'marks') {
+		if ($marksVal === null) {
+			echo json_encode(['ok' => false, 'message' => 'Marks required']);
+			exit;
+		}
+		if ($marksVal < 0) { $marksVal = 0; }
+		if ($marksVal > 100) { $marksVal = 100; }
+		foreach ($grading as $band) {
+			$min = (float)$band['min_mark'];
+			$max = (float)$band['max_mark'];
+			if ($marksVal >= $min && $marksVal <= $max) {
+				$levelVal = strtoupper((string)$band['level']);
+				$pointsVal = (int)$band['points'];
+				break;
+			}
+		}
+	}
+
+	if (!in_array($levelVal, $validLevels, true)) {
+		echo json_encode(['ok' => false, 'message' => 'Invalid level']);
+		exit;
+	}
 
 	if (app_results_locked($conn, $classId, $termId)) {
 		echo json_encode(['ok' => false, 'message' => 'Results are locked for this class/term']);

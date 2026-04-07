@@ -9,8 +9,10 @@ if ($res != "1" || $level != "0") { header("location:../"); }
 app_require_permission('results.approve', '../report_settings');
 app_require_unlocked('reports', '../report_settings');
 
+$returnTo = ($_POST['return'] ?? '') === 'system' ? '../system' : '../report_settings';
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-	header("location:../report_settings");
+	header("location:".$returnTo);
 	exit;
 }
 
@@ -24,7 +26,7 @@ try {
 
 	if (!app_table_exists($conn, 'tbl_result_settings')) {
 		$_SESSION['reply'] = array (array("danger", "Result settings table missing. Run migration 007."));
-		header("location:../report_settings");
+		header("location:".$returnTo);
 		exit;
 	}
 
@@ -32,8 +34,8 @@ try {
 	$stmt->execute([$bestOf, $useWeights, $requireFees]);
 
 	$_SESSION['reply'] = array (array("success", "Settings saved."));
-	header("location:../report_settings");
+	header("location:".$returnTo);
 } catch (Throwable $e) {
 	$_SESSION['reply'] = array (array("danger", "Failed to save settings: " . $e->getMessage()));
-	header("location:../report_settings");
+	header("location:".$returnTo);
 }

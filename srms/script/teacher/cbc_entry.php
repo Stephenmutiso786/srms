@@ -27,6 +27,8 @@ $students = [];
 $entries = [];
 $error = '';
 $isLocked = false;
+$grading = [];
+$levels = [];
 
 try {
 	$conn = app_db();
@@ -90,10 +92,30 @@ try {
 		}
 	}
 
+	if (app_table_exists($conn, 'tbl_cbc_grading')) {
+		$stmt = $conn->prepare("SELECT level, min_mark, max_mark, points, sort_order FROM tbl_cbc_grading WHERE active = 1 ORDER BY sort_order, min_mark DESC");
+		$stmt->execute();
+		$grading = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	}
+
 	$isLocked = app_results_locked($conn, $class, $term);
 } catch (Throwable $e) {
 	$error = $e->getMessage();
 }
+
+if (count($grading) < 1) {
+	$grading = [
+		['level' => 'EE', 'min_mark' => 80, 'max_mark' => 100, 'points' => 4, 'sort_order' => 1],
+		['level' => 'ME', 'min_mark' => 60, 'max_mark' => 79, 'points' => 3, 'sort_order' => 2],
+		['level' => 'AE', 'min_mark' => 40, 'max_mark' => 59, 'points' => 2, 'sort_order' => 3],
+		['level' => 'BE', 'min_mark' => 0, 'max_mark' => 39, 'points' => 1, 'sort_order' => 4],
+	];
+}
+
+foreach ($grading as $row) {
+	$levels[] = strtoupper((string)$row['level']);
+}
+$levels = array_values(array_unique($levels));
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -251,6 +273,8 @@ try {
 	$cell = $entries[$st['id']][$key] ?? null;
 	$level = $cell['level'] ?? '';
 	$marks = $cell['marks'] ?? '';
+	$prefix = strtoupper(substr((string)$level, 0, 2));
+	if (!in_array($prefix, ['EE','ME','AE','BE'], true)) { $prefix = 'ME'; }
 ?>
 <td class="<?php echo $level === '' ? 'cbc-missing' : ''; ?>">
 <?php if ($mode === 'marks') { ?>
@@ -258,17 +282,16 @@ try {
 	<input type="number" class="form-control form-control-sm cbc-marks" min="0" max="100" step="0.1"
 	  data-student="<?php echo $st['id']; ?>" data-strand="<?php echo htmlspecialchars($key); ?>"
 	  value="<?php echo htmlspecialchars((string)$marks); ?>" placeholder="0-100">
-	<span class="cbc-badge <?php echo $level ? 'cbc-'.strtolower($level) : 'cbc-be'; ?>" data-badge>
+	<span class="cbc-badge <?php echo $level ? 'cbc-'.strtolower($prefix) : 'cbc-be'; ?>" data-badge>
 	  <?php echo $level ?: 'BE'; ?>
 	</span>
   </div>
 <?php } else { ?>
   <select class="form-control form-control-sm cbc-level" data-student="<?php echo $st['id']; ?>" data-strand="<?php echo htmlspecialchars($key); ?>">
 	<option value="" <?php echo $level === '' ? 'selected' : ''; ?>>--</option>
-	<option value="EE" <?php echo $level === 'EE' ? 'selected' : ''; ?>>EE</option>
-	<option value="ME" <?php echo $level === 'ME' ? 'selected' : ''; ?>>ME</option>
-	<option value="AE" <?php echo $level === 'AE' ? 'selected' : ''; ?>>AE</option>
-	<option value="BE" <?php echo $level === 'BE' ? 'selected' : ''; ?>>BE</option>
+	<?php foreach ($levels as $opt): ?>
+	  <option value="<?php echo htmlspecialchars($opt); ?>" <?php echo strtoupper($level) === $opt ? 'selected' : ''; ?>><?php echo htmlspecialchars($opt); ?></option>
+	<?php endforeach; ?>
   </select>
 <?php } ?>
 </td>
@@ -297,6 +320,7 @@ const payloadBase = {
   learning_area: "<?php echo htmlspecialchars($subjectName); ?>",
   combination_id: <?php echo $subjectComb; ?>
 };
+const grading = <?php echo json_encode($grading); ?>;
 
 function markStatus(text, ok=true){
   if (!saveStatus) return;
@@ -305,14 +329,13 @@ function markStatus(text, ok=true){
 }
 
 function mapMarks(mark){
-  if (mark >= 90) return { level: 'EE', points: 8 };
-  if (mark >= 75) return { level: 'EE', points: 7 };
-  if (mark >= 58) return { level: 'ME', points: 6 };
-  if (mark >= 41) return { level: 'ME', points: 5 };
-  if (mark >= 31) return { level: 'AE', points: 4 };
-  if (mark >= 21) return { level: 'AE', points: 3 };
-  if (mark >= 11) return { level: 'BE', points: 2 };
-  if (mark >= 1) return { level: 'BE', points: 1 };
+  for (const row of grading) {
+    const min = parseFloat(row.min_mark);
+    const max = parseFloat(row.max_mark);
+    if (mark >= min && mark <= max) {
+      return { level: row.level, points: parseInt(row.points || 0, 10) };
+    }
+  }
   return { level: 'BE', points: 0 };
 }
 
@@ -355,11 +378,19 @@ async function saveEntry(studentId, strand, level, marks, points){
   }
 }
 
+function levelPrefix(level){
+  const upper = (level || '').toUpperCase();
+  const prefix = upper.substring(0, 2);
+  if (['EE','ME','AE','BE'].includes(prefix)) return prefix;
+  return 'ME';
+}
+
 function applyLevelBadge(badge, level){
   if (!badge) return;
   badge.textContent = level;
+  const prefix = levelPrefix(level).toLowerCase();
   badge.classList.remove('cbc-ee','cbc-me','cbc-ae','cbc-be');
-  badge.classList.add('cbc-' + level.toLowerCase());
+  badge.classList.add('cbc-' + prefix);
 }
 
 document.querySelectorAll('.cbc-level').forEach((el) => {

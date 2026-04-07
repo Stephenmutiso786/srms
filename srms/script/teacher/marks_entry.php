@@ -167,7 +167,7 @@ echo "Connection failed: " . $e->getMessage();
 <div class="mb-3">
 <label class="form-label">Entry Mode</label>
 <select class="form-control" name="mode" required>
-<option value="cbc" selected>CBC Levels (EE/ME/AE/BE)</option>
+<option value="cbc" selected>CBC Levels (from settings)</option>
 <option value="marks">Marks (0-100) → CBC Auto</option>
 </select>
 </div>

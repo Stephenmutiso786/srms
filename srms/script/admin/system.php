@@ -14,6 +14,7 @@ $settings = [
 ];
 $subjects = [];
 $weights = [];
+$cbcGrading = [];
 
 try {
 	$conn = app_db();
@@ -41,8 +42,28 @@ try {
 			$weights[(int)$row['subject_id']] = (float)$row['weight'];
 		}
 	}
+
+	if (app_table_exists($conn, 'tbl_cbc_grading')) {
+		$stmt = $conn->prepare("SELECT id, level, min_mark, max_mark, points, sort_order, active FROM tbl_cbc_grading ORDER BY sort_order, min_mark DESC");
+		$stmt->execute();
+		$cbcGrading = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	}
 } catch (Throwable $e) {
 	// defaults only
+}
+
+if (count($cbcGrading) < 1) {
+	$cbcGrading = [
+		['id' => 0, 'level' => 'EE1', 'min_mark' => 90, 'max_mark' => 100, 'points' => 8, 'sort_order' => 1, 'active' => 1],
+		['id' => 0, 'level' => 'EE2', 'min_mark' => 75, 'max_mark' => 89, 'points' => 7, 'sort_order' => 2, 'active' => 1],
+		['id' => 0, 'level' => 'ME1', 'min_mark' => 58, 'max_mark' => 74, 'points' => 6, 'sort_order' => 3, 'active' => 1],
+		['id' => 0, 'level' => 'ME2', 'min_mark' => 41, 'max_mark' => 57, 'points' => 5, 'sort_order' => 4, 'active' => 1],
+		['id' => 0, 'level' => 'AE1', 'min_mark' => 31, 'max_mark' => 40, 'points' => 4, 'sort_order' => 5, 'active' => 1],
+		['id' => 0, 'level' => 'AE2', 'min_mark' => 21, 'max_mark' => 30, 'points' => 3, 'sort_order' => 6, 'active' => 1],
+		['id' => 0, 'level' => 'BE1', 'min_mark' => 11, 'max_mark' => 20, 'points' => 2, 'sort_order' => 7, 'active' => 1],
+		['id' => 0, 'level' => 'BE2', 'min_mark' => 1, 'max_mark' => 10, 'points' => 1, 'sort_order' => 8, 'active' => 1],
+		['id' => 0, 'level' => 'BE2', 'min_mark' => 0, 'max_mark' => 0, 'points' => 0, 'sort_order' => 9, 'active' => 1],
+	];
 }
 ?>
 <!DOCTYPE html>
@@ -109,9 +130,9 @@ try {
 
 </div>
 <div class="row">
-
-
+<div class="col-md-6">
 <div class="tile">
+<h3 class="tile-title">School Profile</h3>
 <div class="tile-body">
 <form class="app_frm" method="POST" enctype="multipart/form-data" autocomplete="OFF" action="admin/core/update_system">
 <div class="form-group mb-2">
@@ -128,17 +149,15 @@ try {
 <button type="submit" name="submit" value="1" class="btn btn-primary app_btn">Update</button>
 </div>
 </form>
-
-
 </div>
 </div>
 </div>
 
-<div class="row">
 <div class="col-md-6">
 <div class="tile">
 <h3 class="tile-title">Result Processing Settings</h3>
 <form class="app_frm" action="admin/core/save_report_settings" method="POST">
+<input type="hidden" name="return" value="system">
 <div class="mb-3">
 <label class="form-label">Best Of Subjects (0 = all)</label>
 <input type="number" class="form-control" name="best_of" min="0" value="<?php echo $settings['best_of']; ?>" required>
@@ -161,7 +180,9 @@ try {
 </form>
 </div>
 </div>
+</div>
 
+<div class="row">
 <div class="col-md-6">
 <div class="tile">
 <h3 class="tile-title">Subject Weights</h3>
@@ -180,6 +201,7 @@ try {
 <td><?php echo htmlspecialchars($subject['name']); ?></td>
 <td>
 <form class="d-flex gap-2" action="admin/core/save_subject_weight" method="POST">
+<input type="hidden" name="return" value="system">
 <input type="hidden" name="subject_id" value="<?php echo $subject['id']; ?>">
 <input type="number" step="0.1" min="0" class="form-control" name="weight" value="<?php echo isset($weights[$subject['id']]) ? $weights[$subject['id']] : 1; ?>">
 <button class="btn btn-outline-primary btn-sm">Save</button>
@@ -191,6 +213,53 @@ try {
 </tbody>
 </table>
 </div>
+</div>
+</div>
+</div>
+
+<div class="row">
+<div class="col-md-12">
+<div class="tile">
+<h3 class="tile-title">CBC Grading Bands (Marks → Levels)</h3>
+<form class="app_frm" action="admin/core/save_cbc_grading" method="POST">
+<input type="hidden" name="return" value="system">
+<div class="table-responsive">
+<table class="table table-hover">
+<thead>
+<tr>
+<th style="width:140px;">Level</th>
+<th style="width:140px;">Min</th>
+<th style="width:140px;">Max</th>
+<th style="width:140px;">Points</th>
+<th style="width:120px;">Order</th>
+<th style="width:120px;">Active</th>
+</tr>
+</thead>
+<tbody>
+<?php foreach ($cbcGrading as $row): ?>
+<tr>
+<td>
+<input type="hidden" name="id[]" value="<?php echo (int)$row['id']; ?>">
+<input class="form-control" name="level[]" value="<?php echo htmlspecialchars($row['level']); ?>" required>
+</td>
+<td><input type="number" step="0.1" min="0" max="100" class="form-control" name="min_mark[]" value="<?php echo htmlspecialchars((string)$row['min_mark']); ?>" required></td>
+<td><input type="number" step="0.1" min="0" max="100" class="form-control" name="max_mark[]" value="<?php echo htmlspecialchars((string)$row['max_mark']); ?>" required></td>
+<td><input type="number" step="1" min="0" class="form-control" name="points[]" value="<?php echo htmlspecialchars((string)$row['points']); ?>" required></td>
+<td><input type="number" step="1" min="0" class="form-control" name="sort_order[]" value="<?php echo htmlspecialchars((string)$row['sort_order']); ?>" required></td>
+<td>
+<select class="form-control" name="active[]">
+<option value="1" <?php echo (int)$row['active'] === 1 ? 'selected' : ''; ?>>Yes</option>
+<option value="0" <?php echo (int)$row['active'] === 0 ? 'selected' : ''; ?>>No</option>
+</select>
+</td>
+</tr>
+<?php endforeach; ?>
+</tbody>
+</table>
+</div>
+<button class="btn btn-primary app_btn">Save CBC Grading</button>
+</form>
+<div class="text-muted mt-2">These bands are used for marks-based entry and automatic CBC level mapping.</div>
 </div>
 </div>
 </div>

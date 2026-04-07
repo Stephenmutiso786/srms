@@ -160,7 +160,142 @@ try {
 	</div>
 </div>
 
-<div class="dashboard-grid">
+<section class="intel-section">
+	<div class="intel-header">
+		<div>
+			<span class="intel-kicker">Zeraki-style Analytics</span>
+			<h2>School Intelligence System</h2>
+			<p>Data → Insight → Decisions → Impact</p>
+		</div>
+		<div class="intel-cta">
+			Turning School Data into Smarter Decisions and Stronger Outcomes
+		</div>
+	</div>
+
+	<div class="intel-portals">
+		<div class="intel-card portal-card portal-super">
+			<div class="portal-title"><i class="bi bi-gem"></i> Super Admin</div>
+			<ul>
+				<li>System control</li>
+				<li>School subscriptions</li>
+				<li>Analytics + audits</li>
+			</ul>
+		</div>
+		<div class="intel-card portal-card portal-admin">
+			<div class="portal-title"><i class="bi bi-building"></i> School Admin</div>
+			<ul>
+				<li>Manage staff & students</li>
+				<li>Approve results</li>
+				<li>Reports & finance</li>
+			</ul>
+		</div>
+		<div class="intel-card portal-card portal-teacher">
+			<div class="portal-title"><i class="bi bi-mortarboard"></i> Teacher</div>
+			<ul>
+				<li>Marks entry (CBC/KNEC)</li>
+				<li>Attendance</li>
+				<li>Class reports</li>
+			</ul>
+		</div>
+		<div class="intel-card portal-card portal-parent">
+			<div class="portal-title"><i class="bi bi-people"></i> Parent</div>
+			<ul>
+				<li>Child progress</li>
+				<li>Attendance alerts</li>
+				<li>Fees status</li>
+			</ul>
+		</div>
+		<div class="intel-card portal-card portal-student">
+			<div class="portal-title"><i class="bi bi-journal-text"></i> Student</div>
+			<ul>
+				<li>Results & feedback</li>
+				<li>Assignments</li>
+				<li>Timetable</li>
+			</ul>
+		</div>
+		<div class="intel-card portal-card portal-accountant">
+			<div class="portal-title"><i class="bi bi-cash-coin"></i> Accountant</div>
+			<ul>
+				<li>Fees collection</li>
+				<li>Invoices & receipts</li>
+				<li>Financial reports</li>
+			</ul>
+		</div>
+		<div class="intel-card portal-card portal-others">
+			<div class="portal-title"><i class="bi bi-diagram-3"></i> Other Roles</div>
+			<ul>
+				<li>HR, Librarian, Nurse</li>
+				<li>Transport manager</li>
+				<li>Custom access</li>
+			</ul>
+		</div>
+	</div>
+
+	<div class="intel-flow">
+		<div class="intel-card intel-block">
+			<div class="block-title"><i class="bi bi-hdd-network"></i> Data Sources</div>
+			<ul>
+				<li>Web & mobile apps</li>
+				<li>CSV / Excel imports</li>
+				<li>M-Pesa & payments</li>
+				<li>Biometric / QR devices</li>
+				<li>GPS trackers & APIs</li>
+			</ul>
+		</div>
+		<div class="intel-card intel-block">
+			<div class="block-title"><i class="bi bi-grid-1x2"></i> Core Platform</div>
+			<div class="block-grid">
+				<div>
+					<strong>Academic</strong>
+					<span>CBC, Exams, Results</span>
+				</div>
+				<div>
+					<strong>Finance</strong>
+					<span>Fees, Payments</span>
+				</div>
+				<div>
+					<strong>Communication</strong>
+					<span>SMS, Email, Alerts</span>
+				</div>
+				<div>
+					<strong>Operations</strong>
+					<span>HR, Library, Transport</span>
+				</div>
+			</div>
+			<div class="block-footer">
+				<span>RBAC</span>
+				<span>Workflows</span>
+				<span>Audit Logs</span>
+				<span>Notifications</span>
+			</div>
+		</div>
+		<div class="intel-card intel-block">
+			<div class="block-title"><i class="bi bi-graph-up-arrow"></i> Analytics Engine</div>
+			<ul>
+				<li>Data processing + validation</li>
+				<li>ETL cleaning & aggregation</li>
+				<li>AI models & insights</li>
+				<li>Alert generation</li>
+				<li>Visualization layer</li>
+			</ul>
+		</div>
+	</div>
+
+	<div class="intel-dashboards">
+		<div>
+			<h3>Analytics Dashboards</h3>
+			<p>Academic, finance, attendance, and operations dashboards with real-time insights.</p>
+		</div>
+		<div class="dashboard-badges">
+			<span><i class="bi bi-mortarboard"></i> Academic</span>
+			<span><i class="bi bi-cash-stack"></i> Finance</span>
+			<span><i class="bi bi-check2-square"></i> Attendance</span>
+			<span><i class="bi bi-truck"></i> Operations</span>
+		</div>
+	</div>
+</section>
+
+<div class="dashboard-grid intel-charts">
 	<div class="tile">
 		<h3 class="tile-title">Students by Class</h3>
 		<div id="chartStudentsByClass" class="chart-lg"></div>
@@ -186,6 +321,43 @@ try {
 		<div id="chartAvgScoreByTerm" class="chart-lg"></div>
 	</div>
 </div>
+
+<section class="intel-footer">
+	<div class="intel-card intel-block">
+		<div class="block-title"><i class="bi bi-shield-check"></i> Security Layer</div>
+		<div class="security-grid">
+			<span>Data Encryption</span>
+			<span>2FA Authentication</span>
+			<span>Backup & Recovery</span>
+			<span>Compliance (DPA, GDPR)</span>
+		</div>
+	</div>
+	<div class="intel-card intel-block">
+		<div class="block-title"><i class="bi bi-stars"></i> Key Features</div>
+		<div class="feature-grid">
+			<span>CBC / KNEC grading</span>
+			<span>Attendance analytics</span>
+			<span>Report cards (QR secured)</span>
+			<span>Finance dashboards</span>
+			<span>Alerts & notifications</span>
+			<span>Exports & integrations</span>
+		</div>
+	</div>
+	<div class="intel-card intel-block">
+		<div class="block-title"><i class="bi bi-diagram-3"></i> Database Schema (Simplified)</div>
+		<div class="schema-grid">
+			<span>students</span>
+			<span>classes</span>
+			<span>subjects</span>
+			<span>assessments</span>
+			<span>results</span>
+			<span>attendance</span>
+			<span>payments</span>
+			<span>invoices</span>
+			<span>audit_logs</span>
+		</div>
+	</div>
+</section>
 
 </main>
 

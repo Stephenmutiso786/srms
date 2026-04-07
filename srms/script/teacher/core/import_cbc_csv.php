@@ -29,23 +29,10 @@ if ($termId < 1 || $classId < 1 || $subjectId < 1) {
 	exit;
 }
 
-$validLevels = ['EE', 'ME', 'AE', 'BE'];
 $total = 0;
 $success = 0;
 $failed = 0;
 $details = [];
-
-function mapMarksToLevel($mark): array {
-	if ($mark >= 90) return ['level' => 'EE', 'points' => 8];
-	if ($mark >= 75) return ['level' => 'EE', 'points' => 7];
-	if ($mark >= 58) return ['level' => 'ME', 'points' => 6];
-	if ($mark >= 41) return ['level' => 'ME', 'points' => 5];
-	if ($mark >= 31) return ['level' => 'AE', 'points' => 4];
-	if ($mark >= 21) return ['level' => 'AE', 'points' => 3];
-	if ($mark >= 11) return ['level' => 'BE', 'points' => 2];
-	if ($mark >= 1) return ['level' => 'BE', 'points' => 1];
-	return ['level' => 'BE', 'points' => 0];
-}
 
 try {
 	$conn = app_db();
@@ -70,6 +57,24 @@ try {
 	if (!app_table_exists($conn, 'tbl_cbc_assessments')) {
 		throw new RuntimeException("CBC table missing. Run migration 013.");
 	}
+
+	$grading = [];
+	if (app_table_exists($conn, 'tbl_cbc_grading')) {
+		$stmt = $conn->prepare("SELECT level, min_mark, max_mark, points, sort_order FROM tbl_cbc_grading WHERE active = 1 ORDER BY sort_order, min_mark DESC");
+		$stmt->execute();
+		$grading = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	}
+	if (count($grading) < 1) {
+		$grading = [
+			['level' => 'EE', 'min_mark' => 80, 'max_mark' => 100, 'points' => 4, 'sort_order' => 1],
+			['level' => 'ME', 'min_mark' => 60, 'max_mark' => 79, 'points' => 3, 'sort_order' => 2],
+			['level' => 'AE', 'min_mark' => 40, 'max_mark' => 59, 'points' => 2, 'sort_order' => 3],
+			['level' => 'BE', 'min_mark' => 0, 'max_mark' => 39, 'points' => 1, 'sort_order' => 4],
+		];
+	}
+	$validLevels = array_values(array_unique(array_map(function ($row) {
+		return strtoupper((string)$row['level']);
+	}, $grading)));
 
 	$handle = fopen($_FILES['file']['tmp_name'], 'r');
 	if (!$handle) {
@@ -106,9 +111,15 @@ try {
 
 		$points = 0;
 		if ($mode === 'marks') {
-			$mapped = mapMarksToLevel($marks);
-			$level = $mapped['level'];
-			$points = $mapped['points'];
+			foreach ($grading as $band) {
+				$min = (float)$band['min_mark'];
+				$max = (float)$band['max_mark'];
+				if ($marks >= $min && $marks <= $max) {
+					$level = strtoupper((string)$band['level']);
+					$points = (int)$band['points'];
+					break;
+				}
+			}
 		}
 
 		if (!in_array($level, $validLevels, true)) {

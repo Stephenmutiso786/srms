@@ -100,6 +100,7 @@ try {
 <div class="tile">
 <h3 class="tile-title">Processing Rules</h3>
 <form class="app_frm" action="admin/core/save_report_settings" method="POST">
+<input type="hidden" name="return" value="report_settings">
 <div class="mb-3">
 <label class="form-label">Best Of Subjects (0 = all)</label>
 <input type="number" class="form-control" name="best_of" min="0" value="<?php echo $settings['best_of']; ?>" required>
@@ -141,6 +142,7 @@ try {
 <td><?php echo htmlspecialchars($subject['name']); ?></td>
 <td>
 <form class="d-flex gap-2" action="admin/core/save_subject_weight" method="POST">
+<input type="hidden" name="return" value="report_settings">
 <input type="hidden" name="subject_id" value="<?php echo $subject['id']; ?>">
 <input type="number" step="0.1" min="0" class="form-control" name="weight" value="<?php echo isset($weights[$subject['id']]) ? $weights[$subject['id']] : 1; ?>">
 <button class="btn btn-outline-primary btn-sm">Save</button>
