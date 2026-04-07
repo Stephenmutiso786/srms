@@ -2,6 +2,8 @@
 $currentPage = basename($_SERVER['PHP_SELF'], '.php');
 $studentPages = ['register_students', 'import_students', 'manage_students', 'students'];
 $isStudentsOpen = in_array($currentPage, $studentPages, true);
+$examPages = ['exams', 'exam_timetable', 'marks_review', 'results_analytics', 'results_locks', 'report', 'report_settings'];
+$isExamsOpen = in_array($currentPage, $examPages, true);
 
 function app_menu_active($page)
 {
@@ -46,19 +48,24 @@ function app_tree_active($page)
     <li><a class="app-menu__item<?php echo app_menu_active('library'); ?>" href="admin/library"><i class="app-menu__icon feather icon-book"></i><span class="app-menu__label">Library</span></a></li>
     <li><a class="app-menu__item<?php echo app_menu_active('inventory'); ?>" href="admin/inventory"><i class="app-menu__icon feather icon-box"></i><span class="app-menu__label">Inventory</span></a></li>
     <li><a class="app-menu__item<?php echo app_menu_active('transport'); ?>" href="admin/transport"><i class="app-menu__icon feather icon-truck"></i><span class="app-menu__label">Transport</span></a></li>
-    <li><a class="app-menu__item<?php echo app_menu_active('results_locks'); ?>" href="admin/results_locks"><i class="app-menu__icon feather icon-lock"></i><span class="app-menu__label">Results Locks</span></a></li>
-    <li><a class="app-menu__item<?php echo app_menu_active('results_analytics'); ?>" href="admin/results_analytics"><i class="app-menu__icon feather icon-bar-chart-2"></i><span class="app-menu__label">Results Analytics</span></a></li>
-    <li><a class="app-menu__item<?php echo app_menu_active('marks_review'); ?>" href="admin/marks_review"><i class="app-menu__icon feather icon-check-circle"></i><span class="app-menu__label">Marks Review</span></a></li>
+    <li class="treeview<?php echo $isExamsOpen ? ' is-expanded' : ''; ?>">
+      <a class="app-menu__item" href="javascript:void(0);" data-toggle="treeview"><i class="app-menu__icon feather icon-file-text"></i><span class="app-menu__label">Exams</span><i class="treeview-indicator bi bi-chevron-right"></i></a>
+      <ul class="treeview-menu">
+        <li><a class="treeview-item<?php echo app_tree_active('exams'); ?>" href="admin/exams"><i class="icon bi bi-circle-fill"></i> Exams</a></li>
+        <li><a class="treeview-item<?php echo app_tree_active('exam_timetable'); ?>" href="admin/exam_timetable"><i class="icon bi bi-circle-fill"></i> Exam Timetable</a></li>
+        <li><a class="treeview-item<?php echo app_tree_active('marks_review'); ?>" href="admin/marks_review"><i class="icon bi bi-circle-fill"></i> Marks Review</a></li>
+        <li><a class="treeview-item<?php echo app_tree_active('results_analytics'); ?>" href="admin/results_analytics"><i class="icon bi bi-circle-fill"></i> Results Analytics</a></li>
+        <li><a class="treeview-item<?php echo app_tree_active('results_locks'); ?>" href="admin/results_locks"><i class="icon bi bi-circle-fill"></i> Results Locks</a></li>
+        <li><a class="treeview-item<?php echo app_tree_active('report'); ?>" href="admin/report"><i class="icon bi bi-circle-fill"></i> Report Tool</a></li>
+        <li><a class="treeview-item<?php echo app_tree_active('report_settings'); ?>" href="admin/report_settings"><i class="icon bi bi-circle-fill"></i> Report Settings</a></li>
+      </ul>
+    </li>
     <li><a class="app-menu__item<?php echo app_menu_active('analytics_engine'); ?>" href="admin/analytics_engine"><i class="app-menu__icon feather icon-activity"></i><span class="app-menu__label">Analytics Engine</span></a></li>
     <li><a class="app-menu__item<?php echo app_menu_active('benchmarking'); ?>" href="admin/benchmarking"><i class="app-menu__icon feather icon-trending-up"></i><span class="app-menu__label">Benchmarking</span></a></li>
-    <li><a class="app-menu__item<?php echo app_menu_active('exams'); ?>" href="admin/exams"><i class="app-menu__icon feather icon-file-text"></i><span class="app-menu__label">Exams</span></a></li>
-    <li><a class="app-menu__item<?php echo app_menu_active('exam_timetable'); ?>" href="admin/exam_timetable"><i class="app-menu__icon feather icon-calendar"></i><span class="app-menu__label">Exam Timetable</span></a></li>
     <li><a class="app-menu__item<?php echo app_menu_active('notifications'); ?>" href="admin/notifications"><i class="app-menu__icon feather icon-bell"></i><span class="app-menu__label">Notifications</span></a></li>
     <li><a class="app-menu__item<?php echo app_menu_active('audit_logs'); ?>" href="admin/audit_logs"><i class="app-menu__icon feather icon-shield"></i><span class="app-menu__label">Audit Logs</span></a></li>
     <li><a class="app-menu__item<?php echo app_menu_active('roles'); ?>" href="admin/roles"><i class="app-menu__icon feather icon-shield"></i><span class="app-menu__label">Roles & Permissions</span></a></li>
     <li><a class="app-menu__item<?php echo app_menu_active('mpesa'); ?>" href="admin/mpesa"><i class="app-menu__icon feather icon-smartphone"></i><span class="app-menu__label">M-Pesa</span></a></li>
-    <li><a class="app-menu__item<?php echo app_menu_active('report'); ?>" href="admin/report"><i class="app-menu__icon feather icon-bar-chart-2"></i><span class="app-menu__label">Report Tool</span></a></li>
-    <li><a class="app-menu__item<?php echo app_menu_active('report_settings'); ?>" href="admin/report_settings"><i class="app-menu__icon feather icon-settings"></i><span class="app-menu__label">Report Settings</span></a></li>
     <li><a class="app-menu__item<?php echo app_menu_active('smtp'); ?>" href="admin/smtp"><i class="app-menu__icon feather icon-mail"></i><span class="app-menu__label">SMTP Settings</span></a></li>
     <li><a class="app-menu__item<?php echo app_menu_active('migrations'); ?>" href="admin/migrations"><i class="app-menu__icon feather icon-database"></i><span class="app-menu__label">Migrations</span></a></li>
     <li><a class="app-menu__item<?php echo app_menu_active('module_locks'); ?>" href="admin/module_locks"><i class="app-menu__icon feather icon-lock"></i><span class="app-menu__label">Module Locks</span></a></li>
