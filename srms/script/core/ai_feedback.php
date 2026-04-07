@@ -509,6 +509,10 @@ function app_generate_ai_reply(string $message, array $scope, string $role, stri
 
 function app_openai_reply(string $message, array $scope, string $role, string $intent): string
 {
+	$mode = strtolower(trim((string)getenv('AI_MODE')));
+	if ($mode !== 'external') {
+		return '';
+	}
 	$apiKey = trim((string)getenv('OPENAI_API_KEY'));
 	if ($apiKey === '') {
 		return '';
