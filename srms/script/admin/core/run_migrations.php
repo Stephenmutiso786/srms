@@ -22,14 +22,39 @@ if (DBDriver !== 'pgsql') {
 	exit;
 }
 
+function app_find_migrations_dir_runner(): ?string
+{
+	$candidates = [
+		dirname(__DIR__, 3).'/database/pg_migrations',
+		dirname(__DIR__, 4).'/database/pg_migrations',
+		dirname(__DIR__, 5).'/database/pg_migrations',
+		getcwd().'/database/pg_migrations',
+		getcwd().'/srms/database/pg_migrations',
+	];
+
+	foreach ($candidates as $dir) {
+		if (is_dir($dir) && count(glob($dir.'/*.sql') ?: []) > 0) {
+			return $dir;
+		}
+	}
+
+	foreach ($candidates as $dir) {
+		if (is_dir($dir)) {
+			return $dir;
+		}
+	}
+
+	return null;
+}
+
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
 	$conn->exec("CREATE TABLE IF NOT EXISTS tbl_schema_migrations (name varchar(120) PRIMARY KEY, applied_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP)");
 
-	$dir = dirname(__DIR__, 3).'/database/pg_migrations';
-	$files = glob($dir.'/*.sql') ?: [];
+	$dir = app_find_migrations_dir_runner();
+	$files = $dir ? (glob($dir.'/*.sql') ?: []) : [];
 	sort($files, SORT_NATURAL);
 
 	if (empty($files)) {

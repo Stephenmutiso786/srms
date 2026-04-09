@@ -11,12 +11,37 @@ $migrations = [];
 $applied = [];
 $error = '';
 
+function app_find_migrations_dir(): ?string
+{
+	$candidates = [
+		dirname(__DIR__, 2).'/database/pg_migrations',
+		dirname(__DIR__, 3).'/database/pg_migrations',
+		dirname(__DIR__, 4).'/database/pg_migrations',
+		getcwd().'/database/pg_migrations',
+		getcwd().'/srms/database/pg_migrations',
+	];
+
+	foreach ($candidates as $dir) {
+		if (is_dir($dir) && count(glob($dir.'/*.sql') ?: []) > 0) {
+			return $dir;
+		}
+	}
+
+	foreach ($candidates as $dir) {
+		if (is_dir($dir)) {
+			return $dir;
+		}
+	}
+
+	return null;
+}
+
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-	$dir = dirname(__DIR__, 2).'/database/pg_migrations';
-	$files = glob($dir.'/*.sql') ?: [];
+	$dir = app_find_migrations_dir();
+	$files = $dir ? (glob($dir.'/*.sql') ?: []) : [];
 	sort($files, SORT_NATURAL);
 	foreach ($files as $file) {
 		$migrations[] = basename($file);
