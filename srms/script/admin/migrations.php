@@ -15,7 +15,7 @@ try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-	$dir = dirname(__DIR__).'/database/pg_migrations';
+	$dir = dirname(__DIR__, 2).'/database/pg_migrations';
 	$files = glob($dir.'/*.sql') ?: [];
 	sort($files, SORT_NATURAL);
 	foreach ($files as $file) {
@@ -87,6 +87,9 @@ try {
 	<table class="table table-hover">
 	  <thead><tr><th>Migration</th><th>Status</th></tr></thead>
 	  <tbody>
+	  <?php if (!$migrations) { ?>
+		<tr><td colspan="2" class="text-muted">No migration files were found. The migrations directory path is likely wrong on this deployment.</td></tr>
+	  <?php } ?>
 	  <?php foreach ($migrations as $m): ?>
 		<tr>
 		  <td><?php echo htmlspecialchars($m); ?></td>

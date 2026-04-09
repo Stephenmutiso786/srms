@@ -28,9 +28,13 @@ try {
 
 	$conn->exec("CREATE TABLE IF NOT EXISTS tbl_schema_migrations (name varchar(120) PRIMARY KEY, applied_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP)");
 
-	$dir = dirname(__DIR__, 2).'/database/pg_migrations';
+	$dir = dirname(__DIR__, 3).'/database/pg_migrations';
 	$files = glob($dir.'/*.sql') ?: [];
 	sort($files, SORT_NATURAL);
+
+	if (empty($files)) {
+		throw new RuntimeException("No migration files were found in ".$dir);
+	}
 
 	$stmt = $conn->prepare("SELECT name FROM tbl_schema_migrations");
 	$stmt->execute();
@@ -47,20 +51,15 @@ try {
 		if ($sql === false) {
 			throw new RuntimeException("Failed to read $name");
 		}
-		$conn->beginTransaction();
 		$conn->exec($sql);
 		$stmt = $conn->prepare("INSERT INTO tbl_schema_migrations (name) VALUES (?)");
 		$stmt->execute([$name]);
-		$conn->commit();
 		$appliedCount++;
 	}
 
 	$_SESSION['reply'] = array(array("success", "Applied $appliedCount migrations."));
 	header("location:../migrations");
 } catch (Throwable $e) {
-	if (isset($conn) && $conn->inTransaction()) {
-		$conn->rollBack();
-	}
 	$_SESSION['reply'] = array(array("danger", "Migration failed: ".$e->getMessage()));
 	header("location:../migrations");
 }
