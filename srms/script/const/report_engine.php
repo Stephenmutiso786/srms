@@ -312,3 +312,48 @@ function report_load_card(PDO $conn, int $reportId): ?array
 	$card['subjects'] = $subjects;
 	return $card;
 }
+
+function report_teacher_has_class_access(PDO $conn, int $teacherId, int $classId, int $termId = 0): bool
+{
+	if (app_table_exists($conn, 'tbl_teacher_assignments')) {
+		if ($termId > 0) {
+			$stmt = $conn->prepare("SELECT 1 FROM tbl_teacher_assignments WHERE teacher_id = ? AND class_id = ? AND term_id = ? AND status = 1 LIMIT 1");
+			$stmt->execute([$teacherId, $classId, $termId]);
+		} else {
+			$stmt = $conn->prepare("SELECT 1 FROM tbl_teacher_assignments WHERE teacher_id = ? AND class_id = ? AND status = 1 LIMIT 1");
+			$stmt->execute([$teacherId, $classId]);
+		}
+		return (bool)$stmt->fetchColumn();
+	}
+
+	$stmt = $conn->prepare("SELECT class FROM tbl_subject_combinations WHERE teacher = ?");
+	$stmt->execute([$teacherId]);
+	foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $classSet) {
+		$classList = app_unserialize($classSet);
+		if (in_array((string)$classId, $classList, true) || in_array($classId, $classList, true)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+function report_get_student_identity(PDO $conn, string $studentId): ?array
+{
+	$stmt = $conn->prepare("SELECT st.id, st.school_id, st.fname, st.mname, st.lname, st.class, c.name AS class_name
+		FROM tbl_students st
+		LEFT JOIN tbl_classes c ON c.id = st.class
+		WHERE st.id = ?
+		LIMIT 1");
+	$stmt->execute([$studentId]);
+	$row = $stmt->fetch(PDO::FETCH_ASSOC);
+	if (!$row) {
+		return null;
+	}
+	return [
+		'id' => (string)$row['id'],
+		'school_id' => (string)($row['school_id'] ?? ''),
+		'name' => trim(($row['fname'] ?? '') . ' ' . ($row['mname'] ?? '') . ' ' . ($row['lname'] ?? '')),
+		'class_id' => (int)$row['class'],
+		'class_name' => (string)($row['class_name'] ?? ''),
+	];
+}

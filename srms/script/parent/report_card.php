@@ -17,6 +17,7 @@ $blockReport = false;
 $termName = '';
 $className = '';
 $studentName = '';
+$schoolId = '';
 
 try {
 	$conn = app_db();
@@ -43,12 +44,13 @@ try {
 		$stmt->execute([$termId]);
 		$termName = (string)$stmt->fetchColumn();
 
-		$stmt = $conn->prepare("SELECT class, fname, lname FROM tbl_students WHERE id = ? LIMIT 1");
+		$stmt = $conn->prepare("SELECT class, fname, lname, school_id FROM tbl_students WHERE id = ? LIMIT 1");
 		$stmt->execute([$studentId]);
 		$row = $stmt->fetch(PDO::FETCH_ASSOC);
 		if ($row) {
 			$classId = (int)$row['class'];
 			$studentName = trim(($row['fname'] ?? '') . ' ' . ($row['lname'] ?? ''));
+			$schoolId = (string)($row['school_id'] ?? '');
 			$stmt = $conn->prepare("SELECT name FROM tbl_classes WHERE id = ? LIMIT 1");
 			$stmt->execute([$classId]);
 			$className = (string)$stmt->fetchColumn();
@@ -85,6 +87,13 @@ try {
 <link rel="stylesheet" type="text/css" href="css/main.css">
 <link rel="icon" href="images/icon.ico">
 <link rel="stylesheet" type="text/css" href="cdn.jsdelivr.net/npm/bootstrap-icons%401.10.5/font/bootstrap-icons.css">
+<style>
+@media print{
+	.app-header,.app-sidebar,.app-title,.report-actions,.app-nav,.tile:first-of-type{display:none!important}
+	.app-content{margin-left:0;padding:0}
+	.report-card{box-shadow:none}
+}
+</style>
 </head>
 <body class="app sidebar-mini">
 <header class="app-header"><a class="app-header__logo" href="javascript:void(0);\"><?php echo APP_NAME; ?></a>
@@ -180,7 +189,7 @@ try {
 
 <div class="report-grid">
 <div class="report-stat"><div class="label">Student Name</div><div class="value"><?php echo $studentName; ?></div></div>
-<div class="report-stat"><div class="label">Admission No</div><div class="value"><?php echo $studentId; ?></div></div>
+<div class="report-stat"><div class="label">School ID</div><div class="value"><?php echo htmlspecialchars($schoolId !== '' ? $schoolId : $studentId); ?></div></div>
 <div class="report-stat"><div class="label">Total Marks</div><div class="value"><?php echo $card['total']; ?></div></div>
 <div class="report-stat"><div class="label">Mean Score</div><div class="value"><?php echo $card['mean']; ?>%</div></div>
 <div class="report-stat"><div class="label">Grade</div><div class="value"><?php echo $card['grade']; ?></div></div>
@@ -234,6 +243,7 @@ try {
 
 <?php if (!$blockReport): ?>
 <div class="report-actions">
+<button class="btn btn-outline-secondary" onclick="window.print();"><i class="bi bi-printer me-2"></i>Print</button>
 <a class="btn btn-primary" href="parent/report_card_pdf?term=<?php echo $termId; ?>&student=<?php echo $studentId; ?>" target="_blank"><i class="bi bi-download me-2"></i>Download PDF</a>
 <a class="btn btn-outline-secondary" href="verify_report?code=<?php echo $card['verification_code']; ?>" target="_blank"><i class="bi bi-qr-code-scan me-2"></i>Verify</a>
 </div>

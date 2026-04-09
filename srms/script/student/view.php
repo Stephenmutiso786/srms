@@ -60,6 +60,7 @@ try {
 <li><a class="app-menu__item" href="student"><i class="app-menu__icon feather icon-monitor"></i><span class="app-menu__label">Dashboard</span></a></li>
 <li><a class="app-menu__item" href="student/elearning"><i class="app-menu__icon feather icon-book-open"></i><span class="app-menu__label">E-Learning</span></a></li>
 <li><a class="app-menu__item active" href="student/view"><i class="app-menu__icon feather icon-user"></i><span class="app-menu__label">My Profile</span></a></li>
+<li><a class="app-menu__item" href="student/id_card"><i class="app-menu__icon feather icon-credit-card"></i><span class="app-menu__label">My ID Card</span></a></li>
 <li><a class="app-menu__item" href="student/subjects"><i class="app-menu__icon feather icon-book-open"></i><span class="app-menu__label">My Subjects</span></a></li>
 <li><a class="app-menu__item" href="student/results"><i class="app-menu__icon feather icon-file-text"></i><span class="app-menu__label">My Examination Results</span></a></li>
 <li><a class="app-menu__item" href="student/grading-system"><i class="app-menu__icon feather icon-award"></i><span class="app-menu__label">Grading System</span></a></li>
@@ -77,6 +78,10 @@ try {
 <div class="row">
 <div class="col-md-12">
 <div class="tile">
+
+<div class="d-flex justify-content-end mb-3">
+<a href="student/id_card" class="btn btn-primary btn-sm"><i class="bi bi-credit-card-2-front me-2"></i>Open ID Card</a>
+</div>
 
 <div class="kv-detail-view"><table class="detail-view table table-hover" data-krajee-kvdetailview="kvDetailView_fd109e89"><tbody><tr class="default">
 <th colspan="2">Profile Photo <span></span></th></tr>

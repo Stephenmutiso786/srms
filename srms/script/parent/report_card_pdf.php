@@ -24,7 +24,7 @@ try {
 		exit;
 	}
 
-	$stmt = $conn->prepare("SELECT class, fname, lname FROM tbl_students WHERE id = ? LIMIT 1");
+	$stmt = $conn->prepare("SELECT class, fname, lname, school_id FROM tbl_students WHERE id = ? LIMIT 1");
 	$stmt->execute([$studentId]);
 	$studentRow = $stmt->fetch(PDO::FETCH_ASSOC);
 	if (!$studentRow) {
@@ -33,6 +33,7 @@ try {
 	}
 	$classId = (int)$studentRow['class'];
 	$studentName = trim(($studentRow['fname'] ?? '') . ' ' . ($studentRow['lname'] ?? ''));
+	$schoolId = (string)($studentRow['school_id'] ?? '');
 
 	if (app_table_exists($conn, 'tbl_results_locks') && !app_results_locked($conn, $classId, $termId)) {
 		header("location:report_card?term=" . $termId . "&student=" . $studentId);
@@ -106,7 +107,7 @@ try {
 	<table width="100%" cellpadding="4">
 	<tr>
 		<td><strong>Student:</strong> ' . $studentName . '</td>
-		<td><strong>Admission No:</strong> ' . $studentId . '</td>
+		<td><strong>School ID:</strong> ' . htmlspecialchars($schoolId !== '' ? $schoolId : $studentId) . '</td>
 	</tr>
 	<tr>
 		<td><strong>Class:</strong> ' . $className . '</td>

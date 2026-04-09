@@ -73,6 +73,10 @@ $grading = $stmt->fetchAll();
 <div class="col-md-12">
 <div class="tile">
 <h4 class="tile-title">My Examination Results</h4>
+<div class="alert alert-info d-flex justify-content-between align-items-center flex-wrap gap-2">
+<span>Need the official printable result slip? Open your report card for PDF download and printing.</span>
+<a class="btn btn-primary btn-sm" href="student/report_card"><i class="bi bi-file-earmark-pdf me-2"></i>Open Report Card</a>
+</div>
 
 <?php
 if (WBResAvi == "1") {

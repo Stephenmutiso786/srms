@@ -47,6 +47,13 @@ try {
 	$stmt->execute([$class]);
 	$className = (string)$stmt->fetchColumn();
 
+	$schoolId = '';
+	if (app_column_exists($conn, 'tbl_students', 'school_id')) {
+		$stmt = $conn->prepare("SELECT school_id FROM tbl_students WHERE id = ? LIMIT 1");
+		$stmt->execute([$studentId]);
+		$schoolId = (string)$stmt->fetchColumn();
+	}
+
 	$verifyUrl = APP_URL !== '' ? APP_URL . '/verify_report?code=' . $card['verification_code'] : ("http://" . ($_SERVER['HTTP_HOST'] ?? '') . "/verify_report?code=" . $card['verification_code']);
 
 	$pdf = new TCPDF(PDF_PAGE_ORIENTATION, PDF_UNIT, PDF_PAGE_FORMAT, true, 'UTF-8', false);
@@ -89,7 +96,7 @@ try {
 	<table width="100%" cellpadding="4">
 	<tr>
 		<td><strong>Student:</strong> ' . $fname . ' ' . $lname . '</td>
-		<td><strong>Admission No:</strong> ' . $studentId . '</td>
+		<td><strong>School ID:</strong> ' . htmlspecialchars($schoolId !== '' ? $schoolId : $studentId) . '</td>
 	</tr>
 	<tr>
 		<td><strong>Class:</strong> ' . $className . '</td>
