@@ -23,6 +23,7 @@ if ($examId < 1 || $subjectComb < 1) {
 try {
   $conn = app_db();
   $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+  app_ensure_exam_subjects_table($conn);
 
   $stmt = $conn->prepare("SELECT * FROM tbl_exams WHERE id = ? AND status = 'active' LIMIT 1");
   $stmt->execute([$examId]);
@@ -41,11 +42,15 @@ try {
   if (!in_array((string)$exam['class_id'], array_map('strval', $classList), true)) {
     throw new RuntimeException("Subject not assigned to exam class.");
   }
+  if (!app_exam_has_subject($conn, (int)$exam['id'], (int)$combo['subject'])) {
+    throw new RuntimeException("That subject is not enabled for this exam.");
+  }
 
   if (app_table_exists($conn, 'tbl_teacher_assignments')) {
-    $year = (int)date('Y');
-    $stmt = $conn->prepare("SELECT id FROM tbl_teacher_assignments WHERE teacher_id = ? AND class_id = ? AND subject_id = ? AND term_id = ? AND year = ? AND status = 1 LIMIT 1");
-    $stmt->execute([(int)$account_id, (int)$exam['class_id'], (int)$combo['subject'], (int)$exam['term_id'], $year]);
+    $stmt = $conn->prepare("SELECT id FROM tbl_teacher_assignments
+      WHERE teacher_id = ? AND class_id = ? AND subject_id = ? AND term_id = ? AND status = 1
+      ORDER BY year DESC, id DESC LIMIT 1");
+    $stmt->execute([(int)$account_id, (int)$exam['class_id'], (int)$combo['subject'], (int)$exam['term_id']]);
     if (!$stmt->fetchColumn()) {
       throw new RuntimeException("No active assignment for this class/subject/term.");
     }

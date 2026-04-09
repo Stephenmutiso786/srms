@@ -248,6 +248,60 @@ function app_exam_status_badge(string $status): string
 	return $map[$normalized] ?? 'secondary';
 }
 
+function app_ensure_exam_subjects_table(PDO $conn): void
+{
+	if (app_table_exists($conn, 'tbl_exam_subjects')) {
+		return;
+	}
+
+	if (DBDriver === 'pgsql') {
+		$conn->exec("
+			CREATE TABLE IF NOT EXISTS tbl_exam_subjects (
+				exam_id integer NOT NULL,
+				subject_id integer NOT NULL,
+				created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				PRIMARY KEY (exam_id, subject_id),
+				CONSTRAINT tbl_exam_subjects_exam_fk FOREIGN KEY (exam_id) REFERENCES tbl_exams (id) ON DELETE CASCADE,
+				CONSTRAINT tbl_exam_subjects_subject_fk FOREIGN KEY (subject_id) REFERENCES tbl_subjects (id) ON DELETE CASCADE
+			)
+		");
+	} else {
+		$conn->exec("
+			CREATE TABLE IF NOT EXISTS tbl_exam_subjects (
+				exam_id int NOT NULL,
+				subject_id int NOT NULL,
+				created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				PRIMARY KEY (exam_id, subject_id),
+				CONSTRAINT tbl_exam_subjects_exam_fk FOREIGN KEY (exam_id) REFERENCES tbl_exams (id) ON DELETE CASCADE,
+				CONSTRAINT tbl_exam_subjects_subject_fk FOREIGN KEY (subject_id) REFERENCES tbl_subjects (id) ON DELETE CASCADE
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+		");
+	}
+}
+
+function app_exam_subject_ids(PDO $conn, int $examId): array
+{
+	if ($examId < 1) {
+		return [];
+	}
+	app_ensure_exam_subjects_table($conn);
+	$stmt = $conn->prepare("SELECT subject_id FROM tbl_exam_subjects WHERE exam_id = ? ORDER BY subject_id");
+	$stmt->execute([$examId]);
+	return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+}
+
+function app_exam_has_subject(PDO $conn, int $examId, int $subjectId): bool
+{
+	if ($examId < 1 || $subjectId < 1) {
+		return false;
+	}
+	$subjectIds = app_exam_subject_ids($conn, $examId);
+	if (empty($subjectIds)) {
+		return true;
+	}
+	return in_array($subjectId, $subjectIds, true);
+}
+
 function app_sync_subject_combination(PDO $conn, int $teacherId, int $subjectId, int $classId, bool $remove): int
 {
 	if (!app_table_exists($conn, 'tbl_subject_combinations') || $teacherId < 1 || $subjectId < 1 || $classId < 1) {

@@ -16,12 +16,14 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $name = trim($_POST['name'] ?? '');
 $classIds = $_POST['class_ids'] ?? [];
+$subjectIds = $_POST['subject_ids'] ?? [];
 $termId = (int)($_POST['term_id'] ?? 0);
 $examTypeId = $_POST['exam_type_id'] ?? null;
 $examTypeId = $examTypeId === '' ? null : (int)$examTypeId;
 $classIds = is_array($classIds) ? array_values(array_unique(array_filter(array_map('intval', $classIds)))) : [];
+$subjectIds = is_array($subjectIds) ? array_values(array_unique(array_filter(array_map('intval', $subjectIds)))) : [];
 
-if ($name === '' || empty($classIds) || $termId < 1) {
+if ($name === '' || empty($classIds) || empty($subjectIds) || $termId < 1) {
 	$_SESSION['reply'] = array (array("danger", "Fill all required fields."));
 	header("location:../exams");
 	exit;
@@ -36,19 +38,52 @@ try {
 		header("location:../exams");
 		exit;
 	}
+	app_ensure_exam_subjects_table($conn);
 
-	$stmt = $conn->prepare("INSERT INTO tbl_exams (name, term_id, class_id, exam_type_id, status, created_by) VALUES (?,?,?,?,?,?)");
+	$classSubjectMap = [];
+	if (app_table_exists($conn, 'tbl_subject_class_assignments')) {
+		$stmt = $conn->prepare("SELECT class_id, subject_id FROM tbl_subject_class_assignments");
+		$stmt->execute();
+		foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+			$classSubjectMap[(int)$row['class_id']][] = (int)$row['subject_id'];
+		}
+	}
+
+	$subjectStmt = $conn->prepare("INSERT INTO tbl_exam_subjects (exam_id, subject_id) VALUES (?, ?)");
 	$created = 0;
+	$skippedClasses = [];
 	foreach ($classIds as $classId) {
 		if ($classId < 1) {
 			continue;
 		}
+
+		$validSubjects = $subjectIds;
+		if (!empty($classSubjectMap)) {
+			$allowed = $classSubjectMap[$classId] ?? [];
+			$validSubjects = array_values(array_intersect($subjectIds, $allowed));
+		}
+		if (empty($validSubjects)) {
+			$skippedClasses[] = $classId;
+			continue;
+		}
+
 		$check = $conn->prepare("SELECT id FROM tbl_exams WHERE name = ? AND term_id = ? AND class_id = ? LIMIT 1");
 		$check->execute([$name, $termId, $classId]);
 		if ($check->fetchColumn()) {
 			continue;
 		}
-		$stmt->execute([$name, $termId, $classId, $examTypeId, 'draft', $myid]);
+		if (DBDriver === 'pgsql') {
+			$stmt = $conn->prepare("INSERT INTO tbl_exams (name, term_id, class_id, exam_type_id, status, created_by) VALUES (?,?,?,?,?,?) RETURNING id");
+			$stmt->execute([$name, $termId, $classId, $examTypeId, 'draft', $myid]);
+			$examId = (int)$stmt->fetchColumn();
+		} else {
+			$stmt = $conn->prepare("INSERT INTO tbl_exams (name, term_id, class_id, exam_type_id, status, created_by) VALUES (?,?,?,?,?,?)");
+			$stmt->execute([$name, $termId, $classId, $examTypeId, 'draft', $myid]);
+			$examId = (int)$conn->lastInsertId();
+		}
+		foreach ($validSubjects as $subjectId) {
+			$subjectStmt->execute([$examId, $subjectId]);
+		}
 		$created++;
 	}
 
@@ -56,7 +91,11 @@ try {
 		throw new RuntimeException("These exam structures already exist for the selected classes.");
 	}
 
-	$_SESSION['reply'] = array (array("success", "Exam structure created for " . $created . " class(es). Activate it when teachers are ready."));
+	$message = "Exam structure created for " . $created . " class(es). Activate it when teachers are ready.";
+	if (!empty($skippedClasses)) {
+		$message .= " Some classes were skipped because none of the selected subjects are assigned to them.";
+	}
+	$_SESSION['reply'] = array (array("success", $message));
 	header("location:../exams");
 } catch (Throwable $e) {
 	$_SESSION['reply'] = array (array("danger", "Failed to create exam: " . $e->getMessage()));

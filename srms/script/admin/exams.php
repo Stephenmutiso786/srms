@@ -12,6 +12,9 @@ $types = [];
 $exams = [];
 $classes = [];
 $terms = [];
+$subjects = [];
+$subjectClassMap = [];
+$examSubjectsMap = [];
 
 try {
 	$conn = app_db();
@@ -31,6 +34,19 @@ try {
 	$stmt->execute();
 	$terms = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+	$stmt = $conn->prepare("SELECT id, name FROM tbl_subjects ORDER BY name");
+	$stmt->execute();
+	$subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+	if (app_table_exists($conn, 'tbl_subject_class_assignments')) {
+		$stmt = $conn->prepare("SELECT subject_id, class_id FROM tbl_subject_class_assignments");
+		$stmt->execute();
+		foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+			$subjectClassMap[(int)$row['subject_id']][] = (int)$row['class_id'];
+		}
+	}
+	app_ensure_exam_subjects_table($conn);
+
 	if (app_table_exists($conn, 'tbl_exams')) {
 		$stmt = $conn->prepare("SELECT e.id, e.name, e.status, e.created_at, t.name AS term_name, c.name AS class_name, et.name AS type_name,
 			COALESCE((SELECT COUNT(*) FROM tbl_exam_mark_submissions ms WHERE ms.exam_id = e.id), 0) AS submission_count
@@ -41,6 +57,15 @@ try {
 			ORDER BY e.created_at DESC");
 		$stmt->execute();
 		$exams = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+		$stmt = $conn->prepare("SELECT es.exam_id, s.name
+			FROM tbl_exam_subjects es
+			JOIN tbl_subjects s ON s.id = es.subject_id
+			ORDER BY s.name");
+		$stmt->execute();
+		foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+			$examSubjectsMap[(int)$row['exam_id']][] = (string)$row['name'];
+		}
 	}
 } catch (Throwable $e) {
 	$_SESSION['reply'] = array (array("danger", "Failed to load exam data."));
@@ -149,7 +174,7 @@ try {
 </div>
 <div class="col-md-6 mb-3">
 <label class="form-label">Classes</label>
-<select class="form-control" name="class_ids[]" required multiple size="6">
+<select class="form-control" name="class_ids[]" id="examClassIds" required multiple size="6">
 <?php foreach ($classes as $class): ?>
 <option value="<?php echo $class['id']; ?>"><?php echo htmlspecialchars($class['name']); ?></option>
 <?php endforeach; ?>
@@ -164,6 +189,17 @@ try {
 <option value="<?php echo $term['id']; ?>"><?php echo htmlspecialchars($term['name']); ?></option>
 <?php endforeach; ?>
 </select>
+</div>
+<div class="col-md-12 mb-3">
+<label class="form-label">Subjects</label>
+<select class="form-control" name="subject_ids[]" id="examSubjectIds" required multiple size="10">
+<?php foreach ($subjects as $subject): $classesMap = $subjectClassMap[(int)$subject['id']] ?? []; ?>
+<option value="<?php echo (int)$subject['id']; ?>" data-classes="<?php echo htmlspecialchars(json_encode($classesMap)); ?>">
+	<?php echo htmlspecialchars($subject['name']); ?>
+</option>
+<?php endforeach; ?>
+</select>
+<div class="small text-muted mt-1">Choose the subjects that should appear in the exam for the selected classes.</div>
 </div>
 </div>
 <button class="btn btn-primary">Create Exam</button>
@@ -182,7 +218,7 @@ try {
 </div>
 <table class="table table-hover">
 <thead>
-<tr><th width="40"><input class="form-check-input" type="checkbox" id="selectAllExamsHead"></th><th>Name</th><th>Type</th><th>Class</th><th>Term</th><th>Status</th><th>Submissions</th><th>Created</th><th>Action</th></tr>
+<tr><th width="40"><input class="form-check-input" type="checkbox" id="selectAllExamsHead"></th><th>Name</th><th>Type</th><th>Class</th><th>Subjects</th><th>Term</th><th>Status</th><th>Submissions</th><th>Created</th><th>Action</th></tr>
 </thead>
 <tbody>
 <?php foreach ($exams as $exam): ?>
@@ -191,12 +227,14 @@ try {
 <td><?php echo htmlspecialchars($exam['name']); ?></td>
 <td><?php echo htmlspecialchars($exam['type_name'] ?? ''); ?></td>
 <td><?php echo htmlspecialchars($exam['class_name'] ?? ''); ?></td>
+<td><?php echo htmlspecialchars(implode(', ', $examSubjectsMap[(int)$exam['id']] ?? [])); ?></td>
 <td><?php echo htmlspecialchars($exam['term_name'] ?? ''); ?></td>
 <td><span class="badge bg-<?php echo htmlspecialchars(app_exam_status_badge((string)($exam['status'] ?? 'draft'))); ?>"><?php echo htmlspecialchars(ucfirst((string)($exam['status'] ?? 'draft'))); ?></span></td>
 <td><?php echo (int)($exam['submission_count'] ?? 0); ?></td>
 <td><?php echo htmlspecialchars((string)($exam['created_at'] ?? '')); ?></td>
 <td>
 	<div class="d-flex flex-wrap gap-2">
+	<a class="btn btn-sm btn-outline-secondary" href="admin/edit_exam?id=<?php echo (int)$exam['id']; ?>">Edit</a>
 	<form class="d-inline" action="admin/core/update_exam_status" method="POST">
 		<input type="hidden" name="exam_id" value="<?php echo (int)$exam['id']; ?>">
 		<?php if (($exam['status'] ?? '') === 'draft') { ?>
@@ -256,6 +294,19 @@ bindSelectAll('selectAllExamTypes', '.examtype-checkbox');
 bindSelectAll('selectAllExamTypesHead', '.examtype-checkbox');
 bindSelectAll('selectAllExams', '.exam-checkbox');
 bindSelectAll('selectAllExamsHead', '.exam-checkbox');
+
+function filterExamSubjects() {
+  var selectedClasses = Array.from(document.getElementById('examClassIds').selectedOptions).map(function(opt){ return parseInt(opt.value, 10); });
+  document.querySelectorAll('#examSubjectIds option').forEach(function(option){
+    var raw = option.getAttribute('data-classes') || '[]';
+    var classes = [];
+    try { classes = JSON.parse(raw); } catch (e) {}
+    var visible = !classes.length || !selectedClasses.length || selectedClasses.some(function(classId){ return classes.includes(classId); });
+    option.hidden = !visible;
+  });
+}
+document.getElementById('examClassIds').addEventListener('change', filterExamSubjects);
+filterExamSubjects();
 </script>
 </body>
 </html>

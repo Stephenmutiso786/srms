@@ -13,6 +13,7 @@ $useTeacherAssignments = false;
 try {
   $conn = app_db();
   $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+  app_ensure_exam_subjects_table($conn);
 
   $combos = [];
   $useTeacherAssignments = app_table_exists($conn, 'tbl_teacher_assignments');
@@ -26,12 +27,12 @@ try {
   $classIds = [];
 
   if ($useTeacherAssignments) {
-    $year = (int)date('Y');
     $stmt = $conn->prepare("SELECT ta.class_id, ta.subject_id, ta.term_id, s.name AS subject_name
       FROM tbl_teacher_assignments ta
       JOIN tbl_subjects s ON s.id = ta.subject_id
-      WHERE ta.teacher_id = ? AND ta.year = ? AND ta.status = 1");
-    $stmt->execute([$account_id, $year]);
+      WHERE ta.teacher_id = ? AND ta.status = 1
+      ORDER BY ta.year DESC, ta.id DESC");
+    $stmt->execute([$account_id]);
     $assignments = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     foreach ($assignments as $assignment) {
@@ -52,6 +53,7 @@ try {
     }
 
     foreach ($exams as $exam) {
+      $allowedSubjectIds = app_exam_subject_ids($conn, (int)$exam['id']);
       foreach ($assignments as $assignment) {
         if ((int)$assignment['class_id'] !== (int)$exam['class_id']) {
           continue;
@@ -59,9 +61,12 @@ try {
         if ((int)$assignment['term_id'] !== (int)$exam['term_id']) {
           continue;
         }
+        if (!empty($allowedSubjectIds) && !in_array((int)$assignment['subject_id'], $allowedSubjectIds, true)) {
+          continue;
+        }
         $comboId = app_get_teacher_subject_combination_id($conn, (int)$account_id, (int)$assignment['subject_id'], (int)$exam['class_id'], true);
         if ($comboId > 0) {
-          $classSubjects[(int)$exam['id']][] = [
+          $classSubjects[(int)$exam['id']][$comboId] = [
             'id' => $comboId,
             'name' => $assignment['subject_name']
           ];
@@ -211,7 +216,7 @@ try {
     const classId = $(this).find(':selected').data('class');
     const examId = $(this).val();
     const key = mapByExam ? examId : classId;
-    const subjects = classSubjects[key] || [];
+    const subjects = Object.values(classSubjects[key] || {});
     const $subject = $('#subjectSelect');
     $subject.empty().append('<option value="" selected disabled>Select subject</option>');
     subjects.forEach(item => {

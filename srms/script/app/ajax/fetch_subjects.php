@@ -20,17 +20,19 @@ if ($id < 1) {
 }
 
 if ($termId > 0 && app_table_exists($conn, 'tbl_teacher_assignments')) {
-	$year = (int)date('Y');
 	$stmt = $conn->prepare("SELECT ta.subject_id, s.name AS subject_name
 		FROM tbl_teacher_assignments ta
 		JOIN tbl_subjects s ON s.id = ta.subject_id
-		WHERE ta.teacher_id = ? AND ta.class_id = ? AND ta.term_id = ? AND ta.year = ? AND ta.status = 1");
-	$stmt->execute([$account_id, $id, $termId, $year]);
+		WHERE ta.teacher_id = ? AND ta.class_id = ? AND ta.term_id = ? AND ta.status = 1
+		ORDER BY ta.year DESC, ta.id DESC");
+	$stmt->execute([$account_id, $id, $termId]);
 	$assignments = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+	$seen = [];
 	foreach ($assignments as $assignment) {
 		$comboId = app_get_teacher_subject_combination_id($conn, (int)$account_id, (int)$assignment['subject_id'], $id, true);
-		if ($comboId > 0) {
+		if ($comboId > 0 && !isset($seen[$comboId])) {
+			$seen[$comboId] = true;
 			?><option value="<?php echo $comboId; ?>"><?php echo htmlspecialchars($assignment['subject_name']); ?></option><?php
 		}
 	}
