@@ -214,8 +214,207 @@ function app_results_locked(PDO $conn, int $classId, int $termId): bool
 function app_exam_submission_status(PDO $conn, int $examId, int $subjectCombinationId): string
 {
 	if ($examId < 1 || $subjectCombinationId < 1) {
-		return 'draft';
+	return 'draft';
+}
+
+function app_reply_redirect(string $type, string $message, string $location): void
+{
+	if (session_status() !== PHP_SESSION_ACTIVE) {
+		@session_start();
 	}
+	$_SESSION['reply'] = array(array($type, $message));
+	header("location:" . $location);
+	exit;
+}
+
+function app_delete_students(PDO $conn, array $ids): void
+{
+	if (empty($ids)) {
+		return;
+	}
+
+	$placeholders = implode(',', array_fill(0, count($ids), '?'));
+
+	if (app_table_exists($conn, 'tbl_students')) {
+		$stmt = $conn->prepare("SELECT id, display_image FROM tbl_students WHERE id IN ($placeholders)");
+		$stmt->execute($ids);
+		foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+			$img = $row['display_image'] ?? '';
+			if ($img !== '' && $img !== 'DEFAULT' && $img !== 'Blank') {
+				@unlink('images/students/' . $img);
+			}
+		}
+	}
+
+	$deletes = [
+		['tbl_parent_students', 'DELETE FROM tbl_parent_students WHERE student_id IN (%s)'],
+		['tbl_cbc_assessments', 'DELETE FROM tbl_cbc_assessments WHERE student_id IN (%s)'],
+		['tbl_attendance_records', 'DELETE FROM tbl_attendance_records WHERE student_id IN (%s)'],
+		['tbl_exam_results', 'DELETE FROM tbl_exam_results WHERE student IN (%s)'],
+		['tbl_assignment_submissions', 'DELETE FROM tbl_assignment_submissions WHERE student_id IN (%s)'],
+		['tbl_quiz_results', 'DELETE FROM tbl_quiz_results WHERE student_id IN (%s)'],
+		['tbl_attendance_elearning', 'DELETE FROM tbl_attendance_elearning WHERE student_id IN (%s)'],
+		['tbl_ai_recommendations', 'DELETE FROM tbl_ai_recommendations WHERE student_id IN (%s)'],
+	];
+	foreach ($deletes as $rule) {
+		if (app_table_exists($conn, $rule[0])) {
+			$stmt = $conn->prepare(sprintf($rule[1], $placeholders));
+			$stmt->execute($ids);
+		}
+	}
+
+	if (app_table_exists($conn, 'tbl_report_cards')) {
+		if (app_table_exists($conn, 'tbl_report_card_subjects')) {
+			$stmt = $conn->prepare("DELETE FROM tbl_report_card_subjects WHERE report_id IN (SELECT id FROM tbl_report_cards WHERE student_id IN ($placeholders))");
+			$stmt->execute($ids);
+		}
+		$stmt = $conn->prepare("DELETE FROM tbl_report_cards WHERE student_id IN ($placeholders)");
+		$stmt->execute($ids);
+	}
+
+	if (app_table_exists($conn, 'tbl_invoices')) {
+		$invoiceIdsStmt = $conn->prepare("SELECT id FROM tbl_invoices WHERE student_id IN ($placeholders)");
+		$invoiceIdsStmt->execute($ids);
+		$invoiceIds = $invoiceIdsStmt->fetchAll(PDO::FETCH_COLUMN);
+		if (!empty($invoiceIds)) {
+			$invoicePlaceholders = implode(',', array_fill(0, count($invoiceIds), '?'));
+			if (app_table_exists($conn, 'tbl_payments')) {
+				$stmt = $conn->prepare("DELETE FROM tbl_payments WHERE invoice_id IN ($invoicePlaceholders)");
+				$stmt->execute($invoiceIds);
+			}
+			if (app_table_exists($conn, 'tbl_invoice_lines')) {
+				$stmt = $conn->prepare("DELETE FROM tbl_invoice_lines WHERE invoice_id IN ($invoicePlaceholders)");
+				$stmt->execute($invoiceIds);
+			}
+			$stmt = $conn->prepare("DELETE FROM tbl_invoices WHERE id IN ($invoicePlaceholders)");
+			$stmt->execute($invoiceIds);
+		}
+	}
+
+	if (app_table_exists($conn, 'tbl_login_sessions') && app_column_exists($conn, 'tbl_login_sessions', 'student')) {
+		$stmt = $conn->prepare("DELETE FROM tbl_login_sessions WHERE student IN ($placeholders)");
+		$stmt->execute($ids);
+	}
+
+	$stmt = $conn->prepare("DELETE FROM tbl_students WHERE id IN ($placeholders)");
+	$stmt->execute($ids);
+}
+
+function app_delete_staff(PDO $conn, array $ids): void
+{
+	if (empty($ids)) {
+		return;
+	}
+
+	$placeholders = implode(',', array_fill(0, count($ids), '?'));
+
+	$deletes = [
+		['tbl_user_roles', 'DELETE FROM tbl_user_roles WHERE staff_id IN (%s)'],
+		['tbl_teacher_assignments', 'DELETE FROM tbl_teacher_assignments WHERE teacher_id IN (%s)'],
+		['tbl_staff_attendance', 'DELETE FROM tbl_staff_attendance WHERE staff_id IN (%s)'],
+	];
+	foreach ($deletes as $rule) {
+		if (app_table_exists($conn, $rule[0])) {
+			$stmt = $conn->prepare(sprintf($rule[1], $placeholders));
+			$stmt->execute($ids);
+		}
+	}
+
+	if (app_table_exists($conn, 'tbl_login_sessions') && app_column_exists($conn, 'tbl_login_sessions', 'staff')) {
+		$stmt = $conn->prepare("DELETE FROM tbl_login_sessions WHERE staff IN ($placeholders)");
+		$stmt->execute($ids);
+	}
+
+	$stmt = $conn->prepare("DELETE FROM tbl_staff WHERE id IN ($placeholders)");
+	$stmt->execute($ids);
+}
+
+function app_delete_subject(PDO $conn, int $id): void
+{
+	if ($id < 1) {
+		return;
+	}
+
+	$singleArg = [$id];
+	$cleanup = [
+		['tbl_subject_class_assignments', 'DELETE FROM tbl_subject_class_assignments WHERE subject_id = ?'],
+		['tbl_teacher_assignments', 'DELETE FROM tbl_teacher_assignments WHERE subject_id = ?'],
+		['tbl_subject_weights', 'DELETE FROM tbl_subject_weights WHERE subject_id = ?'],
+		['tbl_cbc_strands', 'DELETE FROM tbl_cbc_strands WHERE subject_id = ?'],
+		['tbl_cbc_mark_submissions', 'DELETE FROM tbl_cbc_mark_submissions WHERE subject_id = ?'],
+		['tbl_validation_issues', 'DELETE FROM tbl_validation_issues WHERE subject_id = ?'],
+		['tbl_insights_alerts', 'DELETE FROM tbl_insights_alerts WHERE subject_id = ?'],
+	];
+	foreach ($cleanup as $rule) {
+		if (app_table_exists($conn, $rule[0])) {
+			$stmt = $conn->prepare($rule[1]);
+			$stmt->execute($singleArg);
+		}
+	}
+
+	$stmt = $conn->prepare("DELETE FROM tbl_subjects WHERE id = ?");
+	$stmt->execute([$id]);
+}
+
+function app_delete_class(PDO $conn, int $id): array
+{
+	if ($id < 1) {
+		return [false, 'Invalid class selected.'];
+	}
+
+	if (app_table_exists($conn, 'tbl_students')) {
+		$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_students WHERE class = ?");
+		$stmt->execute([$id]);
+		if ((int)$stmt->fetchColumn() > 0) {
+			return [false, 'This class still has students. Move or delete the students first.'];
+		}
+	}
+
+	$cleanup = [
+		['tbl_subject_class_assignments', 'DELETE FROM tbl_subject_class_assignments WHERE class_id = ?'],
+		['tbl_teacher_assignments', 'DELETE FROM tbl_teacher_assignments WHERE class_id = ?'],
+		['tbl_results_locks', 'DELETE FROM tbl_results_locks WHERE class_id = ?'],
+		['tbl_exam_schedule', 'DELETE FROM tbl_exam_schedule WHERE class_id = ?'],
+		['tbl_exams', 'DELETE FROM tbl_exams WHERE class_id = ?'],
+		['tbl_attendance_sessions', 'DELETE FROM tbl_attendance_sessions WHERE class_id = ?'],
+		['tbl_courses', 'DELETE FROM tbl_courses WHERE class_id = ?'],
+		['tbl_fee_structures', 'DELETE FROM tbl_fee_structures WHERE class_id = ?'],
+		['tbl_validation_issues', 'DELETE FROM tbl_validation_issues WHERE class_id = ?'],
+		['tbl_insights_alerts', 'DELETE FROM tbl_insights_alerts WHERE class_id = ?'],
+		['tbl_notifications', 'DELETE FROM tbl_notifications WHERE class_id = ?'],
+	];
+	foreach ($cleanup as $rule) {
+		if (app_table_exists($conn, $rule[0])) {
+			$stmt = $conn->prepare($rule[1]);
+			$stmt->execute([$id]);
+		}
+	}
+
+	if (app_table_exists($conn, 'tbl_subject_combinations')) {
+		$stmt = $conn->prepare("SELECT id, class FROM tbl_subject_combinations");
+		$stmt->execute();
+		foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+			$classList = @unserialize($row['class']);
+			if (!is_array($classList)) {
+				continue;
+			}
+			$filtered = array_values(array_filter($classList, function ($classId) use ($id) {
+				return (string)$classId !== (string)$id;
+			}));
+			if (empty($filtered)) {
+				$delete = $conn->prepare("DELETE FROM tbl_subject_combinations WHERE id = ?");
+				$delete->execute([(int)$row['id']]);
+			} else {
+				$update = $conn->prepare("UPDATE tbl_subject_combinations SET class = ? WHERE id = ?");
+				$update->execute([serialize($filtered), (int)$row['id']]);
+			}
+		}
+	}
+
+	$stmt = $conn->prepare("DELETE FROM tbl_classes WHERE id = ?");
+	$stmt->execute([$id]);
+	return [true, 'Class deleted successfully.'];
+}
 	if (!app_table_exists($conn, 'tbl_exam_mark_submissions')) {
 		return 'draft';
 	}

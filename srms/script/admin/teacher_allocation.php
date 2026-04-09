@@ -99,6 +99,14 @@ try {
 </div>
 </div>
 
+<div class="tile mb-3">
+<div class="tile-body">
+<div class="alert alert-info mb-0">
+<strong>Flexible allocation:</strong> one teacher can be assigned to multiple subjects in the same class, and the same teacher can also be assigned across multiple classes. Each allocation is stored as its own class + subject + term + year record.
+</div>
+</div>
+</div>
+
 <div class="row">
 <div class="col-md-5">
 <div class="tile">

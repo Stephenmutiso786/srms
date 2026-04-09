@@ -18,20 +18,18 @@ if ($id < 1) {
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-	if (app_table_exists($conn, 'tbl_subject_class_assignments')) {
-		$stmt = $conn->prepare("DELETE FROM tbl_subject_class_assignments WHERE subject_id = ?");
-		$stmt->execute([$id]);
-	}
-
-	$stmt = $conn->prepare("DELETE FROM tbl_subjects WHERE id = ?");
-	$stmt->execute([$id]);
+	$conn->beginTransaction();
+	app_delete_subject($conn, $id);
+	$conn->commit();
 
 	$_SESSION['reply'] = array(array("success", "Subject deleted."));
 	header("location:../subjects");
 	exit;
 } catch (Throwable $e) {
-	$_SESSION['reply'] = array(array("danger", $e->getMessage()));
+	if (isset($conn) && $conn->inTransaction()) {
+		$conn->rollBack();
+	}
+	$_SESSION['reply'] = array(array("danger", "Unable to delete subject. Remove linked historical records first or unassign it from active workflows."));
 	header("location:../subjects");
 	exit;
 }

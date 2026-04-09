@@ -2,8 +2,9 @@
 chdir('../../');
 session_start();
 require_once('db/config.php');
+require_once('const/check_session.php');
 
-if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+if ($res !== "1" || $level !== "0" || $_SERVER['REQUEST_METHOD'] !== 'GET') {
 	header("location:../");
 	exit;
 }
@@ -25,5 +26,5 @@ try {
 	if (isset($conn) && $conn->inTransaction()) {
 		$conn->rollBack();
 	}
-	app_reply_redirect('danger', 'Unable to delete class right now.', '../classes');
+	app_reply_redirect('danger', 'Unable to delete class right now. Remove linked records first or try again.', '../classes');
 }

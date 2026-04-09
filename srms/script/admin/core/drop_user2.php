@@ -1,31 +1,37 @@
 <?php
 session_start();
 chdir('../../');
-session_start();
 require_once('db/config.php');
+require_once('const/check_session.php');
 
+if ($res !== "1" || $level !== "0" || $_SERVER['REQUEST_METHOD'] !== 'GET') {
+	header("location:../");
+	exit;
+}
 
-if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-
-$id = $_GET['id'];
+$id = (int)($_GET['id'] ?? 0);
+if ($id < 1) {
+	app_reply_redirect('danger', 'Invalid teacher selected.', '../teachers');
+}
 
 try {
-$conn = app_db();
-$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-$stmt = $conn->prepare("DELETE FROM tbl_staff WHERE id = ?");
-$stmt->execute([$id]);
-
-$_SESSION['reply'] = array (array("success",'Teacher deleted successfully'));
-header("location:../teachers");
-
-}catch(PDOException $e)
-{
-echo "Connection failed: " . $e->getMessage();
+	$conn = app_db();
+	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	$conn->beginTransaction();
+	app_delete_staff($conn, [(string)$id]);
+	$conn->commit();
+	app_reply_redirect('success', 'Teacher deleted successfully.', '../teachers');
+} catch (Throwable $e) {
+	if (isset($conn) && $conn->inTransaction()) {
+		$conn->rollBack();
+	}
+	if (isset($conn) && app_table_exists($conn, 'tbl_staff') && app_column_exists($conn, 'tbl_staff', 'status')) {
+		try {
+			$stmt = $conn->prepare("UPDATE tbl_staff SET status = 0 WHERE id = ?");
+			$stmt->execute([$id]);
+			app_reply_redirect('warning', 'Teacher could not be fully deleted because linked history exists. The account has been blocked instead.', '../teachers');
+		} catch (Throwable $ignored) {
+		}
+	}
+	app_reply_redirect('danger', 'Unable to delete teacher right now.', '../teachers');
 }
-
-
-}else{
-header("location:../");
-}
-?>
