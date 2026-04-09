@@ -532,6 +532,98 @@ function app_school_days(PDO $conn): array
 	return !empty($days) ? $days : ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 }
 
+function app_default_overall_grading_rows(): array
+{
+	return [
+		['grade' => 'EE', 'min' => 90.0, 'max' => 100.0, 'points' => 4, 'remark' => 'Excellent', 'order' => 1, 'active' => 1],
+		['grade' => 'ME', 'min' => 75.0, 'max' => 89.0, 'points' => 3, 'remark' => 'Good', 'order' => 2, 'active' => 1],
+		['grade' => 'AE', 'min' => 50.0, 'max' => 74.0, 'points' => 2, 'remark' => 'Average', 'order' => 3, 'active' => 1],
+		['grade' => 'BE', 'min' => 0.0, 'max' => 49.0, 'points' => 1, 'remark' => 'Needs Improvement', 'order' => 4, 'active' => 1],
+	];
+}
+
+function app_cbc_rows_match_overall_default(array $rows): bool
+{
+	$rows = array_values($rows);
+	$default = app_default_overall_grading_rows();
+	if (count($rows) !== count($default)) {
+		return false;
+	}
+	foreach ($default as $index => $expected) {
+		$row = $rows[$index] ?? [];
+		if (
+			strtoupper(trim((string)($row['level'] ?? $row['grade'] ?? ''))) !== $expected['grade'] ||
+			(float)($row['min_mark'] ?? $row['min'] ?? -1) !== (float)$expected['min'] ||
+			(float)($row['max_mark'] ?? $row['max'] ?? -1) !== (float)$expected['max'] ||
+			(int)($row['points'] ?? -1) !== (int)$expected['points']
+		) {
+			return false;
+		}
+	}
+	return true;
+}
+
+function app_ensure_overall_grading_defaults(PDO $conn): void
+{
+	$defaultRows = app_default_overall_grading_rows();
+
+	if (app_table_exists($conn, 'tbl_grading_systems') && app_table_exists($conn, 'tbl_grading_scales')) {
+		$stmt = $conn->prepare("SELECT id FROM tbl_grading_systems WHERE name = ? LIMIT 1");
+		$stmt->execute(['Overall Grading System']);
+		$overallId = (int)$stmt->fetchColumn();
+
+		if ($overallId < 1) {
+			if (DBDriver === 'pgsql') {
+				$stmt = $conn->prepare("INSERT INTO tbl_grading_systems (name, type, description, is_default, is_active) VALUES (?,?,?,?,?) RETURNING id");
+				$stmt->execute(['Overall Grading System', 'cbc', 'System-wide default competency grading', 1, 1]);
+				$overallId = (int)$stmt->fetchColumn();
+			} else {
+				$stmt = $conn->prepare("INSERT INTO tbl_grading_systems (name, type, description, is_default, is_active) VALUES (?,?,?,?,?)");
+				$stmt->execute(['Overall Grading System', 'cbc', 'System-wide default competency grading', 1, 1]);
+				$overallId = (int)$conn->lastInsertId();
+			}
+		} else {
+			$stmt = $conn->prepare("UPDATE tbl_grading_systems SET type = 'cbc', description = ?, is_default = 1, is_active = 1 WHERE id = ?");
+			$stmt->execute(['System-wide default competency grading', $overallId]);
+		}
+
+		$conn->prepare("UPDATE tbl_grading_systems SET is_default = CASE WHEN id = ? THEN 1 ELSE 0 END")->execute([$overallId]);
+
+		$stmt = $conn->prepare("SELECT grade, min_score, max_score, points FROM tbl_grading_scales WHERE grading_system_id = ? ORDER BY sort_order ASC, min_score DESC");
+		$stmt->execute([$overallId]);
+		$currentRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		$matches = app_cbc_rows_match_overall_default(array_map(function ($row) {
+			return [
+				'level' => $row['grade'] ?? '',
+				'min_mark' => $row['min_score'] ?? 0,
+				'max_mark' => $row['max_score'] ?? 0,
+				'points' => $row['points'] ?? 0,
+			];
+		}, $currentRows));
+
+		if (!$matches) {
+			$conn->prepare("DELETE FROM tbl_grading_scales WHERE grading_system_id = ?")->execute([$overallId]);
+			$stmt = $conn->prepare("INSERT INTO tbl_grading_scales (grading_system_id, min_score, max_score, grade, points, remark, sort_order, is_active) VALUES (?,?,?,?,?,?,?,?)");
+			foreach ($defaultRows as $row) {
+				$stmt->execute([$overallId, $row['min'], $row['max'], $row['grade'], $row['points'], $row['remark'], $row['order'], $row['active']]);
+			}
+		}
+	}
+
+	if (app_table_exists($conn, 'tbl_cbc_grading')) {
+		$stmt = $conn->prepare("SELECT level, min_mark, max_mark, points FROM tbl_cbc_grading ORDER BY sort_order ASC, min_mark DESC");
+		$stmt->execute();
+		$currentBands = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		if (!app_cbc_rows_match_overall_default($currentBands)) {
+			$conn->exec("DELETE FROM tbl_cbc_grading");
+			$stmt = $conn->prepare("INSERT INTO tbl_cbc_grading (level, min_mark, max_mark, points, sort_order, active) VALUES (?,?,?,?,?,?)");
+			foreach ($defaultRows as $row) {
+				$stmt->execute([$row['grade'], $row['min'], $row['max'], $row['points'], $row['order'], $row['active']]);
+			}
+		}
+	}
+}
+
 function app_delete_students(PDO $conn, array $ids): void
 {
 	if (empty($ids)) {

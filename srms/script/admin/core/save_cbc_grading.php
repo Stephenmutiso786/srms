@@ -39,42 +39,11 @@ try {
 		exit;
 	}
 
-	$rows = [];
-	for ($i = 0; $i < count($levels); $i++) {
-		$level = strtoupper(trim((string)$levels[$i]));
-		if ($level === '') { continue; }
-		$min = (float)($minMarks[$i] ?? 0);
-		$max = (float)($maxMarks[$i] ?? 0);
-		if ($min > $max) {
-			throw new RuntimeException("CBC band {$level} has Min greater than Max.");
-		}
-		$pts = (int)($points[$i] ?? 0);
-		$order = (int)($orders[$i] ?? ($i + 1));
-		$act = (int)($active[$i] ?? 1);
-		$rows[] = [$level, $min, $max, $pts, $order, $act];
-	}
-
-	if (count($rows) < 1) {
-		throw new RuntimeException("Add at least one CBC grading band.");
-	}
-
-	$conn->beginTransaction();
-	$conn->exec("DELETE FROM tbl_cbc_grading");
-
-	$stmt = $conn->prepare("INSERT INTO tbl_cbc_grading (level, min_mark, max_mark, points, sort_order, active) VALUES (?,?,?,?,?,?)");
-	foreach ($rows as $row) {
-		try {
-			$stmt->execute($row);
-		} catch (Throwable $bandError) {
-			throw new RuntimeException("Failed while saving CBC band {$row[0]}: ".$bandError->getMessage());
-		}
-	}
-
-	$conn->commit();
-	$_SESSION['reply'] = array (array("success", "CBC grading bands saved."));
+	app_ensure_overall_grading_defaults($conn);
+	$_SESSION['reply'] = array (array("success", "CBC grading bands reset to the default Overall Grading System."));
 	header("location:".$returnTo);
 } catch (Throwable $e) {
-	if ($conn && $conn->inTransaction()) {
+	if (isset($conn) && $conn instanceof PDO && $conn->inTransaction()) {
 		$conn->rollBack();
 	}
 	$_SESSION['reply'] = array (array("danger", "Failed to save CBC grading: " . $e->getMessage()));

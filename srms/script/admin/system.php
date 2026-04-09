@@ -49,6 +49,7 @@ $terms = [];
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	app_ensure_overall_grading_defaults($conn);
 
 	if (app_table_exists($conn, 'tbl_result_settings')) {
 		$stmt = $conn->prepare("SELECT best_of, use_weights, require_fees_clear FROM tbl_result_settings ORDER BY id DESC LIMIT 1");
@@ -388,35 +389,36 @@ if (count($cbcGrading) < 1) {
 <div class="col-md-12">
 <div class="tile">
 <h3 class="tile-title">Grading Systems Linked to Exam Engine</h3>
-<p class="text-muted">Create multiple grading systems and attach them to exams. Once an exam has marks, its grading system should remain unchanged.</p>
+<p class="text-muted">The system now provisions one default grading profile called <strong>Overall Grading System</strong> and attaches it to new exams unless you choose another one.</p>
 <form class="app_frm mb-4" action="admin/core/save_grading_system" method="POST">
 <input type="hidden" name="grading_system_id" value="0">
 <div class="row">
-<div class="col-md-4 mb-3"><label class="form-label">System Name</label><input class="form-control" name="name" required placeholder="CBC Term System"></div>
-<div class="col-md-2 mb-3"><label class="form-label">Type</label><select class="form-control" name="type"><option value="marks">Marks</option><option value="cbc">CBC</option></select></div>
-<div class="col-md-4 mb-3"><label class="form-label">Description</label><input class="form-control" name="description" placeholder="Used for Grade 7-9 CBC exams"></div>
-<div class="col-md-2 mb-3"><label class="form-label">Default</label><select class="form-control" name="is_default"><option value="0">No</option><option value="1">Yes</option></select></div>
+<div class="col-md-4 mb-3"><label class="form-label">System Name</label><input class="form-control" name="name" required placeholder="Overall Grading System" value="Overall Grading System"></div>
+<div class="col-md-2 mb-3"><label class="form-label">Type</label><select class="form-control" name="type"><option value="cbc" selected>CBC</option><option value="marks">Marks</option></select></div>
+<div class="col-md-4 mb-3"><label class="form-label">Description</label><input class="form-control" name="description" placeholder="System-wide default competency grading" value="System-wide default competency grading"></div>
+<div class="col-md-2 mb-3"><label class="form-label">Default</label><select class="form-control" name="is_default"><option value="1" selected>Yes</option><option value="0">No</option></select></div>
 <div class="col-md-12">
 <div class="table-responsive">
 <table class="table table-hover">
 <thead><tr><th>Grade</th><th>Min</th><th>Max</th><th>Points</th><th>Remark</th><th>Order</th></tr></thead>
 <tbody>
-<?php for ($index = 0; $index < 6; $index++): ?>
+<?php $defaultOverallRows = app_default_overall_grading_rows(); ?>
+<?php foreach ($defaultOverallRows as $index => $row): ?>
 <tr>
-<td><input class="form-control" name="scale_grade[]" <?php echo $index < 2 ? 'required' : ''; ?>></td>
-<td><input class="form-control" type="number" step="0.01" name="scale_min[]" <?php echo $index < 2 ? 'required' : ''; ?>></td>
-<td><input class="form-control" type="number" step="0.01" name="scale_max[]" <?php echo $index < 2 ? 'required' : ''; ?>></td>
-<td><input class="form-control" type="number" step="0.01" name="scale_points[]" value="0"></td>
-<td><input class="form-control" name="scale_remark[]"></td>
-<td><input class="form-control" type="number" name="scale_order[]" value="<?php echo $index + 1; ?>"></td>
+<td><input class="form-control" name="scale_grade[]" value="<?php echo htmlspecialchars($row['grade']); ?>" required></td>
+<td><input class="form-control" type="number" step="0.01" name="scale_min[]" value="<?php echo htmlspecialchars((string)$row['min']); ?>" required></td>
+<td><input class="form-control" type="number" step="0.01" name="scale_max[]" value="<?php echo htmlspecialchars((string)$row['max']); ?>" required></td>
+<td><input class="form-control" type="number" step="0.01" name="scale_points[]" value="<?php echo htmlspecialchars((string)$row['points']); ?>"></td>
+<td><input class="form-control" name="scale_remark[]" value="<?php echo htmlspecialchars($row['remark']); ?>"></td>
+<td><input class="form-control" type="number" name="scale_order[]" value="<?php echo htmlspecialchars((string)$row['order']); ?>"></td>
 </tr>
-<?php endfor; ?>
+<?php endforeach; ?>
 </tbody>
 </table>
 </div>
 </div>
 </div>
-<button class="btn btn-outline-primary">Create Grading System</button>
+<button class="btn btn-outline-primary">Save Overall Grading System</button>
 </form>
 
 <?php foreach ($gradingSystems as $system): ?>
@@ -461,6 +463,7 @@ if (count($cbcGrading) < 1) {
 <div class="col-md-12">
 <div class="tile">
 <h3 class="tile-title">CBC Grading Bands (Marks → Levels)</h3>
+<p class="text-muted">These default CBC bands are now aligned with the Overall Grading System and used across the system.</p>
 <form class="app_frm" action="admin/core/save_cbc_grading" method="POST">
 <input type="hidden" name="return" value="system">
 <div class="table-responsive">
