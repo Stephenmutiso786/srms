@@ -70,8 +70,14 @@ try {
 				continue;
 			}
 
-			$stmt = $conn->prepare("INSERT INTO tbl_staff (fname, lname, gender, email, password, level, status) VALUES (?,?,?,?,?,?,?)");
-			$stmt->execute([$fname, $lname, $gender, $email, $hash, 2, 1]);
+			if (app_column_exists($conn, 'tbl_staff', 'school_id')) {
+				$schoolId = app_generate_school_id($conn, 'TCH', (int)date('Y'), 'tbl_staff');
+				$stmt = $conn->prepare("INSERT INTO tbl_staff (fname, lname, gender, email, password, level, status, school_id) VALUES (?,?,?,?,?,?,?,?)");
+				$stmt->execute([$fname, $lname, $gender, $email, $hash, 2, 1, $schoolId]);
+			} else {
+				$stmt = $conn->prepare("INSERT INTO tbl_staff (fname, lname, gender, email, password, level, status) VALUES (?,?,?,?,?,?,?)");
+				$stmt->execute([$fname, $lname, $gender, $email, $hash, 2, 1]);
+			}
 			$success++;
 		} catch (Throwable $e) {
 			$failed++;

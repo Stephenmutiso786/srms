@@ -59,9 +59,14 @@ $img = 'DEFAULT';
 
 }
 
-$stmt = $conn->prepare("INSERT INTO tbl_students (id, fname, mname, lname, gender, email, class, password, display_image) VALUES (?,?,?,?,?,?,?,?,?)");
-$stmt->execute([$reg_no, $fname, $mname, $lname, $gender, $email, $class, $pass, $img]);
-
+if (app_column_exists($conn, 'tbl_students', 'school_id')) {
+  $schoolId = app_generate_school_id($conn, 'STD', (int)date('Y'), 'tbl_students');
+  $stmt = $conn->prepare("INSERT INTO tbl_students (id, school_id, fname, mname, lname, gender, email, class, password, display_image) VALUES (?,?,?,?,?,?,?,?,?,?)");
+  $stmt->execute([$reg_no, $schoolId, $fname, $mname, $lname, $gender, $email, $class, $pass, $img]);
+} else {
+  $stmt = $conn->prepare("INSERT INTO tbl_students (id, fname, mname, lname, gender, email, class, password, display_image) VALUES (?,?,?,?,?,?,?,?,?)");
+  $stmt->execute([$reg_no, $fname, $mname, $lname, $gender, $email, $class, $pass, $img]);
+}
 $_SESSION['reply'] = array (array("success",'Student registered successfully'));
 header("location:../register_students");
 }

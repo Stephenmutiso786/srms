@@ -5,6 +5,18 @@ require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
 if ($res == "1" && $level == "2") {}else{header("location:../");}
+$schoolId = '';
+try {
+	$conn = app_db();
+	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	if (app_column_exists($conn, 'tbl_staff', 'school_id')) {
+		$stmt = $conn->prepare("SELECT school_id FROM tbl_staff WHERE id = ? LIMIT 1");
+		$stmt->execute([$account_id]);
+		$schoolId = (string)$stmt->fetchColumn();
+	}
+} catch (Throwable $e) {
+	$schoolId = '';
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -92,6 +104,12 @@ if ($res == "1" && $level == "2") {}else{header("location:../");}
 <label class="form-label">Email Address</label>
 <input value="<?php echo $email; ?>" required disabled  name="email" class="form-control" type="email" placeholder="Enter email address">
 </div>
+<?php if ($schoolId !== '') { ?>
+<div class="mb-2">
+<label class="form-label">Staff ID</label>
+<input value="<?php echo htmlspecialchars($schoolId); ?>" required disabled name="school_id" class="form-control" type="text">
+</div>
+<?php } ?>
 
 <div class="mb-2">
 <label class="form-label">Gender</label>

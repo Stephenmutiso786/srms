@@ -83,6 +83,7 @@ $matches = implode(',', $matches);
 <th width="40"><input class="form-check-input" type="checkbox" id="selectAllStudentsHead"></th>
 <th></th>
 <th>Registration Number</th>
+<th>School ID</th>
 <th>Firstname</th>
 <th>Middlename</th>
 <th>Lastname</th>
@@ -112,7 +113,7 @@ $empty_classes[$value[0]] = $value[1];
 
 $stmt = $conn->prepare("SELECT * FROM tbl_students WHERE class IN ($matches)");
 $stmt->execute($students);
-$result = $stmt->fetchAll();
+$result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 foreach($result as $row)
 {
@@ -124,35 +125,36 @@ foreach($result as $row)
 </td>
 <td width="10">
 <?php
-if ($row[9] == "DEFAULT") {
-?><img src="images/students/<?php echo $row[4]; ?>.png" class="avatar_img_sm"><?php
+if (($row['display_image'] ?? '') == "DEFAULT") {
+?><img src="images/students/<?php echo $row['gender']; ?>.png" class="avatar_img_sm"><?php
 }else{
-?><img src="images/students/<?php echo $row[9]; ?>" class="avatar_img_sm"><?php
+?><img src="images/students/<?php echo $row['display_image']; ?>" class="avatar_img_sm"><?php
 }
 ?>
 </td>
-<td><?php echo $row[0]; ?></td>
-<td><?php echo $row[1]; ?></td>
-<td><?php echo $row[2]; ?></td>
-<td><?php echo $row[3]; ?></td>
-<td><?php echo $row[4]; ?></td>
-<td><?php echo $row[5]; ?></td>
-<td><?php echo $empty_classes[$row[6]]; ?></td>
+<td><?php echo $row['id']; ?></td>
+<td><?php echo htmlspecialchars($row['school_id'] ?? ''); ?></td>
+<td><?php echo $row['fname']; ?></td>
+<td><?php echo $row['mname']; ?></td>
+<td><?php echo $row['lname']; ?></td>
+<td><?php echo $row['gender']; ?></td>
+<td><?php echo $row['email']; ?></td>
+<td><?php echo $empty_classes[$row['class']]; ?></td>
 
 <td align="center" width="130">
 
-<textarea style="display:none;" id="fname_<?php echo $row[0]; ?>"><?php echo $row[1]; ?></textarea>
-<textarea style="display:none;" id="mname_<?php echo $row[0]; ?>"><?php echo $row[2]; ?></textarea>
-<textarea style="display:none;" id="lname_<?php echo $row[0]; ?>"><?php echo $row[3]; ?></textarea>
-<textarea style="display:none;" id="gender_<?php echo $row[0]; ?>"><?php echo $row[4]; ?></textarea>
+<textarea style="display:none;" id="fname_<?php echo $row['id']; ?>"><?php echo $row['fname']; ?></textarea>
+<textarea style="display:none;" id="mname_<?php echo $row['id']; ?>"><?php echo $row['mname']; ?></textarea>
+<textarea style="display:none;" id="lname_<?php echo $row['id']; ?>"><?php echo $row['lname']; ?></textarea>
+<textarea style="display:none;" id="gender_<?php echo $row['id']; ?>"><?php echo $row['gender']; ?></textarea>
 
-<textarea style="display:none;" id="email_<?php echo $row[0]; ?>"><?php echo $row[5]; ?></textarea>
-<textarea style="display:none;" id="class_<?php echo $row[0]; ?>"><?php echo $row[6]; ?></textarea>
-<textarea style="display:none;" id="img_<?php echo $row[0]; ?>"><?php echo $row[9]; ?></textarea>
-<textarea style="display:none;" id="status_<?php echo $row[0]; ?>"><?php echo $row[10]; ?></textarea>
+<textarea style="display:none;" id="email_<?php echo $row['id']; ?>"><?php echo $row['email']; ?></textarea>
+<textarea style="display:none;" id="class_<?php echo $row['id']; ?>"><?php echo $row['class']; ?></textarea>
+<textarea style="display:none;" id="img_<?php echo $row['id']; ?>"><?php echo $row['display_image']; ?></textarea>
+<textarea style="display:none;" id="status_<?php echo $row['id']; ?>"><?php echo $row['status']; ?></textarea>
 
-<a onclick="set_student('<?php echo $row[0]; ?>');" class="btn btn-primary btn-sm" href="javascript:void(0);" data-bs-toggle="modal" data-bs-target="#editModal">Edit</a>
-<a onclick="del('admin/core/drop_student?id=<?php echo $row[0]; ?>&img=<?php echo $row[9]; ?>', 'Delete Student?');" class="btn btn-danger btn-sm" href="javascript:void(0);">Delete</a>
+<a onclick="set_student('<?php echo $row['id']; ?>');" class="btn btn-primary btn-sm" href="javascript:void(0);" data-bs-toggle="modal" data-bs-target="#editModal">Edit</a>
+<a onclick="del('admin/core/drop_student?id=<?php echo $row['id']; ?>&img=<?php echo $row['display_image']; ?>', 'Delete Student?');" class="btn btn-danger btn-sm" href="javascript:void(0);">Delete</a>
 </td>
 
 </tr>

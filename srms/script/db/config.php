@@ -97,6 +97,35 @@ function app_db(): PDO
 	return $pdo;
 }
 
+function app_generate_school_id(PDO $conn, string $prefix, int $year, string $table): string
+{
+	$prefix = strtoupper(trim($prefix));
+	$year = $year > 0 ? $year : (int)date('Y');
+	$like = $prefix.'-'.$year.'-%';
+
+	do {
+		$stmt = $conn->prepare("SELECT COUNT(*) FROM {$table} WHERE school_id LIKE ?");
+		$stmt->execute([$like]);
+		$count = (int)$stmt->fetchColumn();
+		$number = $count + 1;
+		$schoolId = sprintf('%s-%d-%04d', $prefix, $year, $number);
+
+		$stmt = $conn->prepare("SELECT 1 FROM {$table} WHERE school_id = ? LIMIT 1");
+		$stmt->execute([$schoolId]);
+		$exists = $stmt->fetchColumn();
+	} while ($exists);
+
+	return $schoolId;
+}
+
+function app_staff_prefix(string $level): string
+{
+	if ($level === '0' || $level === '1') { return 'ADM'; }
+	if ($level === '2') { return 'TCH'; }
+	if ($level === '5') { return 'ACC'; }
+	return 'STF';
+}
+
 function app_table_exists(PDO $conn, string $table): bool
 {
 	static $cache = [];

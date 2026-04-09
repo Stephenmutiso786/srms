@@ -5,6 +5,18 @@ require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
 if ($res == "1" && $level == "3") {}else{header("location:../");}
+$schoolId = '';
+try {
+	$conn = app_db();
+	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	if (app_column_exists($conn, 'tbl_students', 'school_id')) {
+		$stmt = $conn->prepare("SELECT school_id FROM tbl_students WHERE id = ? LIMIT 1");
+		$stmt->execute([$account_id]);
+		$schoolId = (string)$stmt->fetchColumn();
+	}
+} catch (Throwable $e) {
+	$schoolId = '';
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -87,6 +99,13 @@ if ($img == "DEFAULT") {
 <td><div class="kv-attribute"><?php echo $account_id; ?></div>
 </td>
 </tr>
+<?php if ($schoolId !== '') { ?>
+<tr>
+<th style="width: 20%; text-align: ; vertical-align: ;">School ID</th>
+<td><div class="kv-attribute"><?php echo htmlspecialchars($schoolId); ?></div>
+</td>
+</tr>
+<?php } ?>
 <tr>
 <th style="width: 20%; text-align: ; vertical-align: ;">First Name</th>
 <td><div class="kv-attribute"><?php echo $fname; ?></div>

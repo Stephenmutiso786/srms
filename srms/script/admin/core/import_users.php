@@ -44,8 +44,15 @@ if (preg_match('~[0-9]+~', $fname) OR preg_match('~[0-9]+~', $lname)) {
 
 }else{
 
-$stmt = $conn->prepare("INSERT INTO tbl_staff (fname, lname, gender, email, password, level, status) VALUES (?,?,?,?,?,?,?)");
-$stmt->execute([$fname, $lname, $gender, $email, $pass, $role, $status]);
+if (app_column_exists($conn, 'tbl_staff', 'school_id')) {
+	$prefix = app_staff_prefix($role);
+	$schoolId = app_generate_school_id($conn, $prefix, (int)date('Y'), 'tbl_staff');
+	$stmt = $conn->prepare("INSERT INTO tbl_staff (fname, lname, gender, email, password, level, status, school_id) VALUES (?,?,?,?,?,?,?,?)");
+	$stmt->execute([$fname, $lname, $gender, $email, $pass, $role, $status, $schoolId]);
+} else {
+	$stmt = $conn->prepare("INSERT INTO tbl_staff (fname, lname, gender, email, password, level, status) VALUES (?,?,?,?,?,?,?)");
+	$stmt->execute([$fname, $lname, $gender, $email, $pass, $role, $status]);
+}
 
 }
 

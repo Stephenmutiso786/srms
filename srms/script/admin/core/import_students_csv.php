@@ -103,8 +103,14 @@ try {
 				continue;
 			}
 
-			$stmt = $conn->prepare("INSERT INTO tbl_students (id, fname, mname, lname, gender, email, class, password, level, status) VALUES (?,?,?,?,?,?,?,?,?,?)");
-			$stmt->execute([$studentId, $fname, $mname, $lname, $gender, $email, $classId, $hash, 3, 1]);
+			if (app_column_exists($conn, 'tbl_students', 'school_id')) {
+				$schoolId = app_generate_school_id($conn, 'STD', (int)date('Y'), 'tbl_students');
+				$stmt = $conn->prepare("INSERT INTO tbl_students (id, school_id, fname, mname, lname, gender, email, class, password, level, status) VALUES (?,?,?,?,?,?,?,?,?,?,?)");
+				$stmt->execute([$studentId, $schoolId, $fname, $mname, $lname, $gender, $email, $classId, $hash, 3, 1]);
+			} else {
+				$stmt = $conn->prepare("INSERT INTO tbl_students (id, fname, mname, lname, gender, email, class, password, level, status) VALUES (?,?,?,?,?,?,?,?,?,?)");
+				$stmt->execute([$studentId, $fname, $mname, $lname, $gender, $email, $classId, $hash, 3, 1]);
+			}
 			$success++;
 		} catch (Throwable $e) {
 			$failed++;

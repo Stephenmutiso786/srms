@@ -220,6 +220,7 @@ Download excel template from <a download href="templates/import_teachers.xlsx" c
 <th width="40"><input class="form-check-input" type="checkbox" id="selectAllStaffHead"></th>
 <th>First Name</th>
 <th>Last Name</th>
+<th>School ID</th>
 <th>Email</th>
 <th>Gender</th>
 <th>Role</th>
@@ -236,11 +237,11 @@ $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
 $stmt = $conn->prepare("SELECT * FROM tbl_staff WHERE level IN (2,5)");
 $stmt->execute();
-$result = $stmt->fetchAll();
+$result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 foreach($result as $row)
 {
-if ($row[7] == "1") {
+if ((string)$row['status'] === "1") {
 $st = '<span class="me-1 badge badge-pill bg-success">Active</span>';
 }else{
 $st = '<span class="me-1 badge badge-pill bg-danger">Blocked</span>';
@@ -249,13 +250,14 @@ $st = '<span class="me-1 badge badge-pill bg-danger">Blocked</span>';
 ?>
 <tr>
 <td>
-<input class="form-check-input staff-checkbox" type="checkbox" name="staff_ids[]" value="<?php echo $row[0]; ?>">
+<input class="form-check-input staff-checkbox" type="checkbox" name="staff_ids[]" value="<?php echo $row['id']; ?>">
 </td>
-<td><?php echo $row[1];?></td>
-<td><?php echo $row[2];?></td>
-<td><?php echo $row[4];?></td>
-<td><?php echo $row[3];?></td>
-<td><?php echo ((int)$row[6] === 5) ? 'Accountant' : 'Teacher'; ?></td>
+<td><?php echo htmlspecialchars($row['fname']);?></td>
+<td><?php echo htmlspecialchars($row['lname']);?></td>
+<td><?php echo htmlspecialchars($row['school_id'] ?? ''); ?></td>
+<td><?php echo htmlspecialchars($row['email']);?></td>
+<td><?php echo htmlspecialchars($row['gender']);?></td>
+<td><?php echo ((int)$row['level'] === 5) ? 'Accountant' : 'Teacher'; ?></td>
 <td width="100" align="center"><?php echo $st;?></td>
 <td width="120" align="center">
 <textarea style="display:none;" id="fname_<?php echo $row[0]; ?>"><?php echo $row[1]; ?></textarea>
