@@ -1,6 +1,49 @@
 <?php
 require_once('db/config.php');
 
+function report_grading_systems(PDO $conn): array
+{
+	if (!app_table_exists($conn, 'tbl_grading_systems')) {
+		return [];
+	}
+	$stmt = $conn->prepare("SELECT * FROM tbl_grading_systems WHERE is_active = 1 ORDER BY id");
+	$stmt->execute();
+	return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+function report_exam_grading_system_id(PDO $conn, ?int $examId): ?int
+{
+	if (!$examId || !app_table_exists($conn, 'tbl_exams') || !app_column_exists($conn, 'tbl_exams', 'grading_system_id')) {
+		return null;
+	}
+	$stmt = $conn->prepare("SELECT grading_system_id FROM tbl_exams WHERE id = ? LIMIT 1");
+	$stmt->execute([$examId]);
+	$value = $stmt->fetchColumn();
+	return $value ? (int)$value : null;
+}
+
+function report_grading_scales(PDO $conn, ?int $gradingSystemId = null): array
+{
+	if ($gradingSystemId && app_table_exists($conn, 'tbl_grading_scales')) {
+		$stmt = $conn->prepare("SELECT grade AS name, min_score AS min, max_score AS max, remark, points, sort_order, is_active
+			FROM tbl_grading_scales
+			WHERE grading_system_id = ? AND is_active = 1
+			ORDER BY min_score DESC, sort_order ASC");
+		$stmt->execute([$gradingSystemId]);
+		$rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		if ($rows) {
+			return $rows;
+		}
+	}
+
+	if (!app_table_exists($conn, 'tbl_grade_system')) {
+		return [];
+	}
+	$stmt = $conn->prepare("SELECT name, min, max, remark, 0 AS points, 0 AS sort_order, 1 AS is_active FROM tbl_grade_system ORDER BY min DESC");
+	$stmt->execute();
+	return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
 function report_get_settings(PDO $conn): array
 {
 	$settings = [
@@ -40,23 +83,24 @@ function report_get_weight_map(PDO $conn): array
 	return $weights;
 }
 
-function report_grade_for_score(PDO $conn, float $score): array
+function report_grade_for_score(PDO $conn, float $score, ?int $gradingSystemId = null): array
 {
 	$grade = 'E';
 	$remark = 'Needs improvement';
-	if (!app_table_exists($conn, 'tbl_grade_system')) {
-		return [$grade, $remark];
+	$points = 0;
+	$rows = report_grading_scales($conn, $gradingSystemId);
+	if (!$rows) {
+		return [$grade, $remark, $points];
 	}
-	$stmt = $conn->prepare("SELECT name, min, max, remark FROM tbl_grade_system ORDER BY min DESC");
-	$stmt->execute();
-	foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+	foreach ($rows as $row) {
 		if ($score >= (float)$row['min'] && $score <= (float)$row['max']) {
 			$grade = $row['name'];
 			$remark = $row['remark'];
-			return [$grade, $remark];
+			$points = (float)($row['points'] ?? 0);
+			return [$grade, $remark, $points];
 		}
 	}
-	return [$grade, $remark];
+	return [$grade, $remark, $points];
 }
 
 function report_fetch_subjects_for_class(PDO $conn, int $classId): array
@@ -81,18 +125,29 @@ function report_fetch_scores(PDO $conn, string $studentId, int $classId, int $te
 	$scores = [];
 	foreach ($subjects as $subject) {
 		$score = 0;
-		$stmt = $conn->prepare("SELECT score FROM tbl_exam_results WHERE class = ? AND subject_combination = ? AND term = ? AND student = ? LIMIT 1");
+		$stmt = $conn->prepare("SELECT score, exam_id, grade_label, grade_points
+			FROM tbl_exam_results
+			WHERE class = ? AND subject_combination = ? AND term = ? AND student = ?
+			ORDER BY id DESC
+			LIMIT 1");
 		$stmt->execute([$classId, $subject['combination_id'], $termId, $studentId]);
-		$value = $stmt->fetchColumn();
-		if ($value !== false && $value !== null && $value !== '') {
-			$score = (float)$value;
+		$value = $stmt->fetch(PDO::FETCH_ASSOC);
+		if ($value && $value['score'] !== null && $value['score'] !== '') {
+			$score = (float)$value['score'];
 		}
+		$examId = isset($value['exam_id']) ? (int)$value['exam_id'] : null;
+		$gradingSystemId = report_exam_grading_system_id($conn, $examId);
+		list($gradeLabel, $gradeRemark, $gradePoints) = report_grade_for_score($conn, $score, $gradingSystemId);
 		$scores[] = [
 			'subject_id' => (int)$subject['subject'],
 			'subject_name' => $subject['subject_name'],
 			'teacher_id' => $subject['teacher'] ? (int)$subject['teacher'] : null,
 			'teacher_name' => trim(($subject['fname'] ?? '') . ' ' . ($subject['lname'] ?? '')),
-			'score' => $score
+			'score' => $score,
+			'exam_id' => $examId,
+			'grade' => (string)($value['grade_label'] ?? $gradeLabel),
+			'grade_points' => (float)($value['grade_points'] ?? $gradePoints),
+			'grade_remark' => $gradeRemark
 		];
 	}
 	return $scores;
@@ -119,13 +174,17 @@ function report_compute_totals(PDO $conn, array $scores, array $weights, array $
 	}
 
 	$total = 0;
+	$gradingSystemId = null;
 	foreach ($rows as $row) {
 		$total += $row['weighted_score'];
+		if ($gradingSystemId === null && !empty($row['exam_id'])) {
+			$gradingSystemId = report_exam_grading_system_id($conn, (int)$row['exam_id']);
+		}
 	}
 	$count = count($rows);
 	$mean = $count > 0 ? round($total / $count, 2) : 0;
 
-	list($grade, $remark) = report_grade_for_score($conn, $mean);
+	list($grade, $remark) = report_grade_for_score($conn, $mean, $gradingSystemId);
 
 	return [
 		'rows' => $rows,

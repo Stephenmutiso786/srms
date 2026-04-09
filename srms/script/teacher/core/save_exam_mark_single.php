@@ -4,6 +4,7 @@ session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/school.php');
+require_once('const/report_engine.php');
 if ($res == "1" && $level == "2") {}else{header("location:../"); exit;}
 
 header('Content-Type: application/json');
@@ -70,6 +71,9 @@ try {
 
 	$scoreVal = max(0, min(100, $scoreVal));
 	$useExamId = app_column_exists($conn, 'tbl_exam_results', 'exam_id');
+	$useGradeColumns = app_column_exists($conn, 'tbl_exam_results', 'grade_label') && app_column_exists($conn, 'tbl_exam_results', 'grade_points');
+	$gradingSystemId = report_exam_grading_system_id($conn, $examId);
+	list($gradeLabel, , $gradePoints) = report_grade_for_score($conn, $scoreVal, $gradingSystemId);
 
 	if ($useExamId) {
 		$stmt = $conn->prepare("SELECT id FROM tbl_exam_results WHERE exam_id = ? AND student = ? AND subject_combination = ? LIMIT 1");
@@ -81,15 +85,30 @@ try {
 	$existing = $stmt->fetch(PDO::FETCH_ASSOC);
 
 	if ($existing) {
-		$stmt = $conn->prepare("UPDATE tbl_exam_results SET score = ? WHERE id = ?");
-		$stmt->execute([$scoreVal, $existing['id']]);
+		if ($useGradeColumns) {
+			$stmt = $conn->prepare("UPDATE tbl_exam_results SET score = ?, grade_label = ?, grade_points = ? WHERE id = ?");
+			$stmt->execute([$scoreVal, $gradeLabel, $gradePoints, $existing['id']]);
+		} else {
+			$stmt = $conn->prepare("UPDATE tbl_exam_results SET score = ? WHERE id = ?");
+			$stmt->execute([$scoreVal, $existing['id']]);
+		}
 	} else {
 		if ($useExamId) {
-			$stmt = $conn->prepare("INSERT INTO tbl_exam_results (student, class, subject_combination, term, score, exam_id) VALUES (?,?,?,?,?,?)");
-			$stmt->execute([$studentId, $classId, $subjectComb, $termId, $scoreVal, $examId]);
+			if ($useGradeColumns) {
+				$stmt = $conn->prepare("INSERT INTO tbl_exam_results (student, class, subject_combination, term, score, exam_id, grade_label, grade_points) VALUES (?,?,?,?,?,?,?,?)");
+				$stmt->execute([$studentId, $classId, $subjectComb, $termId, $scoreVal, $examId, $gradeLabel, $gradePoints]);
+			} else {
+				$stmt = $conn->prepare("INSERT INTO tbl_exam_results (student, class, subject_combination, term, score, exam_id) VALUES (?,?,?,?,?,?)");
+				$stmt->execute([$studentId, $classId, $subjectComb, $termId, $scoreVal, $examId]);
+			}
 		} else {
-			$stmt = $conn->prepare("INSERT INTO tbl_exam_results (student, class, subject_combination, term, score) VALUES (?,?,?,?,?)");
-			$stmt->execute([$studentId, $classId, $subjectComb, $termId, $scoreVal]);
+			if ($useGradeColumns) {
+				$stmt = $conn->prepare("INSERT INTO tbl_exam_results (student, class, subject_combination, term, score, grade_label, grade_points) VALUES (?,?,?,?,?,?,?)");
+				$stmt->execute([$studentId, $classId, $subjectComb, $termId, $scoreVal, $gradeLabel, $gradePoints]);
+			} else {
+				$stmt = $conn->prepare("INSERT INTO tbl_exam_results (student, class, subject_combination, term, score) VALUES (?,?,?,?,?)");
+				$stmt->execute([$studentId, $classId, $subjectComb, $termId, $scoreVal]);
+			}
 		}
 	}
 

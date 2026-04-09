@@ -4,6 +4,7 @@ session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/rbac.php');
+require_once('const/report_engine.php');
 
 if ($res != "1" || $level != "0") { header("location:../"); exit; }
 app_require_permission('exams.manage', 'admin');
@@ -23,6 +24,7 @@ $terms = [];
 $subjects = [];
 $subjectClassMap = [];
 $selectedSubjects = [];
+$gradingSystems = [];
 
 try {
 	$conn = app_db();
@@ -51,6 +53,7 @@ try {
 	$stmt = $conn->prepare("SELECT id, name FROM tbl_subjects ORDER BY name");
 	$stmt->execute();
 	$subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	$gradingSystems = report_grading_systems($conn);
 
 	if (app_table_exists($conn, 'tbl_subject_class_assignments')) {
 		$stmt = $conn->prepare("SELECT subject_id, class_id FROM tbl_subject_class_assignments");
@@ -130,6 +133,17 @@ try {
 							<?php foreach ($terms as $term): ?>
 							<option value="<?php echo (int)$term['id']; ?>" <?php echo ((int)$exam['term_id'] === (int)$term['id']) ? 'selected' : ''; ?>>
 								<?php echo htmlspecialchars($term['name']); ?>
+							</option>
+							<?php endforeach; ?>
+						</select>
+					</div>
+					<div class="col-md-6 mb-3">
+						<label class="form-label">Grading System</label>
+						<select class="form-control" name="grading_system_id" required>
+							<option value="">Select grading system</option>
+							<?php foreach ($gradingSystems as $system): ?>
+							<option value="<?php echo (int)$system['id']; ?>" <?php echo ((int)($exam['grading_system_id'] ?? 0) === (int)$system['id']) ? 'selected' : ''; ?>>
+								<?php echo htmlspecialchars($system['name']); ?> (<?php echo htmlspecialchars(strtoupper((string)$system['type'])); ?>)
 							</option>
 							<?php endforeach; ?>
 						</select>

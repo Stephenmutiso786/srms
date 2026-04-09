@@ -63,6 +63,7 @@ if ($res == "1" && $level == "2") {}else{header("location:../");}
 <li><a class="treeview-item" href="teacher/marks_entry"><i class="icon bi bi-circle-fill"></i> CBC Marks Entry</a></li>
 <li><a class="treeview-item" href="teacher/import_results"><i class="icon bi bi-circle-fill"></i> Import Results</a></li>
 <li><a class="treeview-item active" href="teacher/manage_results"><i class="icon bi bi-circle-fill"></i> View Results</a></li>
+<li><a class="treeview-item" href="teacher/published_analytics"><i class="icon bi bi-circle-fill"></i> Published Analytics</a></li>
 </ul>
 </li>
 <li><a class="app-menu__item" href="teacher/grading-system"><i class="app-menu__icon feather icon-award"></i><span class="app-menu__label">Grading System</span></a></li>
@@ -122,9 +123,8 @@ $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
 if (app_table_exists($conn, 'tbl_teacher_assignments')) {
-  $year = (int)date('Y');
-  $stmt = $conn->prepare("SELECT DISTINCT class_id FROM tbl_teacher_assignments WHERE teacher_id = ? AND year = ? AND status = 1");
-  $stmt->execute([$account_id, $year]);
+  $stmt = $conn->prepare("SELECT DISTINCT class_id FROM tbl_teacher_assignments WHERE teacher_id = ? AND status = 1");
+  $stmt->execute([$account_id]);
   $myclasses = $stmt->fetchAll(PDO::FETCH_COLUMN);
 } else {
   $stmt = $conn->prepare("SELECT * FROM tbl_subject_combinations

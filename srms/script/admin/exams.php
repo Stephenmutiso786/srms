@@ -4,6 +4,7 @@ session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/rbac.php');
+require_once('const/report_engine.php');
 if ($res != "1" || $level != "0") { header("location:../"); }
 app_require_permission('exams.manage', 'admin');
 app_require_unlocked('exams', 'admin');
@@ -15,6 +16,7 @@ $terms = [];
 $subjects = [];
 $subjectClassMap = [];
 $examSubjectsMap = [];
+$gradingSystems = [];
 
 try {
 	$conn = app_db();
@@ -38,6 +40,8 @@ try {
 	$stmt->execute();
 	$subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+	$gradingSystems = report_grading_systems($conn);
+
 	if (app_table_exists($conn, 'tbl_subject_class_assignments')) {
 		$stmt = $conn->prepare("SELECT subject_id, class_id FROM tbl_subject_class_assignments");
 		$stmt->execute();
@@ -49,11 +53,13 @@ try {
 
 	if (app_table_exists($conn, 'tbl_exams')) {
 		$stmt = $conn->prepare("SELECT e.id, e.name, e.status, e.created_at, t.name AS term_name, c.name AS class_name, et.name AS type_name,
+			gs.name AS grading_name,
 			COALESCE((SELECT COUNT(*) FROM tbl_exam_mark_submissions ms WHERE ms.exam_id = e.id), 0) AS submission_count
 			FROM tbl_exams e
 			LEFT JOIN tbl_terms t ON t.id = e.term_id
 			LEFT JOIN tbl_classes c ON c.id = e.class_id
 			LEFT JOIN tbl_exam_types et ON et.id = e.exam_type_id
+			LEFT JOIN tbl_grading_systems gs ON gs.id = e.grading_system_id
 			ORDER BY e.created_at DESC");
 		$stmt->execute();
 		$exams = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -190,6 +196,18 @@ try {
 <?php endforeach; ?>
 </select>
 </div>
+<div class="col-md-6 mb-3">
+<label class="form-label">Grading System</label>
+<select class="form-control" name="grading_system_id" required>
+<option value="">Select</option>
+<?php foreach ($gradingSystems as $system): ?>
+<option value="<?php echo (int)$system['id']; ?>">
+	<?php echo htmlspecialchars($system['name']); ?> (<?php echo htmlspecialchars(strtoupper((string)$system['type'])); ?>)
+</option>
+<?php endforeach; ?>
+</select>
+<div class="small text-muted mt-1">This controls how scores become grades for reports, analytics, and publishing.</div>
+</div>
 <div class="col-md-12 mb-3">
 <label class="form-label">Subjects</label>
 <select class="form-control" name="subject_ids[]" id="examSubjectIds" required multiple size="10">
@@ -218,7 +236,7 @@ try {
 </div>
 <table class="table table-hover">
 <thead>
-<tr><th width="40"><input class="form-check-input" type="checkbox" id="selectAllExamsHead"></th><th>Name</th><th>Type</th><th>Class</th><th>Subjects</th><th>Term</th><th>Status</th><th>Submissions</th><th>Created</th><th>Action</th></tr>
+<tr><th width="40"><input class="form-check-input" type="checkbox" id="selectAllExamsHead"></th><th>Name</th><th>Type</th><th>Class</th><th>Subjects</th><th>Term</th><th>Grading</th><th>Status</th><th>Submissions</th><th>Created</th><th>Action</th></tr>
 </thead>
 <tbody>
 <?php foreach ($exams as $exam): ?>
@@ -229,6 +247,7 @@ try {
 <td><?php echo htmlspecialchars($exam['class_name'] ?? ''); ?></td>
 <td><?php echo htmlspecialchars(implode(', ', $examSubjectsMap[(int)$exam['id']] ?? [])); ?></td>
 <td><?php echo htmlspecialchars($exam['term_name'] ?? ''); ?></td>
+<td><?php echo htmlspecialchars($exam['grading_name'] ?? 'Default'); ?></td>
 <td><span class="badge bg-<?php echo htmlspecialchars(app_exam_status_badge((string)($exam['status'] ?? 'draft'))); ?>"><?php echo htmlspecialchars(ucfirst((string)($exam['status'] ?? 'draft'))); ?></span></td>
 <td><?php echo (int)($exam['submission_count'] ?? 0); ?></td>
 <td><?php echo htmlspecialchars((string)($exam['created_at'] ?? '')); ?></td>

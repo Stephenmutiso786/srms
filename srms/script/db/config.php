@@ -417,6 +417,59 @@ function app_reply_redirect(string $type, string $message, string $location): vo
 	exit;
 }
 
+function app_setting_get(PDO $conn, string $key, string $default = ''): string
+{
+	if ($key === '' || !app_table_exists($conn, 'tbl_app_settings')) {
+		return $default;
+	}
+	try {
+		$stmt = $conn->prepare("SELECT setting_value FROM tbl_app_settings WHERE setting_key = ? LIMIT 1");
+		$stmt->execute([$key]);
+		$value = $stmt->fetchColumn();
+		return $value === false || $value === null ? $default : (string)$value;
+	} catch (Throwable $e) {
+		return $default;
+	}
+}
+
+function app_setting_set(PDO $conn, string $key, string $value, ?int $userId = null): void
+{
+	if ($key === '' || !app_table_exists($conn, 'tbl_app_settings')) {
+		return;
+	}
+	$userId = ($userId && $userId > 0) ? $userId : null;
+	try {
+		if (DBDriver === 'pgsql') {
+			$stmt = $conn->prepare("INSERT INTO tbl_app_settings (setting_key, setting_value, updated_by, updated_at)
+				VALUES (?,?,?,CURRENT_TIMESTAMP)
+				ON CONFLICT (setting_key)
+				DO UPDATE SET setting_value = EXCLUDED.setting_value, updated_by = EXCLUDED.updated_by, updated_at = CURRENT_TIMESTAMP");
+			$stmt->execute([$key, $value, $userId]);
+			return;
+		}
+
+		$stmt = $conn->prepare("SELECT id FROM tbl_app_settings WHERE setting_key = ? LIMIT 1");
+		$stmt->execute([$key]);
+		$id = (int)$stmt->fetchColumn();
+		if ($id > 0) {
+			$stmt = $conn->prepare("UPDATE tbl_app_settings SET setting_value = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+			$stmt->execute([$value, $userId, $id]);
+			return;
+		}
+		$stmt = $conn->prepare("INSERT INTO tbl_app_settings (setting_key, setting_value, updated_by, updated_at) VALUES (?,?,?,CURRENT_TIMESTAMP)");
+		$stmt->execute([$key, $value, $userId]);
+	} catch (Throwable $e) {
+		// best effort
+	}
+}
+
+function app_school_days(PDO $conn): array
+{
+	$raw = app_setting_get($conn, 'default_school_days', 'Monday,Tuesday,Wednesday,Thursday,Friday');
+	$days = array_values(array_filter(array_map('trim', explode(',', $raw))));
+	return !empty($days) ? $days : ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+}
+
 function app_delete_students(PDO $conn, array $ids): void
 {
 	if (empty($ids)) {

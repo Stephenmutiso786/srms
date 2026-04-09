@@ -4,6 +4,7 @@ session_start();
 require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
+require_once('const/report_engine.php');
 
 if ($res == "1" && $level == "0") {}else{header("location:../");}
 
@@ -15,6 +16,35 @@ $settings = [
 $subjects = [];
 $weights = [];
 $cbcGrading = [];
+$appSettings = [
+	'school_motto' => '',
+	'school_code' => '',
+	'school_email' => '',
+	'school_phone' => '',
+	'school_address' => '',
+	'school_website' => '',
+	'school_timezone' => 'Africa/Nairobi',
+	'current_academic_year' => date('Y'),
+	'current_term_id' => '',
+	'ranking_enabled' => '1',
+	'cbc_public_ranking_enabled' => '0',
+	'allow_mark_adjustments' => '1',
+	'require_review_before_finalizing' => '1',
+	'block_finalization_on_missing_marks' => '1',
+	'allow_partial_results' => '0',
+	'continuous_weight' => '60',
+	'summative_weight' => '40',
+	'autosave_interval_seconds' => '10',
+	'session_timeout_minutes' => '60',
+	'sms_enabled' => '0',
+	'email_enabled' => '0',
+	'send_results_automatically' => '0',
+	'mark_entry_deadline_days' => '7',
+	'default_school_days' => 'Monday,Tuesday,Wednesday,Thursday,Friday',
+];
+$gradingSystems = [];
+$gradingScalesBySystem = [];
+$terms = [];
 
 try {
 	$conn = app_db();
@@ -47,6 +77,23 @@ try {
 		$stmt = $conn->prepare("SELECT id, level, min_mark, max_mark, points, sort_order, active FROM tbl_cbc_grading ORDER BY sort_order, min_mark DESC");
 		$stmt->execute();
 		$cbcGrading = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	}
+
+	$stmt = $conn->prepare("SELECT id, name FROM tbl_terms ORDER BY id");
+	$stmt->execute();
+	$terms = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+	foreach ($appSettings as $key => $defaultValue) {
+		$appSettings[$key] = app_setting_get($conn, $key, (string)$defaultValue);
+	}
+
+	if (app_table_exists($conn, 'tbl_grading_systems')) {
+		$stmt = $conn->prepare("SELECT * FROM tbl_grading_systems ORDER BY is_default DESC, name");
+		$stmt->execute();
+		$gradingSystems = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	}
+	foreach ($gradingSystems as $system) {
+		$gradingScalesBySystem[(int)$system['id']] = report_grading_scales($conn, (int)$system['id']);
 	}
 } catch (Throwable $e) {
 	// defaults only
@@ -190,6 +237,222 @@ if (count($cbcGrading) < 1) {
 </tbody>
 </table>
 </div>
+</div>
+</div>
+</div>
+
+<div class="row">
+<div class="col-md-12">
+<div class="tile">
+<h3 class="tile-title">Full School Management Settings</h3>
+<form class="app_frm" action="admin/core/save_app_settings" method="POST">
+<div class="row">
+<div class="col-md-4 mb-3">
+<label class="form-label">Motto</label>
+<input class="form-control" name="settings[school_motto]" value="<?php echo htmlspecialchars($appSettings['school_motto']); ?>">
+</div>
+<div class="col-md-4 mb-3">
+<label class="form-label">School Code</label>
+<input class="form-control" name="settings[school_code]" value="<?php echo htmlspecialchars($appSettings['school_code']); ?>">
+</div>
+<div class="col-md-4 mb-3">
+<label class="form-label">Timezone</label>
+<input class="form-control" name="settings[school_timezone]" value="<?php echo htmlspecialchars($appSettings['school_timezone']); ?>">
+</div>
+<div class="col-md-4 mb-3">
+<label class="form-label">Email</label>
+<input class="form-control" name="settings[school_email]" value="<?php echo htmlspecialchars($appSettings['school_email']); ?>">
+</div>
+<div class="col-md-4 mb-3">
+<label class="form-label">Phone</label>
+<input class="form-control" name="settings[school_phone]" value="<?php echo htmlspecialchars($appSettings['school_phone']); ?>">
+</div>
+<div class="col-md-4 mb-3">
+<label class="form-label">Website</label>
+<input class="form-control" name="settings[school_website]" value="<?php echo htmlspecialchars($appSettings['school_website']); ?>">
+</div>
+<div class="col-md-8 mb-3">
+<label class="form-label">Address</label>
+<input class="form-control" name="settings[school_address]" value="<?php echo htmlspecialchars($appSettings['school_address']); ?>">
+</div>
+<div class="col-md-4 mb-3">
+<label class="form-label">Academic Year</label>
+<input class="form-control" type="number" name="settings[current_academic_year]" value="<?php echo htmlspecialchars($appSettings['current_academic_year']); ?>">
+</div>
+<div class="col-md-4 mb-3">
+<label class="form-label">Current Term</label>
+<select class="form-control" name="settings[current_term_id]">
+<option value="">Select term</option>
+<?php foreach ($terms as $term): ?>
+<option value="<?php echo (int)$term['id']; ?>" <?php echo ((string)$term['id'] === (string)$appSettings['current_term_id']) ? 'selected' : ''; ?>>
+	<?php echo htmlspecialchars($term['name']); ?>
+</option>
+<?php endforeach; ?>
+</select>
+</div>
+<div class="col-md-4 mb-3">
+<label class="form-label">School Days</label>
+<input class="form-control" name="settings[default_school_days]" value="<?php echo htmlspecialchars($appSettings['default_school_days']); ?>">
+</div>
+<div class="col-md-3 mb-3">
+<label class="form-label">Ranking Enabled</label>
+<select class="form-control" name="settings[ranking_enabled]">
+<option value="1" <?php echo $appSettings['ranking_enabled'] === '1' ? 'selected' : ''; ?>>Yes</option>
+<option value="0" <?php echo $appSettings['ranking_enabled'] === '0' ? 'selected' : ''; ?>>No</option>
+</select>
+</div>
+<div class="col-md-3 mb-3">
+<label class="form-label">CBC Public Ranking</label>
+<select class="form-control" name="settings[cbc_public_ranking_enabled]">
+<option value="1" <?php echo $appSettings['cbc_public_ranking_enabled'] === '1' ? 'selected' : ''; ?>>Yes</option>
+<option value="0" <?php echo $appSettings['cbc_public_ranking_enabled'] === '0' ? 'selected' : ''; ?>>No</option>
+</select>
+</div>
+<div class="col-md-3 mb-3">
+<label class="form-label">Allow Mark Adjustments</label>
+<select class="form-control" name="settings[allow_mark_adjustments]">
+<option value="1" <?php echo $appSettings['allow_mark_adjustments'] === '1' ? 'selected' : ''; ?>>Yes</option>
+<option value="0" <?php echo $appSettings['allow_mark_adjustments'] === '0' ? 'selected' : ''; ?>>No</option>
+</select>
+</div>
+<div class="col-md-3 mb-3">
+<label class="form-label">Require Review Before Finalizing</label>
+<select class="form-control" name="settings[require_review_before_finalizing]">
+<option value="1" <?php echo $appSettings['require_review_before_finalizing'] === '1' ? 'selected' : ''; ?>>Yes</option>
+<option value="0" <?php echo $appSettings['require_review_before_finalizing'] === '0' ? 'selected' : ''; ?>>No</option>
+</select>
+</div>
+<div class="col-md-3 mb-3">
+<label class="form-label">Block Finalization if Marks Missing</label>
+<select class="form-control" name="settings[block_finalization_on_missing_marks]">
+<option value="1" <?php echo $appSettings['block_finalization_on_missing_marks'] === '1' ? 'selected' : ''; ?>>Yes</option>
+<option value="0" <?php echo $appSettings['block_finalization_on_missing_marks'] === '0' ? 'selected' : ''; ?>>No</option>
+</select>
+</div>
+<div class="col-md-3 mb-3">
+<label class="form-label">Allow Partial Results</label>
+<select class="form-control" name="settings[allow_partial_results]">
+<option value="1" <?php echo $appSettings['allow_partial_results'] === '1' ? 'selected' : ''; ?>>Yes</option>
+<option value="0" <?php echo $appSettings['allow_partial_results'] === '0' ? 'selected' : ''; ?>>No</option>
+</select>
+</div>
+<div class="col-md-3 mb-3">
+<label class="form-label">Continuous Weight (%)</label>
+<input class="form-control" type="number" name="settings[continuous_weight]" value="<?php echo htmlspecialchars($appSettings['continuous_weight']); ?>" min="0" max="100">
+</div>
+<div class="col-md-3 mb-3">
+<label class="form-label">Summative Weight (%)</label>
+<input class="form-control" type="number" name="settings[summative_weight]" value="<?php echo htmlspecialchars($appSettings['summative_weight']); ?>" min="0" max="100">
+</div>
+<div class="col-md-3 mb-3">
+<label class="form-label">Autosave Interval (sec)</label>
+<input class="form-control" type="number" name="settings[autosave_interval_seconds]" value="<?php echo htmlspecialchars($appSettings['autosave_interval_seconds']); ?>" min="1">
+</div>
+<div class="col-md-3 mb-3">
+<label class="form-label">Session Timeout (min)</label>
+<input class="form-control" type="number" name="settings[session_timeout_minutes]" value="<?php echo htmlspecialchars($appSettings['session_timeout_minutes']); ?>" min="5">
+</div>
+<div class="col-md-3 mb-3">
+<label class="form-label">SMS Enabled</label>
+<select class="form-control" name="settings[sms_enabled]">
+<option value="1" <?php echo $appSettings['sms_enabled'] === '1' ? 'selected' : ''; ?>>Yes</option>
+<option value="0" <?php echo $appSettings['sms_enabled'] === '0' ? 'selected' : ''; ?>>No</option>
+</select>
+</div>
+<div class="col-md-3 mb-3">
+<label class="form-label">Email Enabled</label>
+<select class="form-control" name="settings[email_enabled]">
+<option value="1" <?php echo $appSettings['email_enabled'] === '1' ? 'selected' : ''; ?>>Yes</option>
+<option value="0" <?php echo $appSettings['email_enabled'] === '0' ? 'selected' : ''; ?>>No</option>
+</select>
+</div>
+<div class="col-md-3 mb-3">
+<label class="form-label">Send Results Automatically</label>
+<select class="form-control" name="settings[send_results_automatically]">
+<option value="1" <?php echo $appSettings['send_results_automatically'] === '1' ? 'selected' : ''; ?>>Yes</option>
+<option value="0" <?php echo $appSettings['send_results_automatically'] === '0' ? 'selected' : ''; ?>>No</option>
+</select>
+</div>
+<div class="col-md-3 mb-3">
+<label class="form-label">Mark Entry Deadline (days)</label>
+<input class="form-control" type="number" name="settings[mark_entry_deadline_days]" value="<?php echo htmlspecialchars($appSettings['mark_entry_deadline_days']); ?>" min="0">
+</div>
+</div>
+<button class="btn btn-primary app_btn">Save App Settings</button>
+</form>
+</div>
+</div>
+</div>
+
+<div class="row">
+<div class="col-md-12">
+<div class="tile">
+<h3 class="tile-title">Grading Systems Linked to Exam Engine</h3>
+<p class="text-muted">Create multiple grading systems and attach them to exams. Once an exam has marks, its grading system should remain unchanged.</p>
+<form class="app_frm mb-4" action="admin/core/save_grading_system" method="POST">
+<input type="hidden" name="grading_system_id" value="0">
+<div class="row">
+<div class="col-md-4 mb-3"><label class="form-label">System Name</label><input class="form-control" name="name" required placeholder="CBC Term System"></div>
+<div class="col-md-2 mb-3"><label class="form-label">Type</label><select class="form-control" name="type"><option value="marks">Marks</option><option value="cbc">CBC</option></select></div>
+<div class="col-md-4 mb-3"><label class="form-label">Description</label><input class="form-control" name="description" placeholder="Used for Grade 7-9 CBC exams"></div>
+<div class="col-md-2 mb-3"><label class="form-label">Default</label><select class="form-control" name="is_default"><option value="0">No</option><option value="1">Yes</option></select></div>
+<div class="col-md-12">
+<div class="table-responsive">
+<table class="table table-hover">
+<thead><tr><th>Grade</th><th>Min</th><th>Max</th><th>Points</th><th>Remark</th><th>Order</th></tr></thead>
+<tbody>
+<?php for ($index = 0; $index < 6; $index++): ?>
+<tr>
+<td><input class="form-control" name="scale_grade[]" <?php echo $index < 2 ? 'required' : ''; ?>></td>
+<td><input class="form-control" type="number" step="0.01" name="scale_min[]" <?php echo $index < 2 ? 'required' : ''; ?>></td>
+<td><input class="form-control" type="number" step="0.01" name="scale_max[]" <?php echo $index < 2 ? 'required' : ''; ?>></td>
+<td><input class="form-control" type="number" step="0.01" name="scale_points[]" value="0"></td>
+<td><input class="form-control" name="scale_remark[]"></td>
+<td><input class="form-control" type="number" name="scale_order[]" value="<?php echo $index + 1; ?>"></td>
+</tr>
+<?php endfor; ?>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<button class="btn btn-outline-primary">Create Grading System</button>
+</form>
+
+<?php foreach ($gradingSystems as $system): ?>
+<div class="border rounded p-3 mb-3">
+<form class="app_frm" action="admin/core/save_grading_system" method="POST">
+<input type="hidden" name="grading_system_id" value="<?php echo (int)$system['id']; ?>">
+<div class="row">
+<div class="col-md-3 mb-3"><label class="form-label">System Name</label><input class="form-control" name="name" value="<?php echo htmlspecialchars($system['name']); ?>" required></div>
+<div class="col-md-2 mb-3"><label class="form-label">Type</label><select class="form-control" name="type"><option value="marks" <?php echo $system['type'] === 'marks' ? 'selected' : ''; ?>>Marks</option><option value="cbc" <?php echo $system['type'] === 'cbc' ? 'selected' : ''; ?>>CBC</option></select></div>
+<div class="col-md-5 mb-3"><label class="form-label">Description</label><input class="form-control" name="description" value="<?php echo htmlspecialchars((string)($system['description'] ?? '')); ?>"></div>
+<div class="col-md-2 mb-3"><label class="form-label">Active / Default</label><div class="d-flex gap-2"><select class="form-control" name="is_active"><option value="1" <?php echo (int)$system['is_active'] === 1 ? 'selected' : ''; ?>>Active</option><option value="0" <?php echo (int)$system['is_active'] === 0 ? 'selected' : ''; ?>>Inactive</option></select><select class="form-control" name="is_default"><option value="0" <?php echo (int)$system['is_default'] === 0 ? 'selected' : ''; ?>>Normal</option><option value="1" <?php echo (int)$system['is_default'] === 1 ? 'selected' : ''; ?>>Default</option></select></div></div>
+<div class="col-md-12">
+<div class="table-responsive">
+<table class="table table-sm table-hover">
+<thead><tr><th>Grade</th><th>Min</th><th>Max</th><th>Points</th><th>Remark</th><th>Order</th><th>Active</th></tr></thead>
+<tbody>
+<?php foreach (($gradingScalesBySystem[(int)$system['id']] ?? []) as $scale): ?>
+<tr>
+<td><input class="form-control" name="scale_grade[]" value="<?php echo htmlspecialchars($scale['name']); ?>" required></td>
+<td><input class="form-control" type="number" step="0.01" name="scale_min[]" value="<?php echo htmlspecialchars((string)$scale['min']); ?>" required></td>
+<td><input class="form-control" type="number" step="0.01" name="scale_max[]" value="<?php echo htmlspecialchars((string)$scale['max']); ?>" required></td>
+<td><input class="form-control" type="number" step="0.01" name="scale_points[]" value="<?php echo htmlspecialchars((string)($scale['points'] ?? 0)); ?>"></td>
+<td><input class="form-control" name="scale_remark[]" value="<?php echo htmlspecialchars((string)($scale['remark'] ?? '')); ?>"></td>
+<td><input class="form-control" type="number" name="scale_order[]" value="<?php echo htmlspecialchars((string)($scale['sort_order'] ?? 0)); ?>"></td>
+<td><select class="form-control" name="scale_active[]"><option value="1" <?php echo ((int)($scale['is_active'] ?? 1) === 1) ? 'selected' : ''; ?>>Yes</option><option value="0" <?php echo ((int)($scale['is_active'] ?? 1) === 0) ? 'selected' : ''; ?>>No</option></select></td>
+</tr>
+<?php endforeach; ?>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<button class="btn btn-outline-primary">Save Changes</button>
+</form>
+</div>
+<?php endforeach; ?>
 </div>
 </div>
 </div>

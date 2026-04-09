@@ -18,12 +18,13 @@ $examId = (int)($_POST['exam_id'] ?? 0);
 $name = trim($_POST['name'] ?? '');
 $classId = (int)($_POST['class_id'] ?? 0);
 $termId = (int)($_POST['term_id'] ?? 0);
+$gradingSystemId = (int)($_POST['grading_system_id'] ?? 0);
 $examTypeId = $_POST['exam_type_id'] ?? null;
 $examTypeId = $examTypeId === '' ? null : (int)$examTypeId;
 $subjectIds = $_POST['subject_ids'] ?? [];
 $subjectIds = is_array($subjectIds) ? array_values(array_unique(array_filter(array_map('intval', $subjectIds)))) : [];
 
-if ($examId < 1 || $name === '' || $classId < 1 || $termId < 1 || empty($subjectIds)) {
+if ($examId < 1 || $name === '' || $classId < 1 || $termId < 1 || $gradingSystemId < 1 || empty($subjectIds)) {
 	$_SESSION['reply'] = array(array("danger", "Fill all required fields."));
 	header("location:../exams");
 	exit;
@@ -33,6 +34,9 @@ try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 	app_ensure_exam_subjects_table($conn);
+	if (!app_column_exists($conn, 'tbl_exams', 'grading_system_id')) {
+		throw new RuntimeException("Exam grading support is not installed. Run migration 030.");
+	}
 
 	$stmt = $conn->prepare("SELECT * FROM tbl_exams WHERE id = ? LIMIT 1");
 	$stmt->execute([$examId]);
@@ -57,8 +61,8 @@ try {
 		$hasMarks = ((int)$stmt->fetchColumn() > 0);
 	}
 
-	if ($hasMarks && ((int)$exam['class_id'] !== $classId || (int)$exam['term_id'] !== $termId)) {
-		throw new RuntimeException("Class or term cannot be changed after marks have been entered.");
+	if ($hasMarks && ((int)$exam['class_id'] !== $classId || (int)$exam['term_id'] !== $termId || (int)($exam['grading_system_id'] ?? 0) !== $gradingSystemId)) {
+		throw new RuntimeException("Class, term, or grading system cannot be changed after marks have been entered.");
 	}
 
 	if ($hasMarks) {
@@ -90,8 +94,8 @@ try {
 		throw new RuntimeException("Another exam with the same name already exists for that class and term.");
 	}
 
-	$stmt = $conn->prepare("UPDATE tbl_exams SET name = ?, class_id = ?, term_id = ?, exam_type_id = ? WHERE id = ?");
-	$stmt->execute([$name, $classId, $termId, $examTypeId, $examId]);
+	$stmt = $conn->prepare("UPDATE tbl_exams SET name = ?, class_id = ?, term_id = ?, exam_type_id = ?, grading_system_id = ? WHERE id = ?");
+	$stmt->execute([$name, $classId, $termId, $examTypeId, $gradingSystemId, $examId]);
 
 	$stmt = $conn->prepare("DELETE FROM tbl_exam_subjects WHERE exam_id = ?");
 	$stmt->execute([$examId]);

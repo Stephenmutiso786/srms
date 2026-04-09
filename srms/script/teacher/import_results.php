@@ -122,9 +122,8 @@ $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
 if (app_table_exists($conn, 'tbl_teacher_assignments')) {
-  $year = (int)date('Y');
-  $stmt = $conn->prepare("SELECT DISTINCT class_id FROM tbl_teacher_assignments WHERE teacher_id = ? AND year = ? AND status = 1");
-  $stmt->execute([$account_id, $year]);
+  $stmt = $conn->prepare("SELECT DISTINCT class_id FROM tbl_teacher_assignments WHERE teacher_id = ? AND status = 1");
+  $stmt->execute([$account_id]);
   $myclasses = $stmt->fetchAll(PDO::FETCH_COLUMN);
 } else {
   $stmt = $conn->prepare("SELECT * FROM tbl_subject_combinations
