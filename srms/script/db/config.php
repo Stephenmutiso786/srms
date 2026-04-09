@@ -415,6 +415,37 @@ function app_delete_class(PDO $conn, int $id): array
 	$stmt->execute([$id]);
 	return [true, 'Class deleted successfully.'];
 }
+
+function app_class_name_parts(string $name): array
+{
+	$name = trim($name);
+	if ($name === '') {
+		return ['grade' => '', 'stream' => ''];
+	}
+	$parts = preg_split('/\s+/', $name);
+	if (!$parts || count($parts) < 2) {
+		return ['grade' => $name, 'stream' => ''];
+	}
+	$stream = array_pop($parts);
+	return [
+		'grade' => trim(implode(' ', $parts)),
+		'stream' => trim((string)$stream),
+	];
+}
+
+function app_build_class_name(string $grade, string $stream = '', string $fallback = ''): string
+{
+	$grade = trim($grade);
+	$stream = trim($stream);
+	$fallback = trim($fallback);
+	if ($grade === '' && $fallback !== '') {
+		return ucfirst($fallback);
+	}
+	if ($stream === '') {
+		return ucfirst($grade);
+	}
+	return trim(ucfirst($grade) . ' ' . strtoupper($stream));
+}
 	if (!app_table_exists($conn, 'tbl_exam_mark_submissions')) {
 		return 'draft';
 	}

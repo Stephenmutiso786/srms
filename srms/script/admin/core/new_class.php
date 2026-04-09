@@ -9,7 +9,11 @@ if ($res !== "1" || $level !== "0" || $_SERVER['REQUEST_METHOD'] !== 'POST') {
 	exit;
 }
 
-$name = ucfirst(trim((string)($_POST['name'] ?? '')));
+$name = app_build_class_name(
+	(string)($_POST['grade_name'] ?? ''),
+	(string)($_POST['stream_name'] ?? ''),
+	(string)($_POST['name'] ?? '')
+);
 if ($name === '') {
 	app_reply_redirect('danger', 'Class name is required.', '../classes');
 }

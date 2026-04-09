@@ -29,7 +29,7 @@ header("location:../$src");
 
 }catch(PDOException $e)
 {
-echo "Connection failed: " . $e->getMessage();
+app_reply_redirect('danger', 'Unable to delete results right now.', "../$src");
 }
 
 

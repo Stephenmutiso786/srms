@@ -36,8 +36,7 @@ try {
 	header("location:../exam_timetable?class_id=".$classId."&term_id=".$termId);
 	exit;
 } catch (PDOException $e) {
-	$_SESSION['reply'] = array(array("error", $e->getMessage()));
+	$_SESSION['reply'] = array(array("error", "Unable to delete timetable entry right now."));
 	header("location:../exam_timetable?class_id=".$classId."&term_id=".$termId);
 	exit;
 }
-
