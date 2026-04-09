@@ -35,7 +35,7 @@ try {
 	$studentName = trim(($studentRow['fname'] ?? '') . ' ' . ($studentRow['lname'] ?? ''));
 	$schoolId = (string)($studentRow['school_id'] ?? '');
 
-	if (app_table_exists($conn, 'tbl_results_locks') && !app_results_locked($conn, $classId, $termId)) {
+	if (!report_term_is_published($conn, $classId, $termId)) {
 		header("location:report_card?term=" . $termId . "&student=" . $studentId);
 		exit;
 	}

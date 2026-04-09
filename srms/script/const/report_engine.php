@@ -313,6 +313,122 @@ function report_load_card(PDO $conn, int $reportId): ?array
 	return $card;
 }
 
+function report_term_publish_state(PDO $conn, int $classId, int $termId): string
+{
+	if ($classId < 1 || $termId < 1 || !app_table_exists($conn, 'tbl_exams')) {
+		return 'published';
+	}
+
+	$stmt = $conn->prepare("SELECT status, COUNT(*) AS total
+		FROM tbl_exams
+		WHERE class_id = ? AND term_id = ?
+		GROUP BY status");
+	$stmt->execute([$classId, $termId]);
+	$counts = [];
+	foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+		$counts[(string)$row['status']] = (int)$row['total'];
+	}
+	if (empty($counts)) {
+		return 'draft';
+	}
+	foreach (['published', 'finalized', 'reviewed', 'active', 'draft'] as $status) {
+		if (!empty($counts[$status])) {
+			return $status;
+		}
+	}
+	return 'draft';
+}
+
+function report_term_is_published(PDO $conn, int $classId, int $termId): bool
+{
+	return report_term_publish_state($conn, $classId, $termId) === 'published';
+}
+
+function report_student_term_history(PDO $conn, string $studentId, int $classId, int $limit = 6): array
+{
+	$limit = max(1, $limit);
+	if (!app_table_exists($conn, 'tbl_report_cards')) {
+		return [];
+	}
+	$stmt = $conn->prepare("SELECT rc.term_id, rc.mean, t.name AS term_name
+		FROM tbl_report_cards rc
+		LEFT JOIN tbl_terms t ON t.id = rc.term_id
+		WHERE rc.student_id = ? AND rc.class_id = ?
+		ORDER BY rc.term_id DESC
+		LIMIT $limit");
+	$stmt->execute([$studentId, $classId]);
+	$history = array_reverse($stmt->fetchAll(PDO::FETCH_ASSOC));
+	return array_map(function ($row) {
+		return [
+			'term_id' => (int)$row['term_id'],
+			'term_name' => (string)($row['term_name'] ?? ('Term ' . $row['term_id'])),
+			'mean' => (float)($row['mean'] ?? 0),
+		];
+	}, $history);
+}
+
+function report_subject_breakdown(PDO $conn, string $studentId, int $classId, int $termId): array
+{
+	$subjects = report_fetch_subjects_for_class($conn, $classId);
+	$weights = report_get_weight_map($conn);
+	$settings = report_get_settings($conn);
+	$rows = [];
+
+	$prevTermId = 0;
+	if (app_table_exists($conn, 'tbl_terms')) {
+		$stmt = $conn->prepare("SELECT id FROM tbl_terms WHERE id < ? ORDER BY id DESC LIMIT 1");
+		$stmt->execute([$termId]);
+		$prevTermId = (int)$stmt->fetchColumn();
+	}
+
+	foreach ($subjects as $subject) {
+		$currentScore = 0.0;
+		$stmt = $conn->prepare("SELECT score FROM tbl_exam_results WHERE student = ? AND class = ? AND term = ? AND subject_combination = ? LIMIT 1");
+		$stmt->execute([$studentId, $classId, $termId, $subject['combination_id']]);
+		$value = $stmt->fetchColumn();
+		if ($value !== false && $value !== null && $value !== '') {
+			$currentScore = (float)$value;
+		}
+
+		$stmt = $conn->prepare("SELECT AVG(score) FROM tbl_exam_results WHERE class = ? AND term = ? AND subject_combination = ?");
+		$stmt->execute([$classId, $termId, $subject['combination_id']]);
+		$classMean = round((float)$stmt->fetchColumn(), 2);
+
+		$previousMean = 0.0;
+		if ($prevTermId > 0) {
+			$stmt = $conn->prepare("SELECT AVG(score) FROM tbl_exam_results WHERE class = ? AND term = ? AND subject_combination = ?");
+			$stmt->execute([$classId, $prevTermId, $subject['combination_id']]);
+			$previousMean = round((float)$stmt->fetchColumn(), 2);
+		}
+
+		$change = round($classMean - $previousMean, 2);
+		$trend = $change > 0 ? 'up' : ($change < 0 ? 'down' : 'steady');
+		$weight = (!empty($settings['use_weights']) && isset($weights[(int)$subject['subject']])) ? (float)$weights[(int)$subject['subject']] : 1.0;
+		list($grade, $remark) = report_grade_for_score($conn, $currentScore);
+
+		$rows[] = [
+			'subject_id' => (int)$subject['subject'],
+			'subject_name' => (string)$subject['subject_name'],
+			'teacher_name' => trim(($subject['fname'] ?? '') . ' ' . ($subject['lname'] ?? '')),
+			'score' => round($currentScore, 2),
+			'class_mean' => $classMean,
+			'previous_mean' => $previousMean,
+			'change' => $change,
+			'trend' => $trend,
+			'grade' => $grade,
+			'remark' => $remark,
+			'weight' => $weight,
+			'progress' => max(0, min(100, $classMean)),
+		];
+	}
+
+	usort($rows, function ($a, $b) {
+		return $b['class_mean'] <=> $a['class_mean'];
+	});
+
+	return $rows;
+}
+
 function report_teacher_has_class_access(PDO $conn, int $teacherId, int $classId, int $termId = 0): bool
 {
 	if (app_table_exists($conn, 'tbl_teacher_assignments')) {

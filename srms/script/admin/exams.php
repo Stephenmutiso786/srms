@@ -130,6 +130,7 @@ try {
 	<a class="btn btn-outline-primary btn-sm" href="admin/exam_timetable"><i class="bi bi-calendar-event me-1"></i>Manage Timetable</a>
 	<a class="btn btn-outline-secondary btn-sm" href="admin/results_locks"><i class="bi bi-lock me-1"></i>Results Locks</a>
 	<a class="btn btn-outline-dark btn-sm" href="admin/marks_review"><i class="bi bi-clipboard-check me-1"></i>Marks Review</a>
+	<a class="btn btn-outline-success btn-sm" href="admin/publish_results"><i class="bi bi-broadcast me-1"></i>Publish Results</a>
 </div>
 <form class="app_frm" action="admin/core/new_exam" method="POST">
 <div class="row">

@@ -5,6 +5,7 @@ require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
 require_once('const/report_engine.php');
+require_once('const/id_card_engine.php');
 
 if ($res !== "1" || $level !== "4") { header("location:../"); }
 
@@ -18,6 +19,11 @@ $termName = '';
 $className = '';
 $studentName = '';
 $schoolId = '';
+$photoPath = '';
+$photoExists = false;
+$subjectBreakdown = [];
+$history = [];
+$publicationState = 'draft';
 
 try {
 	$conn = app_db();
@@ -51,11 +57,17 @@ try {
 			$classId = (int)$row['class'];
 			$studentName = trim(($row['fname'] ?? '') . ' ' . ($row['lname'] ?? ''));
 			$schoolId = (string)($row['school_id'] ?? '');
+			$payload = idcard_student_payload($conn, $studentId);
+			if ($payload) {
+				$photoPath = (string)$payload['photo_path'];
+				$photoExists = (bool)$payload['photo_exists'];
+			}
 			$stmt = $conn->prepare("SELECT name FROM tbl_classes WHERE id = ? LIMIT 1");
 			$stmt->execute([$classId]);
 			$className = (string)$stmt->fetchColumn();
+			$publicationState = report_term_publish_state($conn, $classId, $termId);
 
-			if (app_table_exists($conn, 'tbl_results_locks') && !app_results_locked($conn, $classId, $termId)) {
+			if (!report_term_is_published($conn, $classId, $termId)) {
 				$card = null;
 			} else {
 				$stmt = $conn->prepare("SELECT id FROM tbl_report_cards WHERE student_id = ? AND term_id = ? LIMIT 1");
@@ -67,6 +79,8 @@ try {
 					$feesBalance = report_fees_balance($conn, $studentId, $termId);
 					$settings = report_get_settings($conn);
 					$blockReport = ((int)$settings['require_fees_clear'] === 1 && $feesBalance > 0);
+					$subjectBreakdown = report_subject_breakdown($conn, $studentId, $classId, $termId);
+					$history = report_student_term_history($conn, $studentId, $classId);
 				}
 			}
 		}
@@ -88,10 +102,39 @@ try {
 <link rel="icon" href="images/icon.ico">
 <link rel="stylesheet" type="text/css" href="cdn.jsdelivr.net/npm/bootstrap-icons%401.10.5/font/bootstrap-icons.css">
 <style>
+.report-shell{display:grid;grid-template-columns:340px 1fr;gap:22px}
+.report-panel,.report-surface{background:#fff;border-radius:24px;box-shadow:0 18px 50px rgba(9,30,66,.08);overflow:hidden}
+.report-panel-header{background:linear-gradient(135deg,#0d64b0,#1ca874);padding:22px;color:#fff}
+.report-panel-body{padding:22px}
+.student-avatar{width:124px;height:140px;border-radius:20px;overflow:hidden;background:#e8eef5;border:4px solid rgba(255,255,255,.35);box-shadow:0 12px 24px rgba(0,0,0,.12)}
+.student-avatar img{width:100%;height:100%;object-fit:cover}
+.student-avatar-fallback{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:2rem;font-weight:800;color:#0d64b0;background:#fff}
+.identity-list{display:grid;gap:12px;margin-top:18px}
+.identity-row{display:flex;justify-content:space-between;gap:16px;border-bottom:1px dashed #d7e0ea;padding-bottom:10px}
+.identity-row .label{font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:#7b8794}
+.identity-row .value{font-weight:700;color:#123}
+.report-surface-header{background:linear-gradient(90deg,#2d9cdb,#0d64b0);color:#fff;padding:14px 22px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+.metric-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;padding:18px 22px}
+.metric-card{background:#f7fbff;border:1px solid #e4edf7;border-radius:18px;padding:14px}
+.metric-card .label{font-size:.76rem;text-transform:uppercase;color:#678}
+.metric-card .value{font-size:1.35rem;font-weight:800;color:#123}
+.subject-table{width:100%;border-collapse:collapse}
+.subject-table th,.subject-table td{padding:12px 10px;border-bottom:1px solid #edf1f5;font-size:.95rem}
+.subject-table th{font-size:.78rem;text-transform:uppercase;color:#678;letter-spacing:.04em}
+.performance-bar{height:10px;background:#e9eef4;border-radius:999px;overflow:hidden;min-width:120px}
+.performance-bar span{display:block;height:100%;background:linear-gradient(90deg,#6fd34d,#33b249);border-radius:999px}
+.trend-pill{display:inline-flex;align-items:center;gap:6px;font-weight:700}
+.trend-up{color:#1f9d57}.trend-down{color:#e09b17}.trend-steady{color:#6b7280}
+.mini-history{display:flex;align-items:flex-end;gap:10px;height:130px;padding:0 4px}
+.mini-history .bar{flex:1;background:linear-gradient(180deg,#7cc6ff,#2d9cdb);border-radius:12px 12px 4px 4px;position:relative;min-height:14px}
+.mini-history .bar span{position:absolute;bottom:-26px;left:50%;transform:translateX(-50%);font-size:.72rem;color:#678;white-space:nowrap}
+.report-footer-grid{display:grid;grid-template-columns:1.2fr 1fr;gap:18px;padding:0 22px 22px}
+.signature-box{border-top:1px solid #cfd8e3;padding-top:10px;margin-top:18px;text-align:right;font-weight:700}
+@media (max-width: 991px){.report-shell{grid-template-columns:1fr}.metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.report-footer-grid{grid-template-columns:1fr}}
 @media print{
 	.app-header,.app-sidebar,.app-title,.report-actions,.app-nav,.tile:first-of-type{display:none!important}
 	.app-content{margin-left:0;padding:0}
-	.report-card{box-shadow:none}
+	.report-panel,.report-surface{box-shadow:none}
 }
 </style>
 </head>
@@ -162,92 +205,113 @@ try {
 <?php if (!$card): ?>
 <div class="tile">
 <div class="tile-body">
-<p class="text-muted mb-0">No report card generated for this term yet. Please check back after results are approved.</p>
+<p class="text-muted mb-0">This report is not visible yet. Current release stage: <strong><?php echo htmlspecialchars(ucfirst($publicationState)); ?></strong>. It will appear here after the school publishes results.</p>
 </div>
 </div>
 <?php else: ?>
-<div class="report-card">
+<div class="report-shell">
+<div class="report-panel">
+<div class="report-panel-header d-flex justify-content-between align-items-start gap-3">
+	<div>
+		<div class="small opacity-75">Parent Access Report</div>
+		<h3 class="mb-1"><?php echo WBName; ?></h3>
+		<div class="small opacity-75"><?php echo htmlspecialchars($termName); ?> · <?php echo htmlspecialchars($className); ?></div>
+	</div>
+	<span class="report-badge"><i class="bi bi-shield-check"></i> Published</span>
+</div>
+<div class="report-panel-body">
+	<div class="d-flex gap-3 align-items-start">
+		<div class="student-avatar">
+			<?php if ($photoExists) { ?><img src="<?php echo htmlspecialchars($photoPath); ?>" alt="student photo"><?php } else { ?><div class="student-avatar-fallback"><?php echo htmlspecialchars(strtoupper(substr($studentName,0,1))); ?></div><?php } ?>
+		</div>
+		<div class="flex-grow-1">
+			<h4 class="mb-1"><?php echo htmlspecialchars($studentName); ?></h4>
+			<div class="text-muted"><?php echo htmlspecialchars($schoolId !== '' ? $schoolId : $studentId); ?></div>
+			<div class="mt-2"><span class="badge bg-primary"><?php echo htmlspecialchars($card['grade']); ?></span> <span class="badge bg-success">Position <?php echo $card['position'].'/'.$card['total_students']; ?></span></div>
+		</div>
+	</div>
+	<div class="identity-list">
+		<div class="identity-row"><div><div class="label">Class</div><div class="value"><?php echo htmlspecialchars($className); ?></div></div><div><div class="label">Attendance</div><div class="value"><?php echo $attendance['present'].' / '.$attendance['days_open']; ?></div></div></div>
+		<div class="identity-row"><div><div class="label">Fees Balance</div><div class="value">KES <?php echo number_format((float)$feesBalance, 0); ?></div></div><div><div class="label">Verification</div><div class="value"><?php echo htmlspecialchars($card['verification_code']); ?></div></div></div>
+		<div class="identity-row"><div><div class="label">Trend</div><div class="value"><?php echo htmlspecialchars($card['trend']); ?></div></div><div><div class="label">Remark</div><div class="value"><?php echo htmlspecialchars($card['remark']); ?></div></div></div>
+	</div>
+	<?php if (!empty($history)) { ?>
+	<div class="mt-4">
+		<div class="fw-semibold mb-2">Performance Over Time</div>
+		<div class="mini-history">
+			<?php foreach ($history as $point): $height = max(14, min(110, (float)$point['mean'])); ?>
+			<div class="bar" style="height: <?php echo $height; ?>px"><span><?php echo htmlspecialchars($point['term_name']); ?></span></div>
+			<?php endforeach; ?>
+		</div>
+	</div>
+	<?php } ?>
+	<?php if (!$blockReport): ?>
+	<div class="report-actions mt-4 d-flex flex-wrap gap-2">
+		<button class="btn btn-outline-secondary" onclick="window.print();"><i class="bi bi-printer me-2"></i>Print</button>
+		<a class="btn btn-primary" href="parent/report_card_pdf?term=<?php echo $termId; ?>&student=<?php echo $studentId; ?>" target="_blank"><i class="bi bi-download me-2"></i>Download PDF</a>
+		<a class="btn btn-outline-secondary" href="verify_report?code=<?php echo $card['verification_code']; ?>" target="_blank"><i class="bi bi-qr-code-scan me-2"></i>Verify</a>
+	</div>
+	<?php endif; ?>
+</div>
+</div>
+<div class="report-surface">
 <?php if ($blockReport): ?>
 <div class="alert alert-warning">Report card is temporarily unavailable until the fees balance is cleared.</div>
 <?php endif; ?>
-<div class="report-header">
-<div>
-<h2><?php echo WBName; ?></h2>
-<div class="report-meta">
-<span><?php echo WBAddress; ?></span>
-<span><?php echo WBEmail; ?></span>
+<div class="report-surface-header">Academic Report Form · <?php echo htmlspecialchars($termName); ?></div>
+<div class="metric-grid">
+<div class="metric-card"><div class="label">Total Marks</div><div class="value"><?php echo $card['total']; ?></div></div>
+<div class="metric-card"><div class="label">Mean Score</div><div class="value"><?php echo $card['mean']; ?>%</div></div>
+<div class="metric-card"><div class="label">Overall Grade</div><div class="value"><?php echo $card['grade']; ?></div></div>
+<div class="metric-card"><div class="label">Class Position</div><div class="value"><?php echo $card['position'].'/'.$card['total_students']; ?></div></div>
 </div>
-</div>
-<div class="text-end">
-<span class="report-badge"><i class="bi bi-shield-check"></i> VERIFIED</span>
-<div class="report-meta">
-<span>Term: <?php echo $termName; ?></span>
-<span>Class: <?php echo $className; ?></span>
-</div>
-</div>
-</div>
-
-<div class="report-grid">
-<div class="report-stat"><div class="label">Student Name</div><div class="value"><?php echo $studentName; ?></div></div>
-<div class="report-stat"><div class="label">School ID</div><div class="value"><?php echo htmlspecialchars($schoolId !== '' ? $schoolId : $studentId); ?></div></div>
-<div class="report-stat"><div class="label">Total Marks</div><div class="value"><?php echo $card['total']; ?></div></div>
-<div class="report-stat"><div class="label">Mean Score</div><div class="value"><?php echo $card['mean']; ?>%</div></div>
-<div class="report-stat"><div class="label">Grade</div><div class="value"><?php echo $card['grade']; ?></div></div>
-<div class="report-stat"><div class="label">Position</div><div class="value"><?php echo $card['position'].' / '.$card['total_students']; ?></div></div>
-</div>
-
-<table class="report-table">
+<div class="px-4 pb-2">
+<div class="fw-semibold mb-3">Subject Performance</div>
+<table class="subject-table">
 <thead>
 <tr>
 <th>Subject</th>
-<th>Score</th>
+<th>Performance</th>
+<th>Mean</th>
+<th>Change</th>
+<th>Trend</th>
 <th>Grade</th>
 <th>Teacher</th>
 </tr>
 </thead>
 <tbody>
-<?php foreach ($card['subjects'] as $subject): ?>
+<?php foreach ($subjectBreakdown as $subject): ?>
 <tr>
-<td><?php echo $subject['subject_name']; ?></td>
-<td><?php echo $subject['score']; ?></td>
-<td><?php echo $subject['grade']; ?></td>
-<td><?php echo $subject['teacher_name']; ?></td>
+<td><?php echo htmlspecialchars($subject['subject_name']); ?><div class="small text-muted">Score: <?php echo number_format((float)$subject['score'], 1); ?>%</div></td>
+<td><div class="performance-bar"><span style="width: <?php echo (float)$subject['progress']; ?>%"></span></div></td>
+<td><?php echo number_format((float)$subject['class_mean'], 2); ?>%</td>
+<td><?php echo ($subject['change'] >= 0 ? '+' : '') . number_format((float)$subject['change'], 2); ?></td>
+<td>
+	<?php $trendClass = $subject['trend'] === 'up' ? 'trend-up' : ($subject['trend'] === 'down' ? 'trend-down' : 'trend-steady'); ?>
+	<span class="trend-pill <?php echo $trendClass; ?>">
+		<i class="bi <?php echo $subject['trend'] === 'up' ? 'bi-arrow-up-right' : ($subject['trend'] === 'down' ? 'bi-arrow-down-right' : 'bi-dash'); ?>"></i>
+		<?php echo ucfirst($subject['trend']); ?>
+	</span>
+</td>
+<td><?php echo htmlspecialchars($subject['grade']); ?></td>
+<td><?php echo htmlspecialchars($subject['teacher_name']); ?></td>
 </tr>
 <?php endforeach; ?>
 </tbody>
 </table>
-
-<div class="report-grid">
-<div class="report-stat">
-<div class="label">Performance Trend</div>
-<div class="value"><?php echo $card['trend']; ?></div>
 </div>
-<div class="report-stat">
-<div class="label">Attendance</div>
-<div class="value"><?php echo $attendance['present'].' / '.$attendance['days_open']; ?> Present</div>
+<div class="report-footer-grid">
+	<div class="metric-card">
+		<div class="label">Teacher / Class Teacher Comment</div>
+		<div class="mt-2 fw-semibold"><?php echo htmlspecialchars($card['remark']); ?></div>
+		<div class="signature-box">Signature</div>
+	</div>
+	<div class="metric-card">
+		<div class="label">School Verification</div>
+		<div class="mt-2">Use code <strong><?php echo htmlspecialchars($card['verification_code']); ?></strong> to verify this report online.</div>
+		<div class="mt-3 small text-muted"><?php echo htmlspecialchars(WBAddress); ?><br><?php echo htmlspecialchars(WBEmail); ?></div>
+	</div>
 </div>
-<div class="report-stat">
-<div class="label">Fees Balance</div>
-<div class="value">KES <?php echo number_format((float)$feesBalance, 0); ?></div>
-</div>
-</div>
-
-<div class="report-progress mb-3"><span style="width: <?php echo min(100, (float)$card['mean']); ?>%;"></span></div>
-
-<div class="report-comments">
-<strong>Teacher Remarks:</strong>
-<p class="mb-1"><?php echo $card['remark']; ?></p>
-<strong>Verification Code:</strong>
-<p class="mb-0"><?php echo $card['verification_code']; ?></p>
-</div>
-
-<?php if (!$blockReport): ?>
-<div class="report-actions">
-<button class="btn btn-outline-secondary" onclick="window.print();"><i class="bi bi-printer me-2"></i>Print</button>
-<a class="btn btn-primary" href="parent/report_card_pdf?term=<?php echo $termId; ?>&student=<?php echo $studentId; ?>" target="_blank"><i class="bi bi-download me-2"></i>Download PDF</a>
-<a class="btn btn-outline-secondary" href="verify_report?code=<?php echo $card['verification_code']; ?>" target="_blank"><i class="bi bi-qr-code-scan me-2"></i>Verify</a>
-</div>
-<?php endif; ?>
 </div>
 <?php endif; ?>
 </main>

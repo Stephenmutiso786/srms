@@ -17,7 +17,7 @@ try {
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 	$studentId = (string)$account_id;
 
-	if (app_table_exists($conn, 'tbl_results_locks') && !app_results_locked($conn, (int)$class, $termId)) {
+	if (!report_term_is_published($conn, (int)$class, $termId)) {
 		header("location:report_card?term=" . $termId);
 		exit;
 	}

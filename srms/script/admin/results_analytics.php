@@ -4,6 +4,7 @@ session_start();
 require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
+require_once('const/report_engine.php');
 if ($res == "1" && $level == "0") {}else{header("location:../"); exit;}
 
 $classes = [];
@@ -16,6 +17,7 @@ $subjects = [];
 $stats = ['students' => 0, 'avg' => 0, 'best' => 0, 'worst' => 0];
 $locked = false;
 $error = '';
+$publicationState = 'draft';
 
 function compute_positions(array $rows): array {
 	// Sort by avg_score desc, then total_score desc, then student_id asc
@@ -60,6 +62,7 @@ try {
 
 	if ($classId > 0 && $termId > 0) {
 		$locked = app_results_locked($conn, $classId, $termId);
+		$publicationState = report_term_publish_state($conn, $classId, $termId);
 
 		// Student ranking (aggregate)
 		$stmt = $conn->prepare("SELECT r.student AS student_id,
@@ -96,6 +99,28 @@ try {
 			ORDER BY avg_score DESC, sb.name");
 		$stmt->execute([$classId, $termId]);
 		$subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		$prevTermId = 0;
+		$stmt = $conn->prepare("SELECT id FROM tbl_terms WHERE id < ? ORDER BY id DESC LIMIT 1");
+		$stmt->execute([$termId]);
+		$prevTermId = (int)$stmt->fetchColumn();
+		foreach ($subjects as &$subject) {
+			$prevAvg = 0;
+			if ($prevTermId > 0) {
+				$stmt = $conn->prepare("SELECT COALESCE(AVG(r.score),0)
+					FROM tbl_exam_results r
+					JOIN tbl_subject_combinations sc ON sc.id = r.subject_combination
+					WHERE r.class = ? AND r.term = ? AND sc.subject = ?");
+				$stmt->execute([$classId, $prevTermId, (int)$subject['subject_id']]);
+				$prevAvg = (float)$stmt->fetchColumn();
+			}
+			list($gradeLabel,) = report_grade_for_score($conn, (float)$subject['avg_score']);
+			$subject['prev_avg'] = round($prevAvg, 3);
+			$subject['change'] = round((float)$subject['avg_score'] - $prevAvg, 4);
+			$subject['trend'] = $subject['change'] > 0 ? 'up' : ($subject['change'] < 0 ? 'down' : 'steady');
+			$subject['grade'] = $gradeLabel;
+			$subject['progress'] = max(0, min(100, (float)$subject['avg_score']));
+		}
+		unset($subject);
 	}
 } catch (Throwable $e) {
 	$error = $e->getMessage();
@@ -114,6 +139,13 @@ try {
 <link rel="icon" href="images/icon.ico">
 <link rel="stylesheet" type="text/css" href="cdn.jsdelivr.net/npm/bootstrap-icons%401.10.5/font/bootstrap-icons.css">
 <script src="cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+<style>
+.analytics-hero{background:linear-gradient(135deg,#0d3b66,#0d64b0 60%,#41c46a);border-radius:24px;padding:26px;color:#fff;box-shadow:0 22px 60px rgba(13,59,102,.18)}
+.subject-performance-table th,.subject-performance-table td{vertical-align:middle}
+.subject-performance-table th{font-size:.78rem;text-transform:uppercase;letter-spacing:.05em;color:#6b7280}
+.progress-track{height:12px;background:#e9eef4;border-radius:999px;min-width:120px;overflow:hidden}
+.progress-track span{display:block;height:100%;background:linear-gradient(90deg,#77d84a,#37b24d)}
+</style>
 </head>
 <body class="app sidebar-mini">
 
@@ -142,6 +174,22 @@ try {
 <?php if ($error !== '') { ?>
   <div class="tile"><div class="alert alert-danger mb-0"><?php echo htmlspecialchars($error); ?></div></div>
 <?php } else { ?>
+
+<div class="analytics-hero mb-4">
+  <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+    <div>
+      <div class="small text-uppercase opacity-75">School Intelligence View</div>
+      <h2 class="mb-2">Professional Results Analytics</h2>
+      <p class="mb-0">Track subject means, change over time, class ranking, and release status from one control center.</p>
+    </div>
+    <?php if ($classId > 0 && $termId > 0) { ?>
+    <div class="d-flex flex-wrap gap-2">
+      <span class="badge bg-light text-dark">Release: <?php echo htmlspecialchars(ucfirst($publicationState)); ?></span>
+      <span class="badge bg-light text-dark"><?php echo $locked ? 'Locked' : 'Editable'; ?></span>
+    </div>
+    <?php } ?>
+  </div>
+</div>
 
 <div class="tile mb-3">
   <h3 class="tile-title">Select Class & Term</h3>
@@ -227,6 +275,42 @@ try {
 	  <h3 class="tile-title">Subject Performance (Avg)</h3>
 	  <div id="chartSubjects" style="height:360px;"></div>
 	</div>
+  </div>
+</div>
+
+<div class="tile mb-3">
+  <h3 class="tile-title">Subject Performance Board</h3>
+  <div class="table-responsive">
+    <table class="table table-hover subject-performance-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Performance</th>
+          <th>Mean</th>
+          <th>Change in Mean</th>
+          <th>Trend</th>
+          <th>Grade</th>
+        </tr>
+      </thead>
+      <tbody>
+      <?php if (count($subjects) < 1) { ?>
+        <tr><td colspan="6" class="text-muted">No subject analytics found for this class/term.</td></tr>
+      <?php } ?>
+      <?php foreach ($subjects as $subject) { ?>
+        <tr>
+          <td><?php echo htmlspecialchars((string)$subject['subject_name']); ?></td>
+          <td><div class="progress-track"><span style="width: <?php echo (float)$subject['progress']; ?>%"></span></div></td>
+          <td><?php echo number_format((float)$subject['avg_score'], 4); ?>%</td>
+          <td><?php echo ($subject['change'] >= 0 ? '+' : '') . number_format((float)$subject['change'], 4); ?></td>
+          <td class="<?php echo $subject['trend'] === 'up' ? 'text-success' : ($subject['trend'] === 'down' ? 'text-warning' : 'text-muted'); ?>">
+            <i class="bi <?php echo $subject['trend'] === 'up' ? 'bi-arrow-up-right' : ($subject['trend'] === 'down' ? 'bi-arrow-down-right' : 'bi-dash'); ?>"></i>
+            <?php echo ucfirst((string)$subject['trend']); ?>
+          </td>
+          <td><?php echo htmlspecialchars((string)$subject['grade']); ?></td>
+        </tr>
+      <?php } ?>
+      </tbody>
+    </table>
   </div>
 </div>
 
