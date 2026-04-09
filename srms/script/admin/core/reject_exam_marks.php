@@ -19,8 +19,14 @@ try {
   $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
   $stmt = $conn->prepare("UPDATE tbl_exam_mark_submissions SET status = 'rejected', reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ? WHERE id = ? AND status = 'submitted'");
   $stmt->execute([(int)$account_id, $submissionId]);
+  $meta = $conn->prepare("SELECT exam_id FROM tbl_exam_mark_submissions WHERE id = ? LIMIT 1");
+  $meta->execute([$submissionId]);
+  $examId = (int)$meta->fetchColumn();
+  if ($examId > 0) {
+    app_refresh_exam_status($conn, $examId);
+  }
   app_audit_log($conn, 'staff', (string)$account_id, 'exam_marks.reject', 'submission', (string)$submissionId);
-  $_SESSION['reply'] = array (array("success", "Marks rejected."));
+  $_SESSION['reply'] = array (array("success", "Marks returned to the teacher for correction."));
 } catch (Throwable $e) {
   $_SESSION['reply'] = array (array("danger", $e->getMessage()));
 }

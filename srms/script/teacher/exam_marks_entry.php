@@ -45,7 +45,7 @@ try {
         FROM tbl_exams e
         LEFT JOIN tbl_classes c ON c.id = e.class_id
         LEFT JOIN tbl_terms t ON t.id = e.term_id
-        WHERE e.status = 'open' AND e.class_id IN ($placeholders)
+        WHERE e.status = 'active' AND e.class_id IN ($placeholders)
         ORDER BY e.created_at DESC");
       $stmt->execute($classIds);
       $exams = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -59,17 +59,7 @@ try {
         if ((int)$assignment['term_id'] !== (int)$exam['term_id']) {
           continue;
         }
-        $comboId = 0;
-        foreach ($combos as $combo) {
-          if ((int)$combo['subject'] !== (int)$assignment['subject_id']) {
-            continue;
-          }
-          $classes = app_unserialize($combo['class']);
-          if (in_array((string)$exam['class_id'], array_map('strval', $classes), true)) {
-            $comboId = (int)$combo['id'];
-            break;
-          }
-        }
+        $comboId = app_get_teacher_subject_combination_id($conn, (int)$account_id, (int)$assignment['subject_id'], (int)$exam['class_id'], true);
         if ($comboId > 0) {
           $classSubjects[(int)$exam['id']][] = [
             'id' => $comboId,
@@ -97,7 +87,7 @@ try {
         FROM tbl_exams e
         LEFT JOIN tbl_classes c ON c.id = e.class_id
         LEFT JOIN tbl_terms t ON t.id = e.term_id
-        WHERE e.status = 'open' AND e.class_id IN ($placeholders)
+        WHERE e.status = 'active' AND e.class_id IN ($placeholders)
         ORDER BY e.created_at DESC");
       $stmt->execute($classIds);
       $exams = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -172,7 +162,7 @@ try {
 <div class="app-title">
 <div>
 <h1>Exam Marks Entry</h1>
-<p>Select an open exam and subject, then start entry.</p>
+<p>Select an active exam and subject, then start entry.</p>
 </div>
 </div>
 
@@ -183,7 +173,7 @@ try {
 <h3 class="tile-title">Start Exam Entry</h3>
 <form class="app_frm" method="POST" action="teacher/core/start_exam_entry">
 <div class="mb-3">
-<label class="form-label">Open Exam</label>
+<label class="form-label">Active Exam</label>
 <select class="form-control select2" name="exam_id" id="examSelect" required>
 <option value="" selected disabled>Select exam</option>
 <?php foreach ($exams as $exam): ?>
@@ -227,6 +217,9 @@ try {
     subjects.forEach(item => {
       $subject.append(`<option value="${item.id}">${item.name}</option>`);
     });
+    if (!subjects.length) {
+      $subject.append('<option value="" disabled>No assigned subjects found for this exam</option>');
+    }
     $subject.trigger('change');
   });
 </script>

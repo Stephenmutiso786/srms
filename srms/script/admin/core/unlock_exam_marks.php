@@ -20,8 +20,14 @@ try {
   }
   $conn = app_db();
   $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-  $stmt = $conn->prepare("UPDATE tbl_exam_mark_submissions SET status = 'draft', reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ? WHERE id = ? AND status = 'approved'");
+  $stmt = $conn->prepare("UPDATE tbl_exam_mark_submissions SET status = 'draft', reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ? WHERE id = ? AND status IN ('reviewed','finalized')");
   $stmt->execute([(int)$account_id, $submissionId]);
+  $meta = $conn->prepare("SELECT exam_id FROM tbl_exam_mark_submissions WHERE id = ? LIMIT 1");
+  $meta->execute([$submissionId]);
+  $examId = (int)$meta->fetchColumn();
+  if ($examId > 0) {
+    app_refresh_exam_status($conn, $examId);
+  }
   app_audit_log($conn, 'staff', (string)$account_id, 'exam_marks.unlock', 'submission', (string)$submissionId);
   $_SESSION['reply'] = array (array("success", "Marks unlocked to draft."));
 } catch (Throwable $e) {

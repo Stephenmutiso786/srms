@@ -28,22 +28,8 @@ if ($termId > 0 && app_table_exists($conn, 'tbl_teacher_assignments')) {
 	$stmt->execute([$account_id, $id, $termId, $year]);
 	$assignments = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-	$stmt = $conn->prepare("SELECT id, class, subject FROM tbl_subject_combinations WHERE teacher = ?");
-	$stmt->execute([$account_id]);
-	$combos = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
 	foreach ($assignments as $assignment) {
-		$comboId = 0;
-		foreach ($combos as $combo) {
-			if ((int)$combo['subject'] !== (int)$assignment['subject_id']) {
-				continue;
-			}
-			$cls = app_unserialize($combo['class']);
-			if (in_array((string)$id, array_map('strval', $cls), true)) {
-				$comboId = (int)$combo['id'];
-				break;
-			}
-		}
+		$comboId = app_get_teacher_subject_combination_id($conn, (int)$account_id, (int)$assignment['subject_id'], $id, true);
 		if ($comboId > 0) {
 			?><option value="<?php echo $comboId; ?>"><?php echo htmlspecialchars($assignment['subject_name']); ?></option><?php
 		}

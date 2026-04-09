@@ -24,11 +24,11 @@ try {
   $conn = app_db();
   $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-  $stmt = $conn->prepare("SELECT * FROM tbl_exams WHERE id = ? AND status = 'open' LIMIT 1");
+  $stmt = $conn->prepare("SELECT * FROM tbl_exams WHERE id = ? AND status = 'active' LIMIT 1");
   $stmt->execute([$examId]);
   $exam = $stmt->fetch(PDO::FETCH_ASSOC);
   if (!$exam) {
-    throw new RuntimeException("Exam not found or closed.");
+    throw new RuntimeException("Exam not found or not active.");
   }
 
   $stmt = $conn->prepare("SELECT id, class, teacher, subject FROM tbl_subject_combinations WHERE id = ?");
@@ -49,6 +49,7 @@ try {
     if (!$stmt->fetchColumn()) {
       throw new RuntimeException("No active assignment for this class/subject/term.");
     }
+    app_sync_subject_combination($conn, (int)$account_id, (int)$combo['subject'], (int)$exam['class_id'], false);
   }
 
   $_SESSION['exam_entry'] = [

@@ -32,7 +32,8 @@ try {
 	$terms = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 	if (app_table_exists($conn, 'tbl_exams')) {
-		$stmt = $conn->prepare("SELECT e.id, e.name, e.status, t.name AS term_name, c.name AS class_name, et.name AS type_name
+		$stmt = $conn->prepare("SELECT e.id, e.name, e.status, e.created_at, t.name AS term_name, c.name AS class_name, et.name AS type_name,
+			COALESCE((SELECT COUNT(*) FROM tbl_exam_mark_submissions ms WHERE ms.exam_id = e.id), 0) AS submission_count
 			FROM tbl_exams e
 			LEFT JOIN tbl_terms t ON t.id = e.term_id
 			LEFT JOIN tbl_classes c ON c.id = e.class_id
@@ -124,9 +125,11 @@ try {
 <div class="col-md-7">
 <div class="tile">
 <h3 class="tile-title">Create Exam</h3>
+<p class="text-muted">Create the exam structure first, then activate it for teachers, review submitted marks, finalize, and publish when ready.</p>
 <div class="d-flex flex-wrap gap-2 mb-3">
 	<a class="btn btn-outline-primary btn-sm" href="admin/exam_timetable"><i class="bi bi-calendar-event me-1"></i>Manage Timetable</a>
 	<a class="btn btn-outline-secondary btn-sm" href="admin/results_locks"><i class="bi bi-lock me-1"></i>Results Locks</a>
+	<a class="btn btn-outline-dark btn-sm" href="admin/marks_review"><i class="bi bi-clipboard-check me-1"></i>Marks Review</a>
 </div>
 <form class="app_frm" action="admin/core/new_exam" method="POST">
 <div class="row">
@@ -144,13 +147,13 @@ try {
 </select>
 </div>
 <div class="col-md-6 mb-3">
-<label class="form-label">Class</label>
-<select class="form-control" name="class_id" required>
-<option value="">Select</option>
+<label class="form-label">Classes</label>
+<select class="form-control" name="class_ids[]" required multiple size="6">
 <?php foreach ($classes as $class): ?>
 <option value="<?php echo $class['id']; ?>"><?php echo htmlspecialchars($class['name']); ?></option>
 <?php endforeach; ?>
 </select>
+<div class="small text-muted mt-1">Hold Ctrl / Cmd to select more than one class.</div>
 </div>
 <div class="col-md-6 mb-3">
 <label class="form-label">Term</label>
@@ -178,7 +181,7 @@ try {
 </div>
 <table class="table table-hover">
 <thead>
-<tr><th width="40"><input class="form-check-input" type="checkbox" id="selectAllExamsHead"></th><th>Name</th><th>Type</th><th>Class</th><th>Term</th><th>Status</th><th>Action</th></tr>
+<tr><th width="40"><input class="form-check-input" type="checkbox" id="selectAllExamsHead"></th><th>Name</th><th>Type</th><th>Class</th><th>Term</th><th>Status</th><th>Submissions</th><th>Created</th><th>Action</th></tr>
 </thead>
 <tbody>
 <?php foreach ($exams as $exam): ?>
@@ -188,16 +191,32 @@ try {
 <td><?php echo htmlspecialchars($exam['type_name'] ?? ''); ?></td>
 <td><?php echo htmlspecialchars($exam['class_name'] ?? ''); ?></td>
 <td><?php echo htmlspecialchars($exam['term_name'] ?? ''); ?></td>
-<td><?php echo htmlspecialchars($exam['status']); ?></td>
+<td><span class="badge bg-<?php echo htmlspecialchars(app_exam_status_badge((string)($exam['status'] ?? 'draft'))); ?>"><?php echo htmlspecialchars(ucfirst((string)($exam['status'] ?? 'draft'))); ?></span></td>
+<td><?php echo (int)($exam['submission_count'] ?? 0); ?></td>
+<td><?php echo htmlspecialchars((string)($exam['created_at'] ?? '')); ?></td>
 <td>
+	<div class="d-flex flex-wrap gap-2">
 	<form class="d-inline" action="admin/core/update_exam_status" method="POST">
 		<input type="hidden" name="exam_id" value="<?php echo (int)$exam['id']; ?>">
-		<?php if (($exam['status'] ?? '') === 'open') { ?>
-			<button class="btn btn-sm btn-outline-danger" name="status" value="closed">Close</button>
-		<?php } else { ?>
-			<button class="btn btn-sm btn-outline-success" name="status" value="open">Reopen</button>
+		<?php if (($exam['status'] ?? '') === 'draft') { ?>
+			<button class="btn btn-sm btn-outline-primary" name="status" value="active">Activate</button>
+		<?php } elseif (($exam['status'] ?? '') === 'active') { ?>
+			<button class="btn btn-sm btn-outline-info" name="status" value="reviewed">Mark Reviewed</button>
+		<?php } elseif (($exam['status'] ?? '') === 'reviewed') { ?>
+			<button class="btn btn-sm btn-outline-success" name="status" value="finalized">Finalize</button>
+		<?php } elseif (($exam['status'] ?? '') === 'finalized') { ?>
+			<button class="btn btn-sm btn-outline-dark" name="status" value="published">Publish</button>
+		<?php } elseif (($exam['status'] ?? '') === 'published') { ?>
+			<button class="btn btn-sm btn-outline-warning" name="status" value="finalized">Unpublish</button>
 		<?php } ?>
 	</form>
+	<?php if (in_array((string)($exam['status'] ?? ''), ['active','reviewed'], true)) { ?>
+	<form class="d-inline" action="admin/core/update_exam_status" method="POST">
+		<input type="hidden" name="exam_id" value="<?php echo (int)$exam['id']; ?>">
+		<button class="btn btn-sm btn-outline-secondary" name="status" value="draft">Back to Draft</button>
+	</form>
+	<?php } ?>
+	</div>
 </td>
 </tr>
 <?php endforeach; ?>

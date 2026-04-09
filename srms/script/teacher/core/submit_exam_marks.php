@@ -24,11 +24,11 @@ try {
   $conn = app_db();
   $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-  $stmt = $conn->prepare("SELECT * FROM tbl_exams WHERE id = ? AND status = 'open' LIMIT 1");
+  $stmt = $conn->prepare("SELECT * FROM tbl_exams WHERE id = ? LIMIT 1");
   $stmt->execute([$examId]);
   $exam = $stmt->fetch(PDO::FETCH_ASSOC);
-  if (!$exam) {
-    throw new RuntimeException("Exam not found or closed.");
+  if (!$exam || !app_exam_can_enter_marks((string)($exam['status'] ?? 'draft'))) {
+    throw new RuntimeException("Exam not found or not active.");
   }
 
   $stmt = $conn->prepare("SELECT id, class, teacher FROM tbl_subject_combinations WHERE id = ?");
@@ -77,7 +77,7 @@ try {
   $existing = $stmt->fetch(PDO::FETCH_ASSOC);
 
   if ($existing) {
-    if (in_array($existing['status'], ['submitted','approved'], true)) {
+    if (in_array($existing['status'], ['submitted','reviewed','finalized'], true)) {
       throw new RuntimeException("Marks already submitted.");
     }
     $stmt = $conn->prepare("UPDATE tbl_exam_mark_submissions SET status = 'submitted', submitted_at = CURRENT_TIMESTAMP, reviewed_at = NULL, reviewed_by = NULL, review_note = NULL WHERE id = ?");
@@ -88,6 +88,7 @@ try {
   }
 
   app_audit_log($conn, 'staff', (string)$account_id, 'exam_marks.submit', 'exam', (string)$examId);
+  app_refresh_exam_status($conn, $examId);
   $_SESSION['reply'] = array (array("success", "Marks submitted for review."));
   header("location:../exam_marks_table");
   exit;

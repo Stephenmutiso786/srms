@@ -41,8 +41,8 @@ try {
   if (!$exam) {
     throw new RuntimeException("Exam not found.");
   }
-  if (($exam['status'] ?? '') !== 'open') {
-    throw new RuntimeException("Exam is closed.");
+  if (!app_exam_can_enter_marks((string)($exam['status'] ?? 'draft'))) {
+    throw new RuntimeException("Exam is not active for mark entry.");
   }
 
   $stmt = $conn->prepare("SELECT * FROM tbl_classes WHERE id = ? LIMIT 1");
@@ -166,7 +166,7 @@ try {
 <?php if ($isLocked) { ?>
   <div class="tile"><div class="alert alert-warning mb-0">Results are locked for this class and term. Edits are disabled.</div></div>
 <?php } ?>
-<?php if (!$isLocked && in_array($submissionStatus, ['submitted','approved'], true)) { ?>
+<?php if (!$isLocked && in_array($submissionStatus, ['submitted','reviewed','finalized'], true)) { ?>
   <div class="tile"><div class="alert alert-info mb-0">Marks are <?php echo htmlspecialchars($submissionStatus); ?> and read-only.</div></div>
 <?php } ?>
 
@@ -195,14 +195,14 @@ try {
 <tr>
   <td><?php echo htmlspecialchars($fullName); ?></td>
   <td>
-    <input class="form-control exam-score" type="number" min="0" max="100" step="0.01" data-student="<?php echo htmlspecialchars($sid); ?>" name="scores[<?php echo htmlspecialchars($sid); ?>]" value="<?php echo htmlspecialchars($scoreVal); ?>" <?php echo ($isLocked || in_array($submissionStatus, ['submitted','approved'], true)) ? 'readonly' : ''; ?>>
+    <input class="form-control exam-score" type="number" min="0" max="100" step="0.01" data-student="<?php echo htmlspecialchars($sid); ?>" name="scores[<?php echo htmlspecialchars($sid); ?>]" value="<?php echo htmlspecialchars($scoreVal); ?>" <?php echo ($isLocked || in_array($submissionStatus, ['submitted','reviewed','finalized'], true)) ? 'readonly' : ''; ?>>
   </td>
 </tr>
 <?php endforeach; ?>
 </tbody>
 </table>
 </div>
-<button class="btn btn-primary" <?php echo ($isLocked || in_array($submissionStatus, ['submitted','approved'], true)) ? 'disabled' : ''; ?>>Save Marks</button>
+<button class="btn btn-primary" <?php echo ($isLocked || in_array($submissionStatus, ['submitted','reviewed','finalized'], true)) ? 'disabled' : ''; ?>>Save Marks</button>
 </form>
 <?php if (!$isLocked && in_array($submissionStatus, ['draft','rejected'], true)) { ?>
   <form class="mt-2" method="POST" action="teacher/core/submit_exam_marks">

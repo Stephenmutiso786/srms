@@ -214,7 +214,143 @@ function app_results_locked(PDO $conn, int $classId, int $termId): bool
 function app_exam_submission_status(PDO $conn, int $examId, int $subjectCombinationId): string
 {
 	if ($examId < 1 || $subjectCombinationId < 1) {
-	return 'draft';
+		return 'draft';
+	}
+	if (!app_table_exists($conn, 'tbl_exam_mark_submissions')) {
+		return 'draft';
+	}
+	try {
+		$stmt = $conn->prepare("SELECT status FROM tbl_exam_mark_submissions WHERE exam_id = ? AND subject_combination_id = ? LIMIT 1");
+		$stmt->execute([$examId, $subjectCombinationId]);
+		$status = (string)$stmt->fetchColumn();
+		return $status !== '' ? $status : 'draft';
+	} catch (Throwable $e) {
+		return 'draft';
+	}
+}
+
+function app_exam_can_enter_marks(string $status): bool
+{
+	return in_array($status, ['active'], true);
+}
+
+function app_exam_status_badge(string $status): string
+{
+	$normalized = strtolower(trim($status));
+	$map = [
+		'draft' => 'secondary',
+		'active' => 'primary',
+		'reviewed' => 'info',
+		'finalized' => 'success',
+		'published' => 'dark',
+		'closed' => 'warning',
+	];
+	return $map[$normalized] ?? 'secondary';
+}
+
+function app_sync_subject_combination(PDO $conn, int $teacherId, int $subjectId, int $classId, bool $remove): int
+{
+	if (!app_table_exists($conn, 'tbl_subject_combinations') || $teacherId < 1 || $subjectId < 1 || $classId < 1) {
+		return 0;
+	}
+
+	$stmt = $conn->prepare("SELECT id, class FROM tbl_subject_combinations WHERE teacher = ? AND subject = ? LIMIT 1");
+	$stmt->execute([$teacherId, $subjectId]);
+	$row = $stmt->fetch(PDO::FETCH_ASSOC);
+	$classIdStr = (string)$classId;
+	$classList = $row ? app_unserialize($row['class']) : [];
+	$classList = array_values(array_unique(array_map('strval', $classList)));
+
+	if ($remove) {
+		$classList = array_values(array_filter($classList, function ($val) use ($classIdStr) {
+			return (string)$val !== $classIdStr;
+		}));
+	} elseif (!in_array($classIdStr, $classList, true)) {
+		$classList[] = $classIdStr;
+	}
+
+	if ($row) {
+		if (count($classList) < 1) {
+			$stmt = $conn->prepare("DELETE FROM tbl_subject_combinations WHERE id = ?");
+			$stmt->execute([(int)$row['id']]);
+			return 0;
+		}
+
+		$stmt = $conn->prepare("UPDATE tbl_subject_combinations SET class = ? WHERE id = ?");
+		$stmt->execute([serialize($classList), (int)$row['id']]);
+		return (int)$row['id'];
+	}
+
+	if ($remove) {
+		return 0;
+	}
+
+	$stmt = $conn->prepare("INSERT INTO tbl_subject_combinations (class, subject, teacher, reg_date) VALUES (?,?,?,CURRENT_TIMESTAMP)");
+	$stmt->execute([serialize([$classIdStr]), $subjectId, $teacherId]);
+	return (int)$conn->lastInsertId();
+}
+
+function app_get_teacher_subject_combination_id(PDO $conn, int $teacherId, int $subjectId, int $classId, bool $createIfMissing = false): int
+{
+	if ($teacherId < 1 || $subjectId < 1 || $classId < 1 || !app_table_exists($conn, 'tbl_subject_combinations')) {
+		return 0;
+	}
+
+	$stmt = $conn->prepare("SELECT id, class FROM tbl_subject_combinations WHERE teacher = ? AND subject = ? LIMIT 1");
+	$stmt->execute([$teacherId, $subjectId]);
+	$row = $stmt->fetch(PDO::FETCH_ASSOC);
+	if ($row) {
+		$classList = app_unserialize($row['class']);
+		if (!in_array((string)$classId, array_map('strval', $classList), true) && $createIfMissing) {
+			return app_sync_subject_combination($conn, $teacherId, $subjectId, $classId, false);
+		}
+		return in_array((string)$classId, array_map('strval', $classList), true) ? (int)$row['id'] : 0;
+	}
+
+	return $createIfMissing ? app_sync_subject_combination($conn, $teacherId, $subjectId, $classId, false) : 0;
+}
+
+function app_refresh_exam_status(PDO $conn, int $examId): string
+{
+	if ($examId < 1 || !app_table_exists($conn, 'tbl_exams')) {
+		return 'draft';
+	}
+
+	try {
+		$stmt = $conn->prepare("SELECT status FROM tbl_exams WHERE id = ? LIMIT 1");
+		$stmt->execute([$examId]);
+		$current = (string)$stmt->fetchColumn();
+		if ($current === '') {
+			return 'draft';
+		}
+		if (in_array($current, ['finalized', 'published'], true) || !app_table_exists($conn, 'tbl_exam_mark_submissions')) {
+			return $current;
+		}
+
+		$stmt = $conn->prepare("SELECT status, COUNT(*) AS total FROM tbl_exam_mark_submissions WHERE exam_id = ? GROUP BY status");
+		$stmt->execute([$examId]);
+		$counts = [];
+		foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+			$counts[(string)$row['status']] = (int)$row['total'];
+		}
+		if (empty($counts)) {
+			$nextStatus = in_array($current, ['active', 'reviewed'], true) ? 'active' : 'draft';
+		} elseif (!empty($counts['submitted'])) {
+			$nextStatus = 'active';
+		} elseif (!empty($counts['reviewed']) || !empty($counts['finalized'])) {
+			$nextStatus = 'reviewed';
+		} else {
+			$nextStatus = 'active';
+		}
+
+		if ($nextStatus !== $current) {
+			$stmt = $conn->prepare("UPDATE tbl_exams SET status = ? WHERE id = ?");
+			$stmt->execute([$nextStatus, $examId]);
+		}
+		return $nextStatus;
+	} catch (Throwable $e) {
+		return 'draft';
+	}
 }
 
 function app_reply_redirect(string $type, string $message, string $location): void
@@ -445,18 +581,6 @@ function app_build_class_name(string $grade, string $stream = '', string $fallba
 		return ucfirst($grade);
 	}
 	return trim(ucfirst($grade) . ' ' . strtoupper($stream));
-}
-	if (!app_table_exists($conn, 'tbl_exam_mark_submissions')) {
-		return 'draft';
-	}
-	try {
-		$stmt = $conn->prepare("SELECT status FROM tbl_exam_mark_submissions WHERE exam_id = ? AND subject_combination_id = ? LIMIT 1");
-		$stmt->execute([$examId, $subjectCombinationId]);
-		$status = (string)$stmt->fetchColumn();
-		return $status !== '' ? $status : 'draft';
-	} catch (Throwable $e) {
-		return 'draft';
-	}
 }
 
 function app_cbc_submission_status(PDO $conn, int $termId, int $classId, int $subjectCombinationId): string

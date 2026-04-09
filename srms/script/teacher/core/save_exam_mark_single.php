@@ -41,10 +41,18 @@ try {
 		$stmt = $conn->prepare("SELECT status FROM tbl_exam_mark_submissions WHERE exam_id = ? AND subject_combination_id = ? LIMIT 1");
 		$stmt->execute([$examId, $subjectComb]);
 		$status = (string)$stmt->fetchColumn();
-		if (in_array($status, ['submitted','approved'], true)) {
+		if (in_array($status, ['submitted','reviewed','finalized'], true)) {
 			echo json_encode(['ok' => false, 'message' => 'Marks submitted']);
 			exit;
 		}
+	}
+
+	$stmt = $conn->prepare("SELECT status FROM tbl_exams WHERE id = ? LIMIT 1");
+	$stmt->execute([$examId]);
+	$examStatus = (string)$stmt->fetchColumn();
+	if (!app_exam_can_enter_marks($examStatus)) {
+		echo json_encode(['ok' => false, 'message' => 'Exam is not active for mark entry']);
+		exit;
 	}
 
 	$stmt = $conn->prepare("SELECT id, class, teacher FROM tbl_subject_combinations WHERE id = ?");

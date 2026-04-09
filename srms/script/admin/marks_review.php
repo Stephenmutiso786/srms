@@ -74,7 +74,7 @@ try {
 <div class="app-title">
 <div>
 <h1>Marks Review</h1>
-<p>Approve, reject, or unlock submitted marks.</p>
+<p>Review submitted mark sheets, return them for correction, and move exams toward finalization.</p>
 </div>
 </div>
 
@@ -84,7 +84,7 @@ try {
 <table class="table table-hover">
 <thead>
 <tr>
-<th>Exam</th><th>Class</th><th>Subject</th><th>Term</th><th>Status</th><th>Submitted</th><th>Action</th>
+<th>Exam</th><th>Class</th><th>Subject</th><th>Term</th><th>Status</th><th>Submitted</th><th>Reviewed</th><th>Action</th>
 </tr>
 </thead>
 <tbody>
@@ -94,23 +94,24 @@ try {
 <td><?php echo htmlspecialchars($row['class_name'] ?? ''); ?></td>
 <td><?php echo htmlspecialchars($row['subject_name'] ?? ''); ?></td>
 <td><?php echo htmlspecialchars($row['term_name'] ?? ''); ?></td>
-<td><?php echo htmlspecialchars($row['status']); ?></td>
+<td><span class="badge bg-<?php echo htmlspecialchars(app_exam_status_badge((string)$row['status'])); ?>"><?php echo htmlspecialchars(ucfirst((string)$row['status'])); ?></span></td>
 <td><?php echo htmlspecialchars($row['submitted_at'] ?? ''); ?></td>
+<td><?php echo htmlspecialchars($row['reviewed_at'] ?? ''); ?></td>
 <td class="d-flex gap-2 flex-wrap">
   <?php if ($row['status'] === 'submitted') { ?>
     <form method="POST" action="admin/core/approve_exam_marks">
       <input type="hidden" name="submission_id" value="<?php echo (int)$row['id']; ?>">
-      <button class="btn btn-sm btn-success">Approve</button>
+      <button class="btn btn-sm btn-success">Mark Reviewed</button>
     </form>
     <form method="POST" action="admin/core/reject_exam_marks">
       <input type="hidden" name="submission_id" value="<?php echo (int)$row['id']; ?>">
-      <button class="btn btn-sm btn-outline-danger">Reject</button>
+      <button class="btn btn-sm btn-outline-danger">Return to Teacher</button>
     </form>
   <?php } ?>
-  <?php if ($row['status'] === 'approved' && (int)$level === 9) { ?>
+  <?php if (in_array((string)$row['status'], ['reviewed','finalized'], true) && (int)$level === 9) { ?>
     <form method="POST" action="admin/core/unlock_exam_marks">
       <input type="hidden" name="submission_id" value="<?php echo (int)$row['id']; ?>">
-      <button class="btn btn-sm btn-outline-warning">Unlock</button>
+      <button class="btn btn-sm btn-outline-warning">Unlock to Draft</button>
     </form>
   <?php } ?>
 </td>

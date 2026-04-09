@@ -35,16 +35,16 @@ try {
     $stmt = $conn->prepare("SELECT status FROM tbl_exam_mark_submissions WHERE exam_id = ? AND subject_combination_id = ? LIMIT 1");
     $stmt->execute([$examId, $subjectComb]);
     $status = (string)$stmt->fetchColumn();
-    if (in_array($status, ['submitted','approved'], true)) {
+    if (in_array($status, ['submitted','reviewed','finalized'], true)) {
       throw new RuntimeException("Marks are submitted and locked.");
     }
   }
 
-  $stmt = $conn->prepare("SELECT * FROM tbl_exams WHERE id = ? AND status = 'open' LIMIT 1");
+  $stmt = $conn->prepare("SELECT * FROM tbl_exams WHERE id = ? LIMIT 1");
   $stmt->execute([$examId]);
   $exam = $stmt->fetch(PDO::FETCH_ASSOC);
-  if (!$exam) {
-    throw new RuntimeException("Exam not found or closed.");
+  if (!$exam || !app_exam_can_enter_marks((string)($exam['status'] ?? 'draft'))) {
+    throw new RuntimeException("Exam not found or not active.");
   }
 
   $stmt = $conn->prepare("SELECT id, class, teacher FROM tbl_subject_combinations WHERE id = ?");
