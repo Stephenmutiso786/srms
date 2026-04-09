@@ -11,5 +11,7 @@ export function buildLegacyUrl(path = "") {
 
 export function buildApiUrl(path = "") {
   const cleanPath = path.startsWith("/") ? path.slice(1) : path;
-  return `${appConfig.apiBaseUrl}/${cleanPath}`;
+  const [pathname, query = ""] = cleanPath.split("?");
+  const resolvedPath = pathname.includes(".") ? pathname : `${pathname}.php`;
+  return `${appConfig.apiBaseUrl}/${resolvedPath}${query ? `?${query}` : ""}`;
 }
