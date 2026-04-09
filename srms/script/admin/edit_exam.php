@@ -25,6 +25,7 @@ $subjects = [];
 $subjectClassMap = [];
 $selectedSubjects = [];
 $gradingSystems = [];
+$defaultGradingSystemId = 0;
 
 try {
 	$conn = app_db();
@@ -54,6 +55,15 @@ try {
 	$stmt->execute();
 	$subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	$gradingSystems = report_grading_systems($conn);
+	foreach ($gradingSystems as $gradingSystem) {
+		if ((int)($gradingSystem['is_default'] ?? 0) === 1) {
+			$defaultGradingSystemId = (int)$gradingSystem['id'];
+			break;
+		}
+	}
+	if ($defaultGradingSystemId < 1 && !empty($gradingSystems)) {
+		$defaultGradingSystemId = (int)$gradingSystems[0]['id'];
+	}
 
 	if (app_table_exists($conn, 'tbl_subject_class_assignments')) {
 		$stmt = $conn->prepare("SELECT subject_id, class_id FROM tbl_subject_class_assignments");
@@ -140,9 +150,8 @@ try {
 					<div class="col-md-6 mb-3">
 						<label class="form-label">Grading System</label>
 						<select class="form-control" name="grading_system_id" required>
-							<option value="">Select grading system</option>
 							<?php foreach ($gradingSystems as $system): ?>
-							<option value="<?php echo (int)$system['id']; ?>" <?php echo ((int)($exam['grading_system_id'] ?? 0) === (int)$system['id']) ? 'selected' : ''; ?>>
+							<option value="<?php echo (int)$system['id']; ?>" <?php echo ((int)($exam['grading_system_id'] ?: $defaultGradingSystemId) === (int)$system['id']) ? 'selected' : ''; ?>>
 								<?php echo htmlspecialchars($system['name']); ?> (<?php echo htmlspecialchars(strtoupper((string)$system['type'])); ?>)
 							</option>
 							<?php endforeach; ?>

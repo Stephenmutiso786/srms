@@ -24,16 +24,22 @@ $examTypeId = $examTypeId === '' ? null : (int)$examTypeId;
 $subjectIds = $_POST['subject_ids'] ?? [];
 $subjectIds = is_array($subjectIds) ? array_values(array_unique(array_filter(array_map('intval', $subjectIds)))) : [];
 
-if ($examId < 1 || $name === '' || $classId < 1 || $termId < 1 || $gradingSystemId < 1 || empty($subjectIds)) {
-	$_SESSION['reply'] = array(array("danger", "Fill all required fields."));
-	header("location:../exams");
-	exit;
-}
-
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	app_ensure_overall_grading_defaults($conn);
 	app_ensure_exam_subjects_table($conn);
+
+	if ($gradingSystemId < 1 && app_table_exists($conn, 'tbl_grading_systems')) {
+		$stmt = $conn->prepare("SELECT id FROM tbl_grading_systems WHERE is_active = 1 ORDER BY is_default DESC, id ASC LIMIT 1");
+		$stmt->execute();
+		$gradingSystemId = (int)$stmt->fetchColumn();
+	}
+	if ($examId < 1 || $name === '' || $classId < 1 || $termId < 1 || $gradingSystemId < 1 || empty($subjectIds)) {
+		$_SESSION['reply'] = array(array("danger", "Fill all required fields."));
+		header("location:../exams");
+		exit;
+	}
 	if (!app_column_exists($conn, 'tbl_exams', 'grading_system_id')) {
 		throw new RuntimeException("Exam grading support is not installed. Run migration 030.");
 	}

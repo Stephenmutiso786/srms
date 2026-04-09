@@ -24,15 +24,22 @@ $examTypeId = $examTypeId === '' ? null : (int)$examTypeId;
 $classIds = is_array($classIds) ? array_values(array_unique(array_filter(array_map('intval', $classIds)))) : [];
 $subjectIds = is_array($subjectIds) ? array_values(array_unique(array_filter(array_map('intval', $subjectIds)))) : [];
 
-if ($name === '' || empty($classIds) || empty($subjectIds) || $termId < 1 || $gradingSystemId < 1) {
-	$_SESSION['reply'] = array (array("danger", "Fill all required fields."));
-	header("location:../exams");
-	exit;
-}
-
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	app_ensure_overall_grading_defaults($conn);
+
+	if ($gradingSystemId < 1 && app_table_exists($conn, 'tbl_grading_systems')) {
+		$stmt = $conn->prepare("SELECT id FROM tbl_grading_systems WHERE is_active = 1 ORDER BY is_default DESC, id ASC LIMIT 1");
+		$stmt->execute();
+		$gradingSystemId = (int)$stmt->fetchColumn();
+	}
+
+	if ($name === '' || empty($classIds) || empty($subjectIds) || $termId < 1 || $gradingSystemId < 1) {
+		$_SESSION['reply'] = array (array("danger", "Fill all required fields."));
+		header("location:../exams");
+		exit;
+	}
 
 	if (!app_table_exists($conn, 'tbl_exams')) {
 		$_SESSION['reply'] = array (array("danger", "Exams table missing. Run migration 007."));
