@@ -15,6 +15,7 @@ RUN sed -i 's/AllowOverride None/AllowOverride All/g' /etc/apache2/apache2.conf
 # Copy the PHP app (Render web root should be the project root; we map this into Apache docroot)
 WORKDIR /var/www/html
 COPY srms/script/ ./
+COPY srms/database/ ./database/
 
 # Ensure writable dirs (uploads/logos etc.)
 RUN chown -R www-data:www-data /var/www/html
