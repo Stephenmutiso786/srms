@@ -303,6 +303,9 @@ function filterExamSubjects() {
     try { classes = JSON.parse(raw); } catch (e) {}
     var visible = !classes.length || !selectedClasses.length || selectedClasses.some(function(classId){ return classes.includes(classId); });
     option.hidden = !visible;
+    if (!visible) {
+      option.selected = false;
+    }
   });
 }
 document.getElementById('examClassIds').addEventListener('change', filterExamSubjects);

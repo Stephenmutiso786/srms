@@ -11,6 +11,7 @@ $terms = [];
 $combinations = [];
 $teachers = [];
 $rows = [];
+$exams = [];
 
 $classId = (int)($_GET['class_id'] ?? 0);
 $termId = (int)($_GET['term_id'] ?? 0);
@@ -32,6 +33,8 @@ try {
 	$stmt->execute();
 	$terms = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+	app_ensure_exam_subjects_table($conn);
+
 	$stmt = $conn->prepare("SELECT id, fname, lname FROM tbl_staff WHERE level IN (0,1,2,5) AND status = 1 ORDER BY level, id");
 	$stmt->execute();
 	$teachers = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -52,6 +55,14 @@ try {
 			continue;
 		}
 		$combinations[] = $c;
+	}
+
+	if ($classId > 0 && $termId > 0 && app_table_exists($conn, 'tbl_exams')) {
+		$stmt = $conn->prepare("SELECT id, name, status FROM tbl_exams
+			WHERE class_id = ? AND term_id = ?
+			ORDER BY created_at DESC");
+		$stmt->execute([$classId, $termId]);
+		$exams = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
 
 	if ($classId > 0 && $termId > 0) {
@@ -147,6 +158,53 @@ try {
 </div>
 
 <?php if ($classId > 0 && $termId > 0) { ?>
+
+<div class="tile mb-3">
+  <h3 class="tile-title">Smart Auto Generate</h3>
+  <form class="row g-3" method="POST" action="admin/core/auto_generate_exam_schedule" autocomplete="off">
+	<input type="hidden" name="class_id" value="<?php echo $classId; ?>">
+	<input type="hidden" name="term_id" value="<?php echo $termId; ?>">
+	<div class="col-md-4">
+	  <label class="form-label">Exam</label>
+	  <select class="form-control" name="exam_id" required>
+		<option value="" disabled selected>Select exam</option>
+		<?php foreach ($exams as $exam) { ?>
+		  <option value="<?php echo (int)$exam['id']; ?>">
+			<?php echo htmlspecialchars((string)$exam['name'].' ('.ucfirst((string)$exam['status']).')'); ?>
+		  </option>
+		<?php } ?>
+	  </select>
+	</div>
+	<div class="col-md-2">
+	  <label class="form-label">Start Date</label>
+	  <input class="form-control" type="date" name="start_date" required>
+	</div>
+	<div class="col-md-2">
+	  <label class="form-label">Daily Sessions</label>
+	  <input class="form-control" type="number" min="1" max="6" name="sessions_per_day" value="2" required>
+	</div>
+	<div class="col-md-2">
+	  <label class="form-label">Session Minutes</label>
+	  <input class="form-control" type="number" min="30" max="240" name="duration_minutes" value="120" required>
+	</div>
+	<div class="col-md-2">
+	  <label class="form-label">Break Minutes</label>
+	  <input class="form-control" type="number" min="0" max="120" name="break_minutes" value="30" required>
+	</div>
+	<div class="col-md-3">
+	  <label class="form-label">First Session Start</label>
+	  <input class="form-control" type="time" name="first_start_time" value="08:00" required>
+	</div>
+	<div class="col-md-5">
+	  <label class="form-label">Rooms (comma separated, optional)</label>
+	  <input class="form-control" name="rooms" placeholder="Room 1, Room 2, Lab A">
+	</div>
+	<div class="col-md-4 d-grid align-items-end">
+	  <button class="btn btn-success" type="submit"><i class="bi bi-stars me-1"></i>Generate Timetable</button>
+	</div>
+  </form>
+  <p class="text-muted mt-2 mb-0">The generator uses exam subjects and teacher allocations, then avoids clashes so one teacher is not placed in two classes in the same session.</p>
+</div>
 
 <div class="tile mb-3">
   <h3 class="tile-title">Add Schedule Entry</h3>

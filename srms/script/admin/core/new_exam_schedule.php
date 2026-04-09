@@ -62,19 +62,25 @@ try {
 		exit;
 	}
 
+	$stmt = $conn->prepare("SELECT teacher FROM tbl_subject_combinations WHERE id = ? LIMIT 1");
+	$stmt->execute([$combId]);
+	$subjectTeacher = (int)$stmt->fetchColumn();
+
 	// Conflict checks: overlapping time window same date
 	$conf = $conn->prepare("SELECT COUNT(*) FROM tbl_exam_schedule
+		LEFT JOIN tbl_subject_combinations sc ON sc.id = tbl_exam_schedule.subject_combination_id
 		WHERE exam_date = ? AND (
 			(class_id = ?)
 			OR (? <> '' AND room = ?)
 			OR (? IS NOT NULL AND invigilator = ?)
+			OR (? > 0 AND sc.teacher = ?)
 		)
 		AND (start_time < ? AND end_time > ?)");
 	$roomKey = $room;
-	$conf->execute([$date, $classId, $roomKey, $roomKey, $invigilator, $invigilator, $end, $start]);
+	$conf->execute([$date, $classId, $roomKey, $roomKey, $invigilator, $invigilator, $subjectTeacher, $subjectTeacher, $end, $start]);
 	$cnt = (int)$conf->fetchColumn();
 	if ($cnt > 0) {
-		$_SESSION['reply'] = array(array("error", "Timetable conflict detected (class/room/invigilator overlap)."));
+		$_SESSION['reply'] = array(array("error", "Timetable conflict detected (class/room/invigilator/teacher overlap)."));
 		header("location:../exam_timetable?class_id=".$classId."&term_id=".$termId);
 		exit;
 	}
@@ -93,4 +99,3 @@ try {
 	header("location:../exam_timetable?class_id=".$classId."&term_id=".$termId);
 	exit;
 }
-
