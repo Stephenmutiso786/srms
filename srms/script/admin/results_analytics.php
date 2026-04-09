@@ -14,6 +14,8 @@ $termId = (int)($_GET['term_id'] ?? 0);
 
 $rankings = [];
 $subjects = [];
+$classSummaries = [];
+$gradeDistribution = [];
 $stats = ['students' => 0, 'avg' => 0, 'best' => 0, 'worst' => 0];
 $locked = false;
 $error = '';
@@ -121,6 +123,77 @@ try {
 			$subject['progress'] = max(0, min(100, (float)$subject['avg_score']));
 		}
 		unset($subject);
+		foreach ($rankings as $rankingRow) {
+			list($gradeLabel,) = report_grade_for_score($conn, (float)$rankingRow['avg_score']);
+			$gradeDistribution[$gradeLabel] = ($gradeDistribution[$gradeLabel] ?? 0) + 1;
+		}
+	} elseif ($termId > 0) {
+		$publicationState = 'school-wide';
+		$stmt = $conn->prepare("SELECT c.id AS class_id, c.name AS class_name,
+			COUNT(DISTINCT r.student) AS students,
+			COALESCE(AVG(r.score),0) AS avg_score,
+			COALESCE(MAX(r.score),0) AS highest_score,
+			COALESCE(MIN(r.score),0) AS lowest_score
+			FROM tbl_exam_results r
+			JOIN tbl_classes c ON c.id = r.class
+			WHERE r.term = ?
+			GROUP BY c.id, c.name
+			ORDER BY avg_score DESC, c.name");
+		$stmt->execute([$termId]);
+		$classSummaries = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+		$stmt = $conn->prepare("SELECT sb.id AS subject_id, sb.name AS subject_name,
+			COALESCE(AVG(r.score),0) AS avg_score
+			FROM tbl_exam_results r
+			JOIN tbl_subject_combinations sc ON sc.id = r.subject_combination
+			JOIN tbl_subjects sb ON sb.id = sc.subject
+			WHERE r.term = ?
+			GROUP BY sb.id, sb.name
+			ORDER BY avg_score DESC, sb.name");
+		$stmt->execute([$termId]);
+		$subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		foreach ($subjects as &$subject) {
+			list($gradeLabel,) = report_grade_for_score($conn, (float)$subject['avg_score']);
+			$subject['prev_avg'] = (float)$subject['avg_score'];
+			$subject['change'] = 0;
+			$subject['trend'] = 'steady';
+			$subject['grade'] = $gradeLabel;
+			$subject['progress'] = max(0, min(100, (float)$subject['avg_score']));
+		}
+		unset($subject);
+
+		$stmt = $conn->prepare("SELECT AVG(score) AS avg_score FROM tbl_exam_results WHERE term = ? GROUP BY student");
+		$stmt->execute([$termId]);
+		foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $avgScore) {
+			list($gradeLabel,) = report_grade_for_score($conn, (float)$avgScore);
+			$gradeDistribution[$gradeLabel] = ($gradeDistribution[$gradeLabel] ?? 0) + 1;
+		}
+
+		if (!empty($classSummaries)) {
+			$stats['students'] = array_sum(array_map(function ($row) { return (int)$row['students']; }, $classSummaries));
+			$stats['avg'] = round(array_sum(array_map(function ($row) { return (float)$row['avg_score']; }, $classSummaries)) / count($classSummaries), 2);
+			$stats['best'] = (float)$classSummaries[0]['avg_score'];
+			$stats['worst'] = (float)$classSummaries[count($classSummaries) - 1]['avg_score'];
+		}
+	}
+
+	if (isset($_GET['export']) && $_GET['export'] === 'csv' && $termId > 0) {
+		header('Content-Type: text/csv');
+		header('Content-Disposition: attachment; filename="results-analytics.csv"');
+		$out = fopen('php://output', 'w');
+		if ($classId > 0) {
+			fputcsv($out, ['Position', 'Student ID', 'Student Name', 'Subjects', 'Average', 'Total']);
+			foreach ($rankings as $row) {
+				fputcsv($out, [$row['position'], $row['student_id'], $row['student_name'], $row['subjects'], $row['avg_score'], $row['total_score']]);
+			}
+		} else {
+			fputcsv($out, ['Class', 'Students', 'Average', 'Highest', 'Lowest']);
+			foreach ($classSummaries as $row) {
+				fputcsv($out, [$row['class_name'], $row['students'], $row['avg_score'], $row['highest_score'], $row['lowest_score']]);
+			}
+		}
+		fclose($out);
+		exit;
 	}
 } catch (Throwable $e) {
 	$error = $e->getMessage();
@@ -196,8 +269,8 @@ try {
   <form class="row g-3" method="GET" action="admin/results_analytics">
 	<div class="col-md-5">
 	  <label class="form-label">Class</label>
-	  <select class="form-control" name="class_id" required>
-		<option value="" disabled <?php echo $classId ? '' : 'selected'; ?>>Select class</option>
+	  <select class="form-control" name="class_id">
+		<option value="" <?php echo $classId ? '' : 'selected'; ?>>All classes (school-wide)</option>
 		<?php foreach ($classes as $c) { ?>
 		  <option value="<?php echo (int)$c['id']; ?>" <?php echo ((int)$c['id'] === $classId) ? 'selected' : ''; ?>>
 			<?php echo htmlspecialchars((string)$c['name']); ?>
@@ -278,6 +351,38 @@ try {
   </div>
 </div>
 
+<div class="row mt-3">
+  <div class="col-lg-5 mb-3">
+	<div class="tile">
+	  <div class="d-flex justify-content-between align-items-center">
+		<h3 class="tile-title mb-0">Grade Distribution</h3>
+		<a class="btn btn-outline-primary btn-sm" href="admin/results_analytics?class_id=<?php echo $classId; ?>&term_id=<?php echo $termId; ?>&export=csv">Export CSV</a>
+	  </div>
+	  <div id="chartGrades" style="height:320px;"></div>
+	</div>
+  </div>
+  <div class="col-lg-7 mb-3">
+	<div class="tile">
+	  <h3 class="tile-title">Quick Subject Snapshot</h3>
+	  <div class="table-responsive">
+		<table class="table table-hover">
+		  <thead><tr><th>Subject</th><th>Mean</th><th>Grade</th><th>Trend</th></tr></thead>
+		  <tbody>
+		  <?php foreach ($subjects as $subject) { ?>
+			<tr>
+			  <td><?php echo htmlspecialchars((string)$subject['subject_name']); ?></td>
+			  <td><?php echo number_format((float)$subject['avg_score'], 2); ?>%</td>
+			  <td><?php echo htmlspecialchars((string)$subject['grade']); ?></td>
+			  <td><?php echo htmlspecialchars(ucfirst((string)$subject['trend'])); ?></td>
+			</tr>
+		  <?php } ?>
+		  </tbody>
+		</table>
+	  </div>
+	</div>
+  </div>
+</div>
+
 <div class="tile mb-3">
   <h3 class="tile-title">Subject Performance Board</h3>
   <div class="table-responsive">
@@ -344,11 +449,102 @@ try {
   </div>
 </div>
 
+<?php } elseif ($termId > 0) { ?>
+
+<div class="row">
+  <div class="col-md-6 col-lg-3">
+	<div class="widget-small primary coloured-icon"><i class="icon feather icon-home fs-1"></i>
+	  <div class="info"><h4>Classes</h4><p><b><?php echo number_format(count($classSummaries)); ?></b></p></div>
+	</div>
+  </div>
+  <div class="col-md-6 col-lg-3">
+	<div class="widget-small primary coloured-icon"><i class="icon feather icon-users fs-1"></i>
+	  <div class="info"><h4>Learners</h4><p><b><?php echo number_format((int)$stats['students']); ?></b></p></div>
+	</div>
+  </div>
+  <div class="col-md-6 col-lg-3">
+	<div class="widget-small primary coloured-icon"><i class="icon feather icon-activity fs-1"></i>
+	  <div class="info"><h4>School Mean</h4><p><b><?php echo number_format((float)$stats['avg'], 2); ?></b></p></div>
+	</div>
+  </div>
+  <div class="col-md-6 col-lg-3">
+	<div class="widget-small primary coloured-icon"><i class="icon feather icon-award fs-1"></i>
+	  <div class="info"><h4>Top Class Mean</h4><p><b><?php echo number_format((float)$stats['best'], 2); ?></b></p></div>
+	</div>
+  </div>
+</div>
+
+<div class="row mt-3">
+  <div class="col-lg-7 mb-3">
+	<div class="tile">
+	  <div class="d-flex justify-content-between align-items-center">
+		<h3 class="tile-title mb-0">Class Comparison</h3>
+		<a class="btn btn-outline-primary btn-sm" href="admin/results_analytics?term_id=<?php echo $termId; ?>&export=csv">Export CSV</a>
+	  </div>
+	  <div id="chartClassComparison" style="height:360px;"></div>
+	</div>
+  </div>
+  <div class="col-lg-5 mb-3">
+	<div class="tile">
+	  <h3 class="tile-title">School Grade Distribution</h3>
+	  <div id="chartGrades" style="height:360px;"></div>
+	</div>
+  </div>
+</div>
+
+<div class="tile mb-3">
+  <h3 class="tile-title">Class Performance Table</h3>
+  <div class="table-responsive">
+	<table class="table table-hover table-striped">
+	  <thead><tr><th>Rank</th><th>Class</th><th>Learners</th><th>Mean</th><th>Highest</th><th>Lowest</th></tr></thead>
+	  <tbody>
+	  <?php foreach ($classSummaries as $index => $row) { ?>
+		<tr>
+		  <td><b><?php echo $index + 1; ?></b></td>
+		  <td><?php echo htmlspecialchars((string)$row['class_name']); ?></td>
+		  <td><?php echo (int)$row['students']; ?></td>
+		  <td><?php echo number_format((float)$row['avg_score'], 2); ?></td>
+		  <td><?php echo number_format((float)$row['highest_score'], 2); ?></td>
+		  <td><?php echo number_format((float)$row['lowest_score'], 2); ?></td>
+		</tr>
+	  <?php } ?>
+	  <?php if (!$classSummaries) { ?>
+		<tr><td colspan="6" class="text-muted">No school-wide analytics found for this term.</td></tr>
+	  <?php } ?>
+	  </tbody>
+	</table>
+  </div>
+</div>
+
+<div class="tile">
+  <h3 class="tile-title">School Subject Board</h3>
+  <div class="table-responsive">
+	<table class="table table-hover subject-performance-table">
+	  <thead><tr><th>Learning Area</th><th>Performance</th><th>Mean</th><th>Grade</th></tr></thead>
+	  <tbody>
+	  <?php foreach ($subjects as $subject) { ?>
+		<tr>
+		  <td><?php echo htmlspecialchars((string)$subject['subject_name']); ?></td>
+		  <td><div class="progress-track"><span style="width: <?php echo (float)$subject['progress']; ?>%"></span></div></td>
+		  <td><?php echo number_format((float)$subject['avg_score'], 2); ?>%</td>
+		  <td><?php echo htmlspecialchars((string)$subject['grade']); ?></td>
+		</tr>
+	  <?php } ?>
+	  <?php if (!$subjects) { ?>
+		<tr><td colspan="4" class="text-muted">No school-wide subject analytics found for this term.</td></tr>
+	  <?php } ?>
+	  </tbody>
+	</table>
+  </div>
+</div>
+
 <script>
 (function(){
   function init(id){ var el=document.getElementById(id); if(!el||!window.echarts) return null; var c=echarts.init(el); window.addEventListener('resize', function(){c.resize();}); return c; }
   var top = init('chartTopStudents');
   var sub = init('chartSubjects');
+  var grades = init('chartGrades');
+  var classes = init('chartClassComparison');
 
   var topRows = <?php echo json_encode(array_slice($rankings, 0, 10)); ?>;
   if (top && topRows && topRows.length) {
@@ -373,6 +569,26 @@ try {
 	  xAxis: { type: 'category', data: sLabels, axisLabel: { rotate: 40 } },
 	  yAxis: { type: 'value', min: 0, max: 100 },
 	  series: [{ type: 'line', smooth: true, data: sValues, itemStyle: { color: '#198754' } }]
+	});
+  }
+
+  var gradeRows = <?php echo json_encode($gradeDistribution); ?>;
+  if (grades && gradeRows) {
+	var gradeData = Object.keys(gradeRows).map(function(key){ return { name:key, value:Number(gradeRows[key] || 0) }; });
+	grades.setOption({
+	  tooltip: { trigger: 'item' },
+	  series: [{ type: 'pie', radius: ['45%','72%'], data: gradeData }]
+	});
+  }
+
+  var classRows = <?php echo json_encode($classSummaries); ?>;
+  if (classes && classRows && classRows.length) {
+	classes.setOption({
+	  tooltip: { trigger: 'axis' },
+	  grid: { left: 50, right: 20, top: 10, bottom: 70 },
+	  xAxis: { type: 'category', data: classRows.map(function(r){ return r.class_name; }), axisLabel: { rotate: 30 } },
+	  yAxis: { type: 'value', min: 0, max: 100 },
+	  series: [{ type: 'bar', data: classRows.map(function(r){ return Number(r.avg_score || 0); }), itemStyle: { color: '#0f766e' } }]
 	});
   }
 })();
