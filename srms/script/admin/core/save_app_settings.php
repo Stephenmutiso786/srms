@@ -23,12 +23,24 @@ $summativeWeight = isset($settings['summative_weight']) ? (int)$settings['summat
 if ($continuousWeight !== null && $summativeWeight !== null && ($continuousWeight + $summativeWeight) !== 100) {
 	app_reply_redirect('danger', 'Continuous weight and Summative weight must add up to 100%.', '../system');
 }
+$admissionStartNumber = isset($settings['admission_start_number']) ? (int)$settings['admission_start_number'] : null;
+if ($admissionStartNumber !== null && $admissionStartNumber < 1) {
+	app_reply_redirect('danger', 'Admission start number must be 1 or greater.', '../system');
+}
+$currentTermId = isset($settings['current_term_id']) ? trim((string)$settings['current_term_id']) : '';
 
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 	if (!app_table_exists($conn, 'tbl_app_settings')) {
 		throw new RuntimeException('Application settings support is not installed. Run migration 030.');
+	}
+	if ($currentTermId !== '') {
+		$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_terms WHERE id = ?");
+		$stmt->execute([(int)$currentTermId]);
+		if ((int)$stmt->fetchColumn() < 1) {
+			throw new RuntimeException('Select a valid current term.');
+		}
 	}
 
 	$conn->beginTransaction();

@@ -5,6 +5,15 @@ require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
 if ($res == "1" && $level == "0") {}else{header("location:../");}
+
+$nextAdmissionNumber = '';
+try {
+	$conn = app_db();
+	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	$nextAdmissionNumber = app_next_student_registration_number($conn);
+} catch (Throwable $e) {
+	$nextAdmissionNumber = '';
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -56,7 +65,8 @@ if ($res == "1" && $level == "0") {}else{header("location:../");}
 <form enctype="multipart/form-data" action="admin/core/new_student" class="app_frm" method="POST" autocomplete="OFF">
 <div class="mb-2">
 <label class="form-label">Registration Number</label>
-<input name="regno" required class="form-control" type="text" placeholder="Enter registration number">
+<input name="regno" required class="form-control" type="text" placeholder="Enter registration number" value="<?php echo htmlspecialchars($nextAdmissionNumber); ?>">
+<div class="small text-muted mt-1">Starts from the value set in Admin Settings and increments automatically. You can still change it if needed.</div>
 </div>
 <div class="mb-2">
 <label class="form-label">First Name</label>

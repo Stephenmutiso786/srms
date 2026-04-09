@@ -532,6 +532,40 @@ function app_school_days(PDO $conn): array
 	return !empty($days) ? $days : ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 }
 
+function app_next_student_registration_number(PDO $conn): string
+{
+	$start = (int)app_setting_get($conn, 'admission_start_number', '1');
+	if ($start < 1) {
+		$start = 1;
+	}
+	if (!app_table_exists($conn, 'tbl_students')) {
+		return (string)$start;
+	}
+
+	try {
+		if (DBDriver === 'pgsql') {
+			$stmt = $conn->prepare("SELECT id::text AS id FROM tbl_students");
+		} else {
+			$stmt = $conn->prepare("SELECT id FROM tbl_students");
+		}
+		$stmt->execute();
+		$maxNumeric = $start - 1;
+		foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $value) {
+			$text = trim((string)$value);
+			if ($text !== '' && ctype_digit($text)) {
+				$number = (int)$text;
+				if ($number > $maxNumeric) {
+					$maxNumeric = $number;
+				}
+			}
+		}
+		$next = max($start, $maxNumeric + 1);
+		return (string)$next;
+	} catch (Throwable $e) {
+		return (string)$start;
+	}
+}
+
 function app_default_overall_grading_rows(): array
 {
 	return [

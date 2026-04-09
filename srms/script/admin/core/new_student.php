@@ -5,7 +5,7 @@ require_once('db/config.php');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-$reg_no = $_POST['regno'];
+$reg_no = trim((string)($_POST['regno'] ?? ''));
 $fname = ucfirst($_POST['fname']);
 $mname = ucfirst($_POST['mname']);
 $lname = ucfirst($_POST['lname']);
@@ -22,6 +22,10 @@ $photo = serialize($_FILES["image"]);
 try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+if ($reg_no === '') {
+	$reg_no = app_next_student_registration_number($conn);
+}
 
 $isPgsql = (defined('DBDriver') && DBDriver === 'pgsql');
 $stmt = $isPgsql

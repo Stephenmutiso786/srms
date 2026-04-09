@@ -26,6 +26,7 @@ $appSettings = [
 	'school_timezone' => 'Africa/Nairobi',
 	'current_academic_year' => date('Y'),
 	'current_term_id' => '',
+	'admission_start_number' => '1',
 	'ranking_enabled' => '1',
 	'cbc_public_ranking_enabled' => '0',
 	'allow_mark_adjustments' => '1',
@@ -290,6 +291,10 @@ if (count($cbcGrading) < 1) {
 </option>
 <?php endforeach; ?>
 </select>
+</div>
+<div class="col-md-4 mb-3">
+<label class="form-label">Admission Start Number</label>
+<input class="form-control" type="number" min="1" name="settings[admission_start_number]" value="<?php echo htmlspecialchars($appSettings['admission_start_number']); ?>">
 </div>
 <div class="col-md-4 mb-3">
 <label class="form-label">School Days</label>
