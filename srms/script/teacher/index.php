@@ -150,7 +150,7 @@ try {
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<title><?php echo APP_NAME; ?> - Teacher Analytics</title>
+<title><?php echo APP_NAME; ?> - Teacher Dashboard</title>
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -160,18 +160,18 @@ try {
 <link rel="stylesheet" type="text/css" href="cdn.jsdelivr.net/npm/bootstrap-icons%401.10.5/font/bootstrap-icons.css">
 <script src="cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
 <style>
-body.app{background:#f4f7fb}
+body.app{background:#f4f7f6}
 .portal-shell{display:grid;grid-template-columns:250px 1fr;min-height:100vh}
-.portal-side{background:linear-gradient(180deg,#113b5c,#0d64b0 70%,#27ae60);color:#fff;padding:18px 14px;position:sticky;top:0;height:100vh}
-.portal-brand{display:flex;gap:10px;align-items:center;padding:8px 10px 18px;border-bottom:1px solid rgba(255,255,255,.15);margin-bottom:14px}
-.portal-mark{width:38px;height:38px;border-radius:12px;background:#fff;color:#0d64b0;display:flex;align-items:center;justify-content:center;font-weight:800}
+.portal-side{background:#fff;color:#263238;padding:18px 14px;position:sticky;top:0;height:100vh;border-right:1px solid #e3ebe8}
+.portal-brand{display:flex;gap:10px;align-items:center;padding:8px 10px 18px;border-bottom:1px solid #e7efec;margin-bottom:14px}
+.portal-mark{width:38px;height:38px;border-radius:12px;background:#e7f1ef;color:#00695C;display:flex;align-items:center;justify-content:center;font-weight:800}
 .portal-menu{display:grid;gap:5px}
-.portal-menu a{display:flex;gap:10px;align-items:center;color:#fff;text-decoration:none;padding:10px 12px;border-radius:12px;font-size:.92rem}
-.portal-menu a.active,.portal-menu a:hover{background:rgba(255,255,255,.14)}
+.portal-menu a{display:flex;gap:10px;align-items:center;color:#4a5a68;text-decoration:none;padding:10px 12px;border-radius:12px;font-size:.92rem}
+.portal-menu a.active,.portal-menu a:hover{background:#e7f1ef;color:#00695C;font-weight:700}
 .portal-main{padding-bottom:28px}
 .portal-top{background:#fff;border-bottom:1px solid #e8eef5;padding:12px 24px;display:flex;justify-content:space-between;align-items:center}
 .portal-content{padding:20px 24px}
-.hero{background:linear-gradient(135deg,#0d64b0,#1d8fb9 60%,#2db763);border-radius:20px;color:#fff;padding:24px;box-shadow:0 20px 50px rgba(13,100,176,.16);margin-bottom:18px}
+.hero{background:linear-gradient(135deg,#00695C,#0b7d6d);border-radius:20px;color:#fff;padding:24px;box-shadow:0 20px 50px rgba(0,105,92,.16);margin-bottom:18px}
 .hero-controls{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:16px}
 .glass-input{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:12px;padding:10px 12px}
 .stats-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;margin-bottom:18px}
@@ -184,7 +184,7 @@ body.app{background:#f4f7fb}
 .subject-table{width:100%;border-collapse:collapse}
 .subject-table th,.subject-table td{padding:12px 10px;border-bottom:1px solid #edf2f7}
 .subject-table th{font-size:.76rem;text-transform:uppercase;color:#718096}
-.grade-badge{padding:4px 10px;border-radius:999px;background:#eef7ee;color:#2f9b40;font-weight:700;font-size:.82rem}
+.grade-badge{padding:4px 10px;border-radius:999px;background:#e7f1ef;color:#00695C;font-weight:700;font-size:.82rem}
 .note-list{display:grid;gap:10px}
 .note-item{background:#fff;border:1px solid #e9eef5;border-radius:14px;padding:12px 14px}
 @media (max-width:1100px){.portal-shell{grid-template-columns:1fr}.portal-side{position:relative;height:auto}.hero-controls,.stats-grid,.grid-two{grid-template-columns:1fr 1fr}}
@@ -216,7 +216,7 @@ body.app{background:#f4f7fb}
 			<div class="hero">
 				<div class="d-flex justify-content-between flex-wrap gap-3">
 					<div>
-						<div class="small text-uppercase opacity-75">Teacher Performance Analytics</div>
+						<div class="small text-uppercase opacity-75">Teacher Dashboard</div>
 						<h2 class="mb-1">Track class or subject performance</h2>
 						<div class="small">Choose the class, subject, and term you want to review. Exams stay visible and accessible from the left menu.</div>
 					</div>
@@ -306,7 +306,7 @@ if (teacherTrendEl) {
 		tooltip:{trigger:'axis'},
 		xAxis:{type:'category',data:teacherTrend.map(item=>item.term_name),axisLabel:{fontSize:10}},
 		yAxis:{type:'value',min:0,max:100},
-		series:[{type:'line',smooth:true,data:teacherTrend.map(item=>item.mean),areaStyle:{color:'rgba(13,100,176,0.18)'},lineStyle:{color:'#27ae60',width:2},itemStyle:{color:'#27ae60'}}]
+		series:[{type:'line',smooth:true,data:teacherTrend.map(item=>item.mean),areaStyle:{color:'rgba(0,105,92,0.16)'},lineStyle:{color:'#00695C',width:2},itemStyle:{color:'#00695C'}}]
 	});
 }
 </script>

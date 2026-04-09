@@ -152,7 +152,7 @@ try {
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<title><?php echo APP_NAME; ?> - Student Analytics</title>
+<title><?php echo APP_NAME; ?> - Student Dashboard</title>
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -162,35 +162,35 @@ try {
 <link rel="stylesheet" type="text/css" href="cdn.jsdelivr.net/npm/bootstrap-icons%401.10.5/font/bootstrap-icons.css">
 <script src="cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
 <style>
-:root{--student-green:#39b54a;--student-green-deep:#2f9b40;--student-bg:#f4f7fb;--student-card:#ffffff;--student-text:#263238;--student-muted:#6b7c93}
+:root{--student-primary:#00695C;--student-primary-deep:#00544a;--student-primary-soft:#e7f1ef;--student-bg:#f4f7f6;--student-card:#ffffff;--student-text:#263238;--student-muted:#6b7c93}
 body.app{background:var(--student-bg)}
 .student-shell{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
-.student-side{background:linear-gradient(180deg,#34a93f 0%,#3db54a 70%,#2e8f3a 100%);color:#fff;padding:18px 14px;position:sticky;top:0;height:100vh}
-.student-brand{display:flex;align-items:center;gap:10px;padding:8px 10px 18px;border-bottom:1px solid rgba(255,255,255,.15);margin-bottom:14px}
-.student-brand-mark{width:36px;height:36px;border-radius:12px;background:#fff;color:var(--student-green);display:flex;align-items:center;justify-content:center;font-weight:800}
+.student-side{background:#fff;color:var(--student-text);padding:18px 14px;position:sticky;top:0;height:100vh;border-right:1px solid #e3ebe8}
+.student-brand{display:flex;align-items:center;gap:10px;padding:8px 10px 18px;border-bottom:1px solid #e7efec;margin-bottom:14px}
+.student-brand-mark{width:36px;height:36px;border-radius:12px;background:var(--student-primary-soft);color:var(--student-primary);display:flex;align-items:center;justify-content:center;font-weight:800}
 .student-brand-title{font-weight:800;line-height:1.1}
-.student-brand-sub{font-size:.75rem;opacity:.8}
+.student-brand-sub{font-size:.75rem;color:var(--student-muted)}
 .student-menu{display:grid;gap:4px;margin-top:8px}
-.student-menu a{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;color:#fff;text-decoration:none;font-size:.92rem}
-.student-menu a.active,.student-menu a:hover{background:rgba(255,255,255,.16)}
+.student-menu a{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;color:#4a5a68;text-decoration:none;font-size:.92rem}
+.student-menu a.active,.student-menu a:hover{background:var(--student-primary-soft);color:var(--student-primary);font-weight:700}
 .student-main{padding:0 0 28px}
 .student-topbar{background:#fff;border-bottom:1px solid #e7eef5;padding:12px 24px;display:flex;justify-content:space-between;align-items:center;gap:12px}
 .student-tabbar{background:#fdfefe;border-bottom:1px solid #e9eef5;padding:0 24px;display:flex;gap:18px}
 .student-tabbar a{padding:11px 0;color:#607082;text-decoration:none;font-weight:700;font-size:.86rem;border-bottom:3px solid transparent}
-.student-tabbar a.active{color:var(--student-green-deep);border-bottom-color:var(--student-green)}
+.student-tabbar a.active{color:var(--student-primary-deep);border-bottom-color:var(--student-primary)}
 .student-content{padding:20px 24px}
-.hero-banner{background:linear-gradient(135deg,#37b248,#58c05f);border-radius:16px;padding:16px 18px;color:#fff;box-shadow:0 16px 40px rgba(48,154,68,.18);margin-bottom:18px}
+.hero-banner{background:linear-gradient(135deg,var(--student-primary),#0b7d6d);border-radius:16px;padding:16px 18px;color:#fff;box-shadow:0 16px 40px rgba(0,105,92,.16);margin-bottom:18px}
 .profile-card{background:#fff;border:1px solid #e5edf5;border-radius:18px;padding:16px 18px;margin-bottom:18px}
 .profile-head{display:flex;align-items:center;gap:14px}
-.student-avatar{width:52px;height:52px;border-radius:50%;background:#ff6b3d;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.1rem;overflow:hidden}
+.student-avatar{width:52px;height:52px;border-radius:50%;background:var(--student-primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.1rem;overflow:hidden}
 .student-avatar img{width:100%;height:100%;object-fit:cover}
 .section-title{font-size:.8rem;font-weight:800;color:#556270;text-transform:uppercase;margin-bottom:10px}
 .analytics-layout{display:grid;grid-template-columns:1.2fr .88fr;gap:18px}
 .analytics-panel{background:#fff;border:1px solid #e6edf5;border-radius:18px;overflow:hidden}
 .analytics-panel .panel-body{padding:16px}
-.mean-ribbon{background:linear-gradient(90deg,#43ba4e,#36aa45);border-radius:8px;padding:10px 14px;color:#fff;font-weight:700;display:flex;justify-content:space-between;align-items:center}
+.mean-ribbon{background:linear-gradient(90deg,var(--student-primary),#0b7d6d);border-radius:8px;padding:10px 14px;color:#fff;font-weight:700;display:flex;justify-content:space-between;align-items:center}
 .insight-switches{display:flex;gap:10px;margin:14px 0;flex-wrap:wrap}
-.insight-switch{border:1px solid #d7e5d7;background:#fff;color:#3c7b42;border-radius:8px;padding:6px 10px;font-size:.8rem;font-weight:700}
+.insight-switch{border:1px solid #d3e5e0;background:#fff;color:var(--student-primary-deep);border-radius:8px;padding:6px 10px;font-size:.8rem;font-weight:700}
 .metric-boxes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .metric-box{border:1px solid #e8edf3;border-radius:10px;padding:12px;background:#fff}
 .metric-box .label{font-size:.72rem;color:#7a8796;text-transform:uppercase}
@@ -200,7 +200,7 @@ body.app{background:var(--student-bg)}
 .subject-table th{font-size:.75rem;text-transform:uppercase;color:#718096}
 .subject-table .subject-name{font-weight:600}
 .perf-track{height:10px;border-radius:999px;background:#edf1f4;min-width:110px;overflow:hidden}
-.perf-track span{display:block;height:100%;background:linear-gradient(90deg,#7fd84c,#43ba4e)}
+.perf-track span{display:block;height:100%;background:linear-gradient(90deg,#24a07d,var(--student-primary))}
 .trend-up{color:#27ae60;font-weight:800}.trend-down{color:#f0a120;font-weight:800}.trend-steady{color:#8492a6;font-weight:800}
 .bottom-panel{margin-top:18px}
 .note-list{display:grid;gap:10px}
@@ -212,10 +212,10 @@ body.app{background:var(--student-bg)}
 <div class="student-shell">
 	<aside class="student-side">
 		<div class="student-brand">
-			<div class="student-brand-mark">Z</div>
+			<div class="student-brand-mark">E</div>
 			<div>
 				<div class="student-brand-title">Elimu Hub</div>
-				<div class="student-brand-sub">Student Analytics</div>
+				<div class="student-brand-sub">Student Portal</div>
 			</div>
 		</div>
 		<nav class="student-menu">
@@ -239,9 +239,9 @@ body.app{background:var(--student-bg)}
 			</div>
 		</div>
 		<div class="student-tabbar">
-			<a class="active" href="student">Analytics</a>
+			<a class="active" href="student">Overview</a>
 			<a href="student/results">Performance</a>
-			<a href="student/report_card">Profile</a>
+			<a href="student/report_card">Report Card</a>
 			<a href="student/elearning">E-Learning</a>
 		</div>
 
@@ -250,8 +250,8 @@ body.app{background:var(--student-bg)}
 			<div class="analytics-panel"><div class="panel-body"><div class="alert alert-danger mb-0"><?php echo htmlspecialchars($error); ?></div></div></div>
 			<?php } else { ?>
 			<div class="hero-banner">
-				<div class="fw-bold mb-1">Zeraki-style Student Analytics</div>
-				<div class="small">Your child can use published academic insights to track performance, subject trends, and improvement over time.</div>
+				<div class="fw-bold mb-1">Academic Overview</div>
+				<div class="small">Use published academic insights to follow performance, subject trends, and improvement over time.</div>
 			</div>
 
 			<div class="profile-card">
@@ -405,8 +405,8 @@ if (termTrendEl) {
 				smooth: true,
 				data: subjectRows.map(row => row.class_mean),
 				areaStyle: {color: 'rgba(67,186,78,0.18)'},
-				lineStyle: {color: '#43ba4e', width: 2},
-				itemStyle: {color: '#43ba4e'}
+				lineStyle: {color: '#00695C', width: 2},
+				itemStyle: {color: '#00695C'}
 			}
 		]
 	});
@@ -426,8 +426,8 @@ if (historyEl) {
 				type: 'line',
 				smooth: true,
 				data: historyRows.map(row => row.mean),
-				lineStyle: {color: '#43ba4e', width: 2},
-				itemStyle: {color: '#43ba4e'}
+				lineStyle: {color: '#00695C', width: 2},
+				itemStyle: {color: '#00695C'}
 			}
 		]
 	});

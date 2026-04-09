@@ -104,7 +104,7 @@ try {
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<title><?php echo APP_NAME; ?> - Parent Analytics</title>
+<title><?php echo APP_NAME; ?> - Parent Dashboard</title>
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -114,18 +114,18 @@ try {
 <link rel="stylesheet" type="text/css" href="cdn.jsdelivr.net/npm/bootstrap-icons%401.10.5/font/bootstrap-icons.css">
 <script src="cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
 <style>
-body.app{background:#f4f7fb}
+body.app{background:#f4f7f6}
 .parent-shell{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
-.parent-side{background:linear-gradient(180deg,#2a9543,#38b24c 70%,#217a35);color:#fff;padding:18px 14px;position:sticky;top:0;height:100vh}
-.parent-brand{display:flex;gap:10px;align-items:center;padding:8px 10px 18px;border-bottom:1px solid rgba(255,255,255,.15);margin-bottom:14px}
-.parent-mark{width:38px;height:38px;border-radius:12px;background:#fff;color:#2a9543;display:flex;align-items:center;justify-content:center;font-weight:800}
+.parent-side{background:#fff;color:#263238;padding:18px 14px;position:sticky;top:0;height:100vh;border-right:1px solid #e3ebe8}
+.parent-brand{display:flex;gap:10px;align-items:center;padding:8px 10px 18px;border-bottom:1px solid #e7efec;margin-bottom:14px}
+.parent-mark{width:38px;height:38px;border-radius:12px;background:#e7f1ef;color:#00695C;display:flex;align-items:center;justify-content:center;font-weight:800}
 .parent-menu{display:grid;gap:5px}
-.parent-menu a{display:flex;gap:10px;align-items:center;color:#fff;text-decoration:none;padding:10px 12px;border-radius:12px;font-size:.92rem}
-.parent-menu a.active,.parent-menu a:hover{background:rgba(255,255,255,.15)}
+.parent-menu a{display:flex;gap:10px;align-items:center;color:#4a5a68;text-decoration:none;padding:10px 12px;border-radius:12px;font-size:.92rem}
+.parent-menu a.active,.parent-menu a:hover{background:#e7f1ef;color:#00695C;font-weight:700}
 .parent-main{padding-bottom:28px}
 .parent-top{background:#fff;border-bottom:1px solid #e8eef5;padding:12px 24px;display:flex;justify-content:space-between;align-items:center}
 .parent-content{padding:20px 24px}
-.hero{background:linear-gradient(135deg,#36a548,#58c064);border-radius:20px;color:#fff;padding:24px;box-shadow:0 18px 50px rgba(54,165,72,.18);margin-bottom:18px}
+.hero{background:linear-gradient(135deg,#00695C,#0b7d6d);border-radius:20px;color:#fff;padding:24px;box-shadow:0 18px 50px rgba(0,105,92,.16);margin-bottom:18px}
 .hero-grid{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:12px;margin-top:14px}
 .glass-input{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.2);border-radius:12px;color:#fff;padding:10px 12px}
 .stats-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;margin-bottom:18px}
@@ -138,7 +138,7 @@ body.app{background:#f4f7fb}
 .subject-table{width:100%;border-collapse:collapse}
 .subject-table th,.subject-table td{padding:12px 10px;border-bottom:1px solid #edf2f7}
 .subject-table th{font-size:.76rem;text-transform:uppercase;color:#718096}
-.grade-badge{padding:4px 10px;border-radius:999px;background:#eef7ee;color:#2f9b40;font-weight:700;font-size:.82rem}
+.grade-badge{padding:4px 10px;border-radius:999px;background:#e7f1ef;color:#00695C;font-weight:700;font-size:.82rem}
 .note-list{display:grid;gap:10px}
 .note-item{background:#fff;border:1px solid #e9eef5;border-radius:14px;padding:12px 14px}
 @media (max-width:1100px){.parent-shell{grid-template-columns:1fr}.parent-side{position:relative;height:auto}.hero-grid,.stats-grid,.grid-two{grid-template-columns:1fr 1fr}}
@@ -166,7 +166,7 @@ body.app{background:#f4f7fb}
 			<div class="card-panel"><div class="panel-body"><div class="alert alert-danger mb-0"><?php echo htmlspecialchars($error); ?></div></div></div>
 			<?php } else { ?>
 			<div class="hero">
-				<div class="small text-uppercase opacity-75">Parent Learning Analytics</div>
+				<div class="small text-uppercase opacity-75">Parent Dashboard</div>
 				<h2 class="mb-1">Monitor your child’s performance and progress</h2>
 				<div class="small">Choose a child and published term to review academic performance, attendance, fees, and report-ready analytics.</div>
 				<form method="GET" action="parent" class="hero-grid">
@@ -238,7 +238,7 @@ if (parentTrendEl) {
 		tooltip:{trigger:'axis'},
 		xAxis:{type:'category',data:parentTrend.map(item=>item.term_name),axisLabel:{fontSize:10}},
 		yAxis:{type:'value',min:0,max:100},
-		series:[{type:'line',smooth:true,data:parentTrend.map(item=>item.mean),areaStyle:{color:'rgba(54,165,72,0.18)'},lineStyle:{color:'#38b24c',width:2},itemStyle:{color:'#38b24c'}}]
+		series:[{type:'line',smooth:true,data:parentTrend.map(item=>item.mean),areaStyle:{color:'rgba(0,105,92,0.16)'},lineStyle:{color:'#00695C',width:2},itemStyle:{color:'#00695C'}}]
 	});
 }
 </script>
