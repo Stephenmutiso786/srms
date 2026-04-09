@@ -18,6 +18,12 @@ if (!is_array($settings) || !$settings) {
 	app_reply_redirect('danger', 'No settings were submitted.', '../system');
 }
 
+$continuousWeight = isset($settings['continuous_weight']) ? (int)$settings['continuous_weight'] : null;
+$summativeWeight = isset($settings['summative_weight']) ? (int)$settings['summative_weight'] : null;
+if ($continuousWeight !== null && $summativeWeight !== null && ($continuousWeight + $summativeWeight) !== 100) {
+	app_reply_redirect('danger', 'Continuous weight and Summative weight must add up to 100%.', '../system');
+}
+
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
@@ -27,7 +33,7 @@ try {
 
 	$conn->beginTransaction();
 	foreach ($settings as $key => $value) {
-		app_setting_set($conn, (string)$key, trim((string)$value), (int)$account_id);
+		app_setting_set($conn, (string)$key, trim((string)$value), (int)$account_id, true);
 	}
 	$conn->commit();
 	app_reply_redirect('success', 'Application settings saved successfully.', '../system');

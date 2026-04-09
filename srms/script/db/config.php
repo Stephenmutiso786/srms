@@ -176,19 +176,74 @@ function app_column_exists(PDO $conn, string $table, string $column): bool
 	}
 }
 
-function app_audit_log(PDO $conn, string $actorType, string $actorId, string $action, string $entity, string $entityId = ''): void
+function app_tx_savepoint_begin(PDO $conn, string $prefix = 'sp'): ?string
 {
+	if (!$conn->inTransaction()) {
+		return null;
+	}
+	$name = preg_replace('/[^a-zA-Z0-9_]/', '_', $prefix.'_'.uniqid('', true));
+	if ($name === null || $name === '') {
+		return null;
+	}
+	try {
+		$conn->exec("SAVEPOINT {$name}");
+		return $name;
+	} catch (Throwable $e) {
+		return null;
+	}
+}
+
+function app_tx_savepoint_release(PDO $conn, ?string $name): void
+{
+	if (!$name || !$conn->inTransaction()) {
+		return;
+	}
+	try {
+		$conn->exec("RELEASE SAVEPOINT {$name}");
+	} catch (Throwable $e) {
+		// best effort only
+	}
+}
+
+function app_tx_savepoint_rollback(PDO $conn, ?string $name): void
+{
+	if (!$name || !$conn->inTransaction()) {
+		return;
+	}
+	try {
+		$conn->exec("ROLLBACK TO SAVEPOINT {$name}");
+	} catch (Throwable $e) {
+		// best effort only
+	}
+	try {
+		$conn->exec("RELEASE SAVEPOINT {$name}");
+	} catch (Throwable $e) {
+		// best effort only
+	}
+}
+
+function app_audit_log(PDO $conn, string $actorType, string $actorId, string $action, string $entity, string $entityId = '', array $meta = []): void
+{
+	$savepoint = app_tx_savepoint_begin($conn, 'audit_log');
 	try {
 		if (!app_table_exists($conn, 'tbl_audit_logs')) {
+			app_tx_savepoint_release($conn, $savepoint);
 			return;
 		}
 
 		$ip = $_SERVER['REMOTE_ADDR'] ?? '';
 		$ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
+		if (!empty($meta)) {
+			$metaJson = json_encode($meta, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+			if ($metaJson !== false && $metaJson !== '[]' && $metaJson !== '{}') {
+				$ua = trim($ua . ' | meta=' . $metaJson);
+			}
+		}
 		$stmt = $conn->prepare("INSERT INTO tbl_audit_logs (actor_type, actor_id, action, entity, entity_id, ip, user_agent) VALUES (?,?,?,?,?,?,?)");
 		$stmt->execute([$actorType, $actorId, $action, $entity, $entityId, $ip, $ua]);
+		app_tx_savepoint_release($conn, $savepoint);
 	} catch (Throwable $e) {
-		// Best-effort only.
+		app_tx_savepoint_rollback($conn, $savepoint);
 	}
 }
 
@@ -432,12 +487,13 @@ function app_setting_get(PDO $conn, string $key, string $default = ''): string
 	}
 }
 
-function app_setting_set(PDO $conn, string $key, string $value, ?int $userId = null): void
+function app_setting_set(PDO $conn, string $key, string $value, ?int $userId = null, bool $strict = false): void
 {
 	if ($key === '' || !app_table_exists($conn, 'tbl_app_settings')) {
 		return;
 	}
 	$userId = ($userId && $userId > 0) ? $userId : null;
+	$savepoint = (!$strict) ? app_tx_savepoint_begin($conn, 'app_setting') : null;
 	try {
 		if (DBDriver === 'pgsql') {
 			$stmt = $conn->prepare("INSERT INTO tbl_app_settings (setting_key, setting_value, updated_by, updated_at)
@@ -445,6 +501,7 @@ function app_setting_set(PDO $conn, string $key, string $value, ?int $userId = n
 				ON CONFLICT (setting_key)
 				DO UPDATE SET setting_value = EXCLUDED.setting_value, updated_by = EXCLUDED.updated_by, updated_at = CURRENT_TIMESTAMP");
 			$stmt->execute([$key, $value, $userId]);
+			app_tx_savepoint_release($conn, $savepoint);
 			return;
 		}
 
@@ -454,12 +511,17 @@ function app_setting_set(PDO $conn, string $key, string $value, ?int $userId = n
 		if ($id > 0) {
 			$stmt = $conn->prepare("UPDATE tbl_app_settings SET setting_value = ?, updated_by = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
 			$stmt->execute([$value, $userId, $id]);
+			app_tx_savepoint_release($conn, $savepoint);
 			return;
 		}
 		$stmt = $conn->prepare("INSERT INTO tbl_app_settings (setting_key, setting_value, updated_by, updated_at) VALUES (?,?,?,CURRENT_TIMESTAMP)");
 		$stmt->execute([$key, $value, $userId]);
+		app_tx_savepoint_release($conn, $savepoint);
 	} catch (Throwable $e) {
-		// best effort
+		app_tx_savepoint_rollback($conn, $savepoint);
+		if ($strict) {
+			throw $e;
+		}
 	}
 }
 

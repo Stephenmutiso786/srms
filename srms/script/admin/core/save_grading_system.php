@@ -81,6 +81,27 @@ try {
 			throw new RuntimeException('Each grading scale must have Min less than or equal to Max.');
 		}
 	}
+	$gradeNames = [];
+	foreach ($scaleRows as $row) {
+		$normalized = strtoupper(trim((string)$row['grade']));
+		if (isset($gradeNames[$normalized])) {
+			throw new RuntimeException("Duplicate grading scale '{$row['grade']}' detected. Use each grade label once.");
+		}
+		$gradeNames[$normalized] = true;
+	}
+	usort($scaleRows, function (array $left, array $right): int {
+		if ($left['min'] === $right['min']) {
+			return $left['order'] <=> $right['order'];
+		}
+		return $left['min'] <=> $right['min'];
+	});
+	for ($index = 1; $index < count($scaleRows); $index++) {
+		$previous = $scaleRows[$index - 1];
+		$current = $scaleRows[$index];
+		if ($current['min'] <= $previous['max']) {
+			throw new RuntimeException("Grading scales '{$previous['grade']}' and '{$current['grade']}' overlap. Adjust the score ranges so they do not collide.");
+		}
+	}
 
 	$conn->beginTransaction();
 
@@ -109,13 +130,13 @@ try {
 		}
 	}
 
-	$stmt = $conn->prepare("INSERT INTO tbl_grading_scales (grading_system_id, min_score, max_score, grade, points, remark, sort_order, is_active) VALUES (?,?,?,?,?,?,?,?)");
 	foreach ($scaleRows as $row) {
-		try {
-			$stmt->execute([$gradingSystemId, $row['min'], $row['max'], $row['grade'], $row['points'], $row['remark'], $row['order'], $row['active']]);
-		} catch (Throwable $e) {
-			throw new RuntimeException("Failed while saving grading scale '{$row['grade']}': ".$e->getMessage());
-		}
+		app_grading_stmt(
+			$conn,
+			"INSERT INTO tbl_grading_scales (grading_system_id, min_score, max_score, grade, points, remark, sort_order, is_active) VALUES (?,?,?,?,?,?,?,?)",
+			[$gradingSystemId, $row['min'], $row['max'], $row['grade'], $row['points'], $row['remark'], $row['order'], $row['active']],
+			"grading scale '{$row['grade']}'"
+		);
 	}
 
 	$conn->commit();
