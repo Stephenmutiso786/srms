@@ -9,6 +9,7 @@ export default function HomePage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   const backendHost = useMemo(() => appConfig.backendUrl, []);
 
@@ -35,65 +36,70 @@ export default function HomePage() {
   }
 
   return (
-    <main className="landing-shell">
-      <section className="landing-hero">
-        <p className="eyebrow">Elimu Hub Cloud Frontend</p>
-        <h1>Fast frontend on Vercel. Real data on Render.</h1>
-        <p className="hero-copy">
-          This frontend now talks to the live Render backend through secure APIs.
-          Sign in here to open the student, parent, or teacher portals without
-          relying on the older PHP-rendered interface for those views.
-        </p>
-        <div className="backend-banner">
-          <span>Backend:</span>
-          <strong>{backendHost}</strong>
+    <main className="legacy-login-shell">
+      <section className="legacy-login-card">
+        <div className="legacy-login-logo-wrap">
+          <img
+            className="legacy-login-logo"
+            src={`${backendHost}/images/logo/logo.png`}
+            alt="School logo"
+            onError={(event) => {
+              event.currentTarget.style.display = "none";
+            }}
+          />
         </div>
-      </section>
 
-      <section className="login-grid">
-        <div className="feature-card">
-          <h2>Sign In</h2>
-          <p>Use the same school account you already use on the main system.</p>
-          <form className="login-form" onSubmit={handleSubmit}>
-            <label>
-              Username or Email
+        <h1 className="legacy-login-title">{appConfig.name}</h1>
+        <p className="legacy-login-subtitle">Student Results Management System</p>
+
+        <form className="legacy-login-form" onSubmit={handleSubmit}>
+          <label className="legacy-login-label">
+            Username
+            <input
+              className="legacy-login-input"
+              value={username}
+              onChange={(event) => setUsername(event.target.value)}
+              placeholder="Email or Registration Number"
+              required
+            />
+          </label>
+
+          <label className="legacy-login-label">
+            Password
+            <div className="legacy-password-wrap">
               <input
-                className="text-input"
-                value={username}
-                onChange={(event) => setUsername(event.target.value)}
-                placeholder="Enter username or email"
-                required
-              />
-            </label>
-            <label>
-              Password
-              <input
-                className="text-input"
-                type="password"
+                className="legacy-login-input legacy-password-input"
+                type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                placeholder="Enter password"
+                placeholder="Login Password"
                 required
               />
-            </label>
-            {error ? <div className="error-box">{error}</div> : null}
-            <button className="primary-button button-reset" disabled={loading}>
-              {loading ? "Signing in..." : "Sign In"}
-            </button>
-          </form>
-        </div>
+              <button
+                type="button"
+                className="legacy-password-toggle"
+                onClick={() => setShowPassword((prev) => !prev)}
+              >
+                {showPassword ? "Hide" : "Show"}
+              </button>
+            </div>
+          </label>
 
-        <div className="feature-card">
-          <h2>What’s already live</h2>
-          <ul className="check-list">
-            <li>Cross-site login from Vercel to the Render backend</li>
-            <li>Student dashboard + published report card API flow</li>
-            <li>Parent dashboard + child-scoped report card API flow</li>
-            <li>Teacher dashboard with class/subject analytics</li>
-          </ul>
-          <a className="outline-button" href={appConfig.backendUrl}>
-            Open legacy backend
-          </a>
+          <div className="legacy-login-links">
+            <a href={`${backendHost}/`} target="_blank" rel="noreferrer">
+              Open main system
+            </a>
+          </div>
+
+          {error ? <div className="error-box">{error}</div> : null}
+
+          <button className="legacy-login-button" disabled={loading}>
+            {loading ? "SIGNING IN..." : "SIGN IN"}
+          </button>
+        </form>
+
+        <div className="legacy-login-footnote">
+          Connected to live backend: <strong>{backendHost}</strong>
         </div>
       </section>
     </main>
