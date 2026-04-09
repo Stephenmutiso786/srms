@@ -91,8 +91,7 @@ $stmt->execute([$session_id, $account_id, $ip]);
 }
 
 
-setcookie("__SRMS__logged", $row[3], time() + (60 * $cookie_length), "/");
-setcookie("__SRMS__key", $session_id, time() + (60 * $cookie_length), "/");
+app_issue_auth_cookies((string)$row[3], (string)$session_id, false, (int)$cookie_length);
 
 switch ($row[3]) {
 case '0':

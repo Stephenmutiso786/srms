@@ -8,3 +8,8 @@ export function buildLegacyUrl(path = "") {
   const cleanPath = path.startsWith("/") ? path.slice(1) : path;
   return `${appConfig.backendUrl}/${cleanPath}`;
 }
+
+export function buildApiUrl(path = "") {
+  const cleanPath = path.startsWith("/") ? path.slice(1) : path;
+  return `${appConfig.apiBaseUrl}/${cleanPath}`;
+}

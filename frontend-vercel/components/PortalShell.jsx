@@ -1,32 +1,24 @@
-const navConfig = {
-  student: [
-    { label: "Overview", href: "/student" },
-    { label: "Performance", href: "#" },
-    { label: "Report Cards", href: "#" },
-    { label: "E-Learning", href: "#" }
-  ],
-  teacher: [
-    { label: "Overview", href: "/teacher" },
-    { label: "Exams", href: "#" },
-    { label: "Marks Entry", href: "#" },
-    { label: "Classes", href: "#" }
-  ],
-  parent: [
-    { label: "Overview", href: "/parent" },
-    { label: "Report Cards", href: "#" },
-    { label: "Attendance", href: "#" },
-    { label: "Fees", href: "#" }
-  ]
-};
+"use client";
+
+import { logoutRequest } from "@/lib/api";
 
 export default function PortalShell({
   portal,
   title,
   subtitle,
+  user,
+  nav = [],
   summary = [],
+  actions = null,
   children
 }) {
-  const nav = navConfig[portal] || [];
+  async function handleLogout() {
+    try {
+      await logoutRequest();
+    } finally {
+      window.location.href = "/";
+    }
+  }
 
   return (
     <div className="portal-shell">
@@ -38,9 +30,19 @@ export default function PortalShell({
             <div className="brand-subtitle">{title}</div>
           </div>
         </div>
+
+        <div className="sidebar-user">
+          <div className="sidebar-user-name">{user?.name || "Portal User"}</div>
+          <div className="sidebar-user-meta">{portal}</div>
+        </div>
+
         <nav className="nav-list">
           {nav.map((item) => (
-            <a key={item.label} className="nav-item" href={item.href}>
+            <a
+              key={item.label}
+              className={`nav-item ${item.active ? "active" : ""}`}
+              href={item.href}
+            >
               {item.label}
             </a>
           ))}
@@ -53,9 +55,12 @@ export default function PortalShell({
             <div className="page-title">{title}</div>
             <div className="page-subtitle">{subtitle}</div>
           </div>
-          <a className="outline-button" href="/">
-            Home
-          </a>
+          <div className="topbar-actions">
+            {actions}
+            <button className="outline-button button-reset" onClick={handleLogout}>
+              Logout
+            </button>
+          </div>
         </header>
 
         {summary.length > 0 ? (
@@ -74,3 +79,4 @@ export default function PortalShell({
     </div>
   );
 }
+

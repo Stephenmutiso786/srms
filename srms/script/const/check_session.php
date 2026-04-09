@@ -32,7 +32,7 @@ try {
 			return;
 		}
 
-		if (($row['ip_address'] ?? '') !== $current_ip) {
+		if (app_session_enforce_ip() && ($row['ip_address'] ?? '') !== $current_ip) {
 			$res = "3";
 			return;
 		}
@@ -72,7 +72,7 @@ try {
 			return;
 		}
 
-		if (($row['ip_address'] ?? '') !== $current_ip) {
+		if (app_session_enforce_ip() && ($row['ip_address'] ?? '') !== $current_ip) {
 			$res = "3";
 			return;
 		}
@@ -117,7 +117,7 @@ try {
 			return;
 		}
 
-		if (($row['ip_address'] ?? '') !== $current_ip) {
+		if (app_session_enforce_ip() && ($row['ip_address'] ?? '') !== $current_ip) {
 			$res = "3";
 			return;
 		}

@@ -97,6 +97,61 @@ function app_db(): PDO
 	return $pdo;
 }
 
+function app_cookie_secure(): bool
+{
+	$proto = strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? $_SERVER['REQUEST_SCHEME'] ?? ''));
+	$https = strtolower((string)($_SERVER['HTTPS'] ?? ''));
+	if ($proto === 'https' || $https === 'on' || $https === '1') {
+		return true;
+	}
+	return stripos(APP_URL, 'https://') === 0;
+}
+
+function app_request_is_api(): bool
+{
+	$uri = (string)($_SERVER['REQUEST_URI'] ?? '');
+	return strpos($uri, '/api/') !== false;
+}
+
+function app_session_enforce_ip(): bool
+{
+	$raw = strtolower(trim((string)(getenv('SESSION_STRICT_IP') ?: '')));
+	if ($raw !== '') {
+		return !in_array($raw, ['0', 'false', 'no', 'off'], true);
+	}
+	return !app_request_is_api();
+}
+
+function app_issue_auth_cookies(string $level, string $sessionId, bool $crossSite = false, int $minutes = 4320): void
+{
+	$expires = time() + (60 * max(1, $minutes));
+	$options = [
+		'expires' => $expires,
+		'path' => '/',
+		'secure' => app_cookie_secure(),
+		'httponly' => true,
+		'samesite' => $crossSite ? 'None' : 'Lax',
+	];
+	if ($crossSite && !$options['secure']) {
+		$options['secure'] = true;
+	}
+	setcookie('__SRMS__logged', (string)$level, $options);
+	setcookie('__SRMS__key', (string)$sessionId, $options);
+}
+
+function app_clear_auth_cookies(bool $crossSite = false): void
+{
+	$options = [
+		'expires' => time() - 3600,
+		'path' => '/',
+		'secure' => app_cookie_secure() || $crossSite,
+		'httponly' => true,
+		'samesite' => $crossSite ? 'None' : 'Lax',
+	];
+	setcookie('__SRMS__logged', '', $options);
+	setcookie('__SRMS__key', '', $options);
+}
+
 function app_generate_school_id(PDO $conn, string $prefix, int $year, string $table): string
 {
 	$prefix = strtoupper(trim($prefix));
