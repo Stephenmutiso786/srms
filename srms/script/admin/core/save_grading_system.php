@@ -31,6 +31,21 @@ if ($name === '') {
 	app_reply_redirect('danger', 'Enter the grading system name.', '../system');
 }
 
+if (!in_array($type, ['marks', 'cbc'], true)) {
+	app_reply_redirect('danger', 'Invalid grading system type selected.', '../system');
+}
+
+function app_grading_stmt(PDO $conn, string $sql, array $params = [], string $context = 'query'): PDOStatement
+{
+	try {
+		$stmt = $conn->prepare($sql);
+		$stmt->execute($params);
+		return $stmt;
+	} catch (Throwable $e) {
+		throw new RuntimeException("Failed while saving {$context}: ".$e->getMessage());
+	}
+}
+
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
@@ -61,39 +76,46 @@ try {
 		throw new RuntimeException('Add at least one grading scale row.');
 	}
 
-	$conn->beginTransaction();
-	if ($isDefault === 1) {
-		$conn->exec("UPDATE tbl_grading_systems SET is_default = 0");
+	foreach ($scaleRows as $row) {
+		if ($row['min'] > $row['max']) {
+			throw new RuntimeException('Each grading scale must have Min less than or equal to Max.');
+		}
 	}
 
-	if ($gradingSystemId > 0) {
-		$stmt = $conn->prepare("UPDATE tbl_grading_systems SET name = ?, type = ?, description = ?, is_default = ?, is_active = ? WHERE id = ?");
-		$stmt->execute([$name, $type, $description, $isDefault, $isActive, $gradingSystemId]);
+	$conn->beginTransaction();
 
-		$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_exams WHERE grading_system_id = ? AND status IN ('finalized','published')");
-		$stmt->execute([$gradingSystemId]);
+	if ($gradingSystemId > 0) {
+		$stmt = app_grading_stmt($conn, "SELECT COUNT(*) FROM tbl_exams WHERE grading_system_id = ? AND status IN ('finalized','published')", [$gradingSystemId], 'locked exam usage check');
 		$lockedUsage = (int)$stmt->fetchColumn() > 0;
 		if ($lockedUsage) {
 			throw new RuntimeException('This grading system is already used by finalized/published exams. Create a new one instead of changing the scales.');
 		}
 
-		$stmt = $conn->prepare("DELETE FROM tbl_grading_scales WHERE grading_system_id = ?");
-		$stmt->execute([$gradingSystemId]);
+		if ($isDefault === 1) {
+			app_grading_stmt($conn, "UPDATE tbl_grading_systems SET is_default = 0", [], 'default system reset');
+		}
+		app_grading_stmt($conn, "UPDATE tbl_grading_systems SET name = ?, type = ?, description = ?, is_default = ?, is_active = ? WHERE id = ?", [$name, $type, $description, $isDefault, $isActive, $gradingSystemId], 'grading system update');
+		app_grading_stmt($conn, "DELETE FROM tbl_grading_scales WHERE grading_system_id = ?", [$gradingSystemId], 'existing scale cleanup');
 	} else {
+		if ($isDefault === 1) {
+			app_grading_stmt($conn, "UPDATE tbl_grading_systems SET is_default = 0", [], 'default system reset');
+		}
 		if (DBDriver === 'pgsql') {
-			$stmt = $conn->prepare("INSERT INTO tbl_grading_systems (name, type, description, is_default, is_active) VALUES (?,?,?,?,?) RETURNING id");
-			$stmt->execute([$name, $type, $description, $isDefault, $isActive]);
+			$stmt = app_grading_stmt($conn, "INSERT INTO tbl_grading_systems (name, type, description, is_default, is_active) VALUES (?,?,?,?,?) RETURNING id", [$name, $type, $description, $isDefault, $isActive], 'grading system creation');
 			$gradingSystemId = (int)$stmt->fetchColumn();
 		} else {
-			$stmt = $conn->prepare("INSERT INTO tbl_grading_systems (name, type, description, is_default, is_active) VALUES (?,?,?,?,?)");
-			$stmt->execute([$name, $type, $description, $isDefault, $isActive]);
+			app_grading_stmt($conn, "INSERT INTO tbl_grading_systems (name, type, description, is_default, is_active) VALUES (?,?,?,?,?)", [$name, $type, $description, $isDefault, $isActive], 'grading system creation');
 			$gradingSystemId = (int)$conn->lastInsertId();
 		}
 	}
 
 	$stmt = $conn->prepare("INSERT INTO tbl_grading_scales (grading_system_id, min_score, max_score, grade, points, remark, sort_order, is_active) VALUES (?,?,?,?,?,?,?,?)");
 	foreach ($scaleRows as $row) {
-		$stmt->execute([$gradingSystemId, $row['min'], $row['max'], $row['grade'], $row['points'], $row['remark'], $row['order'], $row['active']]);
+		try {
+			$stmt->execute([$gradingSystemId, $row['min'], $row['max'], $row['grade'], $row['points'], $row['remark'], $row['order'], $row['active']]);
+		} catch (Throwable $e) {
+			throw new RuntimeException("Failed while saving grading scale '{$row['grade']}': ".$e->getMessage());
+		}
 	}
 
 	$conn->commit();
