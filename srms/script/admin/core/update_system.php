@@ -32,6 +32,12 @@ header("location:../system");
 echo "Connection failed: " . $e->getMessage();
 }
 }else{
+	$uploadCheck = app_validate_upload($_FILES['company_logo'], ['jpg', 'jpeg', 'png']);
+	if (!$uploadCheck['ok']) {
+		$_SESSION['reply'] = array (array("error", $uploadCheck['message']));
+		header("location:../system");
+		exit;
+	}
 
 $target_dir = "images/logo/";
 $target_file = $target_dir . basename($_FILES["company_logo"]["name"]);

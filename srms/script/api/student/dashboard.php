@@ -39,11 +39,8 @@ try {
 		$publicationState = report_term_publish_state($conn, $classId, $termId);
 		$isPublished = report_term_is_published($conn, $classId, $termId);
 		if ($isPublished) {
-			$stmt = $conn->prepare("SELECT id FROM tbl_report_cards WHERE student_id = ? AND term_id = ? LIMIT 1");
-			$stmt->execute([$studentId, $termId]);
-			$reportId = (int)$stmt->fetchColumn();
-			if ($reportId > 0) {
-				$reportCard = report_load_card($conn, $reportId);
+			$reportCard = report_ensure_card_generated($conn, $studentId, $classId, $termId);
+			if ($reportCard) {
 				$summary['mean'] = (float)($reportCard['mean'] ?? 0);
 				$summary['grade'] = (string)($reportCard['grade'] ?? 'N/A');
 				$summary['position'] = isset($reportCard['position'], $reportCard['total_students']) ? ($reportCard['position'] . '/' . $reportCard['total_students']) : '-';

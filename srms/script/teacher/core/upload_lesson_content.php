@@ -33,6 +33,10 @@ try {
   }
 
   if (!empty($_FILES['file']['name'])) {
+    $uploadCheck = app_validate_upload($_FILES['file']);
+    if (!$uploadCheck['ok']) {
+      throw new RuntimeException($uploadCheck['message']);
+    }
     $targetDir = __DIR__ . '/../../uploads/elearning/lessons/';
     if (!is_dir($targetDir)) {
       mkdir($targetDir, 0775, true);

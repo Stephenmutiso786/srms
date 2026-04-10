@@ -43,6 +43,12 @@ header("location:../register_students");
 if($_FILES['image']['name'] == "")  {
 $img = 'DEFAULT';
 }else{
+	$uploadCheck = app_validate_upload($_FILES['image'], ['jpg', 'jpeg', 'png']);
+	if (!$uploadCheck['ok']) {
+		$_SESSION['reply'] = array (array("error", $uploadCheck['message']));
+		header("location:../register_students");
+		exit;
+	}
 
 $target_dir = "images/students/";
 $img_ = unserialize($photo);

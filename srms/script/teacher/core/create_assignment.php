@@ -38,6 +38,10 @@ try {
   }
 
   if (!empty($_FILES['attachment']['name'])) {
+    $uploadCheck = app_validate_upload($_FILES['attachment']);
+    if (!$uploadCheck['ok']) {
+      throw new RuntimeException($uploadCheck['message']);
+    }
     $targetDir = __DIR__ . '/../../uploads/elearning/assignments/';
     if (!is_dir($targetDir)) {
       mkdir($targetDir, 0775, true);

@@ -40,6 +40,12 @@ header("location:../students");
 if($_FILES['image']['name'] == "")  {
 $img = $_POST['old_photo'];
 }else{
+	$uploadCheck = app_validate_upload($_FILES['image'], ['jpg', 'jpeg', 'png']);
+	if (!$uploadCheck['ok']) {
+		$_SESSION['reply'] = array (array("error", $uploadCheck['message']));
+		header("location:../students");
+		exit;
+	}
 
 $target_dir = "images/students/";
 $img_ = unserialize($photo);

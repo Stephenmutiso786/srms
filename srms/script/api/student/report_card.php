@@ -25,13 +25,7 @@ try {
 		api_fail('No published report card is available for that term.', 404);
 	}
 
-	$stmt = $conn->prepare("SELECT id FROM tbl_report_cards WHERE student_id = ? AND term_id = ? LIMIT 1");
-	$stmt->execute([$studentId, $termId]);
-	$reportId = (int)$stmt->fetchColumn();
-	if ($reportId < 1) {
-		api_fail('Report card not found.', 404);
-	}
-	$card = report_load_card($conn, $reportId);
+	$card = report_ensure_card_generated($conn, $studentId, (int)$classId, $termId);
 	if (!$card) {
 		api_fail('Report card not found.', 404);
 	}

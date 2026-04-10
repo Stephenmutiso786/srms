@@ -18,6 +18,12 @@ if (empty($_FILES['file']['tmp_name'])) {
 	header("location:../import_export");
 	exit;
 }
+$uploadCheck = app_validate_upload($_FILES['file'], ['csv']);
+if (!$uploadCheck['ok']) {
+	$_SESSION['reply'] = array (array("danger", $uploadCheck['message']));
+	header("location:../import_export");
+	exit;
+}
 
 $total = 0;
 $success = 0;

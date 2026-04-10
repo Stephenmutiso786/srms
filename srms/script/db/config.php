@@ -968,5 +968,39 @@ function app_unserialize($value): array
 	return is_array($decoded) ? $decoded : [];
 }
 
+function app_max_upload_bytes(): int
+{
+	return 1024 * 1024;
+}
+
+function app_validate_upload(array $file, array $allowedExtensions = [], ?int $maxBytes = null): array
+{
+	$maxBytes = $maxBytes ?? app_max_upload_bytes();
+	$hasFile = !empty($file['name']) || !empty($file['tmp_name']);
+	if (!$hasFile) {
+		return ['ok' => false, 'message' => 'No file uploaded.', 'extension' => ''];
+	}
+
+	$error = (int)($file['error'] ?? UPLOAD_ERR_OK);
+	if ($error !== UPLOAD_ERR_OK) {
+		return ['ok' => false, 'message' => 'Upload failed. Please try again with a smaller file.', 'extension' => ''];
+	}
+
+	$size = (int)($file['size'] ?? 0);
+	if ($size < 1) {
+		return ['ok' => false, 'message' => 'Uploaded file is empty.', 'extension' => ''];
+	}
+	if ($size > $maxBytes) {
+		return ['ok' => false, 'message' => 'Files larger than 1MB are not allowed.', 'extension' => ''];
+	}
+
+	$extension = strtolower(pathinfo((string)($file['name'] ?? ''), PATHINFO_EXTENSION));
+	if ($allowedExtensions && !in_array($extension, $allowedExtensions, true)) {
+		return ['ok' => false, 'message' => 'Invalid file type.', 'extension' => $extension];
+	}
+
+	return ['ok' => true, 'message' => '', 'extension' => $extension];
+}
+
 date_default_timezone_set('Africa/Dar_es_Salaam');
 ?>

@@ -122,21 +122,41 @@ function report_fetch_subjects_for_class(PDO $conn, int $classId): array
 
 function report_fetch_scores(PDO $conn, string $studentId, int $classId, int $termId, array $subjects): array
 {
+	$subjectMap = [];
+	foreach ($subjects as $subject) {
+		$subjectMap[(int)$subject['combination_id']] = $subject;
+	}
+	$latest = [];
+	if (!empty($subjectMap)) {
+		$params = [$classId, $termId, $studentId];
+		$sql = "SELECT er.student, er.subject_combination, er.score, er.exam_id, er.grade_label, er.grade_points
+			FROM tbl_exam_results er
+			INNER JOIN (
+				SELECT student, subject_combination, MAX(id) AS latest_id
+				FROM tbl_exam_results
+				WHERE class = ? AND term = ? AND student = ?
+				GROUP BY student, subject_combination
+			) latest ON latest.latest_id = er.id";
+		$stmt = $conn->prepare($sql);
+		$stmt->execute($params);
+		foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+			$latest[(int)$row['subject_combination']] = $row;
+		}
+	}
+
 	$scores = [];
+	$gradingCache = [];
 	foreach ($subjects as $subject) {
 		$score = 0;
-		$stmt = $conn->prepare("SELECT score, exam_id, grade_label, grade_points
-			FROM tbl_exam_results
-			WHERE class = ? AND subject_combination = ? AND term = ? AND student = ?
-			ORDER BY id DESC
-			LIMIT 1");
-		$stmt->execute([$classId, $subject['combination_id'], $termId, $studentId]);
-		$value = $stmt->fetch(PDO::FETCH_ASSOC);
+		$value = $latest[(int)$subject['combination_id']] ?? null;
 		if ($value && $value['score'] !== null && $value['score'] !== '') {
 			$score = (float)$value['score'];
 		}
 		$examId = isset($value['exam_id']) ? (int)$value['exam_id'] : null;
-		$gradingSystemId = report_exam_grading_system_id($conn, $examId);
+		if (!array_key_exists((int)$examId, $gradingCache)) {
+			$gradingCache[(int)$examId] = report_exam_grading_system_id($conn, $examId);
+		}
+		$gradingSystemId = $gradingCache[(int)$examId];
 		list($gradeLabel, $gradeRemark, $gradePoints) = report_grade_for_score($conn, $score, $gradingSystemId);
 		$scores[] = [
 			'subject_id' => (int)$subject['subject'],
@@ -310,14 +330,53 @@ function report_rank_students(PDO $conn, int $classId, int $termId): array
 {
 	$stmt = $conn->prepare("SELECT id FROM tbl_students WHERE class = ?");
 	$stmt->execute([$classId]);
-	$students = $stmt->fetchAll(PDO::FETCH_COLUMN);
+	$students = array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN));
 	$rankings = [];
-	foreach ($students as $studentId) {
-		$report = report_compute_for_student($conn, (string)$studentId, $classId, $termId);
-		$rankings[] = [
-			'student_id' => (string)$studentId,
-			'total' => $report['total']
-		];
+	$subjects = report_fetch_subjects_for_class($conn, $classId);
+	$weights = report_get_weight_map($conn);
+	$settings = report_get_settings($conn);
+	$subjectByCombination = [];
+	foreach ($subjects as $subject) {
+		$subjectByCombination[(int)$subject['combination_id']] = (int)$subject['subject'];
+	}
+
+	if (!empty($students) && !empty($subjectByCombination)) {
+		$stmt = $conn->prepare("SELECT er.student, er.subject_combination, er.score
+			FROM tbl_exam_results er
+			INNER JOIN (
+				SELECT student, subject_combination, MAX(id) AS latest_id
+				FROM tbl_exam_results
+				WHERE class = ? AND term = ?
+				GROUP BY student, subject_combination
+			) latest ON latest.latest_id = er.id");
+		$stmt->execute([$classId, $termId]);
+		$bucket = [];
+		foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+			$studentId = (string)$row['student'];
+			$combinationId = (int)$row['subject_combination'];
+			if (!isset($subjectByCombination[$combinationId])) {
+				continue;
+			}
+			$subjectId = $subjectByCombination[$combinationId];
+			$weight = (!empty($settings['use_weights']) && isset($weights[$subjectId])) ? (float)$weights[$subjectId] : 1.0;
+			$bucket[$studentId][] = ((float)$row['score']) * $weight;
+		}
+		foreach ($students as $studentId) {
+			$weightedScores = $bucket[$studentId] ?? [];
+			rsort($weightedScores, SORT_NUMERIC);
+			$bestOf = (int)$settings['best_of'];
+			if ($bestOf > 0 && count($weightedScores) > $bestOf) {
+				$weightedScores = array_slice($weightedScores, 0, $bestOf);
+			}
+			$rankings[] = [
+				'student_id' => $studentId,
+				'total' => round(array_sum($weightedScores), 2),
+			];
+		}
+	} else {
+		foreach ($students as $studentId) {
+			$rankings[] = ['student_id' => $studentId, 'total' => 0];
+		}
 	}
 	usort($rankings, function ($a, $b) {
 		return $b['total'] <=> $a['total'];
@@ -432,6 +491,9 @@ function report_subject_breakdown(PDO $conn, string $studentId, int $classId, in
 	$weights = report_get_weight_map($conn);
 	$settings = report_get_settings($conn);
 	$rows = [];
+	$combinationIds = array_map(function ($subject) {
+		return (int)$subject['combination_id'];
+	}, $subjects);
 
 	$prevTermId = 0;
 	if (app_table_exists($conn, 'tbl_terms')) {
@@ -440,25 +502,60 @@ function report_subject_breakdown(PDO $conn, string $studentId, int $classId, in
 		$prevTermId = (int)$stmt->fetchColumn();
 	}
 
-	foreach ($subjects as $subject) {
-		$currentScore = 0.0;
-		$stmt = $conn->prepare("SELECT score FROM tbl_exam_results WHERE student = ? AND class = ? AND term = ? AND subject_combination = ? LIMIT 1");
-		$stmt->execute([$studentId, $classId, $termId, $subject['combination_id']]);
-		$value = $stmt->fetchColumn();
-		if ($value !== false && $value !== null && $value !== '') {
-			$currentScore = (float)$value;
+	$currentStudentScores = [];
+	$currentMeans = [];
+	$previousMeans = [];
+	if (!empty($combinationIds)) {
+		$placeholders = implode(',', array_fill(0, count($combinationIds), '?'));
+
+		$stmt = $conn->prepare("SELECT er.subject_combination, er.score
+			FROM tbl_exam_results er
+			INNER JOIN (
+				SELECT student, subject_combination, MAX(id) AS latest_id
+				FROM tbl_exam_results
+				WHERE class = ? AND term = ? AND student = ?
+				GROUP BY student, subject_combination
+			) latest ON latest.latest_id = er.id");
+		$stmt->execute([$classId, $termId, $studentId]);
+		foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+			$currentStudentScores[(int)$row['subject_combination']] = (float)$row['score'];
 		}
 
-		$stmt = $conn->prepare("SELECT AVG(score) FROM tbl_exam_results WHERE class = ? AND term = ? AND subject_combination = ?");
-		$stmt->execute([$classId, $termId, $subject['combination_id']]);
-		$classMean = round((float)$stmt->fetchColumn(), 2);
+		$stmt = $conn->prepare("SELECT latest.subject_combination, AVG(er.score) AS avg_score
+			FROM tbl_exam_results er
+			INNER JOIN (
+				SELECT student, subject_combination, MAX(id) AS latest_id
+				FROM tbl_exam_results
+				WHERE class = ? AND term = ? AND subject_combination IN ($placeholders)
+				GROUP BY student, subject_combination
+			) latest ON latest.latest_id = er.id
+			GROUP BY latest.subject_combination");
+		$stmt->execute(array_merge([$classId, $termId], $combinationIds));
+		foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+			$currentMeans[(int)$row['subject_combination']] = round((float)$row['avg_score'], 2);
+		}
 
-		$previousMean = 0.0;
 		if ($prevTermId > 0) {
-			$stmt = $conn->prepare("SELECT AVG(score) FROM tbl_exam_results WHERE class = ? AND term = ? AND subject_combination = ?");
-			$stmt->execute([$classId, $prevTermId, $subject['combination_id']]);
-			$previousMean = round((float)$stmt->fetchColumn(), 2);
+			$stmt = $conn->prepare("SELECT latest.subject_combination, AVG(er.score) AS avg_score
+				FROM tbl_exam_results er
+				INNER JOIN (
+					SELECT student, subject_combination, MAX(id) AS latest_id
+					FROM tbl_exam_results
+					WHERE class = ? AND term = ? AND subject_combination IN ($placeholders)
+					GROUP BY student, subject_combination
+				) latest ON latest.latest_id = er.id
+				GROUP BY latest.subject_combination");
+			$stmt->execute(array_merge([$classId, $prevTermId], $combinationIds));
+			foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+				$previousMeans[(int)$row['subject_combination']] = round((float)$row['avg_score'], 2);
+			}
 		}
+	}
+
+	foreach ($subjects as $subject) {
+		$currentScore = (float)($currentStudentScores[(int)$subject['combination_id']] ?? 0.0);
+		$classMean = (float)($currentMeans[(int)$subject['combination_id']] ?? 0.0);
+		$previousMean = (float)($previousMeans[(int)$subject['combination_id']] ?? 0.0);
 
 		$change = round($classMean - $previousMean, 2);
 		$trend = $change > 0 ? 'up' : ($change < 0 ? 'down' : 'steady');
@@ -486,6 +583,110 @@ function report_subject_breakdown(PDO $conn, string $studentId, int $classId, in
 	});
 
 	return $rows;
+}
+
+function report_store_card(PDO $conn, string $studentId, int $classId, int $termId, array $report, array $positions, int $totalStudents, ?int $generatedBy = null): int
+{
+	$position = $positions[$studentId] ?? 0;
+	$code = report_generate_code($studentId);
+	$payload = [
+		'student_id' => $studentId,
+		'class_id' => $classId,
+		'term_id' => $termId,
+		'total' => $report['total'],
+		'mean' => $report['mean'],
+		'grade' => $report['grade'],
+		'position' => $position
+	];
+	$hash = report_generate_hash($payload);
+	$trend = $report['trend'];
+
+	$stmt = $conn->prepare("SELECT id, verification_code FROM tbl_report_cards WHERE student_id = ? AND term_id = ? LIMIT 1");
+	$stmt->execute([$studentId, $termId]);
+	$existing = $stmt->fetch(PDO::FETCH_ASSOC);
+	$reportId = 0;
+	if ($existing) {
+		$reportId = (int)$existing['id'];
+		$existingCode = trim((string)($existing['verification_code'] ?? ''));
+		if ($existingCode === '') {
+			$existingCode = $code;
+		}
+		$stmt = $conn->prepare("UPDATE tbl_report_cards
+			SET total = ?, mean = ?, grade = ?, remark = ?, position = ?, total_students = ?, trend = ?, report_hash = ?, verification_code = ?, generated_by = ?, generated_at = CURRENT_TIMESTAMP
+			WHERE id = ?");
+		$stmt->execute([
+			$report['total'],
+			$report['mean'],
+			$report['grade'],
+			$report['remark'],
+			$position,
+			$totalStudents,
+			$trend,
+			$hash,
+			$existingCode,
+			$generatedBy,
+			$reportId
+		]);
+	} else {
+		$stmt = $conn->prepare("INSERT INTO tbl_report_cards (student_id, class_id, term_id, total, mean, grade, remark, position, total_students, trend, verification_code, report_hash, generated_by)
+			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)");
+		$stmt->execute([
+			$studentId,
+			$classId,
+			$termId,
+			$report['total'],
+			$report['mean'],
+			$report['grade'],
+			$report['remark'],
+			$position,
+			$totalStudents,
+			$trend,
+			$code,
+			$hash,
+			$generatedBy
+		]);
+		$reportId = (int)$conn->lastInsertId();
+	}
+
+	if (app_table_exists($conn, 'tbl_report_card_subjects')) {
+		$stmt = $conn->prepare("DELETE FROM tbl_report_card_subjects WHERE report_id = ?");
+		$stmt->execute([$reportId]);
+		$insert = $conn->prepare("INSERT INTO tbl_report_card_subjects (report_id, subject_id, score, grade, weight, teacher_id) VALUES (?,?,?,?,?,?)");
+		foreach ($report['subjects'] as $subject) {
+			$insert->execute([
+				$reportId,
+				$subject['subject_id'],
+				$subject['score'],
+				$subject['grade'],
+				$subject['weight'],
+				$subject['teacher_id']
+			]);
+		}
+	}
+
+	return $reportId;
+}
+
+function report_ensure_card_generated(PDO $conn, string $studentId, int $classId, int $termId, ?int $generatedBy = null): ?array
+{
+	if (!app_table_exists($conn, 'tbl_report_cards') || !report_term_is_published($conn, $classId, $termId)) {
+		return null;
+	}
+
+	$stmt = $conn->prepare("SELECT id FROM tbl_report_cards WHERE student_id = ? AND term_id = ? LIMIT 1");
+	$stmt->execute([$studentId, $termId]);
+	$reportId = (int)$stmt->fetchColumn();
+	if ($reportId > 0) {
+		$card = report_load_card($conn, $reportId);
+		if ($card && !empty($card['subjects'])) {
+			return $card;
+		}
+	}
+
+	$rankData = report_rank_students($conn, $classId, $termId);
+	$report = report_compute_for_student($conn, $studentId, $classId, $termId);
+	$reportId = report_store_card($conn, $studentId, $classId, $termId, $report, $rankData['positions'], (int)$rankData['total_students'], $generatedBy);
+	return report_load_card($conn, $reportId);
 }
 
 function report_teacher_has_class_access(PDO $conn, int $teacherId, int $classId, int $termId = 0): bool

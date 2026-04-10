@@ -39,6 +39,7 @@ if ($recId === '') {
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	$senderId = isset($account_id) ? (int)$account_id : null;
 
 	if (!app_table_exists($conn, 'tbl_messages')) {
 		$_SESSION['reply'] = array (array("danger", "Messages table missing. Run migration 009."));
@@ -47,7 +48,7 @@ try {
 	}
 
 	$stmt = $conn->prepare("INSERT INTO tbl_messages (sender_type, sender_id, recipient_type, recipient_id, subject, body) VALUES (?,?,?,?,?,?)");
-	$stmt->execute(['admin', $myid, $recType, $recId, $subject, $body]);
+	$stmt->execute(['admin', $senderId, $recType, $recId, $subject, $body]);
 
 	$_SESSION['reply'] = array (array("success", "Message sent."));
 	header("location:../communication");

@@ -40,15 +40,12 @@ try {
 		exit;
 	}
 
-	$stmt = $conn->prepare("SELECT id FROM tbl_report_cards WHERE student_id = ? AND term_id = ? LIMIT 1");
-	$stmt->execute([$studentId, $termId]);
-	$reportId = (int)$stmt->fetchColumn();
-	if ($reportId < 1) {
+	$card = report_ensure_card_generated($conn, $studentId, $classId, $termId);
+	if (!$card) {
 		header("location:report_card?term=" . $termId . "&student=" . $studentId);
 		exit;
 	}
 
-	$card = report_load_card($conn, $reportId);
 	$attendance = report_attendance_summary($conn, $studentId, $classId, $termId);
 	$feesBalance = report_fees_balance($conn, $studentId, $termId);
 	$settings = report_get_settings($conn);

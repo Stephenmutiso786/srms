@@ -58,11 +58,8 @@ try {
 		}
 
 		if ($selectedTermId > 0 && report_term_is_published($conn, (int)$selectedStudent['class_id'], $selectedTermId)) {
-			$stmt = $conn->prepare("SELECT id FROM tbl_report_cards WHERE student_id = ? AND term_id = ? LIMIT 1");
-			$stmt->execute([$selectedStudentId, $selectedTermId]);
-			$reportId = (int)$stmt->fetchColumn();
-			if ($reportId > 0) {
-				$card = report_load_card($conn, $reportId);
+			$card = report_ensure_card_generated($conn, (string)$selectedStudentId, (int)$selectedStudent['class_id'], $selectedTermId);
+			if ($card) {
 				$summary['avg_score'] = (float)($card['mean'] ?? 0);
 				$summary['grade'] = (string)($card['grade'] ?? 'N/A');
 				$summary['position'] = isset($card['position'], $card['total_students']) ? ($card['position'] . ' / ' . $card['total_students']) : '-';
@@ -100,4 +97,3 @@ try {
 } catch (Throwable $e) {
 	api_fail($e->getMessage(), 500);
 }
-

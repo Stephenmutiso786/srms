@@ -9,15 +9,11 @@ require_once(__DIR__ . '/../const/id_card_engine.php');
 function api_allowed_origins(): array
 {
 	$list = [];
-	$raw = getenv('FRONTEND_ORIGINS') ?: '';
-	foreach (explode(',', $raw) as $origin) {
-		$origin = trim($origin);
-		if ($origin !== '') {
-			$list[] = rtrim($origin, '/');
-		}
+	$currentHost = api_backend_base_url();
+	if ($currentHost !== '') {
+		$list[] = rtrim($currentHost, '/');
 	}
 	$defaults = [
-		'https://srms-n7g2.onrender.com',
 		'http://localhost:3000',
 		'http://127.0.0.1:3000',
 	];

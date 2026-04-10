@@ -28,6 +28,7 @@ try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 	app_ensure_overall_grading_defaults($conn);
+	$createdBy = isset($account_id) ? (int)$account_id : null;
 
 	if ($gradingSystemId < 1 && app_table_exists($conn, 'tbl_grading_systems')) {
 		$stmt = $conn->prepare("SELECT id FROM tbl_grading_systems WHERE is_active = 1 ORDER BY is_default DESC, id ASC LIMIT 1");
@@ -95,11 +96,11 @@ try {
 		}
 		if (DBDriver === 'pgsql') {
 			$stmt = $conn->prepare("INSERT INTO tbl_exams (name, term_id, class_id, exam_type_id, grading_system_id, status, created_by) VALUES (?,?,?,?,?,?,?) RETURNING id");
-			$stmt->execute([$name, $termId, $classId, $examTypeId, $gradingSystemId, 'draft', $myid]);
+			$stmt->execute([$name, $termId, $classId, $examTypeId, $gradingSystemId, 'draft', $createdBy]);
 			$examId = (int)$stmt->fetchColumn();
 		} else {
 			$stmt = $conn->prepare("INSERT INTO tbl_exams (name, term_id, class_id, exam_type_id, grading_system_id, status, created_by) VALUES (?,?,?,?,?,?,?)");
-			$stmt->execute([$name, $termId, $classId, $examTypeId, $gradingSystemId, 'draft', $myid]);
+			$stmt->execute([$name, $termId, $classId, $examTypeId, $gradingSystemId, 'draft', $createdBy]);
 			$examId = (int)$conn->lastInsertId();
 		}
 		foreach ($validSubjects as $subjectId) {

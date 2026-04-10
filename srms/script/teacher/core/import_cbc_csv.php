@@ -16,6 +16,12 @@ if (empty($_FILES['file']['tmp_name'])) {
 	header("location:../cbc_entry");
 	exit;
 }
+$uploadCheck = app_validate_upload($_FILES['file'], ['csv']);
+if (!$uploadCheck['ok']) {
+	$_SESSION['reply'] = array (array("danger", $uploadCheck['message']));
+	header("location:../cbc_entry");
+	exit;
+}
 
 $termId = (int)($_POST['term_id'] ?? 0);
 $classId = (int)($_POST['class_id'] ?? 0);

@@ -33,6 +33,7 @@ if ($title === '' || $message === '') {
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	$createdBy = isset($account_id) ? (int)$account_id : null;
 
 	if (!app_table_exists($conn, 'tbl_notifications')) {
 		$_SESSION['reply'] = array (array("danger", "Notifications table missing. Run migration 008."));
@@ -41,7 +42,7 @@ try {
 	}
 
 	$stmt = $conn->prepare("INSERT INTO tbl_notifications (title, message, audience, class_id, term_id, link, created_by) VALUES (?,?,?,?,?,?,?)");
-	$stmt->execute([$title, $message, $audience, $classId, $termId, $link, $myid]);
+	$stmt->execute([$title, $message, $audience, $classId, $termId, $link, $createdBy]);
 
 	$_SESSION['reply'] = array (array("success", "Notification sent."));
 	header("location:../notifications");

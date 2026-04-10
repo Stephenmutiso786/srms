@@ -42,11 +42,8 @@ try {
 		$publicationState = report_term_publish_state($conn, $classId, $termId);
 		$isPublished = report_term_is_published($conn, $classId, $termId);
 		if ($isPublished) {
-			$stmt = $conn->prepare("SELECT id FROM tbl_report_cards WHERE student_id = ? AND term_id = ? LIMIT 1");
-			$stmt->execute([$studentId, $termId]);
-			$reportId = (int)$stmt->fetchColumn();
-			if ($reportId > 0) {
-				$card = report_load_card($conn, $reportId);
+			$card = report_ensure_card_generated($conn, $studentId, $classId, $termId);
+			if ($card) {
 				$summary = [
 					'mean' => (float)($card['mean'] ?? 0),
 					'grade' => (string)($card['grade'] ?? 'N/A'),

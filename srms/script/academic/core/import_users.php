@@ -5,6 +5,12 @@ require_once('db/config.php');
 require_once('const/phpexcel/SimpleXLSX.php');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+$uploadCheck = app_validate_upload($_FILES['file'], ['xlsx', 'xls']);
+if (!$uploadCheck['ok']) {
+$_SESSION['reply'] = array (array("danger", $uploadCheck['message']));
+header("location:../teachers");
+exit;
+}
 $file = $_FILES['file']['tmp_name'];
 $st_rec = 0;
 

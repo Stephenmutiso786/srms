@@ -32,11 +32,8 @@ try {
 	if (app_table_exists($conn, 'tbl_results_locks') && !app_results_locked($conn, (int)$student['class_id'], $termId)) {
 		$card = null;
 	} else {
-		$stmt = $conn->prepare("SELECT id FROM tbl_report_cards WHERE student_id = ? AND term_id = ? LIMIT 1");
-		$stmt->execute([$studentId, $termId]);
-		$reportId = (int)$stmt->fetchColumn();
-		if ($reportId > 0) {
-			$card = report_load_card($conn, $reportId);
+		$card = report_ensure_card_generated($conn, $studentId, (int)$student['class_id'], $termId, (int)$account_id);
+		if ($card) {
 			$attendance = report_attendance_summary($conn, $studentId, (int)$student['class_id'], $termId);
 			$feesBalance = report_fees_balance($conn, $studentId, $termId);
 		}

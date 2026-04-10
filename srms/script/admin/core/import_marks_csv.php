@@ -18,6 +18,12 @@ if (empty($_FILES['file']['tmp_name'])) {
 	header("location:../import_export");
 	exit;
 }
+$uploadCheck = app_validate_upload($_FILES['file'], ['csv']);
+if (!$uploadCheck['ok']) {
+	$_SESSION['reply'] = array (array("danger", $uploadCheck['message']));
+	header("location:../import_export");
+	exit;
+}
 
 $classIdForm = (int)($_POST['class_id'] ?? 0);
 $termIdForm = (int)($_POST['term_id'] ?? 0);

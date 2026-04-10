@@ -6,6 +6,12 @@ require_once('const/check_session.php');
 if (!isset($res) || $res !== "1" || !isset($level) || $level !== "2") { header("location:../../"); exit; }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+$uploadCheck = app_validate_upload($_FILES['file'], ['csv']);
+if (!$uploadCheck['ok']) {
+$_SESSION['reply'] = array (array("error", $uploadCheck['message']));
+header("location:../import_results");
+exit;
+}
 $file = $_FILES['file']['tmp_name'];
 $file = fopen($file, "r");
 $st_rec = 0;
