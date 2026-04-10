@@ -78,6 +78,7 @@ function app_require_permission(string $permission, string $redirect = '../'): v
 	}
 
 	if (!isset($GLOBALS['account_id']) || !isset($GLOBALS['level'])) {
+		$redirect = app_normalize_redirect_target($redirect);
 		header("location:$redirect");
 		exit;
 	}
@@ -88,11 +89,13 @@ function app_require_permission(string $permission, string $redirect = '../'): v
 		$allowed = app_has_permission($conn, (string)$GLOBALS['account_id'], (string)$GLOBALS['level'], $permission);
 		if (!$allowed) {
 			$_SESSION['reply'] = array (array("danger", "Access denied: missing permission ($permission)."));
+			$redirect = app_normalize_redirect_target($redirect);
 			header("location:$redirect");
 			exit;
 		}
 	} catch (Throwable $e) {
 		$_SESSION['reply'] = array (array("danger", "Permission check failed."));
+		$redirect = app_normalize_redirect_target($redirect);
 		header("location:$redirect");
 		exit;
 	}
@@ -119,6 +122,7 @@ function app_require_unlocked(string $module, string $redirect = '../'): void
 	}
 
 	if (!isset($GLOBALS['account_id']) || !isset($GLOBALS['level'])) {
+		$redirect = app_normalize_redirect_target($redirect);
 		header("location:$redirect");
 		exit;
 	}
@@ -131,12 +135,30 @@ function app_require_unlocked(string $module, string $redirect = '../'): void
 		}
 		if (app_module_locked($conn, $module)) {
 			$_SESSION['reply'] = array (array("danger", "Module locked by Super Admin."));
+			$redirect = app_normalize_redirect_target($redirect);
 			header("location:$redirect");
 			exit;
 		}
 	} catch (Throwable $e) {
 		$_SESSION['reply'] = array (array("danger", "Module lock check failed."));
+		$redirect = app_normalize_redirect_target($redirect);
 		header("location:$redirect");
 		exit;
 	}
+}
+
+function app_normalize_redirect_target(string $redirect): string
+{
+	$redirect = trim($redirect);
+	if ($redirect === '' || $redirect === '../' || str_starts_with($redirect, '../') || str_starts_with($redirect, './') || str_starts_with($redirect, '/') || preg_match('/^https?:/i', $redirect)) {
+		return $redirect === '' ? '../' : $redirect;
+	}
+
+	$scriptName = (string)($_SERVER['SCRIPT_NAME'] ?? '');
+	$dir = trim((string)dirname($scriptName), '/');
+	if ($dir === '') {
+		return $redirect;
+	}
+
+	return '../' . ltrim($redirect, '/');
 }
