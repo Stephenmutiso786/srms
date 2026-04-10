@@ -2,19 +2,11 @@
 
 function app_default_permissions_for_level(int $level): array
 {
-	if ($level === 9) {
+	if (in_array($level, [0, 1, 9], true)) {
 		return ['*'];
 	}
 
 	switch ($level) {
-			case 0:
-				return [
-					'system.manage','audit.view','students.manage','staff.manage','attendance.manage','exams.manage',
-					'results.approve','results.lock','marks.review','report.generate','report.view','finance.manage','finance.view',
-					'communication.manage','transport.manage','library.manage','inventory.manage'
-				];
-		case 1:
-			return ['attendance.manage','exams.manage','results.approve','report.generate','report.view'];
 		case 2:
 			return ['attendance.manage','marks.enter','report.view'];
 		case 5:
