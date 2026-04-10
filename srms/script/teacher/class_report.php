@@ -40,6 +40,24 @@ try {
 	$stmt->execute([$classId, $termId]);
 	$cards = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+	if (!$cards) {
+		$rankData = report_rank_students($conn, $classId, $termId);
+		$stmt = $conn->prepare("SELECT id FROM tbl_students WHERE class = ?");
+		$stmt->execute([$classId]);
+		foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $studentId) {
+			$report = report_compute_for_student($conn, (string)$studentId, $classId, $termId);
+			report_store_card($conn, (string)$studentId, $classId, $termId, $report, $rankData['positions'], (int)$rankData['total_students'], (int)$account_id);
+		}
+		$stmt = $conn->prepare("SELECT rc.id, rc.student_id, rc.mean, rc.grade,
+			st.fname, st.mname, st.lname, st.school_id
+			FROM tbl_report_cards rc
+			JOIN tbl_students st ON st.id = rc.student_id
+			WHERE rc.class_id = ? AND rc.term_id = ?
+			ORDER BY st.fname, st.lname");
+		$stmt->execute([$classId, $termId]);
+		$cards = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	}
+
 	foreach ($cards as $card) {
 		$cardRow = report_load_card($conn, (int)$card['id']);
 		if (!$cardRow) {

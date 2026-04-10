@@ -121,6 +121,7 @@ echo "Connection failed: " . $e->getMessage();
 try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+app_ensure_class_teachers_table($conn);
 
 if (app_table_exists($conn, 'tbl_teacher_assignments')) {
   $stmt = $conn->prepare("SELECT DISTINCT class_id FROM tbl_teacher_assignments WHERE teacher_id = ? AND status = 1");
@@ -141,6 +142,14 @@ if (app_table_exists($conn, 'tbl_teacher_assignments')) {
     }
   }
 }
+
+$stmt = $conn->prepare("SELECT class_id FROM tbl_class_teachers WHERE teacher_id = ? AND active = 1");
+$stmt->execute([$account_id]);
+foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $classTeacherClassId) {
+  $myclasses[] = $classTeacherClassId;
+}
+
+$myclasses = array_values(array_unique(array_map('strval', $myclasses)));
 
 if (!empty($myclasses)) {
   $matches = str_split(str_repeat("?", count($myclasses)));
@@ -176,6 +185,62 @@ echo "Connection failed: " . $e->getMessage();
 
 <button type="submit" name="submit" value="1" class="btn btn-primary app_btn">View Results</button>
 </form>
+</div>
+</div>
+</div>
+
+<div class="col-md-4 center_form">
+<div class="tile">
+<div class="tile-body">
+<div class="table-responsive">
+<h3 class="tile-title">Class Teacher Summary</h3>
+<form method="GET" action="teacher/class_report" autocomplete="OFF">
+
+<div class="mb-2">
+<label class="form-label">Select Term</label>
+<select class="form-control select2" name="term" required style="width: 100%;">
+<option selected disabled value="">Select Term</option>
+<?php
+try {
+$stmt = $conn->prepare("SELECT * FROM tbl_terms WHERE status = '1'");
+$stmt->execute();
+foreach($stmt->fetchAll() as $row)
+{
+?>
+<option value="<?php echo $row[0]; ?>"><?php echo $row[1]; ?> </option>
+<?php
+}
+} catch (Throwable $e) {}
+?>
+</select>
+</div>
+
+<div class="mb-3">
+<label class="form-label">Select Class</label>
+<select class="form-control select2" name="class" required style="width: 100%;">
+<option selected disabled value="">Select Class</option>
+<?php
+try {
+if (!empty($myclasses)) {
+  $matches = str_split(str_repeat("?", count($myclasses)));
+  $matches = implode(",", $matches);
+  $stmt = $conn->prepare("SELECT * FROM tbl_classes WHERE id IN ($matches)");
+  $stmt->execute($myclasses);
+  foreach($stmt->fetchAll() as $row)
+  {
+?>
+<option value="<?php echo $row[0]; ?>"><?php echo $row[1]; ?> </option>
+<?php
+  }
+}
+} catch (Throwable $e) {}
+?>
+</select>
+</div>
+
+<button type="submit" class="btn btn-outline-primary app_btn">Open Class Summary</button>
+</form>
+</div>
 </div>
 </div>
 </div>

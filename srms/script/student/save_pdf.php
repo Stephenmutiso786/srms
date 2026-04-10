@@ -69,14 +69,15 @@ $pdf->SetFont('helvetica', '', 14, '', true);
 $pdf->AddPage();
 $pdf->setTextShadow(array('enabled'=>true, 'depth_w'=>0.2, 'depth_h'=>0.2, 'color'=>array(196,196,196), 'opacity'=>1, 'blend_mode'=>'Normal'));
 if ($img == "DEFAULT") {
-$th_img = '<img  width="90" height="90"  src="images/students/'.$gender.'.png">';
+$th_img = app_pdf_image_html('images/students/'.$gender.'.png', 90, 90, $gender);
 }else{
-$th_img = '<img width="90" height="90" src="images/students/'.$img.'">';
+$th_img = app_pdf_image_html('images/students/'.$img, 90, 90, $account_id);
 }
 
+$logoHtml = app_pdf_image_html('images/logo/'.WBLogo, 60, 0, WBName);
 $html = '<table width="100%">
 <tr>
-<td width="15%"><img src="images/logo/'.WBLogo.'"></td>
+<td width="15%">'.$logoHtml.'</td>
 <td width="70%" style="text-align:center;">
 <h5><b style="font-size:18px;">'.WBName.'</b>
 <br>Student Examination Report Card<br>

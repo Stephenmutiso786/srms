@@ -18,9 +18,7 @@ $schoolDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-	if (!app_table_exists($conn, 'tbl_school_timetable')) {
-		throw new RuntimeException("School timetable is not installed. Run migration 030.");
-	}
+	app_ensure_school_timetable_table($conn);
 
 	$stmt = $conn->prepare("SELECT id, name FROM tbl_classes ORDER BY name");
 	$stmt->execute();

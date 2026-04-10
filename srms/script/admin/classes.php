@@ -8,6 +8,17 @@ require_once('const/rbac.php');
 
 if ($res != "1" || $level != "0") { header("location:../"); exit; }
 app_require_permission('students.manage', '../admin');
+$teachers = [];
+try {
+	$conn = app_db();
+	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	app_ensure_class_teachers_table($conn);
+	$stmt = $conn->prepare("SELECT id, fname, lname FROM tbl_staff WHERE level = 2 AND status = 1 ORDER BY fname, lname");
+	$stmt->execute();
+	$teachers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Throwable $e) {
+	$teachers = [];
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -49,6 +60,7 @@ app_require_permission('students.manage', '../admin');
 <form class="app_frm" method="POST" autocomplete="off" action="admin/core/new_class">
 <div class="mb-3"><label class="form-label">Grade / Class</label><input required name="grade_name" class="form-control" type="text" placeholder="e.g. Grade 8"></div>
 <div class="mb-3"><label class="form-label">Stream / Section</label><input name="stream_name" class="form-control" type="text" placeholder="e.g. A"></div>
+<div class="mb-3"><label class="form-label">Class Teacher</label><select name="class_teacher_id" class="form-control"><option value="">Select class teacher (optional)</option><?php foreach ($teachers as $teacher) { ?><option value="<?php echo (int)$teacher['id']; ?>"><?php echo htmlspecialchars(trim(($teacher['fname'] ?? '').' '.($teacher['lname'] ?? ''))); ?></option><?php } ?></select></div>
 <div class="form-text mb-3">The system will save this as one class name, for example <strong>Grade 8 A</strong>.</div>
 <input type="hidden" name="name" value="">
 <button type="submit" name="submit" value="1" class="btn btn-primary app_btn">Add</button>
@@ -62,6 +74,7 @@ app_require_permission('students.manage', '../admin');
 <form class="app_frm" method="POST" autocomplete="off" action="admin/core/update_class">
 <div class="mb-3"><label class="form-label">Grade / Class</label><input id="grade_name" required name="grade_name" class="form-control" type="text" placeholder="e.g. Grade 8"></div>
 <div class="mb-3"><label class="form-label">Stream / Section</label><input id="stream_name" name="stream_name" class="form-control" type="text" placeholder="e.g. A"></div>
+<div class="mb-3"><label class="form-label">Class Teacher</label><select id="class_teacher_id" name="class_teacher_id" class="form-control"><option value="">Select class teacher (optional)</option><?php foreach ($teachers as $teacher) { ?><option value="<?php echo (int)$teacher['id']; ?>"><?php echo htmlspecialchars(trim(($teacher['fname'] ?? '').' '.($teacher['lname'] ?? ''))); ?></option><?php } ?></select></div>
 <div class="form-text mb-3">Edit grade and stream separately; the system combines them into one class name.</div>
 <input id="name" name="name" type="hidden">
 <input type="hidden" name="id" id="id">
@@ -74,13 +87,17 @@ app_require_permission('students.manage', '../admin');
 <div class="row"><div class="col-md-12"><div class="tile"><div class="tile-body"><div class="table-responsive">
 <h3 class="tile-title">Classes</h3>
 <table class="table table-hover table-bordered" id="srmsTable">
-<thead><tr><th>Grade</th><th>Stream</th><th>Saved Class Name</th><th>Added On</th><th width="140"></th></tr></thead>
+<thead><tr><th>Grade</th><th>Stream</th><th>Saved Class Name</th><th>Class Teacher</th><th>Added On</th><th width="140"></th></tr></thead>
 <tbody>
 <?php
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-	$stmt = $conn->prepare("SELECT * FROM tbl_classes ORDER BY name");
+	$stmt = $conn->prepare("SELECT c.*, ct.teacher_id, st.fname AS teacher_fname, st.lname AS teacher_lname
+		FROM tbl_classes c
+		LEFT JOIN tbl_class_teachers ct ON ct.class_id = c.id AND ct.active = 1
+		LEFT JOIN tbl_staff st ON st.id = ct.teacher_id
+		ORDER BY c.name");
 	$stmt->execute();
 	foreach($stmt->fetchAll() as $row) {
 		$parts = app_class_name_parts((string)$row[1]);
@@ -89,6 +106,7 @@ try {
 <td><?php echo htmlspecialchars($parts['grade']); ?></td>
 <td><?php echo htmlspecialchars($parts['stream'] !== '' ? $parts['stream'] : '—'); ?></td>
 <td><?php echo htmlspecialchars($row[1]); ?></td>
+<td><?php echo htmlspecialchars(trim(($row['teacher_fname'] ?? '').' '.($row['teacher_lname'] ?? '')) ?: '—'); ?></td>
 <td><?php echo htmlspecialchars($row[2] ?? ''); ?></td>
 <td align="center">
 <button
@@ -98,6 +116,7 @@ try {
 	data-name="<?php echo htmlspecialchars($row[1]); ?>"
 	data-grade="<?php echo htmlspecialchars($parts['grade']); ?>"
 	data-stream="<?php echo htmlspecialchars($parts['stream']); ?>"
+	data-class-teacher-id="<?php echo (int)($row['teacher_id'] ?? 0); ?>"
 	data-bs-toggle="modal"
 	data-bs-target="#editModal">Edit</button>
 <a onclick="del('admin/core/drop_class?id=<?php echo $row[0]; ?>', 'Delete Class?');" class="btn btn-danger btn-sm" href="javascript:void(0);">Delete</a>
@@ -106,7 +125,7 @@ try {
 <?php
 	}
 } catch (Throwable $e) {
-	echo '<tr><td colspan="3">Failed to load classes.</td></tr>';
+	echo '<tr><td colspan="6">Failed to load classes.</td></tr>';
 }
 ?>
 </tbody>
@@ -127,6 +146,7 @@ $('.edit-class').on('click', function () {
 	$('#name').val($(this).data('name'));
 	$('#grade_name').val($(this).data('grade'));
 	$('#stream_name').val($(this).data('stream'));
+	$('#class_teacher_id').val($(this).data('class-teacher-id'));
 });
 </script>
 <?php require_once('const/check-reply.php'); ?>

@@ -12,6 +12,10 @@ if (isset($_SESSION['bulk_result_2'])) {
 $class = $_SESSION['bulk_result_2']['student'];
 $term = $_SESSION['bulk_result_2']['term'];
 
+try {
+$conn = app_db();
+$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
 $stmt = $conn->prepare("SELECT * FROM tbl_grade_system");
 $stmt->execute();
 $grading = $stmt->fetchAll();
@@ -43,12 +47,6 @@ $title = ''.$class_data[0][1].' ('.$term_data[0][1].' Perfomance Report)';
 {
 echo "Connection failed: " . $e->getMessage();
 }
-
-
-
-try {
-$conn = app_db();
-$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
 $stmt = $conn->prepare("SELECT * FROM tbl_subject_combinations LEFT JOIN tbl_subjects ON tbl_subject_combinations.subject = tbl_subjects.id");
 $stmt->execute();
@@ -150,9 +148,10 @@ $pdf->AddPage();
 $pdf->setTextShadow(array('enabled'=>true, 'depth_w'=>0.2, 'depth_h'=>0.2, 'color'=>array(196,196,196), 'opacity'=>1, 'blend_mode'=>'Normal'));
 
 
+$logoHtml = app_pdf_image_html('images/logo/'.WBLogo, 60, 0, WBName);
 $html = '<table width="100%">
 <tr>
-<td width="15%"><img src="images/logo/'.WBLogo.'"></td>
+<td width="15%">'.$logoHtml.'</td>
 <td width="85%">
 <h5><b style="font-size:18px;">'.WBName.'</b>
 <br>Student Perfomance Report<br>

@@ -691,6 +691,17 @@ function report_ensure_card_generated(PDO $conn, string $studentId, int $classId
 
 function report_teacher_has_class_access(PDO $conn, int $teacherId, int $classId, int $termId = 0): bool
 {
+	try {
+		app_ensure_class_teachers_table($conn);
+		$stmt = $conn->prepare("SELECT 1 FROM tbl_class_teachers WHERE teacher_id = ? AND class_id = ? AND active = 1 LIMIT 1");
+		$stmt->execute([$teacherId, $classId]);
+		if ($stmt->fetchColumn()) {
+			return true;
+		}
+	} catch (Throwable $e) {
+		// ignore and continue to subject-based access checks
+	}
+
 	if (app_table_exists($conn, 'tbl_teacher_assignments')) {
 		if ($termId > 0) {
 			$stmt = $conn->prepare("SELECT 1 FROM tbl_teacher_assignments WHERE teacher_id = ? AND class_id = ? AND term_id = ? AND status = 1 LIMIT 1");

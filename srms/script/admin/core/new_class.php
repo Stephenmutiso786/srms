@@ -14,6 +14,7 @@ $name = app_build_class_name(
 	(string)($_POST['stream_name'] ?? ''),
 	(string)($_POST['name'] ?? '')
 );
+$classTeacherId = (int)($_POST['class_teacher_id'] ?? 0);
 if ($name === '') {
 	app_reply_redirect('danger', 'Class name is required.', '../classes');
 }
@@ -28,6 +29,12 @@ try {
 	}
 	$stmt = $conn->prepare("INSERT INTO tbl_classes (name, registration_date) VALUES (?,?)");
 	$stmt->execute([$name, date('Y-m-d G:i:s')]);
+	$classId = (int)$conn->lastInsertId();
+	app_ensure_class_teachers_table($conn);
+	if ($classTeacherId > 0) {
+		$stmt = $conn->prepare("INSERT INTO tbl_class_teachers (class_id, teacher_id, active, created_by) VALUES (?,?,1,?)");
+		$stmt->execute([$classId, $classTeacherId, (int)$account_id]);
+	}
 	app_reply_redirect('success', 'Class registered successfully.', '../classes');
 } catch (Throwable $e) {
 	app_reply_redirect('danger', 'Failed to save class.', '../classes');

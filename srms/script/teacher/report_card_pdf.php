@@ -47,7 +47,7 @@ try {
 	$pdf->SetFont('helvetica', '', 10);
 
 	$logoPath = 'images/logo/' . WBLogo;
-	$logoHtml = file_exists($logoPath) ? '<img src="' . $logoPath . '" width="60" />' : '';
+	$logoHtml = app_pdf_image_html($logoPath, 60, 0, WBName);
 	$html = '
 	<table width="100%" cellpadding="4">
 	<tr>

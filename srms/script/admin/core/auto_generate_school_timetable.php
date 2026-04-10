@@ -58,9 +58,7 @@ function app_timetable_slot_conflict(array $candidate, array $existingRows): boo
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-	if (!app_table_exists($conn, 'tbl_school_timetable')) {
-		throw new RuntimeException('School timetable support is not installed. Run migration 030.');
-	}
+	app_ensure_school_timetable_table($conn);
 	if (!app_table_exists($conn, 'tbl_teacher_assignments')) {
 		throw new RuntimeException('Teacher allocations are required before generating the school timetable.');
 	}
