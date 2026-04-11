@@ -77,6 +77,21 @@ if (app_column_exists($conn, 'tbl_students', 'school_id')) {
   $stmt = $conn->prepare("INSERT INTO tbl_students (id, fname, mname, lname, gender, email, class, password, display_image) VALUES (?,?,?,?,?,?,?,?,?)");
   $stmt->execute([$reg_no, $fname, $mname, $lname, $gender, $email, $class, $pass, $img]);
 }
+
+$classBand = app_class_band_by_id($conn, (int)$class);
+if ($classBand === 'junior_secondary') {
+	app_save_student_subject_choices(
+		$conn,
+		$reg_no,
+		(int)($_POST['language_subject_id'] ?? 0),
+		(int)($_POST['religion_subject_id'] ?? 0),
+		(array)($_POST['optional_subject_ids'] ?? []),
+		(int)$account_id
+	);
+} else {
+	app_clear_student_subject_choices($conn, $reg_no);
+}
+
 $_SESSION['reply'] = array (array("success",'Student registered successfully'));
 header("location:../register_students");
 }

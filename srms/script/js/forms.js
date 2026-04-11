@@ -364,6 +364,30 @@ document.getElementById('points').value = document.getElementById('points_'+id).
 document.getElementById('id').value = id;
 }
 
+function toggleCbcStudentChoices(classSelect, wrapId) {
+var $classSelect = $(classSelect);
+var $wrap = $('#' + wrapId);
+if ($classSelect.length === 0 || $wrap.length === 0) {
+return;
+}
+
+var band = $classSelect.find('option:selected').data('cbc-band') || '';
+var isJss = band === 'junior_secondary';
+
+$wrap.toggle(isJss);
+$wrap.find('select').prop('required', isJss).prop('disabled', !isJss);
+if (!isJss) {
+$wrap.find('select').val(null).trigger('change');
+}
+}
+
+$(document).on('change', '.cbc-class-select', function() {
+var wrapId = $(this).data('cbc-wrap') || '';
+if (wrapId !== '') {
+toggleCbcStudentChoices(this, wrapId);
+}
+});
+
 function set_student(id) {
 document.getElementById('fname').value = document.getElementById('fname_'+id).value;
 document.getElementById('mname').value = document.getElementById('mname_'+id).value;
@@ -377,6 +401,12 @@ document.getElementById('id').value = id;
 $('.select2').select2({
 dropdownParent: $("#editModal")
 })
+
+toggleCbcStudentChoices('#class', 'cbcJssChoicesEdit');
+$('#language_subject_id').val(document.getElementById('language_choice_'+id).value || '').trigger('change');
+$('#religion_subject_id').val(document.getElementById('religion_choice_'+id).value || '').trigger('change');
+var optionalChoices = (document.getElementById('optional_choices_'+id).value || '').split(',').map(function(item) { return item.trim(); }).filter(Boolean);
+$('#optional_subject_ids').val(optionalChoices).trigger('change');
 
 }
 

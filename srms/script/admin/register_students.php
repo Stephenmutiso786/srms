@@ -7,10 +7,16 @@ require_once('const/check_session.php');
 if ($res == "1" && $level == "0") {}else{header("location:../");}
 
 $nextAdmissionNumber = '';
+$classRows = [];
+$jssChoiceMap = [];
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 	$nextAdmissionNumber = app_next_student_registration_number($conn);
+	$stmt = $conn->prepare("SELECT id, name FROM tbl_classes ORDER BY name");
+	$stmt->execute();
+	$classRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	$jssChoiceMap = app_cbc_jss_choice_id_map($conn);
 } catch (Throwable $e) {
 	$nextAdmissionNumber = '';
 }
@@ -91,31 +97,42 @@ try {
 
 <div class="mb-2">
 <label class="form-label">Select Class</label>
-<select class="form-control select2" name="class" required style="width: 100%;">
+<select class="form-control select2 cbc-class-select" name="class" data-cbc-wrap="cbcJssChoices" required style="width: 100%;">
 <option value="" selected disabled> Select One</option>
-<?php
-try {
-$conn = app_db();
-$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-$stmt = $conn->prepare("SELECT * FROM tbl_classes");
-$stmt->execute();
-$result = $stmt->fetchAll();
-
-foreach($result as $row)
-{
-?>
-<option value="<?php echo $row[0]; ?>"><?php echo $row[1]; ?> </option>
-<?php
-}
-
-}catch(PDOException $e)
-{
-error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
-echo "Connection failed.";
-}
-?>
+<?php foreach ($classRows as $row) { ?>
+<option value="<?php echo htmlspecialchars((string)$row['id']); ?>" data-cbc-band="<?php echo htmlspecialchars(app_cbc_class_band((string)$row['name'])); ?>"><?php echo htmlspecialchars((string)$row['name']); ?> </option>
+<?php } ?>
 </select>
+</div>
+
+<div id="cbcJssChoices" class="border rounded p-3 mb-3" style="display:none;">
+<div class="fw-semibold mb-2">Junior Secondary Subject Choices</div>
+<div class="mb-2">
+<label class="form-label">Language Choice</label>
+<select class="form-control select2 cbc-jss-select" id="language_subject_id" name="language_subject_id" style="width: 100%;">
+<option value="">Select language</option>
+<?php foreach (($jssChoiceMap['language'] ?? []) as $subjectId => $subjectName) { ?>
+<option value="<?php echo htmlspecialchars((string)$subjectId); ?>"><?php echo htmlspecialchars((string)$subjectName); ?></option>
+<?php } ?>
+</select>
+</div>
+<div class="mb-2">
+<label class="form-label">Religion Choice</label>
+<select class="form-control select2 cbc-jss-select" id="religion_subject_id" name="religion_subject_id" style="width: 100%;">
+<option value="">Select religion</option>
+<?php foreach (($jssChoiceMap['religion'] ?? []) as $subjectId => $subjectName) { ?>
+<option value="<?php echo htmlspecialchars((string)$subjectId); ?>"><?php echo htmlspecialchars((string)$subjectName); ?></option>
+<?php } ?>
+</select>
+</div>
+<div class="mb-0">
+<label class="form-label">Optional Subjects</label>
+<select class="form-control select2 cbc-jss-select" id="optional_subject_ids" name="optional_subject_ids[]" multiple style="width: 100%;">
+<?php foreach (($jssChoiceMap['optional'] ?? []) as $subjectId => $subjectName) { ?>
+<option value="<?php echo htmlspecialchars((string)$subjectId); ?>"><?php echo htmlspecialchars((string)$subjectName); ?></option>
+<?php } ?>
+</select>
+</div>
 </div>
 
 <div class="mb-2">
@@ -163,6 +180,10 @@ echo "Connection failed.";
 <?php require_once('const/check-reply.php'); ?>
 <script>
 $('.select2').select2()
+$('body').on('change', '.cbc-class-select', function() {
+	toggleCbcStudentChoices(this, $(this).data('cbc-wrap'));
+});
+toggleCbcStudentChoices('.cbc-class-select', 'cbcJssChoices');
 </script>
 </body>
 

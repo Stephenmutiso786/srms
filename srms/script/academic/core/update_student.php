@@ -70,6 +70,20 @@ $img = 'DEFAULT';
 $stmt = $conn->prepare("UPDATE tbl_students SET fname=?, mname=?, lname=?, gender=?, email=?, class=?, display_image=? WHERE id = ?");
 $stmt->execute([$fname, $mname, $lname, $gender, $email, $class, $img, $reg_no]);
 
+$classBand = app_class_band_by_id($conn, (int)$class);
+if ($classBand === 'junior_secondary') {
+	app_save_student_subject_choices(
+		$conn,
+		(string)$reg_no,
+		(int)($_POST['language_subject_id'] ?? 0),
+		(int)($_POST['religion_subject_id'] ?? 0),
+		(array)($_POST['optional_subject_ids'] ?? []),
+		(int)$account_id
+	);
+} else {
+	app_clear_student_subject_choices($conn, (string)$reg_no);
+}
+
 $_SESSION['reply'] = array (array("success",'Student updated successfully'));
 header("location:../students");
 }

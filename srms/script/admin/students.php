@@ -105,6 +105,7 @@ $empty_classes = array();
 $stmt = $conn->prepare("SELECT * FROM tbl_classes");
 $stmt->execute();
 $classes = $stmt->fetchAll();
+$jssChoiceMap = app_cbc_jss_choice_id_map($conn);
 
 foreach ($classes as $value) {
 $empty_classes[$value[0]] = $value[1];
@@ -117,6 +118,7 @@ $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 foreach($result as $row)
 {
+$choiceSummary = app_student_subject_choice_summary($conn, (string)$row['id']);
 ?>
 
 <tr>
@@ -152,6 +154,9 @@ if (($row['display_image'] ?? '') == "DEFAULT") {
 <textarea style="display:none;" id="class_<?php echo $row['id']; ?>"><?php echo $row['class']; ?></textarea>
 <textarea style="display:none;" id="img_<?php echo $row['id']; ?>"><?php echo $row['display_image']; ?></textarea>
 <textarea style="display:none;" id="status_<?php echo $row['id']; ?>"><?php echo $row['status']; ?></textarea>
+<textarea style="display:none;" id="language_choice_<?php echo $row['id']; ?>"><?php echo (int)($choiceSummary['language'] ?? 0); ?></textarea>
+<textarea style="display:none;" id="religion_choice_<?php echo $row['id']; ?>"><?php echo (int)($choiceSummary['religion'] ?? 0); ?></textarea>
+<textarea style="display:none;" id="optional_choices_<?php echo $row['id']; ?>"><?php echo htmlspecialchars(implode(',', array_map('intval', $choiceSummary['optional'] ?? []))); ?></textarea>
 
 <a onclick="set_student('<?php echo $row['id']; ?>');" class="btn btn-primary btn-sm" href="javascript:void(0);" data-bs-toggle="modal" data-bs-target="#editModal">Edit</a>
 <a onclick="del('admin/core/drop_student?id=<?php echo $row['id']; ?>&img=<?php echo $row['display_image']; ?>', 'Delete Student?');" class="btn btn-danger btn-sm" href="javascript:void(0);">Delete</a>
@@ -211,7 +216,7 @@ echo "Connection failed.";
 
 <div class="mb-2">
 <label class="form-label">Select Class</label>
-<select id="class" class="form-control select2" name="class" required style="width: 100%;">
+<select id="class" class="form-control select2 cbc-class-select" name="class" data-cbc-wrap="cbcJssChoicesEdit" required style="width: 100%;">
 <option value="" selected disabled> Select One</option>
 <?php
 try {
@@ -225,7 +230,7 @@ $result = $stmt->fetchAll();
 foreach($result as $row)
 {
 ?>
-<option value="<?php echo $row[0]; ?>"><?php echo $row[1]; ?> </option>
+<option value="<?php echo htmlspecialchars((string)$row[0]); ?>" data-cbc-band="<?php echo htmlspecialchars(app_cbc_class_band((string)$row[1])); ?>"><?php echo htmlspecialchars((string)$row[1]); ?> </option>
 <?php
 }
 
@@ -236,6 +241,36 @@ echo "Connection failed.";
 }
 ?>
 </select>
+</div>
+
+<div id="cbcJssChoicesEdit" class="border rounded p-3 mb-3" style="display:none;">
+<div class="fw-semibold mb-2">Junior Secondary Subject Choices</div>
+<div class="mb-2">
+<label class="form-label">Language Choice</label>
+<select id="language_subject_id" class="form-control select2 cbc-jss-select" name="language_subject_id" style="width: 100%;">
+<option value="">Select language</option>
+<?php foreach (($jssChoiceMap['language'] ?? []) as $subjectId => $subjectName) { ?>
+<option value="<?php echo htmlspecialchars((string)$subjectId); ?>"><?php echo htmlspecialchars((string)$subjectName); ?></option>
+<?php } ?>
+</select>
+</div>
+<div class="mb-2">
+<label class="form-label">Religion Choice</label>
+<select id="religion_subject_id" class="form-control select2 cbc-jss-select" name="religion_subject_id" style="width: 100%;">
+<option value="">Select religion</option>
+<?php foreach (($jssChoiceMap['religion'] ?? []) as $subjectId => $subjectName) { ?>
+<option value="<?php echo htmlspecialchars((string)$subjectId); ?>"><?php echo htmlspecialchars((string)$subjectName); ?></option>
+<?php } ?>
+</select>
+</div>
+<div class="mb-0">
+<label class="form-label">Optional Subjects</label>
+<select id="optional_subject_ids" class="form-control select2 cbc-jss-select" name="optional_subject_ids[]" multiple style="width: 100%;">
+<?php foreach (($jssChoiceMap['optional'] ?? []) as $subjectId => $subjectName) { ?>
+<option value="<?php echo htmlspecialchars((string)$subjectId); ?>"><?php echo htmlspecialchars((string)$subjectName); ?></option>
+<?php } ?>
+</select>
+</div>
 </div>
 
 <div class="mb-2">
@@ -300,6 +335,9 @@ function bindSelectAll(sourceId, targetClass) {
 }
 bindSelectAll('selectAllStudents', '.student-checkbox');
 bindSelectAll('selectAllStudentsHead', '.student-checkbox');
+$('body').on('change', '.cbc-class-select', function() {
+  toggleCbcStudentChoices(this, $(this).data('cbc-wrap'));
+});
 </script>
 </body>
 
