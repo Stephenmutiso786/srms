@@ -1403,6 +1403,28 @@ function app_cbc_default_subjects_for_class(string $className): array
 	$junior = [
 		'Grade 7', 'Grade 8', 'Grade 9',
 	];
+	$juniorCore = [
+		'English',
+		'Kiswahili',
+		'Mathematics',
+		'Integrated Science',
+		'Social Studies',
+		'Religious Education',
+		'Business Studies',
+		'Agriculture',
+		'Life Skills Education',
+		'Sports & Physical Education',
+		'Visual Arts',
+		'Performing Arts',
+	];
+	$juniorOptional = [
+		'Kenyan Sign Language',
+		'Pre-Technical and Pre-Career Education',
+		'Computer Science / ICT',
+		'Home Science',
+		'French',
+		'German',
+	];
 
 	if (in_array($className, $lower, true)) {
 		return [
@@ -1433,24 +1455,7 @@ function app_cbc_default_subjects_for_class(string $className): array
 	}
 
 	if (in_array($className, $junior, true)) {
-		return [
-			'English',
-			'Kiswahili',
-			'Mathematics',
-			'Integrated Science',
-			'Social Studies',
-			'Religious Education',
-			'Business Studies',
-			'Agriculture',
-			'Life Skills Education',
-			'Sports & Physical Education',
-			'Visual Arts',
-			'Performing Arts',
-			'Computer Science / ICT',
-			'Home Science',
-			'French',
-			'German',
-		];
+		return array_merge($juniorCore, $juniorOptional);
 	}
 
 	return [];
