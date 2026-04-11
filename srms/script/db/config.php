@@ -1418,16 +1418,51 @@ function app_class_name_parts(string $name): array
 	];
 }
 
+function app_cbc_canonical_class_name(string $className): string
+{
+	$raw = trim($className);
+	if ($raw === '') {
+		return '';
+	}
+
+	$upper = strtoupper($raw);
+	$compact = preg_replace('/[^A-Z0-9]/', '', $upper);
+	if (!is_string($compact)) {
+		$compact = '';
+	}
+
+	$hasPP1 = (strpos($compact, 'PP1') !== false) || (strpos($compact, 'PREPRIMARY1') !== false);
+	$hasPP2 = (strpos($compact, 'PP2') !== false) || (strpos($compact, 'PREPRIMARY2') !== false);
+	if ($hasPP1 && !$hasPP2) {
+		return 'PP1';
+	}
+	if ($hasPP2 && !$hasPP1) {
+		return 'PP2';
+	}
+
+	if (preg_match('/GRADE\s*([1-9])\b/i', $raw, $m)) {
+		return 'Grade ' . (int)$m[1];
+	}
+	if (preg_match('/\b([1-9])\b/', $raw, $m)) {
+		$n = (int)$m[1];
+		if ($n >= 1 && $n <= 9) {
+			return 'Grade ' . $n;
+		}
+	}
+
+	return '';
+}
+
 function app_cbc_class_band(string $className): string
 {
-	$className = trim($className);
-	if (in_array($className, ['PP1', 'PP2', 'Grade 1', 'Grade 2', 'Grade 3'], true)) {
+	$canonical = app_cbc_canonical_class_name($className);
+	if (in_array($canonical, ['PP1', 'PP2', 'Grade 1', 'Grade 2', 'Grade 3'], true)) {
 		return 'lower_primary';
 	}
-	if (in_array($className, ['Grade 4', 'Grade 5', 'Grade 6'], true)) {
+	if (in_array($canonical, ['Grade 4', 'Grade 5', 'Grade 6'], true)) {
 		return 'upper_primary';
 	}
-	if (in_array($className, ['Grade 7', 'Grade 8', 'Grade 9'], true)) {
+	if (in_array($canonical, ['Grade 7', 'Grade 8', 'Grade 9'], true)) {
 		return 'junior_secondary';
 	}
 	return '';
@@ -1767,7 +1802,7 @@ function app_cbc_default_subject_catalog(): array
 
 function app_cbc_default_subjects_for_class(string $className): array
 {
-	$className = trim($className);
+	$className = app_cbc_canonical_class_name($className);
 	$lower = [
 		'PP1', 'PP2', 'Grade 1', 'Grade 2', 'Grade 3',
 	];
@@ -1901,12 +1936,31 @@ function app_apply_cbc_curriculum_defaults(PDO $conn, ?int $userId = null): arra
 		}
 
 		$classIdMap = [];
+		$existingClassByCanonical = [];
+		$existingClassNameById = [];
+		$existingClassRows = $conn->query("SELECT id, name FROM tbl_classes")->fetchAll(PDO::FETCH_ASSOC);
+		foreach ($existingClassRows as $existingClassRow) {
+			$existingId = (int)($existingClassRow['id'] ?? 0);
+			$existingName = trim((string)($existingClassRow['name'] ?? ''));
+			if ($existingId < 1 || $existingName === '') {
+				continue;
+			}
+			$existingClassNameById[$existingId] = $existingName;
+			$canonical = app_cbc_canonical_class_name($existingName);
+			if ($canonical !== '' && !isset($existingClassByCanonical[$canonical])) {
+				$existingClassByCanonical[$canonical] = $existingId;
+			}
+		}
+
 		foreach ($classNames as $className) {
 			$savepoint = app_tx_savepoint_begin($conn, 'cbc_class_seed');
 			try {
-				$stmt = $conn->prepare("SELECT id FROM tbl_classes WHERE LOWER(name) = LOWER(?) LIMIT 1");
-				$stmt->execute([$className]);
-				$classId = (int)$stmt->fetchColumn();
+				$classId = (int)($existingClassByCanonical[$className] ?? 0);
+				if ($classId < 1) {
+					$stmt = $conn->prepare("SELECT id FROM tbl_classes WHERE LOWER(name) = LOWER(?) LIMIT 1");
+					$stmt->execute([$className]);
+					$classId = (int)$stmt->fetchColumn();
+				}
 				if ($classId < 1) {
 					if (defined('DBDriver') && DBDriver === 'pgsql') {
 						if ($classHasRegistrationDate) {
@@ -1929,6 +1983,14 @@ function app_apply_cbc_curriculum_defaults(PDO $conn, ?int $userId = null): arra
 					}
 					$summary['classes']++;
 				}
+
+				$currentName = trim((string)($existingClassNameById[$classId] ?? ''));
+				if ($currentName !== '' && strcasecmp($currentName, $className) !== 0) {
+					$renameStmt = $conn->prepare("UPDATE tbl_classes SET name = ? WHERE id = ?");
+					$renameStmt->execute([$className, $classId]);
+					$existingClassNameById[$classId] = $className;
+				}
+
 				$classIdMap[$className] = $classId;
 				app_tx_savepoint_release($conn, $savepoint);
 			} catch (Throwable $e) {
