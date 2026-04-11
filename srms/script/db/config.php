@@ -938,22 +938,53 @@ function app_reset_school_people_data(PDO $conn): array
 
 	$studentIds = [];
 	if (app_table_exists($conn, 'tbl_students')) {
-		$stmt = $conn->query("SELECT id FROM tbl_students");
-		$studentIds = array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+		if (app_column_exists($conn, 'tbl_students', 'id')) {
+			try {
+				$stmt = $conn->query("SELECT id FROM tbl_students");
+				$studentIds = array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+			} catch (Throwable $e) {
+				$summary['warnings'][] = 'student precheck failed: ' . $e->getMessage();
+				error_log('[app_reset_school_people_data] student precheck failed: ' . $e->getMessage());
+			}
+		} else {
+			$summary['warnings'][] = 'student precheck skipped: id column missing';
+			error_log('[app_reset_school_people_data] student precheck skipped: id column missing');
+		}
 		$summary['students_removed'] = 0;
 	}
 
 	$staffIds = [];
 	$adminCount = 0;
 	if (app_table_exists($conn, 'tbl_staff')) {
-		$stmt = $conn->query("SELECT id, level FROM tbl_staff");
-		foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-			$level = (string)($row['level'] ?? '');
-			if (in_array($level, ['0', '1', '9'], true)) {
-				$adminCount++;
-				continue;
+		$hasStaffId = app_column_exists($conn, 'tbl_staff', 'id');
+		$hasLevel = app_column_exists($conn, 'tbl_staff', 'level');
+		if ($hasStaffId && $hasLevel) {
+			try {
+				$stmt = $conn->query("SELECT id, level FROM tbl_staff");
+				foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+					$level = (string)($row['level'] ?? '');
+					if (in_array($level, ['0', '1', '9'], true)) {
+						$adminCount++;
+						continue;
+					}
+					$staffIds[] = (string)$row['id'];
+				}
+			} catch (Throwable $e) {
+				$summary['warnings'][] = 'staff precheck failed: ' . $e->getMessage();
+				error_log('[app_reset_school_people_data] staff precheck failed: ' . $e->getMessage());
 			}
-			$staffIds[] = (string)$row['id'];
+		} elseif ($hasStaffId) {
+			try {
+				$adminCount = (int)$conn->query("SELECT COUNT(*) FROM tbl_staff")->fetchColumn();
+				$summary['warnings'][] = 'staff delete skipped: level column missing; all staff preserved';
+				error_log('[app_reset_school_people_data] staff delete skipped: level column missing; all staff preserved');
+			} catch (Throwable $e) {
+				$summary['warnings'][] = 'staff precheck failed: ' . $e->getMessage();
+				error_log('[app_reset_school_people_data] staff precheck failed: ' . $e->getMessage());
+			}
+		} else {
+			$summary['warnings'][] = 'staff precheck skipped: id column missing';
+			error_log('[app_reset_school_people_data] staff precheck skipped: id column missing');
 		}
 	}
 	$summary['admins_kept'] = $adminCount;
@@ -1429,8 +1460,15 @@ function app_apply_cbc_curriculum_defaults(PDO $conn, ?int $userId = null): arra
 					$subjectIds[] = (int)$subjectIdMap[$subjectName];
 				}
 			}
-			app_save_class_subject_assignments($conn, $classId, $subjectIds, $userId);
-			$summary['assignments'] += count($subjectIds);
+			$savepoint = app_tx_savepoint_begin($conn, 'cbc_assignments');
+			try {
+				app_save_class_subject_assignments($conn, $classId, $subjectIds, $userId);
+				$summary['assignments'] += count($subjectIds);
+				app_tx_savepoint_release($conn, $savepoint);
+			} catch (Throwable $e) {
+				app_tx_savepoint_rollback($conn, $savepoint);
+				$summary['errors'][] = 'Skipped subject assignment sync for class "' . $className . '" due to linked data mismatch.';
+			}
 		}
 
 		foreach ($conn->query("SELECT id, name FROM tbl_subjects ORDER BY name")->fetchAll(PDO::FETCH_ASSOC) as $row) {
@@ -1440,25 +1478,37 @@ function app_apply_cbc_curriculum_defaults(PDO $conn, ?int $userId = null): arra
 				continue;
 			}
 			$refChecks = [
-				['tbl_subject_class_assignments', 'SELECT COUNT(*) FROM tbl_subject_class_assignments WHERE subject_id = ?'],
-				['tbl_teacher_assignments', 'SELECT COUNT(*) FROM tbl_teacher_assignments WHERE subject_id = ?'],
-				['tbl_exam_subjects', 'SELECT COUNT(*) FROM tbl_exam_subjects WHERE subject_id = ?'],
-				['tbl_subject_combinations', 'SELECT COUNT(*) FROM tbl_subject_combinations WHERE subject = ?'],
-				['tbl_exam_results', 'SELECT COUNT(*) FROM tbl_exam_results WHERE subject_id = ?'],
-				['tbl_courses', 'SELECT COUNT(*) FROM tbl_courses WHERE subject_id = ?'],
-				['tbl_exam_schedule', 'SELECT COUNT(*) FROM tbl_exam_schedule WHERE subject_id = ?'],
-				['tbl_school_timetable', 'SELECT COUNT(*) FROM tbl_school_timetable WHERE subject_id = ?'],
-				['tbl_report_card_subjects', 'SELECT COUNT(*) FROM tbl_report_card_subjects WHERE subject_id = ?'],
+				['tbl_subject_class_assignments', 'subject_id', 'SELECT COUNT(*) FROM tbl_subject_class_assignments WHERE subject_id = ?'],
+				['tbl_teacher_assignments', 'subject_id', 'SELECT COUNT(*) FROM tbl_teacher_assignments WHERE subject_id = ?'],
+				['tbl_exam_subjects', 'subject_id', 'SELECT COUNT(*) FROM tbl_exam_subjects WHERE subject_id = ?'],
+				['tbl_subject_combinations', 'subject', 'SELECT COUNT(*) FROM tbl_subject_combinations WHERE subject = ?'],
+				['tbl_subject_combinations', 'subject_id', 'SELECT COUNT(*) FROM tbl_subject_combinations WHERE subject_id = ?'],
+				['tbl_exam_results', 'subject_id', 'SELECT COUNT(*) FROM tbl_exam_results WHERE subject_id = ?'],
+				['tbl_courses', 'subject_id', 'SELECT COUNT(*) FROM tbl_courses WHERE subject_id = ?'],
+				['tbl_exam_schedule', 'subject_id', 'SELECT COUNT(*) FROM tbl_exam_schedule WHERE subject_id = ?'],
+				['tbl_school_timetable', 'subject_id', 'SELECT COUNT(*) FROM tbl_school_timetable WHERE subject_id = ?'],
+				['tbl_report_card_subjects', 'subject_id', 'SELECT COUNT(*) FROM tbl_report_card_subjects WHERE subject_id = ?'],
 			];
 			$inUse = false;
 			foreach ($refChecks as $check) {
-				if (!app_table_exists($conn, $check[0])) {
+				if (!app_table_exists($conn, $check[0]) || !app_column_exists($conn, $check[0], $check[1])) {
 					continue;
 				}
-				$stmt = $conn->prepare($check[1]);
-				$stmt->execute([$subjectId]);
-				if ((int)$stmt->fetchColumn() > 0) {
+				$checkSavepoint = app_tx_savepoint_begin($conn, 'cbc_subject_refcheck');
+				try {
+					$stmt = $conn->prepare($check[2]);
+					$stmt->execute([$subjectId]);
+					if ((int)$stmt->fetchColumn() > 0) {
+						$inUse = true;
+					}
+					app_tx_savepoint_release($conn, $checkSavepoint);
+					if ($inUse) {
+						break;
+					}
+				} catch (Throwable $e) {
+					app_tx_savepoint_rollback($conn, $checkSavepoint);
 					$inUse = true;
+					$summary['errors'][] = 'Skipped subject "' . $subjectName . '" because dependencies could not be verified safely.';
 					break;
 				}
 			}
@@ -1484,24 +1534,35 @@ function app_apply_cbc_curriculum_defaults(PDO $conn, ?int $userId = null): arra
 				continue;
 			}
 			$refChecks = [
-				['tbl_students', 'SELECT COUNT(*) FROM tbl_students WHERE class = ?'],
-				['tbl_teacher_assignments', 'SELECT COUNT(*) FROM tbl_teacher_assignments WHERE class_id = ?'],
-				['tbl_exams', 'SELECT COUNT(*) FROM tbl_exams WHERE class_id = ?'],
-				['tbl_school_timetable', 'SELECT COUNT(*) FROM tbl_school_timetable WHERE class_id = ?'],
-				['tbl_courses', 'SELECT COUNT(*) FROM tbl_courses WHERE class_id = ?'],
-				['tbl_class_teachers', 'SELECT COUNT(*) FROM tbl_class_teachers WHERE class_id = ?'],
-				['tbl_exam_schedule', 'SELECT COUNT(*) FROM tbl_exam_schedule WHERE class_id = ?'],
-				['tbl_results_locks', 'SELECT COUNT(*) FROM tbl_results_locks WHERE class_id = ?'],
+				['tbl_students', 'class', 'SELECT COUNT(*) FROM tbl_students WHERE class = ?'],
+				['tbl_teacher_assignments', 'class_id', 'SELECT COUNT(*) FROM tbl_teacher_assignments WHERE class_id = ?'],
+				['tbl_exams', 'class_id', 'SELECT COUNT(*) FROM tbl_exams WHERE class_id = ?'],
+				['tbl_school_timetable', 'class_id', 'SELECT COUNT(*) FROM tbl_school_timetable WHERE class_id = ?'],
+				['tbl_courses', 'class_id', 'SELECT COUNT(*) FROM tbl_courses WHERE class_id = ?'],
+				['tbl_class_teachers', 'class_id', 'SELECT COUNT(*) FROM tbl_class_teachers WHERE class_id = ?'],
+				['tbl_exam_schedule', 'class_id', 'SELECT COUNT(*) FROM tbl_exam_schedule WHERE class_id = ?'],
+				['tbl_results_locks', 'class_id', 'SELECT COUNT(*) FROM tbl_results_locks WHERE class_id = ?'],
 			];
 			$inUse = false;
 			foreach ($refChecks as $check) {
-				if (!app_table_exists($conn, $check[0])) {
+				if (!app_table_exists($conn, $check[0]) || !app_column_exists($conn, $check[0], $check[1])) {
 					continue;
 				}
-				$stmt = $conn->prepare($check[1]);
-				$stmt->execute([$classId]);
-				if ((int)$stmt->fetchColumn() > 0) {
+				$checkSavepoint = app_tx_savepoint_begin($conn, 'cbc_class_refcheck');
+				try {
+					$stmt = $conn->prepare($check[2]);
+					$stmt->execute([$classId]);
+					if ((int)$stmt->fetchColumn() > 0) {
+						$inUse = true;
+					}
+					app_tx_savepoint_release($conn, $checkSavepoint);
+					if ($inUse) {
+						break;
+					}
+				} catch (Throwable $e) {
+					app_tx_savepoint_rollback($conn, $checkSavepoint);
 					$inUse = true;
+					$summary['errors'][] = 'Skipped class "' . $className . '" because dependencies could not be verified safely.';
 					break;
 				}
 			}

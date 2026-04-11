@@ -5,7 +5,7 @@ require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/rbac.php');
 
-if ($res !== "1" || $level !== "0") { header("location:../"); exit; }
+if ($res !== "1" || !in_array((string)$level, ['0', '9'], true)) { header("location:../"); exit; }
 app_require_permission('students.manage', '../');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -31,5 +31,6 @@ try {
 	}
 	app_reply_redirect('success', $message, '../classes');
 } catch (Throwable $e) {
-	app_reply_redirect('danger', 'Failed to apply CBC defaults: ' . $e->getMessage(), '../classes');
+	error_log('[admin.apply_cbc_structure] ' . $e->getMessage());
+	app_reply_redirect('danger', 'Failed to apply CBC defaults. Please try again or contact support.', '../classes');
 }
