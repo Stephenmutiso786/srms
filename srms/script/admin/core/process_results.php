@@ -56,19 +56,9 @@ try {
 	}
 
 	$generatedBy = isset($account_id) ? (int)$account_id : null;
-	$stmt = $conn->prepare("SELECT id FROM tbl_report_cards WHERE class_id = ? AND term_id = ? LIMIT 1");
-	$stmt->execute([$classId, $termId]);
-	$existingCardId = (int)$stmt->fetchColumn();
-
-	if ($existingCardId < 1) {
-		$stmt = $conn->prepare("SELECT id FROM tbl_students WHERE class = ? ORDER BY id ASC LIMIT 1");
-		$stmt->execute([$classId]);
-		$sampleStudentId = $stmt->fetchColumn();
-		if ($sampleStudentId) {
-			$rankData = report_rank_students($conn, $classId, $termId);
-			$report = report_compute_for_student($conn, (string)$sampleStudentId, $classId, $termId);
-			report_store_card($conn, (string)$sampleStudentId, $classId, $termId, $report, $rankData['positions'], (int)$rankData['total_students'], $generatedBy);
-		}
+	$meritList = report_class_merit_list($conn, $classId, $termId, $generatedBy);
+	if (empty($meritList['rows'])) {
+		throw new RuntimeException('No report cards could be generated for the selected class and term.');
 	}
 
 	if (app_table_exists($conn, 'tbl_notifications')) {
@@ -85,9 +75,9 @@ try {
 		$stmt->execute([$title, $message, 'class', $classId, $termId, 'report_card?term=' . $termId, $generatedBy]);
 	}
 
-	$_SESSION['reply'] = array (array("success", "Report cards are ready. Student, parent, and teacher views will generate each learner's report instantly when opened, so you no longer need to wait for a long bulk process."));
+	$_SESSION['reply'] = array (array("success", "Report cards are ready for " . $meritList['total_students'] . " learners. The class merit list has also been recalculated and saved."));
 	header("location:../report");
 } catch (Throwable $e) {
-	$_SESSION['reply'] = array (array("danger", "Failed to generate report cards: " . $e->getMessage()));
+	$_SESSION['reply'] = array (array("danger", "Failed to generate report cards. Please check the term results and try again."));
 	header("location:../report");
 }

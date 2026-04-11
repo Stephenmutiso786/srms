@@ -23,6 +23,66 @@ if ($message === '') {
 	exit;
 }
 
+function app_ai_suffix(string $response): string
+{
+	$response = trim($response);
+	if ($response === '') {
+		return 'ofx_steve';
+	}
+	if (preg_match('/\s+ofx_steve$/i', $response)) {
+		return $response;
+	}
+	return $response . ' ofx_steve';
+}
+
+function app_feedback_subject_from_message(string $message): string
+{
+	$message = trim(preg_replace('/\s+/', ' ', $message));
+	if ($message === '') {
+		return 'General feedback';
+	}
+	if (function_exists('mb_substr')) {
+		return mb_substr($message, 0, 80);
+	}
+	return substr($message, 0, 80);
+}
+
+function app_store_ai_feedback(PDO $conn, string $actorType, string $actorId, string $category, string $subject, string $message, string $aiResponse, string $status = 'open', string $replyMessage = ''): void
+{
+	if (!app_table_exists($conn, 'tbl_ai_feedback')) {
+		return;
+	}
+
+	$columns = ['actor_type', 'actor_id', 'category', 'message', 'ai_response'];
+	$values = [$actorType, $actorId, $category, $message, $aiResponse];
+	$placeholders = ['?', '?', '?', '?', '?'];
+
+	if (app_column_exists($conn, 'tbl_ai_feedback', 'subject')) {
+		$columns[] = 'subject';
+		$values[] = $subject;
+		$placeholders[] = '?';
+	}
+	if (app_column_exists($conn, 'tbl_ai_feedback', 'status')) {
+		$columns[] = 'status';
+		$values[] = $status;
+		$placeholders[] = '?';
+	}
+	if (app_column_exists($conn, 'tbl_ai_feedback', 'reply_message')) {
+		$columns[] = 'reply_message';
+		$values[] = $replyMessage;
+		$placeholders[] = '?';
+	}
+	if (app_column_exists($conn, 'tbl_ai_feedback', 'replied_by')) {
+		$columns[] = 'replied_by';
+		$values[] = null;
+		$placeholders[] = '?';
+	}
+
+	$sql = "INSERT INTO tbl_ai_feedback (" . implode(',', $columns) . ") VALUES (" . implode(',', $placeholders) . ")";
+	$stmt = $conn->prepare($sql);
+	$stmt->execute($values);
+}
+
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
@@ -36,15 +96,9 @@ try {
 	$intent = app_detect_intent($message);
 
 	if ($category !== 'ai') {
-		if (app_table_exists($conn, 'tbl_ai_feedback')) {
-			$stmt = $conn->prepare("INSERT INTO tbl_ai_feedback (actor_type, actor_id, category, message, ai_response) VALUES (?,?,?,?,?)");
-			$response = 'Thanks! We received your message.';
-			$stmt->execute([$actorType, $actorId, $category, $message, $response]);
-			echo json_encode(['ok' => true, 'response' => $response]);
-			exit;
-		}
-
-		echo json_encode(['ok' => true, 'response' => 'Thanks! We received your message.']);
+		$response = 'Thanks! We received your message.';
+		app_store_ai_feedback($conn, $actorType, $actorId, $category, app_feedback_subject_from_message($message), $message, $response, 'open', '');
+		echo json_encode(['ok' => true, 'response' => $response]);
 		exit;
 	}
 
@@ -61,8 +115,10 @@ try {
 	if ($openai !== '') {
 		$response = $openai;
 	}
+	$response = app_ai_suffix($response);
 
 	app_ai_log($conn, $actorType, $actorId, $role, $message, $response, $intent);
+	app_store_ai_feedback($conn, $actorType, $actorId, 'ai', $intent, $message, $response, 'answered', '');
 	echo json_encode(['ok' => true, 'response' => $response]);
 } catch (Throwable $e) {
 	echo json_encode(['ok' => false, 'message' => 'Failed to save message']);

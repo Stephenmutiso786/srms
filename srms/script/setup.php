@@ -31,6 +31,13 @@ function render_page(string $title, string $bodyHtml): void {
 <?php
 }
 
+
+if ($setupToken === '' || !hash_equals($setupToken, $providedToken)) {
+	http_response_code(403);
+	render_page(APP_NAME . " - Setup", "<h3>Setup locked</h3><p>Set <code>SETUP_TOKEN</code> on your server and open <code>/setup?token=YOUR_TOKEN</code>.</p>");
+	exit;
+}
+
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
@@ -38,12 +45,6 @@ try {
 	$staffCount = (int)$conn->query("SELECT COUNT(*) FROM tbl_staff")->fetchColumn();
 	if ($staffCount > 0) {
 		header("location:./");
-		exit;
-	}
-
-	if ($setupToken === '' || !hash_equals($setupToken, $providedToken)) {
-		http_response_code(403);
-		render_page(APP_NAME . " - Setup", "<h3>Setup locked</h3><p>Set <code>SETUP_TOKEN</code> on your server and open <code>/setup?token=YOUR_TOKEN</code>.</p>");
 		exit;
 	}
 

@@ -57,7 +57,7 @@ app_require_unlocked('reports', 'admin');
 <div class="tile-body">
 <div class="table-responsive">
 <h3 class="tile-title">Generate Report Cards</h3>
-<p class="text-muted mb-3">Lock and publish results first, then prepare report cards for the selected class and term. The system now generates each learner's final report on demand, so this step returns much faster.</p>
+<p class="text-muted mb-3">Lock results first, then generate the full class report set. The system computes every learner's report card, stores the ranked merit list, and prepares the published documents for student, parent, and teacher access.</p>
 <form enctype="multipart/form-data" action="admin/core/process_results" class="app_frm" method="POST" autocomplete="OFF">
 
 <div class="mb-2">
@@ -200,6 +200,18 @@ echo "Connection failed.";
 </form>
 </div>
 
+</div>
+</div>
+</div>
+
+<div class="col-12 mt-3">
+<div class="tile">
+<div class="tile-body d-flex justify-content-between align-items-center flex-wrap gap-2">
+<div>
+<h3 class="tile-title mb-1">Merit List</h3>
+<p class="text-muted mb-0">Generate a ranked class merit list and export it as a printable PDF.</p>
+</div>
+<a class="btn btn-primary" href="admin/merit_list"><i class="bi bi-trophy me-2"></i>Open Merit List</a>
 </div>
 </div>
 </div>

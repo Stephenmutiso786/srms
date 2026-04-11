@@ -755,3 +755,68 @@ function report_get_student_identity(PDO $conn, string $studentId): ?array
 		'class_name' => (string)($row['class_name'] ?? ''),
 	];
 }
+
+function report_class_merit_list(PDO $conn, int $classId, int $termId, ?int $generatedBy = null): array
+{
+	if ($classId < 1 || $termId < 1 || !app_table_exists($conn, 'tbl_students') || !app_table_exists($conn, 'tbl_report_cards')) {
+		return [
+			'rows' => [],
+			'total_students' => 0,
+			'positions' => [],
+		];
+	}
+
+	$stmt = $conn->prepare("SELECT id FROM tbl_students WHERE class = ? ORDER BY fname, lname, id");
+	$stmt->execute([$classId]);
+	$studentIds = array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+	if (!$studentIds) {
+		return [
+			'rows' => [],
+			'total_students' => 0,
+			'positions' => [],
+		];
+	}
+
+	$rankData = report_rank_students($conn, $classId, $termId);
+	$rows = [];
+	foreach ($studentIds as $studentId) {
+		$report = report_compute_for_student($conn, $studentId, $classId, $termId);
+		$reportId = report_store_card($conn, $studentId, $classId, $termId, $report, $rankData['positions'], (int)$rankData['total_students'], $generatedBy);
+		$card = report_load_card($conn, $reportId);
+		$identity = report_get_student_identity($conn, $studentId) ?: [];
+		if (!$card) {
+			continue;
+		}
+		$rows[] = [
+			'report_id' => $reportId,
+			'student_id' => $studentId,
+			'school_id' => (string)($identity['school_id'] ?? ''),
+			'student_name' => (string)($identity['name'] ?? ''),
+			'class_name' => (string)($identity['class_name'] ?? ''),
+			'position' => (int)($card['position'] ?? 0),
+			'total_students' => (int)($card['total_students'] ?? 0),
+			'total' => (float)($card['total'] ?? 0),
+			'mean' => (float)($card['mean'] ?? 0),
+			'grade' => (string)($card['grade'] ?? ''),
+			'remark' => (string)($card['remark'] ?? ''),
+			'trend' => (string)($card['trend'] ?? ''),
+			'verification_code' => (string)($card['verification_code'] ?? ''),
+		];
+	}
+
+	usort($rows, function ($a, $b) {
+		if ((int)$a['position'] === (int)$b['position']) {
+			if ((float)$a['mean'] === (float)$b['mean']) {
+				return strcmp((string)$a['student_id'], (string)$b['student_id']);
+			}
+			return (float)$b['mean'] <=> (float)$a['mean'];
+		}
+		return (int)$a['position'] <=> (int)$b['position'];
+	});
+
+	return [
+		'rows' => $rows,
+		'total_students' => count($studentIds),
+		'positions' => $rankData['positions'],
+	];
+}
