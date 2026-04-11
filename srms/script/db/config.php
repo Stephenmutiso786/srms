@@ -915,6 +915,125 @@ function app_delete_staff(PDO $conn, array $ids): void
 	$stmt->execute($ids);
 }
 
+function app_reset_school_people_data(PDO $conn): array
+{
+	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+	$summary = [
+		'students_removed' => 0,
+		'teachers_removed' => 0,
+		'parents_removed' => 0,
+		'staff_removed' => 0,
+		'admins_kept' => 0,
+	];
+
+	$studentIds = [];
+	if (app_table_exists($conn, 'tbl_students')) {
+		$stmt = $conn->query("SELECT id FROM tbl_students");
+		$studentIds = array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+		$summary['students_removed'] = count($studentIds);
+	}
+
+	$staffIds = [];
+	$adminCount = 0;
+	if (app_table_exists($conn, 'tbl_staff')) {
+		$stmt = $conn->query("SELECT id, level FROM tbl_staff");
+		foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+			$level = (string)($row['level'] ?? '');
+			if (in_array($level, ['0', '1', '9'], true)) {
+				$adminCount++;
+				continue;
+			}
+			$staffIds[] = (string)$row['id'];
+		}
+	}
+	$summary['admins_kept'] = $adminCount;
+	$summary['staff_removed'] = count($staffIds);
+	$summary['teachers_removed'] = count(array_filter($staffIds, function ($id) use ($conn) {
+		try {
+			$stmt = $conn->prepare("SELECT level FROM tbl_staff WHERE id = ? LIMIT 1");
+			$stmt->execute([$id]);
+			return (string)$stmt->fetchColumn() === '2';
+		} catch (Throwable $e) {
+			return false;
+		}
+	}));
+
+	$parentCount = 0;
+	if (app_table_exists($conn, 'tbl_parents')) {
+		$parentCount = (int)$conn->query("SELECT COUNT(*) FROM tbl_parents")->fetchColumn();
+	}
+	$summary['parents_removed'] = $parentCount;
+
+	$conn->beginTransaction();
+	try {
+		$fullWipeTables = [
+			'tbl_exam_mark_submissions',
+			'tbl_cbc_mark_submissions',
+			'tbl_exam_results',
+			'tbl_report_card_subjects',
+			'tbl_report_cards',
+			'tbl_exam_schedule',
+			'tbl_exam_subjects',
+			'tbl_exams',
+			'tbl_results_locks',
+			'tbl_validation_issues',
+			'tbl_insights_alerts',
+			'tbl_attendance_records',
+			'tbl_attendance_sessions',
+			'tbl_staff_attendance',
+			'tbl_school_timetable',
+			'tbl_class_teachers',
+			'tbl_teacher_assignments',
+			'tbl_subject_combinations',
+			'tbl_assignment_submissions',
+			'tbl_assignments',
+			'tbl_attendance_elearning',
+			'tbl_live_classes',
+			'tbl_quiz_results',
+			'tbl_quizzes',
+			'tbl_lesson_content',
+			'tbl_lessons',
+			'tbl_courses',
+			'tbl_transport_assignments',
+			'tbl_parent_students',
+			'tbl_notifications',
+			'tbl_login_sessions',
+			'tbl_ai_recommendations',
+			'tbl_cbc_assessments',
+			'tbl_invoices',
+			'tbl_payments',
+			'tbl_invoice_lines',
+		];
+
+		foreach ($fullWipeTables as $table) {
+			if (app_table_exists($conn, $table)) {
+				$conn->exec("DELETE FROM {$table}");
+			}
+		}
+
+		if ($parentCount > 0 && app_table_exists($conn, 'tbl_parents')) {
+			$conn->exec("DELETE FROM tbl_parents");
+		}
+
+		if (!empty($studentIds)) {
+			app_delete_students($conn, $studentIds);
+		}
+
+		if (!empty($staffIds)) {
+			app_delete_staff($conn, $staffIds);
+		}
+
+		$conn->commit();
+		return $summary;
+	} catch (Throwable $e) {
+		if ($conn->inTransaction()) {
+			$conn->rollBack();
+		}
+		throw $e;
+	}
+}
+
 function app_delete_subject(PDO $conn, int $id): void
 {
 	if ($id < 1) {

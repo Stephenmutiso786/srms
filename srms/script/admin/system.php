@@ -243,6 +243,20 @@ if (count($cbcGrading) < 1) {
 </table>
 </div>
 </div>
+
+<div class="row">
+<div class="col-md-12">
+<div class="tile border border-danger">
+<h3 class="tile-title text-danger">Danger Zone</h3>
+<div class="tile-body">
+<p class="text-muted">Use this only when handing the platform over to a completely new school. It removes old students, parents, teachers, class-teacher links, results, reports, timetable entries, e-learning records, and related school operations while keeping admin and school-admin accounts plus core setup like classes, subjects, terms, and school settings.</p>
+<form method="POST" action="admin/core/reset_new_school" onsubmit="return confirm('Reset this school for a new rollout? This will permanently remove students, parents, teachers, reports, timetable entries, and related records, while keeping admin accounts and core setup.');">
+<button type="submit" class="btn btn-danger">Reset for New School</button>
+</form>
+</div>
+</div>
+</div>
+</div>
 </div>
 </div>
 
