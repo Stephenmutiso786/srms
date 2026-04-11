@@ -1495,9 +1495,15 @@ function app_apply_cbc_curriculum_defaults(PDO $conn, ?int $userId = null): arra
 				$stmt->execute([$subjectName]);
 				$subjectId = (int)$stmt->fetchColumn();
 				if ($subjectId < 1) {
-					$stmt = $conn->prepare("INSERT INTO tbl_subjects (name) VALUES (?)");
-					$stmt->execute([$subjectName]);
-					$subjectId = (int)$conn->lastInsertId();
+					if (defined('DBDriver') && DBDriver === 'pgsql') {
+						$stmt = $conn->prepare("INSERT INTO tbl_subjects (name) VALUES (?) RETURNING id");
+						$stmt->execute([$subjectName]);
+						$subjectId = (int)$stmt->fetchColumn();
+					} else {
+						$stmt = $conn->prepare("INSERT INTO tbl_subjects (name) VALUES (?)");
+						$stmt->execute([$subjectName]);
+						$subjectId = (int)$conn->lastInsertId();
+					}
 					$summary['subjects']++;
 				}
 				$subjectIdMap[$subjectName] = $subjectId;
@@ -1517,14 +1523,25 @@ function app_apply_cbc_curriculum_defaults(PDO $conn, ?int $userId = null): arra
 				$stmt->execute([$className]);
 				$classId = (int)$stmt->fetchColumn();
 				if ($classId < 1) {
-					if ($classHasRegistrationDate) {
-						$stmt = $conn->prepare("INSERT INTO tbl_classes (name, registration_date) VALUES (?, ?)");
-						$stmt->execute([$className, date('Y-m-d G:i:s')]);
+					if (defined('DBDriver') && DBDriver === 'pgsql') {
+						if ($classHasRegistrationDate) {
+							$stmt = $conn->prepare("INSERT INTO tbl_classes (name, registration_date) VALUES (?, ?) RETURNING id");
+							$stmt->execute([$className, date('Y-m-d G:i:s')]);
+						} else {
+							$stmt = $conn->prepare("INSERT INTO tbl_classes (name) VALUES (?) RETURNING id");
+							$stmt->execute([$className]);
+						}
+						$classId = (int)$stmt->fetchColumn();
 					} else {
-						$stmt = $conn->prepare("INSERT INTO tbl_classes (name) VALUES (?)");
-						$stmt->execute([$className]);
+						if ($classHasRegistrationDate) {
+							$stmt = $conn->prepare("INSERT INTO tbl_classes (name, registration_date) VALUES (?, ?)");
+							$stmt->execute([$className, date('Y-m-d G:i:s')]);
+						} else {
+							$stmt = $conn->prepare("INSERT INTO tbl_classes (name) VALUES (?)");
+							$stmt->execute([$className]);
+						}
+						$classId = (int)$conn->lastInsertId();
 					}
-					$classId = (int)$conn->lastInsertId();
 					$summary['classes']++;
 				}
 				$classIdMap[$className] = $classId;
