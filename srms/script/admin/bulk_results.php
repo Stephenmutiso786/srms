@@ -34,7 +34,8 @@ $class_data = $stmt->fetchAll();
 $tit = ''.$class_data[0][1].' ('.$term_data[0][1].' Results)';
 }catch(PDOException $e)
 {
-echo "Connection failed: " . $e->getMessage();
+error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
+echo "Connection failed.";
 }
 
 }else{
@@ -201,7 +202,8 @@ if ($row2[9] == "DEFAULT") {
 
 }catch(PDOException $e)
 {
-echo "Connection failed: " . $e->getMessage();
+error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
+echo "Connection failed.";
 }
 
 ?>

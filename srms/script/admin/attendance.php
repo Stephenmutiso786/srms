@@ -40,7 +40,8 @@ try {
 		$counts[$k] = (int)$r['c'];
 	}
 } catch (Throwable $e) {
-	$error = $e->getMessage();
+	error_log("[".__FILE__.":".__LINE__." Throwable] " . $e->getMessage());
+	$error = "An internal error occurred.";
 }
 ?>
 <!DOCTYPE html>

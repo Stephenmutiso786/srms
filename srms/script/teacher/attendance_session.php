@@ -63,7 +63,8 @@ try {
 		$existing[(string)$r['student_id']] = (string)$r['status'];
 	}
 } catch (Throwable $e) {
-	$error = $e->getMessage();
+	error_log("[".__FILE__.":".__LINE__." Throwable] " . $e->getMessage());
+	$error = "An internal error occurred.";
 }
 ?>
 <!DOCTYPE html>

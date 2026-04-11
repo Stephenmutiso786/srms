@@ -117,7 +117,8 @@ if (count($resultr) > 0) {
 
 }catch(PDOException $e)
 {
-echo "Connection failed: " . $e->getMessage();
+error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
+echo "Connection failed.";
 }
 ?>
 </select>
@@ -153,7 +154,8 @@ if (count($resultr) > 0) {
 
 }catch(PDOException $e)
 {
-echo "Connection failed: " . $e->getMessage();
+error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
+echo "Connection failed.";
 }
 ?>
 </select>

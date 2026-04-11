@@ -41,7 +41,8 @@ try {
 
   $_SESSION['reply'] = array (array("success", "Submission graded."));
 } catch (Throwable $e) {
-  $_SESSION['reply'] = array (array("danger", $e->getMessage()));
+	error_log("[".__FILE__.":".__LINE__." Throwable] " . $e->getMessage());
+	$_SESSION['reply'] = array(array("danger", "Operation failed. Please try again."));
 }
 
 header("location:../elearning");

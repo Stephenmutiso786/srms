@@ -24,7 +24,7 @@ app_clear_auth_cookies();
 
 }catch(PDOException $e)
 {
-echo "Connection failed: " . $e->getMessage();
+error_log('[logout] ' . $e->getMessage());
 }
 header("location:./");
 ?>

@@ -74,6 +74,13 @@ function api_fail(string $message, int $status = 400, array $extra = []): void
 	api_json(array_merge(['ok' => false, 'error' => $message], $extra), $status);
 }
 
+function api_internal_error(Throwable $e, string $context = 'api'): void
+{
+	$msg = '[' . $context . '] ' . $e->getMessage();
+	error_log($msg);
+	api_fail('Internal server error.', 500);
+}
+
 function api_portal_name(string $level): string
 {
 	return match ($level) {

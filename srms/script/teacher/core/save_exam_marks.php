@@ -128,7 +128,8 @@ try {
   if ($conn && $conn->inTransaction()) {
     $conn->rollBack();
   }
-  $_SESSION['reply'] = array (array("danger", $e->getMessage()));
+  error_log("[".__FILE__.":".__LINE__." Throwable] " . $e->getMessage());
+  $_SESSION['reply'] = array(array("danger", "Operation failed. Please try again."));
   header("location:../exam_marks_table");
   exit;
 }

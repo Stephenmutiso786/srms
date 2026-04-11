@@ -38,5 +38,5 @@ try {
 		'download_url' => api_backend_url('/student/report_card_pdf?term=' . $termId),
 	]);
 } catch (Throwable $e) {
-	api_fail($e->getMessage(), 500);
+	api_internal_error($e, 'api.student.report_card');
 }

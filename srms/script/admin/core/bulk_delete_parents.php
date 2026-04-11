@@ -56,6 +56,7 @@ try {
 	if ($conn && $conn->inTransaction()) {
 		$conn->rollBack();
 	}
-	echo "Connection failed: " . $e->getMessage();
+	error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
+	echo "Connection failed.";
 }
 ?>

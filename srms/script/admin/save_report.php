@@ -45,7 +45,8 @@ $class_data = $stmt->fetchAll();
 $title = ''.$class_data[0][1].' ('.$term_data[0][1].' Perfomance Report)';
 }catch(PDOException $e)
 {
-echo "Connection failed: " . $e->getMessage();
+error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
+echo "Connection failed.";
 }
 
 $stmt = $conn->prepare("SELECT * FROM tbl_subject_combinations LEFT JOIN tbl_subjects ON tbl_subject_combinations.subject = tbl_subjects.id");
@@ -203,7 +204,8 @@ $pdf->Output(''.$title.'.pdf', 'I');
 
 }catch(PDOException $e)
 {
-echo "Connection failed: " . $e->getMessage();
+error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
+echo "Connection failed.";
 }
 }else{
 header("location:./");

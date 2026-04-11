@@ -31,7 +31,8 @@ try {
   app_audit_log($conn, 'staff', (string)$account_id, 'exam_marks.unlock', 'submission', (string)$submissionId);
   $_SESSION['reply'] = array (array("success", "Marks unlocked to draft."));
 } catch (Throwable $e) {
-  $_SESSION['reply'] = array (array("danger", $e->getMessage()));
+	error_log("[".__FILE__.":".__LINE__." Throwable] " . $e->getMessage());
+	$_SESSION['reply'] = array(array("danger", "Operation failed. Please try again."));
 }
 header("location:../marks_review");
 exit;

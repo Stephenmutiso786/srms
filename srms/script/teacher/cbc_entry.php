@@ -102,7 +102,8 @@ try {
 	$isLocked = app_results_locked($conn, $class, $term);
 	$submissionStatus = app_cbc_submission_status($conn, $term, $class, $subjectComb);
 } catch (Throwable $e) {
-	$error = $e->getMessage();
+	error_log("[".__FILE__.":".__LINE__." Throwable] " . $e->getMessage());
+	$error = "An internal error occurred.";
 }
 
 if (count($grading) < 1) {

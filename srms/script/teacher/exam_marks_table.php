@@ -90,7 +90,8 @@ try {
   $isLocked = app_results_locked($conn, $classId, $termId);
   $submissionStatus = app_exam_submission_status($conn, $examId, $subjectComb);
 } catch (Throwable $e) {
-  $error = $e->getMessage();
+	error_log("[".__FILE__.":".__LINE__." Throwable] " . $e->getMessage());
+	$error = "An internal error occurred.";
 }
 ?>
 <!DOCTYPE html>

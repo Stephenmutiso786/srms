@@ -23,6 +23,6 @@ try {
 	app_clear_auth_cookies(true);
 	api_json(['ok' => true]);
 } catch (Throwable $e) {
-	api_fail($e->getMessage(), 500);
+	api_internal_error($e, 'api.logout');
 }
 

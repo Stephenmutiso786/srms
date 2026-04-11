@@ -41,7 +41,8 @@ $class_data = $stmt->fetchAll();
 $title = ''.$class_data[0][1].' ('.$term_data[0][1].' Perfomance Report)';
 }catch(PDOException $e)
 {
-echo "Connection failed: " . $e->getMessage();
+error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
+echo "Connection failed.";
 }
 
 
@@ -204,7 +205,8 @@ $pdf->Output(''.$title.'.pdf', 'I');
 
 }catch(PDOException $e)
 {
-echo "Connection failed: " . $e->getMessage();
+error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
+echo "Connection failed.";
 }
 }else{
 header("location:./");

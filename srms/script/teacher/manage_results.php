@@ -106,7 +106,8 @@ foreach($result as $row)
 
 }catch(PDOException $e)
 {
-echo "Connection failed: " . $e->getMessage();
+error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
+echo "Connection failed.";
 }
 ?>
 </select>
@@ -169,7 +170,8 @@ foreach($result as $row)
 
 }catch(PDOException $e)
 {
-echo "Connection failed: " . $e->getMessage();
+error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
+echo "Connection failed.";
 }
 ?>
 </select>

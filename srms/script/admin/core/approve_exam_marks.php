@@ -28,7 +28,8 @@ try {
   app_audit_log($conn, 'staff', (string)$account_id, 'exam_marks.approve', 'submission', (string)$submissionId);
   $_SESSION['reply'] = array (array("success", "Marks reviewed successfully."));
 } catch (Throwable $e) {
-  $_SESSION['reply'] = array (array("danger", $e->getMessage()));
+	error_log("[".__FILE__.":".__LINE__." Throwable] " . $e->getMessage());
+	$_SESSION['reply'] = array(array("danger", "Operation failed. Please try again."));
 }
 header("location:../marks_review");
 exit;

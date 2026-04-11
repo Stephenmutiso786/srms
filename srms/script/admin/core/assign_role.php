@@ -47,6 +47,7 @@ try {
 	$_SESSION['reply'] = array(array("success", "Role assigned."));
 	header("location:../roles");
 } catch (PDOException $e) {
-	$_SESSION['reply'] = array(array("danger", $e->getMessage()));
+	error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
+	$_SESSION['reply'] = array(array("danger", "Operation failed. Please try again."));
 	header("location:../roles");
 }

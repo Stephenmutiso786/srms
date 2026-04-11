@@ -140,7 +140,10 @@ header("location:../");
 
 }catch(PDOException $e)
 {
-echo "Connection failed: " . $e->getMessage();
+error_log('[core.auth] ' . $e->getMessage());
+$_SESSION['reply'] = array (array("danger", "Something went wrong. Please try again."));
+header("location:../");
+exit;
 }
 
 }else{

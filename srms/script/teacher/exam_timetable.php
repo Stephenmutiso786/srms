@@ -40,7 +40,8 @@ try {
 	$stmt->execute([$termId, (int)$account_id]);
 	$rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Throwable $e) {
-	$error = $e->getMessage();
+	error_log("[".__FILE__.":".__LINE__." Throwable] " . $e->getMessage());
+	$error = "An internal error occurred.";
 }
 ?>
 <!DOCTYPE html>

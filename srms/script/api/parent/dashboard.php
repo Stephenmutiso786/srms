@@ -95,5 +95,5 @@ try {
 		'notifications' => $notifications,
 	]);
 } catch (Throwable $e) {
-	api_fail($e->getMessage(), 500);
+	api_internal_error($e, 'api.parent.dashboard');
 }

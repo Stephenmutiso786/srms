@@ -64,7 +64,8 @@ try {
   app_audit_log($conn, 'student', (string)$account_id, 'elearning.quiz.submit', 'quiz', (string)$quizId);
   $_SESSION['reply'] = array (array("success", "Quiz submitted. Score: ".number_format($score, 2)));
 } catch (Throwable $e) {
-  $_SESSION['reply'] = array (array("danger", $e->getMessage()));
+	error_log("[".__FILE__.":".__LINE__." Throwable] " . $e->getMessage());
+	$_SESSION['reply'] = array(array("danger", "Operation failed. Please try again."));
 }
 
 header("location:../elearning");

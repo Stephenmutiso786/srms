@@ -38,7 +38,8 @@ try {
 	$stmt->execute($ids);
 	$_SESSION['reply'] = array (array("success","Selected notifications deleted successfully"));
 	header("location:../notifications");
-} catch(PDOException $e) {
-	echo "Connection failed: " . $e->getMessage();
+} catch (PDOException $e) {
+	error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
+	echo "Connection failed.";
 }
 ?>

@@ -29,7 +29,8 @@ header("location:../system");
 
 }catch(PDOException $e)
 {
-echo "Connection failed: " . $e->getMessage();
+error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
+echo "Connection failed.";
 }
 }else{
 	$uploadCheck = app_validate_upload($_FILES['company_logo'], ['jpg', 'jpeg', 'png']);
@@ -75,7 +76,8 @@ header("location:../system");
 
 }catch(PDOException $e)
 {
-echo "Connection failed: " . $e->getMessage();
+error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
+echo "Connection failed.";
 }
 
 }else{

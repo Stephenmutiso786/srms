@@ -79,9 +79,10 @@ $mail->AltBody = $msg;
 if(!$mail->send()) {
 
 $er = '' . $mail->ErrorInfo.'';
+	error_log('[core.forgot_pw.smtp] ' . $er);
 
 
-$_SESSION['reply'] = array (array("danger", $er));
+$_SESSION['reply'] = array (array("danger", "Unable to send reset email right now. Please try again later."));
 header("location:../");
 
 
@@ -114,7 +115,10 @@ header("location:../");
 
 }catch(PDOException $e)
 {
-echo "Connection failed: " . $e->getMessage();
+error_log('[core.forgot_pw] ' . $e->getMessage());
+$_SESSION['reply'] = array (array("danger", "Something went wrong. Please try again."));
+header("location:../");
+exit;
 }
 
 }else{

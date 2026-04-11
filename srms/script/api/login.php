@@ -99,6 +99,6 @@ UNION SELECT id, email, password, level, status FROM tbl_students WHERE id = ? O
 
 	api_fail('Invalid login credentials.', 401);
 } catch (Throwable $e) {
-	api_fail($e->getMessage(), 500);
+	api_internal_error($e, 'api.login');
 }
 
