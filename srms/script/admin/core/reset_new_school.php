@@ -5,7 +5,7 @@ require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/rbac.php');
 
-if ($res !== "1" || $level !== "0") { header("location:../"); exit; }
+if ($res !== "1" || !in_array((string)$level, ['0', '9'], true)) { header("location:../"); exit; }
 app_require_permission('system.manage', '../');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -25,5 +25,6 @@ try {
 	);
 	app_reply_redirect('success', $message, '../system');
 } catch (Throwable $e) {
-	app_reply_redirect('danger', 'Failed to reset school data: ' . $e->getMessage(), '../system');
+	error_log('[admin.reset_new_school] ' . $e->getMessage());
+	app_reply_redirect('danger', 'Failed to reset school data. Please check server logs and try again.', '../system');
 }

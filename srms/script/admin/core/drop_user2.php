@@ -4,7 +4,7 @@ chdir('../../');
 require_once('db/config.php');
 require_once('const/check_session.php');
 
-if ($res !== "1" || $level !== "0" || $_SERVER['REQUEST_METHOD'] !== 'GET') {
+if ($res !== "1" || !in_array((string)$level, ['0', '9'], true) || $_SERVER['REQUEST_METHOD'] !== 'GET') {
 	header("location:../");
 	exit;
 }
