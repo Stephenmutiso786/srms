@@ -1302,6 +1302,97 @@ function app_delete_class(PDO $conn, int $id): array
 	return [true, 'Class deleted successfully.'];
 }
 
+function app_force_delete_class(PDO $conn, int $id): bool
+{
+	if ($id < 1 || !app_table_exists($conn, 'tbl_classes')) {
+		return false;
+	}
+
+	$sp = app_tx_savepoint_begin($conn, 'force_drop_class');
+	try {
+		if (app_table_exists($conn, 'tbl_students')) {
+			$studentClassColumn = null;
+			if (app_column_exists($conn, 'tbl_students', 'class')) {
+				$studentClassColumn = 'class';
+			} elseif (app_column_exists($conn, 'tbl_students', 'class_id')) {
+				$studentClassColumn = 'class_id';
+			}
+			if ($studentClassColumn !== null) {
+				$stmt = $conn->prepare("SELECT id FROM tbl_students WHERE {$studentClassColumn} = ?");
+				$stmt->execute([$id]);
+				$studentIds = array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+				if (!empty($studentIds)) {
+					app_delete_students($conn, $studentIds);
+				}
+			}
+		}
+
+		$cleanup = [
+			['tbl_subject_class_assignments', 'class_id', 'DELETE FROM tbl_subject_class_assignments WHERE class_id = ?'],
+			['tbl_teacher_assignments', 'class_id', 'DELETE FROM tbl_teacher_assignments WHERE class_id = ?'],
+			['tbl_results_locks', 'class_id', 'DELETE FROM tbl_results_locks WHERE class_id = ?'],
+			['tbl_exam_schedule', 'class_id', 'DELETE FROM tbl_exam_schedule WHERE class_id = ?'],
+			['tbl_exams', 'class_id', 'DELETE FROM tbl_exams WHERE class_id = ?'],
+			['tbl_attendance_sessions', 'class_id', 'DELETE FROM tbl_attendance_sessions WHERE class_id = ?'],
+			['tbl_courses', 'class_id', 'DELETE FROM tbl_courses WHERE class_id = ?'],
+			['tbl_fee_structures', 'class_id', 'DELETE FROM tbl_fee_structures WHERE class_id = ?'],
+			['tbl_validation_issues', 'class_id', 'DELETE FROM tbl_validation_issues WHERE class_id = ?'],
+			['tbl_insights_alerts', 'class_id', 'DELETE FROM tbl_insights_alerts WHERE class_id = ?'],
+			['tbl_notifications', 'class_id', 'DELETE FROM tbl_notifications WHERE class_id = ?'],
+			['tbl_school_timetable', 'class_id', 'DELETE FROM tbl_school_timetable WHERE class_id = ?'],
+			['tbl_class_teachers', 'class_id', 'DELETE FROM tbl_class_teachers WHERE class_id = ?'],
+			['tbl_exam_mark_submissions', 'class_id', 'DELETE FROM tbl_exam_mark_submissions WHERE class_id = ?'],
+			['tbl_cbc_mark_submissions', 'class_id', 'DELETE FROM tbl_cbc_mark_submissions WHERE class_id = ?'],
+			['tbl_report_cards', 'class_id', 'DELETE FROM tbl_report_cards WHERE class_id = ?'],
+			['tbl_attendance_records', 'class_id', 'DELETE FROM tbl_attendance_records WHERE class_id = ?'],
+		];
+		foreach ($cleanup as $rule) {
+			if (app_table_exists($conn, $rule[0]) && app_column_exists($conn, $rule[0], $rule[1])) {
+				try {
+					$stmt = $conn->prepare($rule[2]);
+					$stmt->execute([$id]);
+				} catch (Throwable $e) {
+					error_log('[app_force_delete_class] cleanup failed for ' . $rule[0] . ': ' . $e->getMessage());
+				}
+			}
+		}
+
+		if (app_table_exists($conn, 'tbl_subject_combinations') && app_column_exists($conn, 'tbl_subject_combinations', 'id') && app_column_exists($conn, 'tbl_subject_combinations', 'class')) {
+			try {
+				$stmt = $conn->prepare("SELECT id, class FROM tbl_subject_combinations");
+				$stmt->execute();
+				foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+					$classList = app_unserialize((string)($row['class'] ?? ''));
+					if (empty($classList)) {
+						continue;
+					}
+					$filtered = array_values(array_filter($classList, function ($classId) use ($id) {
+						return (string)$classId !== (string)$id;
+					}));
+					if (empty($filtered)) {
+						$delete = $conn->prepare("DELETE FROM tbl_subject_combinations WHERE id = ?");
+						$delete->execute([(int)$row['id']]);
+					} else {
+						$update = $conn->prepare("UPDATE tbl_subject_combinations SET class = ? WHERE id = ?");
+						$update->execute([serialize($filtered), (int)$row['id']]);
+					}
+				}
+			} catch (Throwable $e) {
+				error_log('[app_force_delete_class] subject combination cleanup failed: ' . $e->getMessage());
+			}
+		}
+
+		$stmt = $conn->prepare("DELETE FROM tbl_classes WHERE id = ?");
+		$stmt->execute([$id]);
+		app_tx_savepoint_release($conn, $sp);
+		return true;
+	} catch (Throwable $e) {
+		app_tx_savepoint_rollback($conn, $sp);
+		error_log('[app_force_delete_class] class delete failed for id ' . $id . ': ' . $e->getMessage());
+		return false;
+	}
+}
+
 function app_class_name_parts(string $name): array
 {
 	$name = trim($name);
@@ -1906,33 +1997,13 @@ function app_apply_cbc_curriculum_defaults(PDO $conn, ?int $userId = null): arra
 			if (!$inUse) {
 				$savepoint = app_tx_savepoint_begin($conn, 'cbc_class_cleanup');
 				try {
-					if (app_table_exists($conn, 'tbl_students')) {
-						$studentClassColumn = null;
-						if (app_column_exists($conn, 'tbl_students', 'class')) {
-							$studentClassColumn = 'class';
-						} elseif (app_column_exists($conn, 'tbl_students', 'class_id')) {
-							$studentClassColumn = 'class_id';
-						}
-						if ($studentClassColumn !== null && app_column_exists($conn, 'tbl_students', 'id')) {
-							$studentsStmt = $conn->prepare("SELECT id FROM tbl_students WHERE {$studentClassColumn} = ?");
-							$studentsStmt->execute([$classId]);
-							$classStudentIds = array_map('strval', $studentsStmt->fetchAll(PDO::FETCH_COLUMN));
-							if (!empty($classStudentIds)) {
-								app_delete_students($conn, $classStudentIds);
-							}
-						}
-					}
-
-					$result = app_delete_class($conn, $classId);
-					if (($result[0] ?? false) === true) {
+					if (app_force_delete_class($conn, $classId)) {
 						$summary['removed_classes']++;
 						app_tx_savepoint_release($conn, $savepoint);
 					} else {
 						app_tx_savepoint_rollback($conn, $savepoint);
 						$summary['skipped_classes']++;
-						if (!empty($result[1])) {
-							$summary['errors'][] = (string)$result[1];
-						}
+						$summary['errors'][] = 'Skipped class "' . $className . '" because it could not be removed safely.';
 					}
 				} catch (Throwable $e) {
 					app_tx_savepoint_rollback($conn, $savepoint);
