@@ -23,6 +23,10 @@ try {
 		(int)$summary['parents_removed'],
 		(int)$summary['admins_kept']
 	);
+	$warnings = is_array($summary['warnings'] ?? null) ? $summary['warnings'] : [];
+	if (count($warnings) > 0) {
+		app_reply_redirect('warning', $message . ' Completed with ' . count($warnings) . ' warning(s). Some historical records may have been blocked instead of deleted.', '../system');
+	}
 	app_reply_redirect('success', $message, '../system');
 } catch (Throwable $e) {
 	error_log('[admin.reset_new_school] ' . $e->getMessage());

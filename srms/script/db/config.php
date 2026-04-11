@@ -931,6 +931,7 @@ function app_reset_school_people_data(PDO $conn): array
 		'parents_removed' => 0,
 		'staff_removed' => 0,
 		'admins_kept' => 0,
+		'warnings' => [],
 	];
 
 	$studentIds = [];
@@ -1026,7 +1027,16 @@ function app_reset_school_people_data(PDO $conn): array
 		}
 
 		if ($parentCount > 0 && app_table_exists($conn, 'tbl_parents')) {
-			$conn->exec("DELETE FROM tbl_parents");
+			$sp = app_tx_savepoint_begin($conn, 'reset_parents');
+			try {
+				$conn->exec("DELETE FROM tbl_parents");
+				app_tx_savepoint_release($conn, $sp);
+			} catch (Throwable $e) {
+				app_tx_savepoint_rollback($conn, $sp);
+				$msg = 'parent delete failed: ' . $e->getMessage();
+				error_log('[app_reset_school_people_data] ' . $msg);
+				$summary['warnings'][] = $msg;
+			}
 		}
 
 		if (!empty($studentIds)) {
@@ -1036,13 +1046,21 @@ function app_reset_school_people_data(PDO $conn): array
 				app_tx_savepoint_release($conn, $sp);
 			} catch (Throwable $e) {
 				app_tx_savepoint_rollback($conn, $sp);
-				error_log('[app_reset_school_people_data] student delete failed, falling back to block: ' . $e->getMessage());
+				$msg = 'student delete failed, falling back to block: ' . $e->getMessage();
+				error_log('[app_reset_school_people_data] ' . $msg);
+				$summary['warnings'][] = $msg;
 				if (app_column_exists($conn, 'tbl_students', 'status')) {
-					$placeholders = implode(',', array_fill(0, count($studentIds), '?'));
-					$stmt = $conn->prepare("UPDATE tbl_students SET status = 0 WHERE id IN ($placeholders)");
-					$stmt->execute($studentIds);
+					try {
+						$placeholders = implode(',', array_fill(0, count($studentIds), '?'));
+						$stmt = $conn->prepare("UPDATE tbl_students SET status = 0 WHERE id IN ($placeholders)");
+						$stmt->execute($studentIds);
+					} catch (Throwable $fallbackError) {
+						$msg2 = 'student fallback block failed: ' . $fallbackError->getMessage();
+						error_log('[app_reset_school_people_data] ' . $msg2);
+						$summary['warnings'][] = $msg2;
+					}
 				} else {
-					throw $e;
+					$summary['warnings'][] = 'student fallback unavailable: status column missing';
 				}
 			}
 		}
@@ -1054,13 +1072,21 @@ function app_reset_school_people_data(PDO $conn): array
 				app_tx_savepoint_release($conn, $sp);
 			} catch (Throwable $e) {
 				app_tx_savepoint_rollback($conn, $sp);
-				error_log('[app_reset_school_people_data] staff delete failed, falling back to block: ' . $e->getMessage());
+				$msg = 'staff delete failed, falling back to block: ' . $e->getMessage();
+				error_log('[app_reset_school_people_data] ' . $msg);
+				$summary['warnings'][] = $msg;
 				if (app_column_exists($conn, 'tbl_staff', 'status')) {
-					$placeholders = implode(',', array_fill(0, count($staffIds), '?'));
-					$stmt = $conn->prepare("UPDATE tbl_staff SET status = 0 WHERE id IN ($placeholders)");
-					$stmt->execute($staffIds);
+					try {
+						$placeholders = implode(',', array_fill(0, count($staffIds), '?'));
+						$stmt = $conn->prepare("UPDATE tbl_staff SET status = 0 WHERE id IN ($placeholders)");
+						$stmt->execute($staffIds);
+					} catch (Throwable $fallbackError) {
+						$msg2 = 'staff fallback block failed: ' . $fallbackError->getMessage();
+						error_log('[app_reset_school_people_data] ' . $msg2);
+						$summary['warnings'][] = $msg2;
+					}
 				} else {
-					throw $e;
+					$summary['warnings'][] = 'staff fallback unavailable: status column missing';
 				}
 			}
 		}
