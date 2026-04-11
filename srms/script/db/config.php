@@ -582,6 +582,9 @@ function app_save_class_subject_assignments(PDO $conn, int $classId, array $subj
 	if ($classId < 1 || !app_table_exists($conn, 'tbl_subject_class_assignments')) {
 		return;
 	}
+	if (!app_column_exists($conn, 'tbl_subject_class_assignments', 'class_id') || !app_column_exists($conn, 'tbl_subject_class_assignments', 'subject_id')) {
+		return;
+	}
 
 	$subjectIds = array_values(array_unique(array_filter(array_map('intval', $subjectIds))));
 	$stmt = $conn->prepare("DELETE FROM tbl_subject_class_assignments WHERE class_id = ?");
@@ -591,9 +594,18 @@ function app_save_class_subject_assignments(PDO $conn, int $classId, array $subj
 		return;
 	}
 
-	$insert = $conn->prepare("INSERT INTO tbl_subject_class_assignments (subject_id, class_id, created_by) VALUES (?,?,?)");
+	$hasCreatedBy = app_column_exists($conn, 'tbl_subject_class_assignments', 'created_by');
+	if ($hasCreatedBy) {
+		$insert = $conn->prepare("INSERT INTO tbl_subject_class_assignments (subject_id, class_id, created_by) VALUES (?,?,?)");
+		foreach ($subjectIds as $subjectId) {
+			$insert->execute([$subjectId, $classId, $userId ? (int)$userId : null]);
+		}
+		return;
+	}
+
+	$insert = $conn->prepare("INSERT INTO tbl_subject_class_assignments (subject_id, class_id) VALUES (?,?)");
 	foreach ($subjectIds as $subjectId) {
-		$insert->execute([$subjectId, $classId, $userId ? (int)$userId : null]);
+		$insert->execute([$subjectId, $classId]);
 	}
 }
 
@@ -1442,7 +1454,11 @@ function app_cbc_default_subjects_for_class(string $className): array
 function app_apply_cbc_curriculum_defaults(PDO $conn, ?int $userId = null): array
 {
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-	app_ensure_class_teachers_table($conn);
+	try {
+		app_ensure_class_teachers_table($conn);
+	} catch (Throwable $e) {
+		error_log('[app_apply_cbc_curriculum_defaults] class teachers table ensure failed: ' . $e->getMessage());
+	}
 
 	$subjectNames = array_map(function ($row) {
 		return (string)$row['name'];
@@ -1650,6 +1666,23 @@ function app_apply_cbc_curriculum_defaults(PDO $conn, ?int $userId = null): arra
 			if (!$inUse) {
 				$savepoint = app_tx_savepoint_begin($conn, 'cbc_class_cleanup');
 				try {
+					if (app_table_exists($conn, 'tbl_students')) {
+						$studentClassColumn = null;
+						if (app_column_exists($conn, 'tbl_students', 'class')) {
+							$studentClassColumn = 'class';
+						} elseif (app_column_exists($conn, 'tbl_students', 'class_id')) {
+							$studentClassColumn = 'class_id';
+						}
+						if ($studentClassColumn !== null && app_column_exists($conn, 'tbl_students', 'id')) {
+							$studentsStmt = $conn->prepare("SELECT id FROM tbl_students WHERE {$studentClassColumn} = ?");
+							$studentsStmt->execute([$classId]);
+							$classStudentIds = array_map('strval', $studentsStmt->fetchAll(PDO::FETCH_COLUMN));
+							if (!empty($classStudentIds)) {
+								app_delete_students($conn, $classStudentIds);
+							}
+						}
+					}
+
 					$result = app_delete_class($conn, $classId);
 					if (($result[0] ?? false) === true) {
 						$summary['removed_classes']++;
