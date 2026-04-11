@@ -1201,56 +1201,92 @@ function app_delete_class(PDO $conn, int $id): array
 	}
 
 	if (app_table_exists($conn, 'tbl_students')) {
-		$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_students WHERE class = ?");
-		$stmt->execute([$id]);
-		if ((int)$stmt->fetchColumn() > 0) {
-			return [false, 'This class still has students. Move or delete the students first.'];
+		$studentClassColumn = null;
+		if (app_column_exists($conn, 'tbl_students', 'class')) {
+			$studentClassColumn = 'class';
+		} elseif (app_column_exists($conn, 'tbl_students', 'class_id')) {
+			$studentClassColumn = 'class_id';
+		}
+		if ($studentClassColumn !== null) {
+			$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_students WHERE {$studentClassColumn} = ?");
+			$stmt->execute([$id]);
+			if ((int)$stmt->fetchColumn() > 0) {
+				return [false, 'This class still has students. Move or delete the students first.'];
+			}
 		}
 	}
 
 	$cleanup = [
-		['tbl_subject_class_assignments', 'DELETE FROM tbl_subject_class_assignments WHERE class_id = ?'],
-		['tbl_teacher_assignments', 'DELETE FROM tbl_teacher_assignments WHERE class_id = ?'],
-		['tbl_results_locks', 'DELETE FROM tbl_results_locks WHERE class_id = ?'],
-		['tbl_exam_schedule', 'DELETE FROM tbl_exam_schedule WHERE class_id = ?'],
-		['tbl_exams', 'DELETE FROM tbl_exams WHERE class_id = ?'],
-		['tbl_attendance_sessions', 'DELETE FROM tbl_attendance_sessions WHERE class_id = ?'],
-		['tbl_courses', 'DELETE FROM tbl_courses WHERE class_id = ?'],
-		['tbl_fee_structures', 'DELETE FROM tbl_fee_structures WHERE class_id = ?'],
-		['tbl_validation_issues', 'DELETE FROM tbl_validation_issues WHERE class_id = ?'],
-		['tbl_insights_alerts', 'DELETE FROM tbl_insights_alerts WHERE class_id = ?'],
-		['tbl_notifications', 'DELETE FROM tbl_notifications WHERE class_id = ?'],
+		['tbl_subject_class_assignments', 'class_id', 'DELETE FROM tbl_subject_class_assignments WHERE class_id = ?'],
+		['tbl_teacher_assignments', 'class_id', 'DELETE FROM tbl_teacher_assignments WHERE class_id = ?'],
+		['tbl_results_locks', 'class_id', 'DELETE FROM tbl_results_locks WHERE class_id = ?'],
+		['tbl_exam_schedule', 'class_id', 'DELETE FROM tbl_exam_schedule WHERE class_id = ?'],
+		['tbl_exams', 'class_id', 'DELETE FROM tbl_exams WHERE class_id = ?'],
+		['tbl_attendance_sessions', 'class_id', 'DELETE FROM tbl_attendance_sessions WHERE class_id = ?'],
+		['tbl_courses', 'class_id', 'DELETE FROM tbl_courses WHERE class_id = ?'],
+		['tbl_fee_structures', 'class_id', 'DELETE FROM tbl_fee_structures WHERE class_id = ?'],
+		['tbl_validation_issues', 'class_id', 'DELETE FROM tbl_validation_issues WHERE class_id = ?'],
+		['tbl_insights_alerts', 'class_id', 'DELETE FROM tbl_insights_alerts WHERE class_id = ?'],
+		['tbl_notifications', 'class_id', 'DELETE FROM tbl_notifications WHERE class_id = ?'],
+		['tbl_school_timetable', 'class_id', 'DELETE FROM tbl_school_timetable WHERE class_id = ?'],
+		['tbl_class_teachers', 'class_id', 'DELETE FROM tbl_class_teachers WHERE class_id = ?'],
+		['tbl_exam_mark_submissions', 'class_id', 'DELETE FROM tbl_exam_mark_submissions WHERE class_id = ?'],
+		['tbl_cbc_mark_submissions', 'class_id', 'DELETE FROM tbl_cbc_mark_submissions WHERE class_id = ?'],
 	];
 	foreach ($cleanup as $rule) {
-		if (app_table_exists($conn, $rule[0])) {
-			$stmt = $conn->prepare($rule[1]);
-			$stmt->execute([$id]);
+		if (app_table_exists($conn, $rule[0]) && app_column_exists($conn, $rule[0], $rule[1])) {
+			$sp = app_tx_savepoint_begin($conn, 'drop_class_' . $rule[0]);
+			try {
+				$stmt = $conn->prepare($rule[2]);
+				$stmt->execute([$id]);
+				app_tx_savepoint_release($conn, $sp);
+			} catch (Throwable $e) {
+				app_tx_savepoint_rollback($conn, $sp);
+				error_log('[app_delete_class] cleanup failed for ' . $rule[0] . ': ' . $e->getMessage());
+				return [false, 'Unable to delete class right now. Remove linked records first or try again.'];
+			}
 		}
 	}
 
-	if (app_table_exists($conn, 'tbl_subject_combinations')) {
+	if (app_table_exists($conn, 'tbl_subject_combinations') && app_column_exists($conn, 'tbl_subject_combinations', 'id') && app_column_exists($conn, 'tbl_subject_combinations', 'class')) {
 		$stmt = $conn->prepare("SELECT id, class FROM tbl_subject_combinations");
 		$stmt->execute();
 		foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-			$classList = @unserialize($row['class']);
-			if (!is_array($classList)) {
+			$classList = app_unserialize((string)($row['class'] ?? ''));
+			if (empty($classList)) {
 				continue;
 			}
 			$filtered = array_values(array_filter($classList, function ($classId) use ($id) {
 				return (string)$classId !== (string)$id;
 			}));
-			if (empty($filtered)) {
-				$delete = $conn->prepare("DELETE FROM tbl_subject_combinations WHERE id = ?");
-				$delete->execute([(int)$row['id']]);
-			} else {
-				$update = $conn->prepare("UPDATE tbl_subject_combinations SET class = ? WHERE id = ?");
-				$update->execute([serialize($filtered), (int)$row['id']]);
+			$sp = app_tx_savepoint_begin($conn, 'drop_class_subject_combinations');
+			try {
+				if (empty($filtered)) {
+					$delete = $conn->prepare("DELETE FROM tbl_subject_combinations WHERE id = ?");
+					$delete->execute([(int)$row['id']]);
+				} else {
+					$update = $conn->prepare("UPDATE tbl_subject_combinations SET class = ? WHERE id = ?");
+					$update->execute([serialize($filtered), (int)$row['id']]);
+				}
+				app_tx_savepoint_release($conn, $sp);
+			} catch (Throwable $e) {
+				app_tx_savepoint_rollback($conn, $sp);
+				error_log('[app_delete_class] subject combination cleanup failed: ' . $e->getMessage());
+				return [false, 'Unable to delete class right now. Remove linked records first or try again.'];
 			}
 		}
 	}
 
-	$stmt = $conn->prepare("DELETE FROM tbl_classes WHERE id = ?");
-	$stmt->execute([$id]);
+	$sp = app_tx_savepoint_begin($conn, 'drop_class_final_delete');
+	try {
+		$stmt = $conn->prepare("DELETE FROM tbl_classes WHERE id = ?");
+		$stmt->execute([$id]);
+		app_tx_savepoint_release($conn, $sp);
+	} catch (Throwable $e) {
+		app_tx_savepoint_rollback($conn, $sp);
+		error_log('[app_delete_class] class delete failed for id ' . $id . ': ' . $e->getMessage());
+		return [false, 'Unable to delete class right now. Remove linked records first or try again.'];
+	}
 	return [true, 'Class deleted successfully.'];
 }
 

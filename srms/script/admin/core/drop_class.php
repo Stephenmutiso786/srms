@@ -4,7 +4,7 @@ session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
 
-if ($res !== "1" || $level !== "0" || $_SERVER['REQUEST_METHOD'] !== 'GET') {
+if ($res !== "1" || !in_array((string)$level, ['0', '9'], true) || $_SERVER['REQUEST_METHOD'] !== 'GET') {
 	header("location:../");
 	exit;
 }
@@ -26,5 +26,6 @@ try {
 	if (isset($conn) && $conn->inTransaction()) {
 		$conn->rollBack();
 	}
+	error_log('[admin.drop_class] ' . $e->getMessage());
 	app_reply_redirect('danger', 'Unable to delete class right now. Remove linked records first or try again.', '../classes');
 }
