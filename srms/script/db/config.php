@@ -1033,6 +1033,250 @@ function app_build_class_name(string $grade, string $stream = '', string $fallba
 	return trim(ucfirst($grade) . ' ' . strtoupper($stream));
 }
 
+function app_cbc_default_classes(): array
+{
+	return [
+		'PP1',
+		'PP2',
+		'Grade 1',
+		'Grade 2',
+		'Grade 3',
+		'Grade 4',
+		'Grade 5',
+		'Grade 6',
+		'Grade 7',
+		'Grade 8',
+		'Grade 9',
+	];
+}
+
+function app_cbc_default_subject_catalog(): array
+{
+	return [
+		['name' => 'Literacy Activities', 'level' => 'Lower Primary', 'category' => 'Core'],
+		['name' => 'Kiswahili Language Activities', 'level' => 'Lower Primary', 'category' => 'Core'],
+		['name' => 'English Language Activities', 'level' => 'Lower Primary', 'category' => 'Core'],
+		['name' => 'Mathematical Activities', 'level' => 'Lower Primary', 'category' => 'Core'],
+		['name' => 'Environmental Activities', 'level' => 'Lower Primary', 'category' => 'Core'],
+		['name' => 'Psychomotor & Creative Activities', 'level' => 'Lower Primary', 'category' => 'Core'],
+		['name' => 'Religious Education Activities', 'level' => 'Lower Primary', 'category' => 'Optional'],
+		['name' => 'English', 'level' => 'Upper Primary', 'category' => 'Core'],
+		['name' => 'Kiswahili', 'level' => 'Upper Primary', 'category' => 'Core'],
+		['name' => 'Kenyan Sign Language', 'level' => 'Upper Primary', 'category' => 'Optional'],
+		['name' => 'Mathematics', 'level' => 'Upper Primary', 'category' => 'Core'],
+		['name' => 'Science and Technology', 'level' => 'Upper Primary', 'category' => 'Core'],
+		['name' => 'Social Studies', 'level' => 'Upper Primary', 'category' => 'Core'],
+		['name' => 'Creative Arts', 'level' => 'Upper Primary', 'category' => 'Core'],
+		['name' => 'Physical and Health Education', 'level' => 'Upper Primary', 'category' => 'Core'],
+		['name' => 'CRE', 'level' => 'Upper Primary', 'category' => 'Religious'],
+		['name' => 'IRE', 'level' => 'Upper Primary', 'category' => 'Religious'],
+		['name' => 'HRE', 'level' => 'Upper Primary', 'category' => 'Religious'],
+		['name' => 'Integrated Science', 'level' => 'Junior Secondary', 'category' => 'Core'],
+		['name' => 'Religious Education', 'level' => 'Junior Secondary', 'category' => 'Core'],
+		['name' => 'Business Studies', 'level' => 'Junior Secondary', 'category' => 'Core'],
+		['name' => 'Agriculture', 'level' => 'Junior Secondary', 'category' => 'Core'],
+		['name' => 'Life Skills Education', 'level' => 'Junior Secondary', 'category' => 'Core'],
+		['name' => 'Sports & Physical Education', 'level' => 'Junior Secondary', 'category' => 'Core'],
+		['name' => 'Visual Arts', 'level' => 'Junior Secondary', 'category' => 'Creative'],
+		['name' => 'Performing Arts', 'level' => 'Junior Secondary', 'category' => 'Creative'],
+		['name' => 'Computer Science / ICT', 'level' => 'Junior Secondary', 'category' => 'Optional'],
+		['name' => 'Home Science', 'level' => 'Junior Secondary', 'category' => 'Optional'],
+		['name' => 'French', 'level' => 'Junior Secondary', 'category' => 'Optional'],
+		['name' => 'German', 'level' => 'Junior Secondary', 'category' => 'Optional'],
+	];
+}
+
+function app_cbc_default_subjects_for_class(string $className): array
+{
+	$className = trim($className);
+	$lower = [
+		'PP1', 'PP2', 'Grade 1', 'Grade 2', 'Grade 3',
+	];
+	$upper = [
+		'Grade 4', 'Grade 5', 'Grade 6',
+	];
+	$junior = [
+		'Grade 7', 'Grade 8', 'Grade 9',
+	];
+
+	if (in_array($className, $lower, true)) {
+		return [
+			'Literacy Activities',
+			'Kiswahili Language Activities',
+			'English Language Activities',
+			'Mathematical Activities',
+			'Environmental Activities',
+			'Psychomotor & Creative Activities',
+			'Religious Education Activities',
+		];
+	}
+
+	if (in_array($className, $upper, true)) {
+		return [
+			'English',
+			'Kiswahili',
+			'Mathematics',
+			'Science and Technology',
+			'Social Studies',
+			'Creative Arts',
+			'Physical and Health Education',
+			'CRE',
+			'IRE',
+			'HRE',
+			'Kenyan Sign Language',
+		];
+	}
+
+	if (in_array($className, $junior, true)) {
+		return [
+			'English',
+			'Kiswahili',
+			'Mathematics',
+			'Integrated Science',
+			'Social Studies',
+			'Religious Education',
+			'Business Studies',
+			'Agriculture',
+			'Life Skills Education',
+			'Sports & Physical Education',
+			'Visual Arts',
+			'Performing Arts',
+			'Computer Science / ICT',
+			'Home Science',
+			'French',
+			'German',
+		];
+	}
+
+	return [];
+}
+
+function app_apply_cbc_curriculum_defaults(PDO $conn, ?int $userId = null): array
+{
+	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	app_ensure_class_teachers_table($conn);
+
+	$subjectNames = array_map(function ($row) {
+		return (string)$row['name'];
+	}, app_cbc_default_subject_catalog());
+	$classNames = app_cbc_default_classes();
+	$subjectIdMap = [];
+	$summary = ['subjects' => 0, 'classes' => 0, 'assignments' => 0, 'removed_subjects' => 0, 'removed_classes' => 0];
+
+	$conn->beginTransaction();
+	try {
+		foreach ($subjectNames as $subjectName) {
+			$stmt = $conn->prepare("SELECT id FROM tbl_subjects WHERE LOWER(name) = LOWER(?) LIMIT 1");
+			$stmt->execute([$subjectName]);
+			$subjectId = (int)$stmt->fetchColumn();
+			if ($subjectId < 1) {
+				$stmt = $conn->prepare("INSERT INTO tbl_subjects (name) VALUES (?)");
+				$stmt->execute([$subjectName]);
+				$subjectId = (int)$conn->lastInsertId();
+				$summary['subjects']++;
+			}
+			$subjectIdMap[$subjectName] = $subjectId;
+		}
+
+		$classIdMap = [];
+		foreach ($classNames as $className) {
+			$stmt = $conn->prepare("SELECT id FROM tbl_classes WHERE LOWER(name) = LOWER(?) LIMIT 1");
+			$stmt->execute([$className]);
+			$classId = (int)$stmt->fetchColumn();
+			if ($classId < 1) {
+				$stmt = $conn->prepare("INSERT INTO tbl_classes (name, registration_date) VALUES (?, ?)");
+				$stmt->execute([$className, date('Y-m-d G:i:s')]);
+				$classId = (int)$conn->lastInsertId();
+				$summary['classes']++;
+			}
+			$classIdMap[$className] = $classId;
+		}
+
+		foreach ($classIdMap as $className => $classId) {
+			$subjectIds = [];
+			foreach (app_cbc_default_subjects_for_class($className) as $subjectName) {
+				if (isset($subjectIdMap[$subjectName])) {
+					$subjectIds[] = (int)$subjectIdMap[$subjectName];
+				}
+			}
+			app_save_class_subject_assignments($conn, $classId, $subjectIds, $userId);
+			$summary['assignments'] += count($subjectIds);
+		}
+
+		foreach ($conn->query("SELECT id, name FROM tbl_subjects ORDER BY name")->fetchAll(PDO::FETCH_ASSOC) as $row) {
+			$subjectName = (string)$row['name'];
+			$subjectId = (int)$row['id'];
+			if (in_array($subjectName, $subjectNames, true)) {
+				continue;
+			}
+			$refChecks = [
+				['tbl_subject_class_assignments', 'SELECT COUNT(*) FROM tbl_subject_class_assignments WHERE subject_id = ?'],
+				['tbl_teacher_assignments', 'SELECT COUNT(*) FROM tbl_teacher_assignments WHERE subject_id = ?'],
+				['tbl_exam_subjects', 'SELECT COUNT(*) FROM tbl_exam_subjects WHERE subject_id = ?'],
+				['tbl_subject_combinations', 'SELECT COUNT(*) FROM tbl_subject_combinations WHERE subject = ?'],
+				['tbl_exam_results', 'SELECT COUNT(*) FROM tbl_exam_results WHERE subject_id = ?'],
+				['tbl_courses', 'SELECT COUNT(*) FROM tbl_courses WHERE subject_id = ?'],
+			];
+			$inUse = false;
+			foreach ($refChecks as $check) {
+				if (!app_table_exists($conn, $check[0])) {
+					continue;
+				}
+				$stmt = $conn->prepare($check[1]);
+				$stmt->execute([$subjectId]);
+				if ((int)$stmt->fetchColumn() > 0) {
+					$inUse = true;
+					break;
+				}
+			}
+			if (!$inUse) {
+				app_delete_subject($conn, $subjectId);
+				$summary['removed_subjects']++;
+			}
+		}
+
+		foreach ($conn->query("SELECT id, name FROM tbl_classes ORDER BY name")->fetchAll(PDO::FETCH_ASSOC) as $row) {
+			$className = (string)$row['name'];
+			$classId = (int)$row['id'];
+			$parts = app_class_name_parts($className);
+			if (in_array($className, $classNames, true) || in_array($parts['grade'], $classNames, true)) {
+				continue;
+			}
+			$refChecks = [
+				['tbl_students', 'SELECT COUNT(*) FROM tbl_students WHERE class = ?'],
+				['tbl_teacher_assignments', 'SELECT COUNT(*) FROM tbl_teacher_assignments WHERE class_id = ?'],
+				['tbl_exams', 'SELECT COUNT(*) FROM tbl_exams WHERE class_id = ?'],
+				['tbl_school_timetable', 'SELECT COUNT(*) FROM tbl_school_timetable WHERE class_id = ?'],
+				['tbl_courses', 'SELECT COUNT(*) FROM tbl_courses WHERE class_id = ?'],
+			];
+			$inUse = false;
+			foreach ($refChecks as $check) {
+				if (!app_table_exists($conn, $check[0])) {
+					continue;
+				}
+				$stmt = $conn->prepare($check[1]);
+				$stmt->execute([$classId]);
+				if ((int)$stmt->fetchColumn() > 0) {
+					$inUse = true;
+					break;
+				}
+			}
+			if (!$inUse) {
+				app_delete_class($conn, $classId);
+				$summary['removed_classes']++;
+			}
+		}
+
+		$conn->commit();
+		return $summary;
+	} catch (Throwable $e) {
+		if ($conn->inTransaction()) {
+			$conn->rollBack();
+		}
+		throw $e;
+	}
+}
+
 function app_cbc_submission_status(PDO $conn, int $termId, int $classId, int $subjectCombinationId): string
 {
 	if ($termId < 1 || $classId < 1 || $subjectCombinationId < 1) {

@@ -105,6 +105,8 @@ function report_grade_for_score(PDO $conn, float $score, ?int $gradingSystemId =
 
 function report_fetch_subjects_for_class(PDO $conn, int $classId): array
 {
+	$allowedSubjectIds = app_class_subject_ids($conn, $classId);
+	$allowedSubjectLookup = !empty($allowedSubjectIds) ? array_fill_keys(array_map('intval', $allowedSubjectIds), true) : [];
 	$stmt = $conn->prepare("SELECT sc.id AS combination_id, sc.class, sc.subject, sc.teacher, s.name AS subject_name, st.fname, st.lname
 		FROM tbl_subject_combinations sc
 		LEFT JOIN tbl_subjects s ON s.id = sc.subject
@@ -116,6 +118,9 @@ function report_fetch_subjects_for_class(PDO $conn, int $classId): array
 		$classList = app_unserialize($row['class']);
 		if (in_array((string)$classId, $classList, true) || in_array($classId, $classList, true)) {
 			$subjectId = (int)$row['subject'];
+			if (!empty($allowedSubjectLookup) && !isset($allowedSubjectLookup[$subjectId])) {
+				continue;
+			}
 			if (isset($seenSubjects[$subjectId])) {
 				continue;
 			}

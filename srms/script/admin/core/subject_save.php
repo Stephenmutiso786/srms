@@ -17,8 +17,8 @@ $subjectId = (int)($_POST['subject_id'] ?? 0);
 $name = trim($_POST['name'] ?? '');
 $classIds = $_POST['class_ids'] ?? [];
 
-if ($name === '' || empty($classIds)) {
-	$_SESSION['reply'] = array(array("danger", "Subject name and classes are required."));
+if ($name === '') {
+	$_SESSION['reply'] = array(array("danger", "Subject name is required."));
 	header("location:../subjects");
 	exit;
 }

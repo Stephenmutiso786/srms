@@ -61,17 +61,25 @@ try {
 <div class="app-title">
 <div>
 <h1>Class Management</h1>
-<p>Create classes/streams and keep them ready for subject assignment, teacher allocation, exams, and report cards.</p>
+<p>Create grades, add streams under them, then keep class teachers and subjects ready for teacher allocation, exams, and report cards.</p>
 </div>
 <ul class="app-breadcrumb breadcrumb">
-<li class="breadcrumb-item"><button class="btn btn-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#addModal">Add Class</button></li>
+<li class="breadcrumb-item">
+<form method="POST" action="admin/core/apply_cbc_structure" onsubmit="return confirm('Apply the Kenya CBC primary + junior class structure and replace unused extra classes/subjects?');">
+<button class="btn btn-outline-success btn-sm" type="submit">Apply Kenya CBC Defaults</button>
+</form>
+</li>
+<li class="breadcrumb-item"><button class="btn btn-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#addModal">Add Grade / Stream</button></li>
+<li class="breadcrumb-item"><button class="btn btn-outline-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#addStreamModal">Add Stream to Existing Grade</button></li>
 </ul>
 </div>
 
 <div class="tile mb-3">
 <div class="tile-body">
 <div class="alert alert-info mb-0">
-<strong>Class management is now the main setup point:</strong> set the grade, stream, class teacher, and subjects here. Subject teachers are listed per class below for easier management, while <a href="admin/teacher_allocation">Teacher Allocation</a> still handles the actual teacher-to-subject assignment records.
+<strong>Class management is now the main setup point:</strong> create the grade, add streams under it, set the class teacher, and choose the subjects here. Subject teachers are listed per class below for easier management, while <a href="admin/teacher_allocation">Teacher Allocation</a> still handles the actual teacher-to-subject assignment records.
+<hr class="my-2">
+<span class="small">Need the Kenya CBC primary + junior setup quickly? Use <strong>Apply Kenya CBC Defaults</strong> above to load PP1 to Grade 9, attach the recommended subjects per level, and clear unused extras that are not already in active use.</span>
 </div>
 </div>
 </div>
@@ -85,8 +93,18 @@ try {
 <?php foreach ($streamGroups as $gradeName => $streams): ?>
 <div class="col-md-4 mb-3">
 <div class="border rounded p-3 h-100">
-<div class="fw-bold mb-2"><?php echo htmlspecialchars($gradeName); ?></div>
-<div class="small text-muted mb-2"><?php echo count($streams); ?> stream(s)</div>
+<div class="d-flex justify-content-between align-items-start mb-2">
+<div>
+<div class="fw-bold"><?php echo htmlspecialchars($gradeName); ?></div>
+<div class="small text-muted"><?php echo count($streams); ?> stream(s)</div>
+</div>
+<button
+	type="button"
+	class="btn btn-outline-primary btn-sm add-stream-btn"
+	data-grade="<?php echo htmlspecialchars($gradeName); ?>"
+	data-bs-toggle="modal"
+	data-bs-target="#addStreamModal">Add Stream</button>
+</div>
 <ul class="mb-0 ps-3">
 <?php foreach ($streams as $stream): ?>
 <li><?php echo htmlspecialchars($stream['name']); ?></li>
@@ -102,7 +120,7 @@ try {
 </div>
 
 <div class="modal fade" id="addModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
-<div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Add Class</h5></div><div class="modal-body">
+<div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Add Grade / Stream</h5></div><div class="modal-body">
 <form class="app_frm" method="POST" autocomplete="off" action="admin/core/new_class">
 <div class="mb-3"><label class="form-label">Grade / Class</label><input required name="grade_name" class="form-control" type="text" placeholder="e.g. Grade 8"></div>
 <div class="mb-3"><label class="form-label">Stream / Section</label><input name="stream_name" class="form-control" type="text" placeholder="e.g. A"></div>
@@ -111,6 +129,29 @@ try {
 <div class="form-text mb-3">The system will save this as one class name, for example <strong>Grade 8 A</strong>.</div>
 <input type="hidden" name="name" value="">
 <button type="submit" name="submit" value="1" class="btn btn-primary app_btn">Add</button>
+<button type="button" class="btn btn-danger" data-bs-dismiss="modal">Close</button>
+</form>
+</div></div></div>
+</div>
+
+<div class="modal fade" id="addStreamModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
+<div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Add Stream to Existing Grade</h5></div><div class="modal-body">
+<form class="app_frm" method="POST" autocomplete="off" action="admin/core/new_class">
+<div class="mb-3">
+<label class="form-label">Grade / Class</label>
+<select id="stream_grade_name" required name="grade_name" class="form-control">
+<option value="">Select existing grade</option>
+<?php foreach (array_keys($streamGroups) as $gradeName) { ?>
+<option value="<?php echo htmlspecialchars($gradeName); ?>"><?php echo htmlspecialchars($gradeName); ?></option>
+<?php } ?>
+</select>
+</div>
+<div class="mb-3"><label class="form-label">New Stream / Section</label><input required name="stream_name" class="form-control" type="text" placeholder="e.g. East"></div>
+<div class="mb-3"><label class="form-label">Class Teacher</label><select name="class_teacher_id" class="form-control"><option value="">Select class teacher (optional)</option><?php foreach ($teachers as $teacher) { ?><option value="<?php echo (int)$teacher['id']; ?>"><?php echo htmlspecialchars(trim(($teacher['fname'] ?? '').' '.($teacher['lname'] ?? ''))); ?></option><?php } ?></select></div>
+<div class="mb-3"><label class="form-label">Subjects for this Stream</label><select name="subject_ids[]" class="form-control" multiple size="8"><?php foreach ($subjects as $subject) { ?><option value="<?php echo (int)$subject['id']; ?>"><?php echo htmlspecialchars((string)$subject['name']); ?></option><?php } ?></select></div>
+<div class="form-text mb-3">Use this when the grade already exists and you only want to add another stream under it.</div>
+<input type="hidden" name="name" value="">
+<button type="submit" name="submit" value="1" class="btn btn-primary app_btn">Add Stream</button>
 <button type="button" class="btn btn-danger" data-bs-dismiss="modal">Close</button>
 </form>
 </div></div></div>
@@ -134,6 +175,7 @@ try {
 
 <div class="row"><div class="col-md-12"><div class="tile"><div class="tile-body"><div class="table-responsive">
 <h3 class="tile-title">Classes, Subjects, and Teachers</h3>
+<p class="text-muted">Every row below is one stream. That means `Grade 6 East` and `Grade 6 West` are managed independently while still rolling up under the same grade in the overview above.</p>
 <table class="table table-hover table-bordered" id="srmsTable">
 <thead><tr><th>Grade</th><th>Stream</th><th>Saved Class Name</th><th>Class Teacher</th><th>Subjects</th><th>Subject Teachers</th><th>Added On</th><th width="140"></th></tr></thead>
 <tbody>
@@ -219,6 +261,9 @@ $('.edit-class').on('click', function () {
 			}
 		});
 	}
+});
+$('.add-stream-btn').on('click', function () {
+	$('#stream_grade_name').val($(this).data('grade'));
 });
 </script>
 <?php require_once('const/check-reply.php'); ?>
