@@ -1187,17 +1187,25 @@ function app_delete_subject(PDO $conn, int $id): void
 
 	$singleArg = [$id];
 	$cleanup = [
-		['tbl_subject_class_assignments', 'DELETE FROM tbl_subject_class_assignments WHERE subject_id = ?'],
-		['tbl_teacher_assignments', 'DELETE FROM tbl_teacher_assignments WHERE subject_id = ?'],
-		['tbl_subject_weights', 'DELETE FROM tbl_subject_weights WHERE subject_id = ?'],
-		['tbl_cbc_strands', 'DELETE FROM tbl_cbc_strands WHERE subject_id = ?'],
-		['tbl_cbc_mark_submissions', 'DELETE FROM tbl_cbc_mark_submissions WHERE subject_id = ?'],
-		['tbl_validation_issues', 'DELETE FROM tbl_validation_issues WHERE subject_id = ?'],
-		['tbl_insights_alerts', 'DELETE FROM tbl_insights_alerts WHERE subject_id = ?'],
+		['tbl_subject_class_assignments', 'subject_id', 'DELETE FROM tbl_subject_class_assignments WHERE subject_id = ?'],
+		['tbl_teacher_assignments', 'subject_id', 'DELETE FROM tbl_teacher_assignments WHERE subject_id = ?'],
+		['tbl_subject_weights', 'subject_id', 'DELETE FROM tbl_subject_weights WHERE subject_id = ?'],
+		['tbl_cbc_strands', 'subject_id', 'DELETE FROM tbl_cbc_strands WHERE subject_id = ?'],
+		['tbl_cbc_mark_submissions', 'subject_id', 'DELETE FROM tbl_cbc_mark_submissions WHERE subject_id = ?'],
+		['tbl_validation_issues', 'subject_id', 'DELETE FROM tbl_validation_issues WHERE subject_id = ?'],
+		['tbl_insights_alerts', 'subject_id', 'DELETE FROM tbl_insights_alerts WHERE subject_id = ?'],
+		['tbl_exam_subjects', 'subject_id', 'DELETE FROM tbl_exam_subjects WHERE subject_id = ?'],
+		['tbl_exam_schedule', 'subject_id', 'DELETE FROM tbl_exam_schedule WHERE subject_id = ?'],
+		['tbl_school_timetable', 'subject_id', 'DELETE FROM tbl_school_timetable WHERE subject_id = ?'],
+		['tbl_courses', 'subject_id', 'DELETE FROM tbl_courses WHERE subject_id = ?'],
+		['tbl_report_card_subjects', 'subject_id', 'DELETE FROM tbl_report_card_subjects WHERE subject_id = ?'],
+		['tbl_attendance_sessions', 'subject_id', 'DELETE FROM tbl_attendance_sessions WHERE subject_id = ?'],
+		['tbl_subject_combinations', 'subject', 'DELETE FROM tbl_subject_combinations WHERE subject = ?'],
+		['tbl_subject_combinations', 'subject_id', 'DELETE FROM tbl_subject_combinations WHERE subject_id = ?'],
 	];
 	foreach ($cleanup as $rule) {
-		if (app_table_exists($conn, $rule[0])) {
-			$stmt = $conn->prepare($rule[1]);
+		if (app_table_exists($conn, $rule[0]) && app_column_exists($conn, $rule[0], $rule[1])) {
+			$stmt = $conn->prepare($rule[2]);
 			$stmt->execute($singleArg);
 		}
 	}
