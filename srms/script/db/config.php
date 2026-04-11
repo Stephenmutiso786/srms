@@ -1161,7 +1161,16 @@ function app_apply_cbc_curriculum_defaults(PDO $conn, ?int $userId = null): arra
 	}, app_cbc_default_subject_catalog());
 	$classNames = app_cbc_default_classes();
 	$subjectIdMap = [];
-	$summary = ['subjects' => 0, 'classes' => 0, 'assignments' => 0, 'removed_subjects' => 0, 'removed_classes' => 0];
+	$summary = [
+		'subjects' => 0,
+		'classes' => 0,
+		'assignments' => 0,
+		'removed_subjects' => 0,
+		'removed_classes' => 0,
+		'skipped_subjects' => 0,
+		'skipped_classes' => 0,
+		'errors' => [],
+	];
 
 	$conn->beginTransaction();
 	try {
@@ -1216,6 +1225,9 @@ function app_apply_cbc_curriculum_defaults(PDO $conn, ?int $userId = null): arra
 				['tbl_subject_combinations', 'SELECT COUNT(*) FROM tbl_subject_combinations WHERE subject = ?'],
 				['tbl_exam_results', 'SELECT COUNT(*) FROM tbl_exam_results WHERE subject_id = ?'],
 				['tbl_courses', 'SELECT COUNT(*) FROM tbl_courses WHERE subject_id = ?'],
+				['tbl_exam_schedule', 'SELECT COUNT(*) FROM tbl_exam_schedule WHERE subject_id = ?'],
+				['tbl_school_timetable', 'SELECT COUNT(*) FROM tbl_school_timetable WHERE subject_id = ?'],
+				['tbl_report_card_subjects', 'SELECT COUNT(*) FROM tbl_report_card_subjects WHERE subject_id = ?'],
 			];
 			$inUse = false;
 			foreach ($refChecks as $check) {
@@ -1230,8 +1242,13 @@ function app_apply_cbc_curriculum_defaults(PDO $conn, ?int $userId = null): arra
 				}
 			}
 			if (!$inUse) {
-				app_delete_subject($conn, $subjectId);
-				$summary['removed_subjects']++;
+				try {
+					app_delete_subject($conn, $subjectId);
+					$summary['removed_subjects']++;
+				} catch (Throwable $e) {
+					$summary['skipped_subjects']++;
+					$summary['errors'][] = 'Skipped subject "' . $subjectName . '" because it is still linked elsewhere.';
+				}
 			}
 		}
 
@@ -1248,6 +1265,9 @@ function app_apply_cbc_curriculum_defaults(PDO $conn, ?int $userId = null): arra
 				['tbl_exams', 'SELECT COUNT(*) FROM tbl_exams WHERE class_id = ?'],
 				['tbl_school_timetable', 'SELECT COUNT(*) FROM tbl_school_timetable WHERE class_id = ?'],
 				['tbl_courses', 'SELECT COUNT(*) FROM tbl_courses WHERE class_id = ?'],
+				['tbl_class_teachers', 'SELECT COUNT(*) FROM tbl_class_teachers WHERE class_id = ?'],
+				['tbl_exam_schedule', 'SELECT COUNT(*) FROM tbl_exam_schedule WHERE class_id = ?'],
+				['tbl_results_locks', 'SELECT COUNT(*) FROM tbl_results_locks WHERE class_id = ?'],
 			];
 			$inUse = false;
 			foreach ($refChecks as $check) {
@@ -1262,8 +1282,20 @@ function app_apply_cbc_curriculum_defaults(PDO $conn, ?int $userId = null): arra
 				}
 			}
 			if (!$inUse) {
-				app_delete_class($conn, $classId);
-				$summary['removed_classes']++;
+				try {
+					$result = app_delete_class($conn, $classId);
+					if (($result[0] ?? false) === true) {
+						$summary['removed_classes']++;
+					} else {
+						$summary['skipped_classes']++;
+						if (!empty($result[1])) {
+							$summary['errors'][] = (string)$result[1];
+						}
+					}
+				} catch (Throwable $e) {
+					$summary['skipped_classes']++;
+					$summary['errors'][] = 'Skipped class "' . $className . '" because it is still linked elsewhere.';
+				}
 			}
 		}
 
