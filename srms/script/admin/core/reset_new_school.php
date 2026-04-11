@@ -17,9 +17,11 @@ try {
 	$conn = app_db();
 	$summary = app_reset_school_people_data($conn);
 	$message = sprintf(
-		'New-school reset completed. Removed %d student(s), %d teacher/staff account(s), %d parent account(s), and kept %d admin account(s). Classes, subjects, terms, and school settings were preserved.',
+		'New-school reset completed. Deleted %d student(s) and blocked %d student(s); deleted %d teacher/staff account(s) and blocked %d teacher/staff account(s); deleted %d parent account(s); kept %d admin account(s). Classes, subjects, terms, and school settings were preserved.',
 		(int)$summary['students_removed'],
+		(int)($summary['students_blocked'] ?? 0),
 		(int)$summary['staff_removed'],
+		(int)($summary['staff_blocked'] ?? 0),
 		(int)$summary['parents_removed'],
 		(int)$summary['admins_kept']
 	);

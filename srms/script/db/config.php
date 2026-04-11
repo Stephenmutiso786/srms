@@ -927,9 +927,11 @@ function app_reset_school_people_data(PDO $conn): array
 
 	$summary = [
 		'students_removed' => 0,
+		'students_blocked' => 0,
 		'teachers_removed' => 0,
 		'parents_removed' => 0,
 		'staff_removed' => 0,
+		'staff_blocked' => 0,
 		'admins_kept' => 0,
 		'warnings' => [],
 	];
@@ -938,7 +940,7 @@ function app_reset_school_people_data(PDO $conn): array
 	if (app_table_exists($conn, 'tbl_students')) {
 		$stmt = $conn->query("SELECT id FROM tbl_students");
 		$studentIds = array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN));
-		$summary['students_removed'] = count($studentIds);
+		$summary['students_removed'] = 0;
 	}
 
 	$staffIds = [];
@@ -955,7 +957,7 @@ function app_reset_school_people_data(PDO $conn): array
 		}
 	}
 	$summary['admins_kept'] = $adminCount;
-	$summary['staff_removed'] = count($staffIds);
+	$summary['staff_removed'] = 0;
 	$summary['teachers_removed'] = count(array_filter($staffIds, function ($id) use ($conn) {
 		try {
 			$stmt = $conn->prepare("SELECT level FROM tbl_staff WHERE id = ? LIMIT 1");
@@ -971,6 +973,16 @@ function app_reset_school_people_data(PDO $conn): array
 		$parentCount = (int)$conn->query("SELECT COUNT(*) FROM tbl_parents")->fetchColumn();
 	}
 	$summary['parents_removed'] = $parentCount;
+
+	$countExistingIds = function (string $table, string $column, array $ids) use ($conn): int {
+		if (empty($ids) || !app_table_exists($conn, $table) || !app_column_exists($conn, $table, $column)) {
+			return 0;
+		}
+		$placeholders = implode(',', array_fill(0, count($ids), '?'));
+		$stmt = $conn->prepare("SELECT COUNT(*) FROM {$table} WHERE {$column} IN ({$placeholders})");
+		$stmt->execute($ids);
+		return (int)$stmt->fetchColumn();
+	};
 
 	$conn->beginTransaction();
 	try {
@@ -1089,6 +1101,29 @@ function app_reset_school_people_data(PDO $conn): array
 					$summary['warnings'][] = 'staff fallback unavailable: status column missing';
 				}
 			}
+		}
+
+		$remainingStudents = $countExistingIds('tbl_students', 'id', $studentIds);
+		$summary['students_removed'] = max(0, count($studentIds) - $remainingStudents);
+		if (!empty($studentIds) && app_table_exists($conn, 'tbl_students') && app_column_exists($conn, 'tbl_students', 'status')) {
+			$placeholders = implode(',', array_fill(0, count($studentIds), '?'));
+			$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_students WHERE id IN ({$placeholders}) AND status = 0");
+			$stmt->execute($studentIds);
+			$summary['students_blocked'] = (int)$stmt->fetchColumn();
+		}
+
+		$remainingStaff = $countExistingIds('tbl_staff', 'id', $staffIds);
+		$summary['staff_removed'] = max(0, count($staffIds) - $remainingStaff);
+		if (!empty($staffIds) && app_table_exists($conn, 'tbl_staff') && app_column_exists($conn, 'tbl_staff', 'status')) {
+			$placeholders = implode(',', array_fill(0, count($staffIds), '?'));
+			$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_staff WHERE id IN ({$placeholders}) AND status = 0");
+			$stmt->execute($staffIds);
+			$summary['staff_blocked'] = (int)$stmt->fetchColumn();
+		}
+
+		if ($parentCount > 0 && app_table_exists($conn, 'tbl_parents')) {
+			$remainingParents = (int)$conn->query("SELECT COUNT(*) FROM tbl_parents")->fetchColumn();
+			$summary['parents_removed'] = max(0, $parentCount - $remainingParents);
 		}
 
 		$conn->commit();
