@@ -1460,33 +1460,64 @@ function app_apply_cbc_curriculum_defaults(PDO $conn, ?int $userId = null): arra
 		'errors' => [],
 	];
 
+	if (!app_table_exists($conn, 'tbl_subjects') || !app_column_exists($conn, 'tbl_subjects', 'id') || !app_column_exists($conn, 'tbl_subjects', 'name')) {
+		$summary['errors'][] = 'Unable to sync CBC subjects because tbl_subjects schema is incomplete.';
+		return $summary;
+	}
+	if (!app_table_exists($conn, 'tbl_classes') || !app_column_exists($conn, 'tbl_classes', 'id') || !app_column_exists($conn, 'tbl_classes', 'name')) {
+		$summary['errors'][] = 'Unable to sync CBC classes because tbl_classes schema is incomplete.';
+		return $summary;
+	}
+	$classHasRegistrationDate = app_column_exists($conn, 'tbl_classes', 'registration_date');
+
 	$conn->beginTransaction();
 	try {
 		foreach ($subjectNames as $subjectName) {
-			$stmt = $conn->prepare("SELECT id FROM tbl_subjects WHERE LOWER(name) = LOWER(?) LIMIT 1");
-			$stmt->execute([$subjectName]);
-			$subjectId = (int)$stmt->fetchColumn();
-			if ($subjectId < 1) {
-				$stmt = $conn->prepare("INSERT INTO tbl_subjects (name) VALUES (?)");
+			$savepoint = app_tx_savepoint_begin($conn, 'cbc_subject_seed');
+			try {
+				$stmt = $conn->prepare("SELECT id FROM tbl_subjects WHERE LOWER(name) = LOWER(?) LIMIT 1");
 				$stmt->execute([$subjectName]);
-				$subjectId = (int)$conn->lastInsertId();
-				$summary['subjects']++;
+				$subjectId = (int)$stmt->fetchColumn();
+				if ($subjectId < 1) {
+					$stmt = $conn->prepare("INSERT INTO tbl_subjects (name) VALUES (?)");
+					$stmt->execute([$subjectName]);
+					$subjectId = (int)$conn->lastInsertId();
+					$summary['subjects']++;
+				}
+				$subjectIdMap[$subjectName] = $subjectId;
+				app_tx_savepoint_release($conn, $savepoint);
+			} catch (Throwable $e) {
+				app_tx_savepoint_rollback($conn, $savepoint);
+				error_log('[app_apply_cbc_curriculum_defaults] subject seed failed for ' . $subjectName . ': ' . $e->getMessage());
+				$summary['errors'][] = 'Skipped subject "' . $subjectName . '" due to schema mismatch.';
 			}
-			$subjectIdMap[$subjectName] = $subjectId;
 		}
 
 		$classIdMap = [];
 		foreach ($classNames as $className) {
-			$stmt = $conn->prepare("SELECT id FROM tbl_classes WHERE LOWER(name) = LOWER(?) LIMIT 1");
-			$stmt->execute([$className]);
-			$classId = (int)$stmt->fetchColumn();
-			if ($classId < 1) {
-				$stmt = $conn->prepare("INSERT INTO tbl_classes (name, registration_date) VALUES (?, ?)");
-				$stmt->execute([$className, date('Y-m-d G:i:s')]);
-				$classId = (int)$conn->lastInsertId();
-				$summary['classes']++;
+			$savepoint = app_tx_savepoint_begin($conn, 'cbc_class_seed');
+			try {
+				$stmt = $conn->prepare("SELECT id FROM tbl_classes WHERE LOWER(name) = LOWER(?) LIMIT 1");
+				$stmt->execute([$className]);
+				$classId = (int)$stmt->fetchColumn();
+				if ($classId < 1) {
+					if ($classHasRegistrationDate) {
+						$stmt = $conn->prepare("INSERT INTO tbl_classes (name, registration_date) VALUES (?, ?)");
+						$stmt->execute([$className, date('Y-m-d G:i:s')]);
+					} else {
+						$stmt = $conn->prepare("INSERT INTO tbl_classes (name) VALUES (?)");
+						$stmt->execute([$className]);
+					}
+					$classId = (int)$conn->lastInsertId();
+					$summary['classes']++;
+				}
+				$classIdMap[$className] = $classId;
+				app_tx_savepoint_release($conn, $savepoint);
+			} catch (Throwable $e) {
+				app_tx_savepoint_rollback($conn, $savepoint);
+				error_log('[app_apply_cbc_curriculum_defaults] class seed failed for ' . $className . ': ' . $e->getMessage());
+				$summary['errors'][] = 'Skipped class "' . $className . '" due to schema mismatch.';
 			}
-			$classIdMap[$className] = $classId;
 		}
 
 		foreach ($classIdMap as $className => $classId) {
@@ -1507,7 +1538,14 @@ function app_apply_cbc_curriculum_defaults(PDO $conn, ?int $userId = null): arra
 			}
 		}
 
-		foreach ($conn->query("SELECT id, name FROM tbl_subjects ORDER BY name")->fetchAll(PDO::FETCH_ASSOC) as $row) {
+		$subjectRows = [];
+		try {
+			$subjectRows = $conn->query("SELECT id, name FROM tbl_subjects ORDER BY name")->fetchAll(PDO::FETCH_ASSOC);
+		} catch (Throwable $e) {
+			error_log('[app_apply_cbc_curriculum_defaults] subject cleanup load failed: ' . $e->getMessage());
+			$summary['errors'][] = 'Skipped extra-subject cleanup because subjects could not be read.';
+		}
+		foreach ($subjectRows as $row) {
 			$subjectName = (string)$row['name'];
 			$subjectId = (int)$row['id'];
 			if (in_array($subjectName, $subjectNames, true)) {
@@ -1562,7 +1600,14 @@ function app_apply_cbc_curriculum_defaults(PDO $conn, ?int $userId = null): arra
 			}
 		}
 
-		foreach ($conn->query("SELECT id, name FROM tbl_classes ORDER BY name")->fetchAll(PDO::FETCH_ASSOC) as $row) {
+		$classRows = [];
+		try {
+			$classRows = $conn->query("SELECT id, name FROM tbl_classes ORDER BY name")->fetchAll(PDO::FETCH_ASSOC);
+		} catch (Throwable $e) {
+			error_log('[app_apply_cbc_curriculum_defaults] class cleanup load failed: ' . $e->getMessage());
+			$summary['errors'][] = 'Skipped extra-class cleanup because classes could not be read.';
+		}
+		foreach ($classRows as $row) {
 			$className = (string)$row['name'];
 			$classId = (int)$row['id'];
 			$parts = app_class_name_parts($className);
