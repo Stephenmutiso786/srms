@@ -1467,6 +1467,69 @@ function app_subject_id_map_by_names(PDO $conn, array $names): array
 function app_cbc_jss_choice_id_map(PDO $conn): array
 {
 	$catalog = app_cbc_jss_choice_catalog();
+
+	// Auto-discover extra optional subjects from current Grade 7-9 class assignments.
+	if (
+		app_table_exists($conn, 'tbl_classes') && app_column_exists($conn, 'tbl_classes', 'id') && app_column_exists($conn, 'tbl_classes', 'name') &&
+		app_table_exists($conn, 'tbl_subject_class_assignments') && app_column_exists($conn, 'tbl_subject_class_assignments', 'class_id') && app_column_exists($conn, 'tbl_subject_class_assignments', 'subject_id') &&
+		app_table_exists($conn, 'tbl_subjects') && app_column_exists($conn, 'tbl_subjects', 'id') && app_column_exists($conn, 'tbl_subjects', 'name')
+	) {
+		try {
+			$jssClassIds = [];
+			$stmt = $conn->query("SELECT id, name FROM tbl_classes");
+			foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $classRow) {
+				$name = (string)($classRow['name'] ?? '');
+				$parts = app_class_name_parts($name);
+				$base = in_array($name, ['Grade 7', 'Grade 8', 'Grade 9'], true) ? $name : (string)($parts['grade'] ?? '');
+				if (in_array($base, ['Grade 7', 'Grade 8', 'Grade 9'], true)) {
+					$jssClassIds[] = (int)$classRow['id'];
+				}
+			}
+
+			if (!empty($jssClassIds)) {
+				$placeholders = implode(',', array_fill(0, count($jssClassIds), '?'));
+				$stmt = $conn->prepare("SELECT DISTINCT s.name
+					FROM tbl_subject_class_assignments sc
+					JOIN tbl_subjects s ON s.id = sc.subject_id
+					WHERE sc.class_id IN ($placeholders)
+					ORDER BY s.name");
+				$stmt->execute($jssClassIds);
+
+				$nonOptional = [
+					'English',
+					'Kiswahili',
+					'Kenyan Sign Language',
+					'Mathematics',
+					'Integrated Science',
+					'Social Studies',
+					'Religious Education',
+					'CRE',
+					'IRE',
+					'HRE',
+					'Business Studies',
+					'Agriculture',
+					'Life Skills Education',
+					'Sports & Physical Education',
+					'Visual Arts',
+					'Performing Arts',
+				];
+				$optional = array_values(array_unique($catalog['optional'] ?? []));
+				foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $subjectName) {
+					$name = trim((string)$subjectName);
+					if ($name === '' || in_array($name, $nonOptional, true)) {
+						continue;
+					}
+					if (!in_array($name, $optional, true)) {
+						$optional[] = $name;
+					}
+				}
+				$catalog['optional'] = $optional;
+			}
+		} catch (Throwable $e) {
+			// Keep static catalog if auto-discovery fails.
+		}
+	}
+
 	$map = [];
 	foreach ($catalog as $choiceType => $names) {
 		$ids = app_subject_id_map_by_names($conn, $names);
