@@ -1242,10 +1242,13 @@ function app_apply_cbc_curriculum_defaults(PDO $conn, ?int $userId = null): arra
 				}
 			}
 			if (!$inUse) {
+				$savepoint = app_tx_savepoint_begin($conn, 'cbc_subject_cleanup');
 				try {
 					app_delete_subject($conn, $subjectId);
 					$summary['removed_subjects']++;
+					app_tx_savepoint_release($conn, $savepoint);
 				} catch (Throwable $e) {
+					app_tx_savepoint_rollback($conn, $savepoint);
 					$summary['skipped_subjects']++;
 					$summary['errors'][] = 'Skipped subject "' . $subjectName . '" because it is still linked elsewhere.';
 				}
@@ -1282,17 +1285,21 @@ function app_apply_cbc_curriculum_defaults(PDO $conn, ?int $userId = null): arra
 				}
 			}
 			if (!$inUse) {
+				$savepoint = app_tx_savepoint_begin($conn, 'cbc_class_cleanup');
 				try {
 					$result = app_delete_class($conn, $classId);
 					if (($result[0] ?? false) === true) {
 						$summary['removed_classes']++;
+						app_tx_savepoint_release($conn, $savepoint);
 					} else {
+						app_tx_savepoint_rollback($conn, $savepoint);
 						$summary['skipped_classes']++;
 						if (!empty($result[1])) {
 							$summary['errors'][] = (string)$result[1];
 						}
 					}
 				} catch (Throwable $e) {
+					app_tx_savepoint_rollback($conn, $savepoint);
 					$summary['skipped_classes']++;
 					$summary['errors'][] = 'Skipped class "' . $className . '" because it is still linked elsewhere.';
 				}
