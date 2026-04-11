@@ -389,6 +389,19 @@ function app_ensure_exam_subjects_table(PDO $conn): void
 	}
 }
 
+function app_ensure_exam_assessment_mode_column(PDO $conn): void
+{
+	if (!app_table_exists($conn, 'tbl_exams') || app_column_exists($conn, 'tbl_exams', 'assessment_mode')) {
+		return;
+	}
+
+	if (DBDriver === 'pgsql') {
+		$conn->exec("ALTER TABLE tbl_exams ADD COLUMN assessment_mode varchar(20) NOT NULL DEFAULT 'normal'");
+	} else {
+		$conn->exec("ALTER TABLE tbl_exams ADD COLUMN assessment_mode varchar(20) NOT NULL DEFAULT 'normal'");
+	}
+}
+
 function app_exam_subject_ids(PDO $conn, int $examId): array
 {
 	if ($examId < 1) {
@@ -410,6 +423,18 @@ function app_exam_has_subject(PDO $conn, int $examId, int $subjectId): bool
 		return true;
 	}
 	return in_array($subjectId, $subjectIds, true);
+}
+
+function app_exam_assessment_mode(PDO $conn, int $examId): string
+{
+	if ($examId < 1 || !app_table_exists($conn, 'tbl_exams')) {
+		return 'normal';
+	}
+	app_ensure_exam_assessment_mode_column($conn);
+	$stmt = $conn->prepare("SELECT assessment_mode FROM tbl_exams WHERE id = ? LIMIT 1");
+	$stmt->execute([$examId]);
+	$mode = strtolower(trim((string)$stmt->fetchColumn()));
+	return $mode === 'cbc' ? 'cbc' : 'normal';
 }
 
 function app_sync_subject_combination(PDO $conn, int $teacherId, int $subjectId, int $classId, bool $remove): int
@@ -540,6 +565,81 @@ function app_setting_get(PDO $conn, string $key, string $default = ''): string
 	} catch (Throwable $e) {
 		return $default;
 	}
+}
+
+function app_class_subject_ids(PDO $conn, int $classId): array
+{
+	if ($classId < 1 || !app_table_exists($conn, 'tbl_subject_class_assignments')) {
+		return [];
+	}
+	$stmt = $conn->prepare("SELECT subject_id FROM tbl_subject_class_assignments WHERE class_id = ? ORDER BY subject_id");
+	$stmt->execute([$classId]);
+	return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+}
+
+function app_save_class_subject_assignments(PDO $conn, int $classId, array $subjectIds, ?int $userId = null): void
+{
+	if ($classId < 1 || !app_table_exists($conn, 'tbl_subject_class_assignments')) {
+		return;
+	}
+
+	$subjectIds = array_values(array_unique(array_filter(array_map('intval', $subjectIds))));
+	$stmt = $conn->prepare("DELETE FROM tbl_subject_class_assignments WHERE class_id = ?");
+	$stmt->execute([$classId]);
+
+	if (empty($subjectIds)) {
+		return;
+	}
+
+	$insert = $conn->prepare("INSERT INTO tbl_subject_class_assignments (subject_id, class_id, created_by) VALUES (?,?,?)");
+	foreach ($subjectIds as $subjectId) {
+		$insert->execute([$subjectId, $classId, $userId ? (int)$userId : null]);
+	}
+}
+
+function app_class_subject_teacher_rows(PDO $conn, int $classId): array
+{
+	if ($classId < 1) {
+		return [];
+	}
+
+	$subjectNames = [];
+	if (app_table_exists($conn, 'tbl_subject_class_assignments')) {
+		$stmt = $conn->prepare("SELECT sc.subject_id, s.name AS subject_name
+			FROM tbl_subject_class_assignments sc
+			JOIN tbl_subjects s ON s.id = sc.subject_id
+			WHERE sc.class_id = ?
+			ORDER BY s.name");
+		$stmt->execute([$classId]);
+		foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+			$subjectNames[(int)$row['subject_id']] = (string)$row['subject_name'];
+		}
+	}
+
+	$teacherMap = [];
+	if (app_table_exists($conn, 'tbl_teacher_assignments')) {
+		$stmt = $conn->prepare("SELECT ta.subject_id, st.fname, st.lname
+			FROM tbl_teacher_assignments ta
+			JOIN tbl_staff st ON st.id = ta.teacher_id
+			WHERE ta.class_id = ? AND ta.status = 1
+			ORDER BY ta.year DESC, ta.id DESC");
+		$stmt->execute([$classId]);
+		foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+			$teacherMap[(int)$row['subject_id']][] = trim((string)($row['fname'] ?? '') . ' ' . (string)($row['lname'] ?? ''));
+		}
+	}
+
+	$rows = [];
+	foreach ($subjectNames as $subjectId => $subjectName) {
+		$teachers = array_values(array_unique(array_filter($teacherMap[$subjectId] ?? [])));
+		$rows[] = [
+			'subject_id' => $subjectId,
+			'subject_name' => $subjectName,
+			'teachers' => $teachers,
+		];
+	}
+
+	return $rows;
 }
 
 function app_setting_set(PDO $conn, string $key, string $value, ?int $userId = null, bool $strict = false): void

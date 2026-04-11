@@ -13,6 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $examId = (int)($_POST['exam_id'] ?? 0);
 $subjectComb = (int)($_POST['subject_combination'] ?? 0);
+$assessmentMode = strtolower(trim((string)($_POST['assessment_mode'] ?? 'normal'))) === 'cbc' ? 'cbc' : 'normal';
 
 if ($examId < 1 || $subjectComb < 1) {
   $_SESSION['reply'] = array (array("danger", "Missing exam or subject."));
@@ -55,6 +56,19 @@ try {
       throw new RuntimeException("No active assignment for this class/subject/term.");
     }
     app_sync_subject_combination($conn, (int)$account_id, (int)$combo['subject'], (int)$exam['class_id'], false);
+  }
+
+  $examMode = app_exam_assessment_mode($conn, (int)$exam['id']);
+  if ($assessmentMode === 'cbc' || $examMode === 'cbc') {
+    $_SESSION['cbc_entry'] = [
+      'term' => (int)$exam['term_id'],
+      'class' => (int)$exam['class_id'],
+      'subject' => (int)$combo['id'],
+      'mode' => 'cbc',
+      'exam_id' => (int)$exam['id'],
+    ];
+    header("location:../cbc_entry");
+    exit;
   }
 
   $_SESSION['exam_entry'] = [

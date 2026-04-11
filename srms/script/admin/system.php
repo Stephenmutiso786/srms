@@ -25,6 +25,9 @@ $appSettings = [
 	'school_website' => '',
 	'school_timezone' => 'Africa/Nairobi',
 	'current_academic_year' => date('Y'),
+	'current_session_label' => 'January ' . date('Y') . ' - December ' . date('Y'),
+	'session_start_date' => date('Y-01-01'),
+	'session_end_date' => date('Y-12-31'),
 	'current_term_id' => '',
 	'admission_start_number' => '1',
 	'ranking_enabled' => '1',
@@ -282,6 +285,10 @@ if (count($cbcGrading) < 1) {
 <input class="form-control" type="number" name="settings[current_academic_year]" value="<?php echo htmlspecialchars($appSettings['current_academic_year']); ?>">
 </div>
 <div class="col-md-4 mb-3">
+<label class="form-label">Academic Session</label>
+<input class="form-control" name="settings[current_session_label]" value="<?php echo htmlspecialchars($appSettings['current_session_label']); ?>" placeholder="e.g. 2026 Academic Session">
+</div>
+<div class="col-md-4 mb-3">
 <label class="form-label">Current Term</label>
 <select class="form-control" name="settings[current_term_id]">
 <option value="">Select term</option>
@@ -293,8 +300,21 @@ if (count($cbcGrading) < 1) {
 </select>
 </div>
 <div class="col-md-4 mb-3">
+<label class="form-label">Session Start Date</label>
+<input class="form-control" type="date" name="settings[session_start_date]" value="<?php echo htmlspecialchars($appSettings['session_start_date']); ?>">
+</div>
+<div class="col-md-4 mb-3">
+<label class="form-label">Session End Date</label>
+<input class="form-control" type="date" name="settings[session_end_date]" value="<?php echo htmlspecialchars($appSettings['session_end_date']); ?>">
+</div>
+<div class="col-md-4 mb-3">
 <label class="form-label">Admission Start Number</label>
 <input class="form-control" type="number" min="1" name="settings[admission_start_number]" value="<?php echo htmlspecialchars($appSettings['admission_start_number']); ?>">
+</div>
+<div class="col-md-12 mb-3">
+<div class="alert alert-info mb-0">
+Manage school terms directly from <a href="admin/terms">Academic Terms</a>. Current term and academic session values here are used across exams, admissions, and timetable planning.
+</div>
 </div>
 <div class="col-md-4 mb-3">
 <label class="form-label">School Days</label>

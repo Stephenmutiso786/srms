@@ -30,8 +30,9 @@ function app_tree_active($page)
     <li><a class="app-menu__item<?php echo app_menu_active('academic'); ?>" href="admin/academic"><i class="app-menu__icon feather icon-user"></i><span class="app-menu__label">Academic Account</span></a></li>
     <li><a class="app-menu__item<?php echo app_menu_active('teachers'); ?>" href="admin/teachers"><i class="app-menu__icon feather icon-user"></i><span class="app-menu__label">Teachers</span></a></li>
     <li><a class="app-menu__item<?php echo app_menu_active('classes'); ?>" href="admin/classes"><i class="app-menu__icon feather icon-home"></i><span class="app-menu__label">Class Management</span></a></li>
-    <li><a class="app-menu__item<?php echo app_menu_active('subjects'); ?>" href="admin/subjects"><i class="app-menu__icon feather icon-book"></i><span class="app-menu__label">Subjects</span></a></li>
-    <li><a class="app-menu__item<?php echo app_menu_active('teacher_allocation'); ?>" href="admin/teacher_allocation"><i class="app-menu__icon feather icon-users"></i><span class="app-menu__label">Teacher Allocation</span></a></li>
+    <li><a class="app-menu__item<?php echo app_menu_active('terms'); ?>" href="admin/terms"><i class="app-menu__icon feather icon-folder"></i><span class="app-menu__label">Terms & Sessions</span></a></li>
+    <li><a class="app-menu__item<?php echo app_menu_active('subjects'); ?>" href="admin/subjects"><i class="app-menu__icon feather icon-book"></i><span class="app-menu__label">Subject Catalog</span></a></li>
+    <li><a class="app-menu__item<?php echo app_menu_active('teacher_allocation'); ?>" href="admin/teacher_allocation"><i class="app-menu__icon feather icon-users"></i><span class="app-menu__label">Subject Teachers</span></a></li>
     <li><a class="app-menu__item<?php echo app_menu_active('school_timetable'); ?>" href="admin/school_timetable"><i class="app-menu__icon feather icon-calendar"></i><span class="app-menu__label">School Timetable</span></a></li>
     <li class="treeview<?php echo $isStudentsOpen ? ' is-expanded' : ''; ?>">
       <a class="app-menu__item" href="javascript:void(0);" data-toggle="treeview"><i class="app-menu__icon feather icon-users"></i><span class="app-menu__label">Students</span><i class="treeview-indicator bi bi-chevron-right"></i></a>

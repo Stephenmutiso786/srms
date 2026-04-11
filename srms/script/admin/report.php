@@ -57,7 +57,7 @@ app_require_unlocked('reports', 'admin');
 <div class="tile-body">
 <div class="table-responsive">
 <h3 class="tile-title">Generate Report Cards</h3>
-<p class="text-muted mb-3">Lock results first, then generate official report cards for the selected class and term.</p>
+<p class="text-muted mb-3">Lock and publish results first, then prepare report cards for the selected class and term. The system now generates each learner's final report on demand, so this step returns much faster.</p>
 <form enctype="multipart/form-data" action="admin/core/process_results" class="app_frm" method="POST" autocomplete="OFF">
 
 <div class="mb-2">

@@ -15,6 +15,7 @@ $name = app_build_class_name(
 	(string)($_POST['name'] ?? '')
 );
 $classTeacherId = (int)($_POST['class_teacher_id'] ?? 0);
+$subjectIds = $_POST['subject_ids'] ?? [];
 if ($name === '') {
 	app_reply_redirect('danger', 'Class name is required.', '../classes');
 }
@@ -35,6 +36,7 @@ try {
 		$stmt = $conn->prepare("INSERT INTO tbl_class_teachers (class_id, teacher_id, active, created_by) VALUES (?,?,1,?)");
 		$stmt->execute([$classId, $classTeacherId, (int)$account_id]);
 	}
+	app_save_class_subject_assignments($conn, $classId, is_array($subjectIds) ? $subjectIds : [], (int)$account_id);
 	app_reply_redirect('success', 'Class registered successfully.', '../classes');
 } catch (Throwable $e) {
 	app_reply_redirect('danger', 'Failed to save class.', '../classes');

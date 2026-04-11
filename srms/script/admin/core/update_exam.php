@@ -19,6 +19,7 @@ $name = trim($_POST['name'] ?? '');
 $classId = (int)($_POST['class_id'] ?? 0);
 $termId = (int)($_POST['term_id'] ?? 0);
 $gradingSystemId = (int)($_POST['grading_system_id'] ?? 0);
+$assessmentMode = strtolower(trim((string)($_POST['assessment_mode'] ?? 'normal'))) === 'cbc' ? 'cbc' : 'normal';
 $examTypeId = $_POST['exam_type_id'] ?? null;
 $examTypeId = $examTypeId === '' ? null : (int)$examTypeId;
 $subjectIds = $_POST['subject_ids'] ?? [];
@@ -28,6 +29,7 @@ try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 	app_ensure_overall_grading_defaults($conn);
+	app_ensure_exam_assessment_mode_column($conn);
 	app_ensure_exam_subjects_table($conn);
 
 	if ($gradingSystemId < 1 && app_table_exists($conn, 'tbl_grading_systems')) {
@@ -100,8 +102,8 @@ try {
 		throw new RuntimeException("Another exam with the same name already exists for that class and term.");
 	}
 
-	$stmt = $conn->prepare("UPDATE tbl_exams SET name = ?, class_id = ?, term_id = ?, exam_type_id = ?, grading_system_id = ? WHERE id = ?");
-	$stmt->execute([$name, $classId, $termId, $examTypeId, $gradingSystemId, $examId]);
+	$stmt = $conn->prepare("UPDATE tbl_exams SET name = ?, class_id = ?, term_id = ?, exam_type_id = ?, grading_system_id = ?, assessment_mode = ? WHERE id = ?");
+	$stmt->execute([$name, $classId, $termId, $examTypeId, $gradingSystemId, $assessmentMode, $examId]);
 
 	$stmt = $conn->prepare("DELETE FROM tbl_exam_subjects WHERE exam_id = ?");
 	$stmt->execute([$examId]);

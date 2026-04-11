@@ -19,6 +19,7 @@ $classIds = $_POST['class_ids'] ?? [];
 $subjectIds = $_POST['subject_ids'] ?? [];
 $termId = (int)($_POST['term_id'] ?? 0);
 $gradingSystemId = (int)($_POST['grading_system_id'] ?? 0);
+$assessmentMode = strtolower(trim((string)($_POST['assessment_mode'] ?? 'normal'))) === 'cbc' ? 'cbc' : 'normal';
 $examTypeId = $_POST['exam_type_id'] ?? null;
 $examTypeId = $examTypeId === '' ? null : (int)$examTypeId;
 $classIds = is_array($classIds) ? array_values(array_unique(array_filter(array_map('intval', $classIds)))) : [];
@@ -52,6 +53,7 @@ try {
 		header("location:../exams");
 		exit;
 	}
+	app_ensure_exam_assessment_mode_column($conn);
 	app_ensure_exam_subjects_table($conn);
 
 	if (app_table_exists($conn, 'tbl_grading_systems')) {
@@ -95,12 +97,12 @@ try {
 			continue;
 		}
 		if (DBDriver === 'pgsql') {
-			$stmt = $conn->prepare("INSERT INTO tbl_exams (name, term_id, class_id, exam_type_id, grading_system_id, status, created_by) VALUES (?,?,?,?,?,?,?) RETURNING id");
-			$stmt->execute([$name, $termId, $classId, $examTypeId, $gradingSystemId, 'draft', $createdBy]);
+			$stmt = $conn->prepare("INSERT INTO tbl_exams (name, term_id, class_id, exam_type_id, grading_system_id, assessment_mode, status, created_by) VALUES (?,?,?,?,?,?,?,?) RETURNING id");
+			$stmt->execute([$name, $termId, $classId, $examTypeId, $gradingSystemId, $assessmentMode, 'draft', $createdBy]);
 			$examId = (int)$stmt->fetchColumn();
 		} else {
-			$stmt = $conn->prepare("INSERT INTO tbl_exams (name, term_id, class_id, exam_type_id, grading_system_id, status, created_by) VALUES (?,?,?,?,?,?,?)");
-			$stmt->execute([$name, $termId, $classId, $examTypeId, $gradingSystemId, 'draft', $createdBy]);
+			$stmt = $conn->prepare("INSERT INTO tbl_exams (name, term_id, class_id, exam_type_id, grading_system_id, assessment_mode, status, created_by) VALUES (?,?,?,?,?,?,?,?)");
+			$stmt->execute([$name, $termId, $classId, $examTypeId, $gradingSystemId, $assessmentMode, 'draft', $createdBy]);
 			$examId = (int)$conn->lastInsertId();
 		}
 		foreach ($validSubjects as $subjectId) {

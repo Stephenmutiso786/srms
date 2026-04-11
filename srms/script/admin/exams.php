@@ -62,8 +62,8 @@ try {
 	app_ensure_exam_subjects_table($conn);
 
 	if (app_table_exists($conn, 'tbl_exams')) {
-		$stmt = $conn->prepare("SELECT e.id, e.name, e.status, e.created_at, t.name AS term_name, c.name AS class_name, et.name AS type_name,
-			gs.name AS grading_name,
+	$stmt = $conn->prepare("SELECT e.id, e.name, e.status, e.created_at, t.name AS term_name, c.name AS class_name, et.name AS type_name,
+			gs.name AS grading_name, COALESCE(e.assessment_mode, 'normal') AS assessment_mode,
 			COALESCE((SELECT COUNT(*) FROM tbl_exam_mark_submissions ms WHERE ms.exam_id = e.id), 0) AS submission_count
 			FROM tbl_exams e
 			LEFT JOIN tbl_terms t ON t.id = e.term_id
@@ -119,7 +119,15 @@ try {
 <div class="app-title">
 <div>
 <h1>Exam Management</h1>
-<p>Create exams, manage types, and keep the schedule aligned.</p>
+<p>Create one assessment flow here for both normal exams and CBC assessments, using the subjects already selected in Class Management.</p>
+</div>
+</div>
+
+<div class="tile mb-3">
+<div class="tile-body">
+<div class="alert alert-info mb-0">
+<strong>Exam source of truth:</strong> classes, streams, class teachers, and class subjects come from <a href="admin/classes">Class Management</a>. This page only creates one assessment flow from that setup, whether the mode is normal or CBC.
+</div>
 </div>
 </div>
 
@@ -166,7 +174,7 @@ try {
 <div class="col-md-7">
 <div class="tile">
 <h3 class="tile-title">Create Exam</h3>
-<p class="text-muted">Create the exam structure first, then activate it for teachers, review submitted marks, finalize, and publish when ready.</p>
+<p class="text-muted">Create the assessment structure first, choose whether it is a normal exam or CBC assessment, then activate it for teachers, review submitted marks, finalize, and publish when ready.</p>
 <div class="d-flex flex-wrap gap-2 mb-3">
 	<a class="btn btn-outline-primary btn-sm" href="admin/exam_timetable"><i class="bi bi-calendar-event me-1"></i>Manage Timetable</a>
 	<a class="btn btn-outline-secondary btn-sm" href="admin/results_locks"><i class="bi bi-lock me-1"></i>Results Locks</a>
@@ -217,6 +225,14 @@ try {
 </select>
 <div class="small text-muted mt-1">This controls how scores become grades for reports, analytics, and publishing.</div>
 </div>
+<div class="col-md-6 mb-3">
+<label class="form-label">Assessment Mode</label>
+<select class="form-control" name="assessment_mode" required>
+<option value="normal" selected>Normal Exam</option>
+<option value="cbc">CBC Assessment</option>
+</select>
+<div class="small text-muted mt-1">Use one exam module for both normal and CBC workflows.</div>
+</div>
 <div class="col-md-12 mb-3">
 <label class="form-label">Subjects</label>
 <select class="form-control" name="subject_ids[]" id="examSubjectIds" required multiple size="10">
@@ -245,7 +261,7 @@ try {
 </div>
 <table class="table table-hover">
 <thead>
-<tr><th width="40"><input class="form-check-input" type="checkbox" id="selectAllExamsHead"></th><th>Name</th><th>Type</th><th>Class</th><th>Subjects</th><th>Term</th><th>Grading</th><th>Status</th><th>Submissions</th><th>Created</th><th>Action</th></tr>
+<tr><th width="40"><input class="form-check-input" type="checkbox" id="selectAllExamsHead"></th><th>Name</th><th>Type</th><th>Mode</th><th>Class</th><th>Subjects</th><th>Term</th><th>Grading</th><th>Status</th><th>Submissions</th><th>Created</th><th>Action</th></tr>
 </thead>
 <tbody>
 <?php foreach ($exams as $exam): ?>
@@ -253,6 +269,7 @@ try {
 <td><input class="form-check-input exam-checkbox" type="checkbox" name="exam_ids[]" value="<?php echo (int)$exam['id']; ?>"></td>
 <td><?php echo htmlspecialchars($exam['name']); ?></td>
 <td><?php echo htmlspecialchars($exam['type_name'] ?? ''); ?></td>
+<td><?php echo htmlspecialchars(strtoupper((string)($exam['assessment_mode'] ?? 'normal'))); ?></td>
 <td><?php echo htmlspecialchars($exam['class_name'] ?? ''); ?></td>
 <td><?php echo htmlspecialchars(implode(', ', $examSubjectsMap[(int)$exam['id']] ?? [])); ?></td>
 <td><?php echo htmlspecialchars($exam['term_name'] ?? ''); ?></td>

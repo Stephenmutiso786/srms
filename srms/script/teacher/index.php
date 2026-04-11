@@ -197,7 +197,6 @@ body.app{background:#f4f7f6}
 		<nav class="portal-menu">
 			<a class="active" href="teacher"><i class="bi bi-grid"></i><span>Dashboard</span></a>
 			<a href="teacher/exam_marks_entry"><i class="bi bi-pencil-square"></i><span>Exam Marks Entry</span></a>
-			<a href="teacher/marks_entry"><i class="bi bi-journal-check"></i><span>CBC Marks Entry</span></a>
 			<a href="teacher/manage_results"><i class="bi bi-graph-up-arrow"></i><span>View Results</span></a>
 			<a href="teacher/import_results"><i class="bi bi-upload"></i><span>Import Results</span></a>
 			<a href="teacher/exam_timetable"><i class="bi bi-calendar3"></i><span>Exam Timetable</span></a>

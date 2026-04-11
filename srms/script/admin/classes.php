@@ -9,6 +9,10 @@ require_once('const/rbac.php');
 if ($res != "1" || $level != "0") { header("location:../"); exit; }
 app_require_permission('students.manage', '../admin');
 $teachers = [];
+$subjects = [];
+$classSubjectMap = [];
+$classTeacherMap = [];
+$streamGroups = [];
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
@@ -16,6 +20,23 @@ try {
 	$stmt = $conn->prepare("SELECT id, fname, lname FROM tbl_staff WHERE level = 2 AND status = 1 ORDER BY fname, lname");
 	$stmt->execute();
 	$teachers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	$stmt = $conn->prepare("SELECT id, name FROM tbl_subjects ORDER BY name");
+	$stmt->execute();
+	$subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	$stmt = $conn->prepare("SELECT id, name FROM tbl_classes ORDER BY name");
+	$stmt->execute();
+	foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $classRow) {
+		$classId = (int)$classRow['id'];
+		$classSubjectMap[$classId] = app_class_subject_ids($conn, $classId);
+		$classTeacherMap[$classId] = app_class_subject_teacher_rows($conn, $classId);
+		$parts = app_class_name_parts((string)$classRow['name']);
+		$gradeKey = $parts['grade'] !== '' ? $parts['grade'] : (string)$classRow['name'];
+		$streamGroups[$gradeKey][] = [
+			'id' => $classId,
+			'stream' => $parts['stream'] !== '' ? $parts['stream'] : 'Main',
+			'name' => (string)$classRow['name'],
+		];
+	}
 } catch (Throwable $e) {
 	$teachers = [];
 }
@@ -50,7 +71,32 @@ try {
 <div class="tile mb-3">
 <div class="tile-body">
 <div class="alert alert-info mb-0">
-<strong>Flexible setup:</strong> a teacher can be allocated to multiple subjects in the same class and also to multiple classes. Manage the classes here, then use <a href="admin/teacher_allocation">Teacher Allocation</a> to map teachers to class-subject pairs.
+<strong>Class management is now the main setup point:</strong> set the grade, stream, class teacher, and subjects here. Subject teachers are listed per class below for easier management, while <a href="admin/teacher_allocation">Teacher Allocation</a> still handles the actual teacher-to-subject assignment records.
+</div>
+</div>
+</div>
+
+<div class="row mb-3">
+<div class="col-md-12">
+<div class="tile">
+<div class="tile-body">
+<h3 class="tile-title">Class → Streams Overview</h3>
+<div class="row">
+<?php foreach ($streamGroups as $gradeName => $streams): ?>
+<div class="col-md-4 mb-3">
+<div class="border rounded p-3 h-100">
+<div class="fw-bold mb-2"><?php echo htmlspecialchars($gradeName); ?></div>
+<div class="small text-muted mb-2"><?php echo count($streams); ?> stream(s)</div>
+<ul class="mb-0 ps-3">
+<?php foreach ($streams as $stream): ?>
+<li><?php echo htmlspecialchars($stream['name']); ?></li>
+<?php endforeach; ?>
+</ul>
+</div>
+</div>
+<?php endforeach; ?>
+</div>
+</div>
 </div>
 </div>
 </div>
@@ -61,6 +107,7 @@ try {
 <div class="mb-3"><label class="form-label">Grade / Class</label><input required name="grade_name" class="form-control" type="text" placeholder="e.g. Grade 8"></div>
 <div class="mb-3"><label class="form-label">Stream / Section</label><input name="stream_name" class="form-control" type="text" placeholder="e.g. A"></div>
 <div class="mb-3"><label class="form-label">Class Teacher</label><select name="class_teacher_id" class="form-control"><option value="">Select class teacher (optional)</option><?php foreach ($teachers as $teacher) { ?><option value="<?php echo (int)$teacher['id']; ?>"><?php echo htmlspecialchars(trim(($teacher['fname'] ?? '').' '.($teacher['lname'] ?? ''))); ?></option><?php } ?></select></div>
+<div class="mb-3"><label class="form-label">Subjects for this Class / Stream</label><select name="subject_ids[]" class="form-control" multiple size="8"><?php foreach ($subjects as $subject) { ?><option value="<?php echo (int)$subject['id']; ?>"><?php echo htmlspecialchars((string)$subject['name']); ?></option><?php } ?></select><div class="form-text">Select the subjects this class or stream will do. This becomes the source of truth for exams and teacher allocation.</div></div>
 <div class="form-text mb-3">The system will save this as one class name, for example <strong>Grade 8 A</strong>.</div>
 <input type="hidden" name="name" value="">
 <button type="submit" name="submit" value="1" class="btn btn-primary app_btn">Add</button>
@@ -75,6 +122,7 @@ try {
 <div class="mb-3"><label class="form-label">Grade / Class</label><input id="grade_name" required name="grade_name" class="form-control" type="text" placeholder="e.g. Grade 8"></div>
 <div class="mb-3"><label class="form-label">Stream / Section</label><input id="stream_name" name="stream_name" class="form-control" type="text" placeholder="e.g. A"></div>
 <div class="mb-3"><label class="form-label">Class Teacher</label><select id="class_teacher_id" name="class_teacher_id" class="form-control"><option value="">Select class teacher (optional)</option><?php foreach ($teachers as $teacher) { ?><option value="<?php echo (int)$teacher['id']; ?>"><?php echo htmlspecialchars(trim(($teacher['fname'] ?? '').' '.($teacher['lname'] ?? ''))); ?></option><?php } ?></select></div>
+<div class="mb-3"><label class="form-label">Subjects for this Class / Stream</label><select id="edit_subject_ids" name="subject_ids[]" class="form-control" multiple size="8"><?php foreach ($subjects as $subject) { ?><option value="<?php echo (int)$subject['id']; ?>"><?php echo htmlspecialchars((string)$subject['name']); ?></option><?php } ?></select></div>
 <div class="form-text mb-3">Edit grade and stream separately; the system combines them into one class name.</div>
 <input id="name" name="name" type="hidden">
 <input type="hidden" name="id" id="id">
@@ -85,9 +133,9 @@ try {
 </div>
 
 <div class="row"><div class="col-md-12"><div class="tile"><div class="tile-body"><div class="table-responsive">
-<h3 class="tile-title">Classes</h3>
+<h3 class="tile-title">Classes, Subjects, and Teachers</h3>
 <table class="table table-hover table-bordered" id="srmsTable">
-<thead><tr><th>Grade</th><th>Stream</th><th>Saved Class Name</th><th>Class Teacher</th><th>Added On</th><th width="140"></th></tr></thead>
+<thead><tr><th>Grade</th><th>Stream</th><th>Saved Class Name</th><th>Class Teacher</th><th>Subjects</th><th>Subject Teachers</th><th>Added On</th><th width="140"></th></tr></thead>
 <tbody>
 <?php
 try {
@@ -101,12 +149,26 @@ try {
 	$stmt->execute();
 	foreach($stmt->fetchAll() as $row) {
 		$parts = app_class_name_parts((string)$row[1]);
+		$subjectIds = $classSubjectMap[(int)$row[0]] ?? [];
+		$subjectNames = [];
+		foreach ($subjects as $subject) {
+			if (in_array((int)$subject['id'], $subjectIds, true)) {
+				$subjectNames[] = (string)$subject['name'];
+			}
+		}
+		$teacherRows = $classTeacherMap[(int)$row[0]] ?? [];
+		$teacherLines = [];
+		foreach ($teacherRows as $teacherRow) {
+			$teacherLines[] = $teacherRow['subject_name'] . ': ' . (!empty($teacherRow['teachers']) ? implode(', ', $teacherRow['teachers']) : 'Not assigned');
+		}
 ?>
 <tr>
 <td><?php echo htmlspecialchars($parts['grade']); ?></td>
 <td><?php echo htmlspecialchars($parts['stream'] !== '' ? $parts['stream'] : '—'); ?></td>
 <td><?php echo htmlspecialchars($row[1]); ?></td>
 <td><?php echo htmlspecialchars(trim(($row['teacher_fname'] ?? '').' '.($row['teacher_lname'] ?? '')) ?: '—'); ?></td>
+<td><?php echo htmlspecialchars(!empty($subjectNames) ? implode(', ', $subjectNames) : 'No subjects set'); ?></td>
+<td><?php echo htmlspecialchars(!empty($teacherLines) ? implode(' | ', $teacherLines) : 'No subject teachers assigned'); ?></td>
 <td><?php echo htmlspecialchars($row[2] ?? ''); ?></td>
 <td align="center">
 <button
@@ -117,6 +179,7 @@ try {
 	data-grade="<?php echo htmlspecialchars($parts['grade']); ?>"
 	data-stream="<?php echo htmlspecialchars($parts['stream']); ?>"
 	data-class-teacher-id="<?php echo (int)($row['teacher_id'] ?? 0); ?>"
+	data-subject-ids="<?php echo htmlspecialchars(json_encode($subjectIds)); ?>"
 	data-bs-toggle="modal"
 	data-bs-target="#editModal">Edit</button>
 <a onclick="del('admin/core/drop_class?id=<?php echo $row[0]; ?>', 'Delete Class?');" class="btn btn-danger btn-sm" href="javascript:void(0);">Delete</a>
@@ -125,7 +188,7 @@ try {
 <?php
 	}
 } catch (Throwable $e) {
-	echo '<tr><td colspan="6">Failed to load classes.</td></tr>';
+	echo '<tr><td colspan="8">Failed to load classes.</td></tr>';
 }
 ?>
 </tbody>
@@ -147,6 +210,15 @@ $('.edit-class').on('click', function () {
 	$('#grade_name').val($(this).data('grade'));
 	$('#stream_name').val($(this).data('stream'));
 	$('#class_teacher_id').val($(this).data('class-teacher-id'));
+	$('#edit_subject_ids option').prop('selected', false);
+	const selectedSubjects = $(this).data('subject-ids');
+	if (Array.isArray(selectedSubjects)) {
+		$('#edit_subject_ids option').each(function () {
+			if (selectedSubjects.includes(parseInt($(this).val(), 10))) {
+				$(this).prop('selected', true);
+			}
+		});
+	}
 });
 </script>
 <?php require_once('const/check-reply.php'); ?>

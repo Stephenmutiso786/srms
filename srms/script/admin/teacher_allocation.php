@@ -94,15 +94,15 @@ try {
 <main class="app-content">
 <div class="app-title">
 <div>
-<h1>Teacher Allocation</h1>
-<p>Assign teachers to classes and subjects per term.</p>
+<h1>Subject Teachers</h1>
+<p>Assign teachers onto the class and stream structure that has already been set in <a href="admin/classes">Class Management</a>.</p>
 </div>
 </div>
 
 <div class="tile mb-3">
 <div class="tile-body">
 <div class="alert alert-info mb-0">
-<strong>Flexible allocation:</strong> one teacher can be assigned to multiple subjects in the same class, and the same teacher can also be assigned across multiple classes. Each allocation is stored as its own class + subject + term + year record.
+<strong>How this fits together:</strong> first set up the class, stream, class teacher, and subjects in <a href="admin/classes">Class Management</a>. Then use this page to attach subject teachers to that structure. One teacher can still teach multiple subjects in one class and multiple classes across the school.
 </div>
 </div>
 </div>
@@ -111,7 +111,7 @@ try {
 <div class="col-md-5">
 <div class="tile">
 <div class="tile-body">
-<h3 class="tile-title">Assign Teacher</h3>
+<h3 class="tile-title">Assign Subject Teacher</h3>
 <form class="app_frm" method="POST" action="admin/core/teacher_assignment_save">
 <input type="hidden" name="assignment_id" id="assignment_id" value="0">
 <div class="mb-2">
@@ -131,6 +131,7 @@ try {
 <option value="<?php echo $row['id']; ?>"><?php echo htmlspecialchars($row['name']); ?></option>
 <?php endforeach; ?>
 </select>
+<div class="form-text">Only subjects already linked to this class in Class Management will remain available below.</div>
 </div>
 <div class="mb-2">
 <label class="form-label">Subject</label>
@@ -168,7 +169,8 @@ try {
 <div class="col-md-7">
 <div class="tile">
 <div class="tile-body">
-<h3 class="tile-title">Current Allocations</h3>
+<h3 class="tile-title">Current Subject Teacher Allocations</h3>
+<p class="text-muted">Use this list to review which teachers are handling each class subject after class setup has been defined.</p>
 <div class="table-responsive">
 <table class="table table-hover">
 <thead>

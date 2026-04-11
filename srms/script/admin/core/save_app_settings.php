@@ -28,6 +28,11 @@ if ($admissionStartNumber !== null && $admissionStartNumber < 1) {
 	app_reply_redirect('danger', 'Admission start number must be 1 or greater.', '../system');
 }
 $currentTermId = isset($settings['current_term_id']) ? trim((string)$settings['current_term_id']) : '';
+$sessionStartDate = trim((string)($settings['session_start_date'] ?? ''));
+$sessionEndDate = trim((string)($settings['session_end_date'] ?? ''));
+if ($sessionStartDate !== '' && $sessionEndDate !== '' && strtotime($sessionStartDate) > strtotime($sessionEndDate)) {
+	app_reply_redirect('danger', 'Session start date cannot be later than session end date.', '../system');
+}
 
 try {
 	$conn = app_db();

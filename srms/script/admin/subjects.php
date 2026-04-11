@@ -42,7 +42,7 @@ try {
 <html lang="en">
 <meta http-equiv="content-type" content="text/html;charset=utf-8" />
 <head>
-<title><?php echo APP_NAME; ?> - Subjects</title>
+<title><?php echo APP_NAME; ?> - Subject Catalog</title>
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -70,8 +70,16 @@ try {
 <main class="app-content">
 <div class="app-title">
 <div>
-<h1>Subjects</h1>
-<p>Create subjects and assign them to classes.</p>
+<h1>Subject Catalog</h1>
+<p>Keep the school subject list here, then use <a href="admin/classes">Class Management</a> to decide which class or stream studies each subject.</p>
+</div>
+</div>
+
+<div class="tile mb-3">
+<div class="tile-body">
+<div class="alert alert-info mb-0">
+<strong>Source of truth:</strong> Class Management controls class streams, class teachers, and the subjects each class studies. This page only maintains the reusable school subject catalog and offers an optional shortcut for bulk class links.
+</div>
 </div>
 </div>
 
@@ -88,11 +96,12 @@ try {
 </div>
 <div class="mb-3">
 <label class="form-label">Assign to Classes</label>
-<select class="form-control" name="class_ids[]" id="class_ids" multiple required>
+<select class="form-control" name="class_ids[]" id="class_ids" multiple>
 <?php foreach ($classes as $class): ?>
 <option value="<?php echo $class['id']; ?>"><?php echo htmlspecialchars($class['name']); ?></option>
 <?php endforeach; ?>
 </select>
+<div class="form-text">Optional shortcut only. The preferred setup flow is still through <a href="admin/classes">Class Management</a>.</div>
 </div>
 <div class="d-flex gap-2">
 <button class="btn btn-primary">Save Subject</button>
@@ -106,7 +115,7 @@ try {
 <div class="col-md-7">
 <div class="tile">
 <div class="tile-body">
-<h3 class="tile-title">Subjects & Classes</h3>
+<h3 class="tile-title">Subjects & Current Class Links</h3>
 <div class="table-responsive">
 <table class="table table-hover">
 <thead>
@@ -122,6 +131,7 @@ $subjectClasses = [];
 foreach ($assignments as $row) {
 	$subjectClasses[$row['subject_id']]['name'] = $row['subject_name'];
 	$subjectClasses[$row['subject_id']]['classes'][] = $row['class_name'];
+	$subjectClasses[$row['subject_id']]['class_ids'][] = (int)$row['class_id'];
 }
 foreach ($subjects as $subject):
 	$classesList = $subjectClasses[$subject['id']]['classes'] ?? [];
@@ -133,7 +143,7 @@ foreach ($subjects as $subject):
 <button class="btn btn-sm btn-outline-primary edit-subject"
 	data-id="<?php echo $subject['id']; ?>"
 	data-name="<?php echo htmlspecialchars($subject['name']); ?>"
-	data-classes="<?php echo htmlspecialchars(json_encode($classesList)); ?>">
+	data-class-ids="<?php echo htmlspecialchars(json_encode($subjectClasses[$subject['id']]['class_ids'] ?? [])); ?>">
 	Edit
 </button>
 <a onclick="del('admin/core/subject_delete?id=<?php echo $subject['id']; ?>', 'Delete subject?');" href="javascript:void(0);" class="btn btn-sm btn-danger">Delete</a>
@@ -159,13 +169,13 @@ foreach ($subjects as $subject):
 $('.edit-subject').on('click', function () {
 	const subjectId = $(this).data('id');
 	const name = $(this).data('name');
-	const classes = $(this).data('classes');
+	const classIds = $(this).data('class-ids');
 	$('#subject_id').val(subjectId);
 	$('#subject_name').val(name);
 	$('#class_ids option').prop('selected', false);
-	if (Array.isArray(classes)) {
+	if (Array.isArray(classIds)) {
 		$('#class_ids option').each(function () {
-			if (classes.includes($(this).text())) {
+			if (classIds.includes(parseInt($(this).val(), 10))) {
 				$(this).prop('selected', true);
 			}
 		});

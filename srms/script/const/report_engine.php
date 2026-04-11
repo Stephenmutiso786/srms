@@ -111,9 +111,15 @@ function report_fetch_subjects_for_class(PDO $conn, int $classId): array
 		LEFT JOIN tbl_staff st ON st.id = sc.teacher");
 	$stmt->execute();
 	$subjects = [];
+	$seenSubjects = [];
 	foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
 		$classList = app_unserialize($row['class']);
 		if (in_array((string)$classId, $classList, true) || in_array($classId, $classList, true)) {
+			$subjectId = (int)$row['subject'];
+			if (isset($seenSubjects[$subjectId])) {
+				continue;
+			}
+			$seenSubjects[$subjectId] = true;
 			$subjects[] = $row;
 		}
 	}

@@ -123,7 +123,7 @@ $levels = array_values(array_unique($levels));
 <html lang="en">
 <meta http-equiv="content-type" content="text/html;charset=utf-8" />
 <head>
-<title><?php echo APP_NAME; ?> - CBC Marks Entry</title>
+<title><?php echo APP_NAME; ?> - Assessment Marks Entry</title>
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -173,7 +173,6 @@ $levels = array_values(array_unique($levels));
 <li class="treeview is-expanded"><a class="app-menu__item" href="javascript:void(0);" data-toggle="treeview"><i class="app-menu__icon feather icon-file-text"></i><span class="app-menu__label">Exams</span><i class="treeview-indicator bi bi-chevron-right"></i></a>
 <ul class="treeview-menu">
 <li><a class="treeview-item" href="teacher/exam_marks_entry"><i class="icon bi bi-circle-fill"></i> Exam Marks Entry</a></li>
-<li><a class="treeview-item active" href="teacher/marks_entry"><i class="icon bi bi-circle-fill"></i> CBC Marks Entry</a></li>
 <li><a class="treeview-item" href="teacher/import_results"><i class="icon bi bi-circle-fill"></i> Import Results</a></li>
 <li><a class="treeview-item" href="teacher/manage_results"><i class="icon bi bi-circle-fill"></i> View Results</a></li>
 </ul>
@@ -184,7 +183,7 @@ $levels = array_values(array_unique($levels));
 <main class="app-content">
 <div class="app-title">
 <div>
-<h1>CBC Marks Entry</h1>
+<h1>Assessment Marks Entry</h1>
 <p>Mode: <b><?php echo $mode === 'marks' ? 'Marks → CBC Auto' : 'CBC Levels'; ?></b></p>
 </div>
 <div class="cbc-status" id="saveStatus">Ready</div>
@@ -216,7 +215,7 @@ $levels = array_values(array_unique($levels));
 <div class="tile-body d-flex align-items-center justify-content-between">
 <div>Progress: <b id="progressCount">0</b>/<b id="progressTotal">0</b> entries</div>
 <div>
-<a class="btn btn-outline-secondary btn-sm" href="teacher/marks_entry"><i class="bi bi-arrow-left"></i> Change Selection</a>
+<a class="btn btn-outline-secondary btn-sm" href="teacher/exam_marks_entry"><i class="bi bi-arrow-left"></i> Change Selection</a>
 </div>
 </div>
 </div>

@@ -37,28 +37,38 @@ try {
 		exit;
 	}
 
-	$rankData = report_rank_students($conn, $classId, $termId);
-	$positions = $rankData['positions'];
-	$totalStudents = $rankData['total_students'];
-	$generatedBy = isset($account_id) ? (int)$account_id : null;
-
-	$stmt = $conn->prepare("SELECT id FROM tbl_students WHERE class = ?");
+	$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_students WHERE class = ?");
 	$stmt->execute([$classId]);
-	$students = $stmt->fetchAll(PDO::FETCH_COLUMN);
-
-	$generated = 0;
-	$failed = [];
-	foreach ($students as $studentId) {
-		try {
-			$report = report_compute_for_student($conn, (string)$studentId, $classId, $termId);
-			report_store_card($conn, (string)$studentId, $classId, $termId, $report, $positions, $totalStudents, $generatedBy);
-			$generated++;
-		} catch (Throwable $studentError) {
-			$failed[] = 'Student '.$studentId.': '.$studentError->getMessage();
-		}
+	$totalStudents = (int)$stmt->fetchColumn();
+	if ($totalStudents < 1) {
+		throw new RuntimeException('This class has no registered students yet.');
 	}
-	if ($generated < 1) {
-		throw new RuntimeException($failed[0] ?? 'No report cards could be generated.');
+
+	$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_exam_results WHERE class = ? AND term = ?");
+	$stmt->execute([$classId, $termId]);
+	$totalResults = (int)$stmt->fetchColumn();
+	if ($totalResults < 1) {
+		throw new RuntimeException('No saved exam results were found for the selected class and term.');
+	}
+
+	if (!app_table_exists($conn, 'tbl_report_cards')) {
+		throw new RuntimeException('Report card support is not installed. Please run migrations.');
+	}
+
+	$generatedBy = isset($account_id) ? (int)$account_id : null;
+	$stmt = $conn->prepare("SELECT id FROM tbl_report_cards WHERE class_id = ? AND term_id = ? LIMIT 1");
+	$stmt->execute([$classId, $termId]);
+	$existingCardId = (int)$stmt->fetchColumn();
+
+	if ($existingCardId < 1) {
+		$stmt = $conn->prepare("SELECT id FROM tbl_students WHERE class = ? ORDER BY id ASC LIMIT 1");
+		$stmt->execute([$classId]);
+		$sampleStudentId = $stmt->fetchColumn();
+		if ($sampleStudentId) {
+			$rankData = report_rank_students($conn, $classId, $termId);
+			$report = report_compute_for_student($conn, (string)$sampleStudentId, $classId, $termId);
+			report_store_card($conn, (string)$sampleStudentId, $classId, $termId, $report, $rankData['positions'], (int)$rankData['total_students'], $generatedBy);
+		}
 	}
 
 	if (app_table_exists($conn, 'tbl_notifications')) {
@@ -69,17 +79,13 @@ try {
 		$stmt->execute([$classId]);
 		$className = (string)$stmt->fetchColumn();
 		$title = "Results Released";
-		$message = "Report cards for " . ($className !== '' ? $className : "the class") . " (" . ($termName !== '' ? $termName : "term") . ") are now available.";
+		$message = "Report cards for " . ($className !== '' ? $className : "the class") . " (" . ($termName !== '' ? $termName : "term") . ") are now ready for student, parent, and teacher access.";
 
 		$stmt = $conn->prepare("INSERT INTO tbl_notifications (title, message, audience, class_id, term_id, link, created_by) VALUES (?,?,?,?,?,?,?)");
 		$stmt->execute([$title, $message, 'class', $classId, $termId, 'report_card?term=' . $termId, $generatedBy]);
 	}
 
-	$message = "Report cards generated successfully for {$generated} student(s).";
-	if ($failed) {
-		$message .= ' Some records were skipped: ' . implode(' | ', array_slice($failed, 0, 3));
-	}
-	$_SESSION['reply'] = array (array($failed ? "warning" : "success", $message));
+	$_SESSION['reply'] = array (array("success", "Report cards are ready. Student, parent, and teacher views will generate each learner's report instantly when opened, so you no longer need to wait for a long bulk process."));
 	header("location:../report");
 } catch (Throwable $e) {
 	$_SESSION['reply'] = array (array("danger", "Failed to generate report cards: " . $e->getMessage()));

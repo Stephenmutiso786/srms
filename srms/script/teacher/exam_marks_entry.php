@@ -9,11 +9,13 @@ if ($res == "1" && $level == "2") {}else{header("location:../");}
 $exams = [];
 $classSubjects = [];
 $useTeacherAssignments = false;
+$examModeMap = [];
 
 try {
   $conn = app_db();
   $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
   app_ensure_exam_subjects_table($conn);
+  app_ensure_exam_assessment_mode_column($conn);
 
   $combos = [];
   $useTeacherAssignments = app_table_exists($conn, 'tbl_teacher_assignments');
@@ -42,7 +44,7 @@ try {
 
     if (!empty($classIds)) {
       $placeholders = implode(',', array_fill(0, count($classIds), '?'));
-      $stmt = $conn->prepare("SELECT e.id, e.name, e.class_id, e.term_id, c.name AS class_name, t.name AS term_name
+      $stmt = $conn->prepare("SELECT e.id, e.name, e.class_id, e.term_id, COALESCE(e.assessment_mode, 'normal') AS assessment_mode, c.name AS class_name, t.name AS term_name
         FROM tbl_exams e
         LEFT JOIN tbl_classes c ON c.id = e.class_id
         LEFT JOIN tbl_terms t ON t.id = e.term_id
@@ -88,7 +90,7 @@ try {
 
     if (!empty($classIds)) {
       $placeholders = implode(',', array_fill(0, count($classIds), '?'));
-      $stmt = $conn->prepare("SELECT e.id, e.name, e.class_id, e.term_id, c.name AS class_name, t.name AS term_name
+      $stmt = $conn->prepare("SELECT e.id, e.name, e.class_id, e.term_id, COALESCE(e.assessment_mode, 'normal') AS assessment_mode, c.name AS class_name, t.name AS term_name
         FROM tbl_exams e
         LEFT JOIN tbl_classes c ON c.id = e.class_id
         LEFT JOIN tbl_terms t ON t.id = e.term_id
@@ -98,6 +100,9 @@ try {
       $exams = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
   }
+  foreach ($exams as $exam) {
+    $examModeMap[(int)$exam['id']] = (($exam['assessment_mode'] ?? 'normal') === 'cbc') ? 'cbc' : 'normal';
+  }
 } catch (Throwable $e) {
   $_SESSION['reply'] = array (array("danger", "Failed to load exams."));
 }
@@ -106,7 +111,7 @@ try {
 <html lang="en">
 <meta http-equiv="content-type" content="text/html;charset=utf-8" />
 <head>
-<title><?php echo APP_NAME; ?> - Exam Marks Entry</title>
+<title><?php echo APP_NAME; ?> - Assessment Marks Entry</title>
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -153,7 +158,6 @@ try {
 <li class="treeview is-expanded"><a class="app-menu__item" href="javascript:void(0);" data-toggle="treeview"><i class="app-menu__icon feather icon-file-text"></i><span class="app-menu__label">Exams</span><i class="treeview-indicator bi bi-chevron-right"></i></a>
 <ul class="treeview-menu">
 <li><a class="treeview-item active" href="teacher/exam_marks_entry"><i class="icon bi bi-circle-fill"></i> Exam Marks Entry</a></li>
-<li><a class="treeview-item" href="teacher/marks_entry"><i class="icon bi bi-circle-fill"></i> CBC Marks Entry</a></li>
 <li><a class="treeview-item" href="teacher/import_results"><i class="icon bi bi-circle-fill"></i> Import Results</a></li>
 <li><a class="treeview-item" href="teacher/manage_results"><i class="icon bi bi-circle-fill"></i> View Results</a></li>
 </ul>
@@ -166,8 +170,8 @@ try {
 <main class="app-content">
 <div class="app-title">
 <div>
-<h1>Exam Marks Entry</h1>
-<p>Select an active exam and subject, then start entry.</p>
+<h1>Assessment Marks Entry</h1>
+<p>Select one exam. The system will automatically use normal marks entry or CBC entry based on the exam mode chosen by admin.</p>
 </div>
 </div>
 
@@ -188,6 +192,7 @@ try {
 <?php endforeach; ?>
 </select>
 </div>
+<input type="hidden" name="assessment_mode" id="assessmentMode" value="normal">
 <div class="mb-3">
 <label class="form-label">Subject</label>
 <select class="form-control select2" name="subject_combination" id="subjectSelect" required>
@@ -212,9 +217,11 @@ try {
   $('.select2').select2();
   const classSubjects = <?php echo json_encode($classSubjects); ?>;
   const mapByExam = <?php echo $useTeacherAssignments ? 'true' : 'false'; ?>;
+  const examModes = <?php echo json_encode($examModeMap); ?>;
   $('#examSelect').on('change', function () {
     const classId = $(this).find(':selected').data('class');
     const examId = $(this).val();
+    $('#assessmentMode').val(examModes[examId] || 'normal');
     const key = mapByExam ? examId : classId;
     const subjects = Object.values(classSubjects[key] || {});
     const $subject = $('#subjectSelect');

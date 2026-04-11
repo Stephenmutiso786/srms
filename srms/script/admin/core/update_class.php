@@ -16,6 +16,7 @@ $name = app_build_class_name(
 );
 $id = (int)($_POST['id'] ?? 0);
 $classTeacherId = (int)($_POST['class_teacher_id'] ?? 0);
+$subjectIds = $_POST['subject_ids'] ?? [];
 if ($name === '' || $id < 1) {
 	app_reply_redirect('danger', 'Invalid class update request.', '../classes');
 }
@@ -37,6 +38,7 @@ try {
 		$stmt = $conn->prepare("INSERT INTO tbl_class_teachers (class_id, teacher_id, active, created_by) VALUES (?,?,1,?)");
 		$stmt->execute([$id, $classTeacherId, (int)$account_id]);
 	}
+	app_save_class_subject_assignments($conn, $id, is_array($subjectIds) ? $subjectIds : [], (int)$account_id);
 	app_reply_redirect('success', 'Class updated successfully.', '../classes');
 } catch (Throwable $e) {
 	app_reply_redirect('danger', 'Failed to update class.', '../classes');

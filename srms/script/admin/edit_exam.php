@@ -38,6 +38,7 @@ try {
 	if (!$exam) {
 		throw new RuntimeException("Exam not found.");
 	}
+	app_ensure_exam_assessment_mode_column($conn);
 
 	$stmt = $conn->prepare("SELECT id, name FROM tbl_exam_types ORDER BY name");
 	$stmt->execute();
@@ -155,6 +156,13 @@ try {
 								<?php echo htmlspecialchars($system['name']); ?> (<?php echo htmlspecialchars(strtoupper((string)$system['type'])); ?>)
 							</option>
 							<?php endforeach; ?>
+						</select>
+					</div>
+					<div class="col-md-6 mb-3">
+						<label class="form-label">Assessment Mode</label>
+						<select class="form-control" name="assessment_mode" required>
+							<option value="normal" <?php echo (($exam['assessment_mode'] ?? 'normal') === 'normal') ? 'selected' : ''; ?>>Normal Exam</option>
+							<option value="cbc" <?php echo (($exam['assessment_mode'] ?? 'normal') === 'cbc') ? 'selected' : ''; ?>>CBC Assessment</option>
 						</select>
 					</div>
 					<div class="col-md-12 mb-3">

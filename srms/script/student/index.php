@@ -107,16 +107,20 @@ try {
 	}
 
 	if ($studentClassId > 0 && app_table_exists($conn, 'tbl_subject_combinations')) {
-		$stmt = $conn->prepare("SELECT id, class FROM tbl_subject_combinations");
-		$stmt->execute();
-		$count = 0;
-		foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-			$classList = app_unserialize($row['class']);
-			if (in_array((string)$studentClassId, array_map('strval', $classList), true)) {
-				$count++;
+		if (app_table_exists($conn, 'tbl_subject_class_assignments')) {
+			$summary['subjects'] = count(app_class_subject_ids($conn, $studentClassId));
+		} else {
+			$stmt = $conn->prepare("SELECT subject, class FROM tbl_subject_combinations");
+			$stmt->execute();
+			$seenSubjects = [];
+			foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+				$classList = app_unserialize($row['class']);
+				if (in_array((string)$studentClassId, array_map('strval', $classList), true)) {
+					$seenSubjects[(int)$row['subject']] = true;
+				}
 			}
+			$summary['subjects'] = count($seenSubjects);
 		}
-		$summary['subjects'] = $count;
 	}
 
 	if ($selectedTermId > 0 && report_term_is_published($conn, $studentClassId, $selectedTermId)) {
