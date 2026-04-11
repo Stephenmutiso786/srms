@@ -833,42 +833,44 @@ function app_delete_students(PDO $conn, array $ids): void
 	}
 
 	$deletes = [
-		['tbl_parent_students', 'DELETE FROM tbl_parent_students WHERE student_id IN (%s)'],
-		['tbl_cbc_assessments', 'DELETE FROM tbl_cbc_assessments WHERE student_id IN (%s)'],
-		['tbl_attendance_records', 'DELETE FROM tbl_attendance_records WHERE student_id IN (%s)'],
-		['tbl_exam_results', 'DELETE FROM tbl_exam_results WHERE student IN (%s)'],
-		['tbl_assignment_submissions', 'DELETE FROM tbl_assignment_submissions WHERE student_id IN (%s)'],
-		['tbl_quiz_results', 'DELETE FROM tbl_quiz_results WHERE student_id IN (%s)'],
-		['tbl_attendance_elearning', 'DELETE FROM tbl_attendance_elearning WHERE student_id IN (%s)'],
-		['tbl_ai_recommendations', 'DELETE FROM tbl_ai_recommendations WHERE student_id IN (%s)'],
+		['tbl_parent_students', 'DELETE FROM tbl_parent_students WHERE student_id IN (%s)', 'student_id'],
+		['tbl_cbc_assessments', 'DELETE FROM tbl_cbc_assessments WHERE student_id IN (%s)', 'student_id'],
+		['tbl_attendance_records', 'DELETE FROM tbl_attendance_records WHERE student_id IN (%s)', 'student_id'],
+		['tbl_exam_results', 'DELETE FROM tbl_exam_results WHERE student IN (%s)', 'student'],
+		['tbl_assignment_submissions', 'DELETE FROM tbl_assignment_submissions WHERE student_id IN (%s)', 'student_id'],
+		['tbl_quiz_results', 'DELETE FROM tbl_quiz_results WHERE student_id IN (%s)', 'student_id'],
+		['tbl_attendance_elearning', 'DELETE FROM tbl_attendance_elearning WHERE student_id IN (%s)', 'student_id'],
+		['tbl_ai_recommendations', 'DELETE FROM tbl_ai_recommendations WHERE student_id IN (%s)', 'student_id'],
 	];
 	foreach ($deletes as $rule) {
-		if (app_table_exists($conn, $rule[0])) {
+		if (app_table_exists($conn, $rule[0]) && app_column_exists($conn, $rule[0], $rule[2])) {
 			$stmt = $conn->prepare(sprintf($rule[1], $placeholders));
 			$stmt->execute($ids);
 		}
 	}
 
 	if (app_table_exists($conn, 'tbl_report_cards')) {
-		if (app_table_exists($conn, 'tbl_report_card_subjects')) {
+		if (app_table_exists($conn, 'tbl_report_card_subjects') && app_column_exists($conn, 'tbl_report_card_subjects', 'report_id') && app_column_exists($conn, 'tbl_report_cards', 'id') && app_column_exists($conn, 'tbl_report_cards', 'student_id')) {
 			$stmt = $conn->prepare("DELETE FROM tbl_report_card_subjects WHERE report_id IN (SELECT id FROM tbl_report_cards WHERE student_id IN ($placeholders))");
 			$stmt->execute($ids);
 		}
-		$stmt = $conn->prepare("DELETE FROM tbl_report_cards WHERE student_id IN ($placeholders)");
-		$stmt->execute($ids);
+		if (app_column_exists($conn, 'tbl_report_cards', 'student_id')) {
+			$stmt = $conn->prepare("DELETE FROM tbl_report_cards WHERE student_id IN ($placeholders)");
+			$stmt->execute($ids);
+		}
 	}
 
-	if (app_table_exists($conn, 'tbl_invoices')) {
+	if (app_table_exists($conn, 'tbl_invoices') && app_column_exists($conn, 'tbl_invoices', 'student_id') && app_column_exists($conn, 'tbl_invoices', 'id')) {
 		$invoiceIdsStmt = $conn->prepare("SELECT id FROM tbl_invoices WHERE student_id IN ($placeholders)");
 		$invoiceIdsStmt->execute($ids);
 		$invoiceIds = $invoiceIdsStmt->fetchAll(PDO::FETCH_COLUMN);
 		if (!empty($invoiceIds)) {
 			$invoicePlaceholders = implode(',', array_fill(0, count($invoiceIds), '?'));
-			if (app_table_exists($conn, 'tbl_payments')) {
+			if (app_table_exists($conn, 'tbl_payments') && app_column_exists($conn, 'tbl_payments', 'invoice_id')) {
 				$stmt = $conn->prepare("DELETE FROM tbl_payments WHERE invoice_id IN ($invoicePlaceholders)");
 				$stmt->execute($invoiceIds);
 			}
-			if (app_table_exists($conn, 'tbl_invoice_lines')) {
+			if (app_table_exists($conn, 'tbl_invoice_lines') && app_column_exists($conn, 'tbl_invoice_lines', 'invoice_id')) {
 				$stmt = $conn->prepare("DELETE FROM tbl_invoice_lines WHERE invoice_id IN ($invoicePlaceholders)");
 				$stmt->execute($invoiceIds);
 			}
@@ -882,8 +884,10 @@ function app_delete_students(PDO $conn, array $ids): void
 		$stmt->execute($ids);
 	}
 
-	$stmt = $conn->prepare("DELETE FROM tbl_students WHERE id IN ($placeholders)");
-	$stmt->execute($ids);
+	if (app_column_exists($conn, 'tbl_students', 'id')) {
+		$stmt = $conn->prepare("DELETE FROM tbl_students WHERE id IN ($placeholders)");
+		$stmt->execute($ids);
+	}
 }
 
 function app_delete_staff(PDO $conn, array $ids): void
@@ -895,12 +899,12 @@ function app_delete_staff(PDO $conn, array $ids): void
 	$placeholders = implode(',', array_fill(0, count($ids), '?'));
 
 	$deletes = [
-		['tbl_user_roles', 'DELETE FROM tbl_user_roles WHERE staff_id IN (%s)'],
-		['tbl_teacher_assignments', 'DELETE FROM tbl_teacher_assignments WHERE teacher_id IN (%s)'],
-		['tbl_staff_attendance', 'DELETE FROM tbl_staff_attendance WHERE staff_id IN (%s)'],
+		['tbl_user_roles', 'DELETE FROM tbl_user_roles WHERE staff_id IN (%s)', 'staff_id'],
+		['tbl_teacher_assignments', 'DELETE FROM tbl_teacher_assignments WHERE teacher_id IN (%s)', 'teacher_id'],
+		['tbl_staff_attendance', 'DELETE FROM tbl_staff_attendance WHERE staff_id IN (%s)', 'staff_id'],
 	];
 	foreach ($deletes as $rule) {
-		if (app_table_exists($conn, $rule[0])) {
+		if (app_table_exists($conn, $rule[0]) && app_column_exists($conn, $rule[0], $rule[2])) {
 			$stmt = $conn->prepare(sprintf($rule[1], $placeholders));
 			$stmt->execute($ids);
 		}
@@ -911,8 +915,10 @@ function app_delete_staff(PDO $conn, array $ids): void
 		$stmt->execute($ids);
 	}
 
-	$stmt = $conn->prepare("DELETE FROM tbl_staff WHERE id IN ($placeholders)");
-	$stmt->execute($ids);
+	if (app_column_exists($conn, 'tbl_staff', 'id')) {
+		$stmt = $conn->prepare("DELETE FROM tbl_staff WHERE id IN ($placeholders)");
+		$stmt->execute($ids);
+	}
 }
 
 function app_reset_school_people_data(PDO $conn): array
@@ -1008,7 +1014,14 @@ function app_reset_school_people_data(PDO $conn): array
 
 		foreach ($fullWipeTables as $table) {
 			if (app_table_exists($conn, $table)) {
-				$conn->exec("DELETE FROM {$table}");
+				$sp = app_tx_savepoint_begin($conn, 'reset_' . $table);
+				try {
+					$conn->exec("DELETE FROM {$table}");
+					app_tx_savepoint_release($conn, $sp);
+				} catch (Throwable $e) {
+					app_tx_savepoint_rollback($conn, $sp);
+					error_log('[app_reset_school_people_data] table wipe failed for ' . $table . ': ' . $e->getMessage());
+				}
 			}
 		}
 
@@ -1017,11 +1030,39 @@ function app_reset_school_people_data(PDO $conn): array
 		}
 
 		if (!empty($studentIds)) {
-			app_delete_students($conn, $studentIds);
+			$sp = app_tx_savepoint_begin($conn, 'reset_students');
+			try {
+				app_delete_students($conn, $studentIds);
+				app_tx_savepoint_release($conn, $sp);
+			} catch (Throwable $e) {
+				app_tx_savepoint_rollback($conn, $sp);
+				error_log('[app_reset_school_people_data] student delete failed, falling back to block: ' . $e->getMessage());
+				if (app_column_exists($conn, 'tbl_students', 'status')) {
+					$placeholders = implode(',', array_fill(0, count($studentIds), '?'));
+					$stmt = $conn->prepare("UPDATE tbl_students SET status = 0 WHERE id IN ($placeholders)");
+					$stmt->execute($studentIds);
+				} else {
+					throw $e;
+				}
+			}
 		}
 
 		if (!empty($staffIds)) {
-			app_delete_staff($conn, $staffIds);
+			$sp = app_tx_savepoint_begin($conn, 'reset_staff');
+			try {
+				app_delete_staff($conn, $staffIds);
+				app_tx_savepoint_release($conn, $sp);
+			} catch (Throwable $e) {
+				app_tx_savepoint_rollback($conn, $sp);
+				error_log('[app_reset_school_people_data] staff delete failed, falling back to block: ' . $e->getMessage());
+				if (app_column_exists($conn, 'tbl_staff', 'status')) {
+					$placeholders = implode(',', array_fill(0, count($staffIds), '?'));
+					$stmt = $conn->prepare("UPDATE tbl_staff SET status = 0 WHERE id IN ($placeholders)");
+					$stmt->execute($staffIds);
+				} else {
+					throw $e;
+				}
+			}
 		}
 
 		$conn->commit();
