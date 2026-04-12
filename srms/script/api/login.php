@@ -90,10 +90,18 @@ UNION SELECT id, email, password, level, status FROM tbl_students WHERE id = ? O
 		}
 
 		app_issue_auth_cookies((string)$row[3], $sessionId, true, 4320);
+		$portal = '';
+		if ($loginLevel === 4) {
+			$portal = 'parent';
+		} elseif ($loginLevel === 3) {
+			$portal = 'student';
+		} else {
+			$portal = app_staff_login_portal($conn, (int)$accountId, (string)$row[3]);
+		}
 		api_json([
 			'ok' => true,
-			'portal' => api_portal_name((string)$row[3]),
-			'redirect' => '/' . api_portal_name((string)$row[3]),
+			'portal' => $portal,
+			'redirect' => '/' . $portal,
 		]);
 	}
 

@@ -20,7 +20,10 @@ try {
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 	app_ensure_bom_tables($conn);
 
-	$stmt = $conn->prepare('SELECT * FROM tbl_bom_members ORDER BY status DESC, term_end DESC, id DESC');
+	$stmt = $conn->prepare('SELECT bm.*, st.id AS staff_login_id, st.email AS staff_login_email
+		FROM tbl_bom_members bm
+		LEFT JOIN tbl_staff st ON st.id = bm.staff_id
+		ORDER BY bm.status DESC, bm.term_end DESC, bm.id DESC');
 	$stmt->execute();
 	$members = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -72,21 +75,33 @@ try {
 <button class="btn btn-primary" type="submit">Save Member</button>
 </form>
 </div>
+
+<div class="tile mt-3">
+<h3 class="tile-title">Create BOM Portal Profile</h3>
+<form method="POST" action="admin/core/bom_create_portal_user" class="app_frm">
+<div class="mb-2"><label class="form-label">BOM Member</label><select class="form-control" name="member_id" required><option value="">Select member</option><?php foreach ($members as $m): ?><?php if (empty($m['staff_login_id'])): ?><option value="<?php echo (int)$m['id']; ?>"><?php echo htmlspecialchars((string)$m['full_name'].' - '.(string)($bomRoles[$m['role_code']] ?? $m['role_code'])); ?></option><?php endif; ?><?php endforeach; ?></select></div>
+<div class="mb-2"><label class="form-label">Gender</label><select class="form-control" name="gender" required><option value="Male">Male</option><option value="Female">Female</option></select></div>
+<div class="mb-2"><label class="form-label">Login Email</label><input class="form-control" type="email" name="email" required></div>
+<div class="mb-3"><label class="form-label">Temporary Password</label><input class="form-control" type="text" name="password" minlength="6" required></div>
+<button class="btn btn-primary" type="submit">Create Portal Account</button>
+</form>
+</div>
 </div>
 <div class="col-md-7">
 <div class="tile">
 <h3 class="tile-title">BOM Members</h3>
-<div class="table-responsive"><table class="table table-hover"><thead><tr><th>Name</th><th>Role</th><th>Term</th><th>Contacts</th><th></th></tr></thead><tbody>
+<div class="table-responsive"><table class="table table-hover"><thead><tr><th>Name</th><th>Role</th><th>Term</th><th>Contacts</th><th>Portal</th><th></th></tr></thead><tbody>
 <?php foreach ($members as $m): ?>
 <tr>
 <td><?php echo htmlspecialchars((string)$m['full_name']); ?><br><small><?php echo htmlspecialchars((string)$m['representing']); ?></small></td>
 <td><?php echo htmlspecialchars((string)($bomRoles[$m['role_code']] ?? $m['role_code'])); ?></td>
 <td><?php echo htmlspecialchars((string)($m['term_start'] ?? '').' to '.(string)($m['term_end'] ?? '')); ?></td>
 <td><?php echo htmlspecialchars((string)$m['phone']); ?><br><?php echo htmlspecialchars((string)$m['email']); ?></td>
+<td><?php if (!empty($m['staff_login_id'])) { ?><span class="text-success">Active</span><br><small>#<?php echo (int)$m['staff_login_id']; ?> | <?php echo htmlspecialchars((string)$m['staff_login_email']); ?></small><?php } else { ?><span class="text-muted">Not created</span><?php } ?></td>
 <td><a class="btn btn-sm btn-danger" href="admin/core/bom_delete?entity=member&id=<?php echo (int)$m['id']; ?>" onclick="return confirm('Delete member?');">Delete</a></td>
 </tr>
 <?php endforeach; ?>
-<?php if (!$members): ?><tr><td colspan="5" class="text-center text-muted">No BOM members saved.</td></tr><?php endif; ?>
+<?php if (!$members): ?><tr><td colspan="6" class="text-center text-muted">No BOM members saved.</td></tr><?php endif; ?>
 </tbody></table></div>
 </div>
 </div>

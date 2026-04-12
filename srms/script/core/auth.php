@@ -93,34 +93,17 @@ $stmt->execute([$session_id, $account_id, $ip]);
 
 app_issue_auth_cookies((string)$row[3], (string)$session_id, false, (int)$cookie_length);
 
-switch ($row[3]) {
-case '0':
-header("location:../admin");
-break;
-case '9':
-header("location:../admin");
-break;
-
-case '1':
-header("location:../academic");
-break;
-
-case '2':
-header("location:../teacher");
-break;
-
-case '3':
-header("location:../student");
-break;
-
-case '4':
-header("location:../parent");
-break;
-
-case '5':
-header("location:../accountant");
-break;
+$portal = '';
+if ($loginLevel === 3) {
+	$portal = 'student';
+} elseif ($loginLevel === 4) {
+	$portal = 'parent';
+} else {
+	$portal = app_staff_login_portal($conn, (int)$account_id, (string)$row[3]);
 }
+
+header("location:../".$portal);
+exit;
 
 
 }else{
