@@ -48,15 +48,10 @@ try {
 		}
 	}
 
-	$conn->beginTransaction();
 	foreach ($settings as $key => $value) {
-		app_setting_set($conn, (string)$key, trim((string)$value), (int)$account_id, true);
+		app_setting_set($conn, (string)$key, trim((string)$value), (int)$account_id, false);
 	}
-	$conn->commit();
 	app_reply_redirect('success', 'Application settings saved successfully.', '../system');
 } catch (Throwable $e) {
-	if (isset($conn) && $conn instanceof PDO && $conn->inTransaction()) {
-		$conn->rollBack();
-	}
 	app_reply_redirect('danger', 'Failed to save settings: '.$e->getMessage(), '../system');
 }

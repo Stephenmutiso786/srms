@@ -346,6 +346,26 @@ ACADEMIC REPORT FORM - ' . htmlspecialchars((string)$payload['class_name']) . ' 
 </table>';
 }
 
+function app_report_fallback_html(array $payload): string
+{
+    $card = is_array($payload['card'] ?? null) ? $payload['card'] : [];
+    $schoolName = defined('WBName') ? (string)WBName : (defined('APP_NAME') ? (string)APP_NAME : 'School');
+    return '<table width="100%" cellpadding="4" cellspacing="0" style="font-family:helvetica,sans-serif;">'
+        . '<tr><td style="font-size:14pt;font-weight:bold;">' . htmlspecialchars($schoolName) . '</td></tr>'
+        . '<tr><td style="font-size:11pt;font-weight:bold;background:#eaf3fb;">Academic Report Form</td></tr>'
+        . '<tr><td><b>Name:</b> ' . htmlspecialchars((string)($payload['student_name'] ?? '')) . '</td></tr>'
+        . '<tr><td><b>Admission:</b> ' . htmlspecialchars((string)($payload['school_id'] ?? '')) . '</td></tr>'
+        . '<tr><td><b>Class:</b> ' . htmlspecialchars((string)($payload['class_name'] ?? '')) . '</td></tr>'
+        . '<tr><td><b>Term:</b> ' . htmlspecialchars((string)($payload['term_name'] ?? '')) . '</td></tr>'
+        . '<tr><td><b>Total:</b> ' . number_format((float)($card['total'] ?? 0), 2)
+        . ' | <b>Mean:</b> ' . number_format((float)($card['mean'] ?? 0), 2)
+        . ' | <b>Grade:</b> ' . htmlspecialchars((string)($card['grade'] ?? 'N/A')) . '</td></tr>'
+        . '<tr><td><b>Position:</b> ' . (int)($card['position'] ?? 0) . '/' . (int)($card['total_students'] ?? 0) . '</td></tr>'
+        . '<tr><td><b>Teacher Remark:</b> ' . htmlspecialchars((string)($card['teacher_comment'] ?? $card['remark'] ?? '')) . '</td></tr>'
+        . '<tr><td><b>Headteacher Remark:</b> ' . htmlspecialchars((string)($card['headteacher_comment'] ?? $card['remark'] ?? '')) . '</td></tr>'
+        . '</table>';
+}
+
 function app_output_single_page_report_pdf(PDO $conn, TCPDF $pdf, array $payload): void
 {
     $pdf->setPrintHeader(false);
@@ -357,7 +377,14 @@ function app_output_single_page_report_pdf(PDO $conn, TCPDF $pdf, array $payload
     $pdf->SetFont('helvetica', '', 9);
 
     $html = app_report_one_page_html($conn, $payload);
+    $startY = (float)$pdf->GetY();
     $pdf->writeHTML($html, true, false, true, false, '');
+    $endY = (float)$pdf->GetY();
+    if ($endY <= ($startY + 1.0)) {
+        $fallbackHtml = app_report_fallback_html($payload);
+        $pdf->SetY(10);
+        $pdf->writeHTML($fallbackHtml, true, false, true, false, '');
+    }
 
     $verifyUrl = app_report_verify_url((string)($payload['card']['verification_code'] ?? ''));
     $pdf->write2DBarcode($verifyUrl, 'QRCODE,H', 108, 252, 22, 22);
