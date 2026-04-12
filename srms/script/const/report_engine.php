@@ -178,18 +178,27 @@ function report_cbc_grade_for_score(PDO $conn, float $score): array
 
 function report_term_assessment_mode(PDO $conn, int $classId, int $termId): string
 {
+	static $modeCache = [];
+	$cacheKey = $classId . ':' . $termId;
+	if (isset($modeCache[$cacheKey])) {
+		return $modeCache[$cacheKey];
+	}
+
 	if ($classId < 1 || $termId < 1 || !app_table_exists($conn, 'tbl_exams')) {
-		return 'normal';
+		$modeCache[$cacheKey] = 'normal';
+		return $modeCache[$cacheKey];
 	}
 	if (!app_column_exists($conn, 'tbl_exams', 'assessment_mode')) {
-		return 'normal';
+		$modeCache[$cacheKey] = 'normal';
+		return $modeCache[$cacheKey];
 	}
 
 	$stmt = $conn->prepare("SELECT COALESCE(assessment_mode, 'normal') AS assessment_mode FROM tbl_exams WHERE class_id = ? AND term_id = ?");
 	$stmt->execute([$classId, $termId]);
 	$rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	if (empty($rows)) {
-		return 'normal';
+		$modeCache[$cacheKey] = 'normal';
+		return $modeCache[$cacheKey];
 	}
 
 	$hasCbc = false;
@@ -204,10 +213,12 @@ function report_term_assessment_mode(PDO $conn, int $classId, int $termId): stri
 	}
 
 	if ($hasCbc && !$hasNormal) {
-		return 'cbc';
+		$modeCache[$cacheKey] = 'cbc';
+		return $modeCache[$cacheKey];
 	}
 
-	return 'normal';
+	$modeCache[$cacheKey] = 'normal';
+	return $modeCache[$cacheKey];
 }
 
 function report_attach_computed_metrics(PDO $conn, array $card): array
@@ -323,6 +334,12 @@ function report_cbc_score_matrix(PDO $conn, int $classId, int $termId, array $su
 
 function report_fetch_scores(PDO $conn, string $studentId, int $classId, int $termId, array $subjects): array
 {
+	static $classTermCbcCache = [];
+	$cbcKey = $classId . ':' . $termId;
+	if (!isset($classTermCbcCache[$cbcKey])) {
+		$classTermCbcCache[$cbcKey] = report_cbc_score_matrix($conn, $classId, $termId, $subjects, null);
+	}
+
 	$subjectMap = [];
 	foreach ($subjects as $subject) {
 		$subjectMap[(int)$subject['combination_id']] = $subject;
@@ -345,7 +362,7 @@ function report_fetch_scores(PDO $conn, string $studentId, int $classId, int $te
 		}
 	}
 
-	$cbcMatrix = report_cbc_score_matrix($conn, $classId, $termId, $subjects, $studentId);
+	$cbcMatrix = $classTermCbcCache[$cbcKey];
 	$cbcSubjectScores = $cbcMatrix[$studentId] ?? [];
 
 	$scores = [];
@@ -620,9 +637,23 @@ function report_generate_hash(array $payload): string
 
 function report_compute_for_student(PDO $conn, string $studentId, int $classId, int $termId): array
 {
-	$settings = report_get_settings($conn);
-	$weights = report_get_weight_map($conn);
-	$subjects = report_fetch_subjects_for_class($conn, $classId);
+	static $settingsCache = null;
+	static $weightCache = null;
+	static $subjectCache = [];
+
+	if ($settingsCache === null) {
+		$settingsCache = report_get_settings($conn);
+	}
+	if ($weightCache === null) {
+		$weightCache = report_get_weight_map($conn);
+	}
+	if (!isset($subjectCache[$classId])) {
+		$subjectCache[$classId] = report_fetch_subjects_for_class($conn, $classId);
+	}
+
+	$settings = $settingsCache;
+	$weights = $weightCache;
+	$subjects = $subjectCache[$classId];
 	$scores = report_fetch_scores($conn, $studentId, $classId, $termId, $subjects);
 	$totals = report_compute_totals($conn, $scores, $weights, $settings);
 	$attendance = report_attendance_summary($conn, $studentId, $classId, $termId);
