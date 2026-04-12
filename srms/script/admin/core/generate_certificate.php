@@ -18,6 +18,8 @@ $studentId = trim((string)($_POST['student_id'] ?? ''));
 $type = trim((string)($_POST['certificate_type'] ?? 'leaving'));
 $issueDate = trim((string)($_POST['issue_date'] ?? date('Y-m-d')));
 $notes = trim((string)($_POST['notes'] ?? ''));
+$meanScore = !empty($_POST['mean_score']) ? (float)$_POST['mean_score'] : null;
+$competencies = (array)($_POST['competencies'] ?? []);
 
 $types = app_certificate_types();
 if ($studentId === '' || !isset($types[$type])) {
@@ -47,9 +49,24 @@ try {
         'serial_no' => $serial,
     ];
     $hash = app_certificate_hash($payload);
+    
+    // Prepare competencies JSON if provided
+    $competenciesJson = null;
+    if (!empty($competencies)) {
+        $competenciesJson = json_encode([
+            'assessed_at' => date('Y-m-d H:i:s'),
+            'competencies' => $competencies,
+        ]);
+    }
+    
+    // Determine merit grade from mean score
+    $meritGrade = null;
+    if ($meanScore !== null) {
+        $meritGrade = app_merit_grade_from_score($meanScore);
+    }
 
-    $stmt = $conn->prepare('INSERT INTO tbl_certificates (student_id, class_id, certificate_type, title, serial_no, issue_date, status, notes, verification_code, cert_hash, issued_by)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?)');
+    $stmt = $conn->prepare('INSERT INTO tbl_certificates (student_id, class_id, certificate_type, title, serial_no, issue_date, status, notes, verification_code, cert_hash, issued_by, mean_score, merit_grade, competencies_json)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
     $stmt->execute([
         $studentId,
         (int)$student['class'],
@@ -62,9 +79,12 @@ try {
         $code,
         $hash,
         (int)$account_id,
+        $meanScore,
+        $meritGrade,
+        $competenciesJson,
     ]);
 
     app_reply_redirect('success', 'Certificate generated successfully.', '../certificates');
 } catch (Throwable $e) {
-    app_reply_redirect('danger', 'Failed to generate certificate.', '../certificates');
+    app_reply_redirect('danger', 'Failed to generate certificate: ' . $e->getMessage(), '../certificates');
 }

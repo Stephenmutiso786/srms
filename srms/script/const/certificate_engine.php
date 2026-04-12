@@ -272,12 +272,8 @@ function app_ensure_certificates_table(PDO $conn): void
                 downloads INTEGER DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY (id),
                 UNIQUE (serial_no),
-                UNIQUE (verification_code),
-                CONSTRAINT tbl_certificates_student_fk FOREIGN KEY (student_id) REFERENCES tbl_students (id) ON DELETE CASCADE,
-                CONSTRAINT tbl_certificates_class_fk FOREIGN KEY (class_id) REFERENCES tbl_classes (id) ON DELETE SET NULL,
-                CONSTRAINT tbl_certificates_staff_fk FOREIGN KEY (issued_by) REFERENCES tbl_staff (id) ON DELETE SET NULL
+                UNIQUE (verification_code)
             )');
             $conn->exec('CREATE INDEX IF NOT EXISTS tbl_certificates_student_idx ON tbl_certificates (student_id, issue_date DESC)');
         } else {
