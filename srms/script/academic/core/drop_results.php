@@ -21,8 +21,13 @@ if (app_results_locked($conn, (int)$class, (int)$term)) {
 	exit;
 }
 
-$stmt = $conn->prepare("DELETE FROM tbl_exam_results WHERE student = ? AND class = ? AND term = ?");
-$stmt->execute([$std, $class, $term]);
+if ($std === 'all') {
+	$stmt = $conn->prepare("DELETE FROM tbl_exam_results WHERE class = ? AND term = ?");
+	$stmt->execute([$class, $term]);
+} else {
+	$stmt = $conn->prepare("DELETE FROM tbl_exam_results WHERE student = ? AND class = ? AND term = ?");
+	$stmt->execute([$std, $class, $term]);
+}
 
 $_SESSION['reply'] = array (array("success",'Examination result deleted'));
 header("location:../$src");

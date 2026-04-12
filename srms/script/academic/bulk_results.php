@@ -143,6 +143,7 @@ header("location:./");
 </div>
 <div class="no-print">
 <button class="btn btn-primary" type="button" onclick="window.print();"><i class="bi bi-printer me-2"></i>Print All</button>
+<a class="btn btn-danger ms-2" href="javascript:void(0);" onclick="del('academic/core/drop_results?src=bulk_results&amp;std=all&amp;class=<?php echo $class; ?>&amp;term=<?php echo $term; ?>', 'Delete all results for this class and term?');"><i class="bi bi-trash me-2"></i>Delete All</a>
 </div>
 </div>
 
