@@ -2596,7 +2596,36 @@ function app_ensure_school_timetable_table(PDO $conn): void
 function app_ensure_certificates_table(PDO $conn): void
 {
 	static $done = false;
-	if ($done || app_table_exists($conn, 'tbl_certificates')) {
+	if ($done) {
+		return;
+	}
+
+	$ensureCertificateColumns = static function () use ($conn): void {
+		$isPgsql = (defined('DBDriver') && DBDriver === 'pgsql');
+		$columnSql = [
+			'certificate_category' => $isPgsql ? "ALTER TABLE tbl_certificates ADD COLUMN certificate_category varchar(50) DEFAULT 'general'" : "ALTER TABLE tbl_certificates ADD COLUMN certificate_category varchar(50) DEFAULT 'general'",
+			'mean_score' => $isPgsql ? "ALTER TABLE tbl_certificates ADD COLUMN mean_score numeric(5,2) NULL" : "ALTER TABLE tbl_certificates ADD COLUMN mean_score decimal(5,2) NULL",
+			'merit_grade' => $isPgsql ? "ALTER TABLE tbl_certificates ADD COLUMN merit_grade varchar(1) NULL" : "ALTER TABLE tbl_certificates ADD COLUMN merit_grade varchar(1) NULL",
+			'competencies_json' => $isPgsql ? "ALTER TABLE tbl_certificates ADD COLUMN competencies_json text NULL" : "ALTER TABLE tbl_certificates ADD COLUMN competencies_json longtext NULL",
+			'position_in_class' => $isPgsql ? "ALTER TABLE tbl_certificates ADD COLUMN position_in_class integer NULL" : "ALTER TABLE tbl_certificates ADD COLUMN position_in_class int NULL",
+			'approved_by' => $isPgsql ? "ALTER TABLE tbl_certificates ADD COLUMN approved_by integer NULL" : "ALTER TABLE tbl_certificates ADD COLUMN approved_by int NULL",
+			'approved_at' => $isPgsql ? "ALTER TABLE tbl_certificates ADD COLUMN approved_at timestamp NULL" : "ALTER TABLE tbl_certificates ADD COLUMN approved_at timestamp NULL",
+			'locked' => $isPgsql ? "ALTER TABLE tbl_certificates ADD COLUMN locked boolean NOT NULL DEFAULT false" : "ALTER TABLE tbl_certificates ADD COLUMN locked tinyint(1) NOT NULL DEFAULT 0",
+		];
+
+		foreach ($columnSql as $column => $sql) {
+			if (!app_column_exists($conn, 'tbl_certificates', $column)) {
+				try {
+					$conn->exec($sql);
+				} catch (Throwable $e) {
+					// Ignore migration errors for optional additions.
+				}
+			}
+		}
+	};
+
+	if (app_table_exists($conn, 'tbl_certificates')) {
+		$ensureCertificateColumns();
 		$done = true;
 		return;
 	}
@@ -2652,6 +2681,8 @@ function app_ensure_certificates_table(PDO $conn): void
 			CONSTRAINT tbl_certificates_staff_fk FOREIGN KEY (issued_by) REFERENCES tbl_staff (id) ON DELETE SET NULL
 		)");
 	}
+
+	$ensureCertificateColumns();
 
 	$done = true;
 }

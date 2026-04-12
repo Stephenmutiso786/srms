@@ -14,6 +14,7 @@ $mname = ucfirst(trim((string)($_POST['mname'] ?? '')));
 $lname = ucfirst(trim((string)($_POST['lname'] ?? '')));
 $email = trim((string)($_POST['email'] ?? ''));
 $gender = trim((string)($_POST['gender'] ?? ''));
+$schoolId = trim((string)($_POST['school_id'] ?? ''));
 $oldPhoto = trim((string)($_POST['old_photo'] ?? 'DEFAULT'));
 
 if ($fname === '' || $lname === '' || $email === '' || $gender === '') {
@@ -35,6 +36,19 @@ try {
 		$_SESSION['reply'] = array(array('error', 'Email is already in use.'));
 		header('location:../profile');
 		exit;
+	}
+
+	$hasSchoolIdColumn = app_column_exists($conn, 'tbl_students', 'school_id');
+	if ($hasSchoolIdColumn && $schoolId !== '') {
+		$schoolStmt = (defined('DBDriver') && DBDriver === 'pgsql')
+			? $conn->prepare('SELECT school_id FROM tbl_students WHERE school_id = ? AND id::text != ? LIMIT 1')
+			: $conn->prepare('SELECT school_id FROM tbl_students WHERE school_id = ? AND id != ? LIMIT 1');
+		$schoolStmt->execute([$schoolId, (string)$account_id]);
+		if ($schoolStmt->fetchColumn()) {
+			$_SESSION['reply'] = array(array('error', 'School ID is already assigned to another student.'));
+			header('location:../profile');
+			exit;
+		}
 	}
 
 	$photo = $oldPhoto !== '' ? $oldPhoto : 'DEFAULT';
@@ -70,8 +84,13 @@ try {
 		$photo = $newFile;
 	}
 
-	$stmt = $conn->prepare('UPDATE tbl_students SET fname = ?, mname = ?, lname = ?, gender = ?, email = ?, display_image = ? WHERE id = ?');
-	$stmt->execute([$fname, $mname, $lname, $gender, $email, $photo, $account_id]);
+	if ($hasSchoolIdColumn) {
+		$stmt = $conn->prepare('UPDATE tbl_students SET fname = ?, mname = ?, lname = ?, gender = ?, email = ?, school_id = ?, display_image = ? WHERE id = ?');
+		$stmt->execute([$fname, $mname, $lname, $gender, $email, $schoolId, $photo, $account_id]);
+	} else {
+		$stmt = $conn->prepare('UPDATE tbl_students SET fname = ?, mname = ?, lname = ?, gender = ?, email = ?, display_image = ? WHERE id = ?');
+		$stmt->execute([$fname, $mname, $lname, $gender, $email, $photo, $account_id]);
+	}
 
 	$_SESSION['reply'] = array(array('success', 'Profile updated successfully.'));
 	header('location:../profile');

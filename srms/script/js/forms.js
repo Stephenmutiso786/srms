@@ -411,17 +411,19 @@ $('#optional_subject_ids').val(optionalChoices).trigger('change');
 }
 
 
-function lettersOnly()
+function lettersOnly(e)
 {
-var charCode = event.keyCode;
+var evt = e || window.event;
+var charCode = evt && (evt.which || evt.keyCode) ? (evt.which || evt.keyCode) : 0;
 
-if ((charCode > 64 && charCode < 91) || (charCode > 96 && charCode < 123) || charCode == 8)
-
+if (charCode === 0 || charCode === 8 || charCode === 9 || charCode === 13 || charCode === 32 || charCode === 39 || charCode === 45)
 return true;
-else
+
+if ((charCode > 64 && charCode < 91) || (charCode > 96 && charCode < 123))
+return true;
 
 Swal.fire({
-title: 'Numbers are not allowed in names',
+title: 'Only letters are allowed in names',
 icon: 'error',
 showDenyButton: false,
 confirmButtonText: 'Okay',

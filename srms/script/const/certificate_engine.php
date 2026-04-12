@@ -235,6 +235,7 @@ function app_promotion_eligibility_check(PDO $conn, int $studentId): array
 /**
  * Ensure certificates table has required columns
  */
+if (!function_exists('app_ensure_certificates_table')) {
 function app_ensure_certificates_table(PDO $conn): void
 {
     static $done = false;
@@ -310,4 +311,5 @@ function app_ensure_certificates_table(PDO $conn): void
     } catch (Throwable $e) {
         // Table already exists or creation failed silently
     }
+}
 }

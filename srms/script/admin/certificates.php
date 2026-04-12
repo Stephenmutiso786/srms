@@ -56,7 +56,7 @@ try {
 <link rel="stylesheet" type="text/css" href="cdn.jsdelivr.net/npm/bootstrap-icons%401.10.5/font/bootstrap-icons.css">
 </head>
 <body class="app sidebar-mini">
-<header class="app-header"><a class="app-header__logo" href="javascript:void(0);\"><?php echo APP_NAME; ?></a>
+<header class="app-header"><a class="app-header__logo" href="javascript:void(0);"><?php echo APP_NAME; ?></a>
 <a class="app-sidebar__toggle" href="#" data-toggle="sidebar" aria-label="Hide Sidebar"></a></header>
 <?php include('admin/partials/sidebar.php'); ?>
 <main class="app-content">
@@ -136,7 +136,7 @@ foreach ($competencies as $key => $comp):
 </form>
 </div>
 
-<!-- ===== ISSUED CERTIFICATES TABLE ===== --
+<!-- ===== ISSUED CERTIFICATES TABLE ===== -->
 <div class="tile">
 <h3 class="tile-title">📋 Issued Certificates</h3>
 <ul class="nav nav-tabs mb-3" role="tablist">

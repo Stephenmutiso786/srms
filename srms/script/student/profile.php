@@ -127,6 +127,12 @@ try {
 </div>
 
 <div class="row g-2">
+<?php if ($schoolId !== '') { ?>
+<div class="col-md-6 mb-2">
+<label class="form-label">School ID</label>
+<input value="<?php echo htmlspecialchars($schoolId); ?>" name="school_id" class="form-control" type="text" placeholder="Enter school ID">
+</div>
+<?php } ?>
 <div class="col-md-6 mb-2">
 <label class="form-label">Email Address</label>
 <input value="<?php echo htmlspecialchars($email); ?>" required name="email" class="form-control" type="email" placeholder="Enter email address">

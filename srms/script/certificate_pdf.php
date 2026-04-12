@@ -17,7 +17,11 @@ try {
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     app_ensure_certificates_table($conn);
 
-    $stmt = $conn->prepare('SELECT cert.*, st.class AS student_class, st.school_id, st.gender, st.image, st.dob,
+  $schoolIdSelect = app_column_exists($conn, 'tbl_students', 'school_id') ? 'st.school_id' : "'' AS school_id";
+  $dobSelect = app_column_exists($conn, 'tbl_students', 'dob') ? 'st.dob' : 'NULL AS dob';
+  $imageSelect = app_column_exists($conn, 'tbl_students', 'display_image') ? 'st.display_image AS image' : "'' AS image";
+
+  $stmt = $conn->prepare('SELECT cert.*, st.class AS student_class, ' . $schoolIdSelect . ', st.gender, ' . $imageSelect . ', ' . $dobSelect . ',
         concat_ws(\' \' , st.fname, st.mname, st.lname) AS student_name,
         c.name AS class_name
         FROM tbl_certificates cert
@@ -267,6 +271,61 @@ function renderConductCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verify
  * Render Leaving Certificate
  */
 function renderLeavingCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verifyUrl) {
+  $templateCandidates = [
+    'images/templates/leaving_certificate_official.png',
+    'images/templates/leaving_certificate_official.jpg',
+    'images/templates/leaving_certificate_official.jpeg',
+    'images/templates/leaving_certificate.png',
+    'images/templates/leaving_certificate.jpg',
+  ];
+  $templateFile = '';
+  foreach ($templateCandidates as $candidate) {
+    if (is_file($candidate)) {
+      $templateFile = $candidate;
+      break;
+    }
+  }
+
+  if ($templateFile !== '') {
+    $pdf->SetMargins(0, 0, 0);
+    $pdf->Image($templateFile, 0, 0, 210, 297, '', '', '', false, 300, '', false, false, 0);
+    $pdf->SetTextColor(0, 0, 0);
+    $pdf->SetFont('helvetica', '', 10);
+
+    $pdf->SetXY(16, 86);
+    $pdf->MultiCell(120, 6, (string)$cert['student_name'], 0, 'L', false, 1);
+
+    $pdf->SetXY(16, 98);
+    $pdf->MultiCell(120, 6, (string)($cert['dob'] ?? ''), 0, 'L', false, 1);
+
+    $pdf->SetXY(78, 98);
+    $pdf->MultiCell(60, 6, (string)($cert['issue_date'] ?? ''), 0, 'L', false, 1);
+
+    $pdf->SetXY(145, 98);
+    $pdf->MultiCell(50, 6, (string)($cert['class_name'] ?? ''), 0, 'L', false, 1);
+
+    $pdf->SetXY(55, 110);
+    $pdf->MultiCell(45, 6, (string)($cert['school_id'] ?: $cert['student_id']), 0, 'L', false, 1);
+
+    $pdf->SetXY(126, 110);
+    $pdf->MultiCell(45, 6, (string)($cert['class_name'] ?? ''), 0, 'L', false, 1);
+
+    $pdf->SetXY(30, 121);
+    $pdf->MultiCell(65, 6, (string)($cert['issue_date'] ?? ''), 0, 'L', false, 1);
+
+    $pdf->SetXY(78, 163);
+    $pdf->MultiCell(115, 6, (string)($cert['serial_no'] ?? ''), 0, 'L', false, 1);
+
+    $pdf->SetXY(16, 174);
+    $pdf->MultiCell(160, 18, (string)($cert['notes'] ?? ''), 0, 'L', false, 1);
+
+    $pdf->write2DBarcode($verifyUrl, 'QRCODE,H', 176, 258, 24, 24);
+    $pdf->SetFont('helvetica', '', 7);
+    $pdf->SetXY(12, 286);
+    $pdf->MultiCell(150, 3, 'Verify: ' . $verifyUrl, 0, 'L', false, 1);
+    return;
+  }
+
     $pdf->SetFont('helvetica', '', 11);
     $html = '
     <table width="100%" cellpadding="4" cellspacing="0" style="text-align:center;">

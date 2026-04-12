@@ -26,6 +26,8 @@ if ($studentId === '' || !isset($types[$type])) {
     app_reply_redirect('danger', 'Missing certificate details.', '../certificates');
 }
 
+$category = $type;
+
 try {
     $conn = app_db();
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
@@ -53,10 +55,23 @@ try {
     // Prepare competencies JSON if provided
     $competenciesJson = null;
     if (!empty($competencies)) {
-        $competenciesJson = json_encode([
-            'assessed_at' => date('Y-m-d H:i:s'),
-            'competencies' => $competencies,
-        ]);
+        $normalized = [];
+        foreach ($competencies as $key => $level) {
+            $levelValue = trim((string)$level);
+            if ($levelValue === '') {
+                continue;
+            }
+            $normalized[$key] = [
+                'achievement_level' => $levelValue,
+                'comment' => '',
+            ];
+        }
+        if (!empty($normalized)) {
+            $competenciesJson = json_encode([
+                'assessed_at' => date('Y-m-d H:i:s'),
+                'competencies' => $normalized,
+            ]);
+        }
     }
     
     // Determine merit grade from mean score
@@ -65,12 +80,13 @@ try {
         $meritGrade = app_merit_grade_from_score($meanScore);
     }
 
-    $stmt = $conn->prepare('INSERT INTO tbl_certificates (student_id, class_id, certificate_type, title, serial_no, issue_date, status, notes, verification_code, cert_hash, issued_by, mean_score, merit_grade, competencies_json)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+    $stmt = $conn->prepare('INSERT INTO tbl_certificates (student_id, class_id, certificate_type, certificate_category, title, serial_no, issue_date, status, notes, verification_code, cert_hash, issued_by, mean_score, merit_grade, competencies_json)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
     $stmt->execute([
         $studentId,
         (int)$student['class'],
         $type,
+        $category,
         $title,
         $serial,
         $issueDate,
