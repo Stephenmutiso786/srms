@@ -150,6 +150,7 @@ try {
 
 	$html2 = '<br><br><b>Date : ' . date('F d, Y G:i:s A') . '</b>';
 	$pdf->writeHTMLCell(0, 0, '', '', $html2, 0, 1, 0, true, '', true);
+	$pdf->IncludeJS('print(true);');
 
 	if (ob_get_length()) {
 		ob_end_clean();
