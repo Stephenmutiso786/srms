@@ -58,6 +58,34 @@ header("location:./");
 <link rel="stylesheet" href="cdn.datatables.net/v/bs5/dt-1.13.4/datatables.min.css">
 <link type="text/css" rel="stylesheet" href="loader/waitMe.css">
 <link rel="stylesheet" href="select2/dist/css/select2.min.css">
+<style>
+@media print {
+	.app-header,
+	.app-sidebar,
+	.app-sidebar__overlay,
+	.no-print,
+	.dataTables_filter,
+	.dataTables_length,
+	.dataTables_paginate,
+	.dataTables_info {
+		display: none !important;
+	}
+
+	.app-content {
+		margin: 0 !important;
+		padding: 0 !important;
+	}
+
+	.tile {
+		box-shadow: none !important;
+		border: 0 !important;
+	}
+
+	table {
+		width: 100% !important;
+	}
+}
+</style>
 </head>
 <body class="app sidebar-mini">
 
@@ -112,6 +140,9 @@ header("location:./");
 <div class="app-title">
 <div>
 <h1><?php echo $tit; ?></h1>
+</div>
+<div class="no-print">
+<button class="btn btn-primary" type="button" onclick="window.print();"><i class="bi bi-printer me-2"></i>Print All</button>
 </div>
 </div>
 
@@ -223,7 +254,7 @@ if ($row2[9] == "DEFAULT") {
 <td><?php echo get_division($subssss); ?></td>
 <td><?php echo get_points($subssss); ?></td>
 
-<td align="center" width="190">
+<td align="center" width="190" class="no-print">
 <a href="academic/core/edit_result?std=<?php echo $row2[0]; ?>&term=<?php echo $term;?>" class="btn btn-primary btn-sm" href="javascript:void(0);">Edit</a>
 <a href="academic/save_pdf?std=<?php echo $row2[0]; ?>&term=<?php echo $term;?>" class="btn btn-primary btn-sm" href="javascript:void(0);">Report</a>
 <a onclick="del('academic/core/drop_results?src=bulk_results&std=<?php echo $row2[0]; ?>&class=<?php echo $class; ?>&term=<?php echo $term; ?>', 'Delete Results?');" href="javascript:void(0);" class="btn btn-danger btn-sm">Delete</a>
