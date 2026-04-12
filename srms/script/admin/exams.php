@@ -251,9 +251,10 @@ try {
 <hr>
 <h3 class="tile-title">Recent Exams</h3>
 <div class="table-responsive">
-<form id="bulkExamsForm" method="POST" action="admin/core/bulk_delete_exams" onsubmit="return confirmBulkDeleteExams('exams');">
 <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-  <button type="submit" class="btn btn-danger btn-sm">Delete Selected</button>
+  <form id="bulkExamsForm" method="POST" action="admin/core/bulk_delete_exams" onsubmit="return confirmBulkDeleteExams('exams');" class="d-inline">
+    <button type="submit" class="btn btn-danger btn-sm">Delete Selected</button>
+  </form>
   <div class="form-check ms-2">
 	<input class="form-check-input" type="checkbox" id="selectAllExams">
 	<label class="form-check-label" for="selectAllExams">Select all</label>
@@ -266,7 +267,7 @@ try {
 <tbody>
 <?php foreach ($exams as $exam): ?>
 <tr>
-<td><input class="form-check-input exam-checkbox" type="checkbox" name="exam_ids[]" value="<?php echo (int)$exam['id']; ?>"></td>
+<td><input class="form-check-input exam-checkbox" type="checkbox" name="exam_ids[]" value="<?php echo (int)$exam['id']; ?>" form="bulkExamsForm"></td>
 <td><?php echo htmlspecialchars($exam['name']); ?></td>
 <td><?php echo htmlspecialchars($exam['type_name'] ?? ''); ?></td>
 <td><?php echo htmlspecialchars(strtoupper((string)($exam['assessment_mode'] ?? 'normal'))); ?></td>
@@ -306,7 +307,6 @@ try {
 <?php endforeach; ?>
 </tbody>
 </table>
-</form>
 </div>
 </div>
 </div>
