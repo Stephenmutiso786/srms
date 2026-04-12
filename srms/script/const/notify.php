@@ -11,13 +11,65 @@ require_once(__DIR__ . '/../mail/src/SMTP.php');
 function app_get_smtp(PDO $conn): ?array {
 	try {
 		if (!app_table_exists($conn, 'tbl_smtp')) { return null; }
-		$stmt = $conn->prepare("SELECT server, username, password, port, encryption, status FROM tbl_smtp LIMIT 1");
+		$stmt = $conn->prepare("SELECT server, username, password, port, encryption, status FROM tbl_smtp ORDER BY id DESC LIMIT 1");
 		$stmt->execute();
 		$row = $stmt->fetch(PDO::FETCH_ASSOC);
 		if (!$row) { return null; }
+		if (isset($row['status']) && (int)$row['status'] !== 1) { return null; }
+		$envServer = trim((string)(getenv('SMTP_HOST') ?: ''));
+		$envUsername = trim((string)(getenv('SMTP_USERNAME') ?: ''));
+		$envPassword = (string)(getenv('SMTP_PASSWORD') ?: '');
+		$envPort = trim((string)(getenv('SMTP_PORT') ?: ''));
+		$envEncryption = trim((string)(getenv('SMTP_ENCRYPTION') ?: ''));
+		if ($envServer !== '') { $row['server'] = $envServer; }
+		if ($envUsername !== '') { $row['username'] = $envUsername; }
+		if ($envPassword !== '') { $row['password'] = $envPassword; }
+		if ($envPort !== '') { $row['port'] = $envPort; }
+		if ($envEncryption !== '') { $row['encryption'] = $envEncryption; }
 		return $row;
 	} catch (Throwable $e) {
 		return null;
+	}
+}
+
+function app_configure_mailer_smtp(PHPMailer $mail, array $smtp): void {
+	$mail->SMTPOptions = array(
+		'ssl' => array(
+			'verify_peer' => false,
+			'verify_peer_name' => false,
+			'allow_self_signed' => true
+		)
+	);
+	$mail->isSMTP();
+	$mail->Host = (string)($smtp['server'] ?? '');
+	$mail->SMTPAuth = true;
+	$mail->Username = (string)($smtp['username'] ?? '');
+	$mail->Password = (string)($smtp['password'] ?? '');
+	$encryption = strtolower(trim((string)($smtp['encryption'] ?? '')));
+	if ($encryption === 'ssl') {
+		$mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
+	} elseif ($encryption === 'tls') {
+		$mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+	} else {
+		$mail->SMTPSecure = '';
+	}
+	$mail->Port = (int)($smtp['port'] ?? 587);
+}
+
+function app_configure_mailer_common(PHPMailer $mail, string $fromAddress, string $fromName, string $recipient, string $subject, string $message, array $attachments = []): void {
+	$mail->setFrom($fromAddress, $fromName);
+	$mail->addAddress($recipient);
+	$mail->isHTML(true);
+	$mail->Subject = $subject;
+	$mail->Body = $message;
+	$mail->AltBody = strip_tags($message);
+	foreach ($attachments as $attachment) {
+		$path = trim((string)($attachment['path'] ?? ''));
+		if ($path === '' || !is_file($path)) {
+			continue;
+		}
+		$name = trim((string)($attachment['name'] ?? basename($path)));
+		$mail->addAttachment($path, $name === '' ? basename($path) : $name);
 	}
 }
 
@@ -25,6 +77,7 @@ function app_send_email(PDO $conn, string $recipient, string $subject, string $m
 	$status = 'failed';
 	$error = '';
 	$provider = 'smtp';
+	$attemptedFallback = false;
 
 	$smtp = app_get_smtp($conn);
 	if (!$smtp || empty($smtp['server']) || empty($smtp['username'])) {
@@ -32,36 +85,10 @@ function app_send_email(PDO $conn, string $recipient, string $subject, string $m
 	} else {
 		try {
 			$mail = new PHPMailer(true);
-			$mail->SMTPOptions = array(
-				'ssl' => array(
-					'verify_peer' => false,
-					'verify_peer_name' => false,
-					'allow_self_signed' => true
-				)
-			);
-			$mail->isSMTP();
-			$mail->Host = $smtp['server'];
-			$mail->SMTPAuth = true;
-			$mail->Username = $smtp['username'];
-			$mail->Password = $smtp['password'];
-			$mail->SMTPSecure = $smtp['encryption'] ?: PHPMailer::ENCRYPTION_STARTTLS;
-			$mail->Port = (int)($smtp['port'] ?: 587);
+			app_configure_mailer_smtp($mail, $smtp);
 
 			$fromName = defined('WBName') ? WBName : (defined('APP_NAME') ? APP_NAME : 'School');
-			$mail->setFrom($smtp['username'], $fromName);
-			$mail->addAddress($recipient);
-			$mail->isHTML(true);
-			$mail->Subject = $subject;
-			$mail->Body = $message;
-			$mail->AltBody = strip_tags($message);
-			foreach ($attachments as $attachment) {
-				$path = trim((string)($attachment['path'] ?? ''));
-				if ($path === '' || !is_file($path)) {
-					continue;
-				}
-				$name = trim((string)($attachment['name'] ?? basename($path)));
-				$mail->addAttachment($path, $name === '' ? basename($path) : $name);
-			}
+			app_configure_mailer_common($mail, (string)$smtp['username'], $fromName, $recipient, $subject, $message, $attachments);
 
 			if ($mail->send()) {
 				$status = 'sent';
@@ -69,9 +96,38 @@ function app_send_email(PDO $conn, string $recipient, string $subject, string $m
 				$error = $mail->ErrorInfo;
 			}
 		} catch (Throwable $e) {
-	error_log("[".__FILE__.":".__LINE__." Throwable] " . $e->getMessage());
-	$error = $e->getMessage();
+			error_log("[".__FILE__.":".__LINE__." Throwable] " . $e->getMessage());
+			$error = $e->getMessage();
 		}
+
+		if ($status !== 'sent' && strtolower((string)(getenv('APP_ALLOW_MAIL_FALLBACK') ?: '1')) !== '0' && function_exists('mail')) {
+			try {
+				$attemptedFallback = true;
+				$mail = new PHPMailer(true);
+				$fromName = defined('WBName') ? WBName : (defined('APP_NAME') ? APP_NAME : 'School');
+				$mail->isMail();
+				app_configure_mailer_common($mail, (string)$smtp['username'], $fromName, $recipient, $subject, $message, $attachments);
+				if ($mail->send()) {
+					$status = 'sent';
+					$provider = 'mail';
+					$error = $error !== '' ? 'SMTP failed: ' . $error . ' | Sent via mail() fallback.' : 'Sent via mail() fallback.';
+				} else {
+					$provider = 'mail';
+					$fallbackError = $mail->ErrorInfo;
+					$error = $error !== '' ? 'SMTP failed: ' . $error . ' | mail() fallback failed: ' . $fallbackError : 'mail() fallback failed: ' . $fallbackError;
+				}
+			} catch (Throwable $e) {
+				error_log("[".__FILE__.":".__LINE__." Throwable fallback] " . $e->getMessage());
+				$error = $error !== '' ? 'SMTP failed: ' . $error . ' | mail() fallback exception: ' . $e->getMessage() : $e->getMessage();
+			}
+		}
+	}
+
+	if ($status !== 'sent' && $error === '' && $smtp) {
+		$host = (string)($smtp['server'] ?? '');
+		$port = (string)($smtp['port'] ?? '');
+		$encryption = (string)($smtp['encryption'] ?? '');
+		$error = 'SMTP send failed. Check host=' . $host . ', port=' . $port . ', encryption=' . $encryption . ', and outbound network access.';
 	}
 
 	if (app_table_exists($conn, 'tbl_email_logs')) {
@@ -79,7 +135,7 @@ function app_send_email(PDO $conn, string $recipient, string $subject, string $m
 		$stmt->execute([$recipient, $subject, $message, $status, $provider]);
 	}
 
-	return ['ok' => $status === 'sent', 'status' => $status, 'error' => $error];
+	return ['ok' => $status === 'sent', 'status' => $status, 'error' => $error, 'provider' => $provider, 'fallback_attempted' => $attemptedFallback];
 }
 
 function app_get_sms_settings(PDO $conn): ?array {

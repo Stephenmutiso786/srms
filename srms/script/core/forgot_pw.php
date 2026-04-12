@@ -3,14 +3,8 @@ session_start();
 chdir('../');
 require_once('db/config.php');
 require_once('const/rand.php');
-require_once('const/mail.php');
+require_once('const/notify.php');
 require_once('const/school.php');
-
-use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\Exception;
-require 'mail/src/Exception.php';
-require 'mail/src/PHPMailer.php';
-require 'mail/src/SMTP.php';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
@@ -50,43 +44,9 @@ $msg = "<h3 style='font-size:22px;'>Reset your password</h3> <p  style='font-siz
 We received a request to change your password, Your new password is <b style='font-family:Courier New;'>$np</b><br><br>
 </p>";
 
-$mail = new PHPMailer;
-$mail->SMTPOptions = array(
-'ssl' => array(
-'verify_peer' => false,
-'verify_peer_name' => false,
-'allow_self_signed' => true
-)
-);
+$result = app_send_email($conn, $email, 'Reset Password', $msg);
 
-$mail->isSMTP();
-$mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-$mail->Host = $smtp_server;
-$mail->SMTPAuth = true;
-$mail->Username = $smtp_username;
-$mail->Password = $smtp_password;
-$mail->SMTPSecure = $smtp_conn_type;
-$mail->Port = $smtp_conn_port;
-
-$mail->setFrom($smtp_username, WBName);
-$mail->addAddress($email, $name);
-$mail->isHTML(true);
-
-$mail->Subject = 'Reset Password';
-$mail->Body    = $msg;
-$mail->AltBody = $msg;
-
-if(!$mail->send()) {
-
-$er = '' . $mail->ErrorInfo.'';
-	error_log('[core.forgot_pw.smtp] ' . $er);
-
-
-$_SESSION['reply'] = array (array("danger", "Unable to send reset email right now. Please try again later."));
-header("location:../");
-
-
-} else {
+if (!empty($result['ok'])) {
 
 if ($level < 3) {
 
@@ -105,6 +65,13 @@ $stmt->execute([$npassword, $account]);
 
 $_SESSION['reply'] = array (array("success", "Check $email for new password"));
 header("location:../");
+
+} else {
+
+	error_log('[core.forgot_pw.smtp] ' . (string)($result['error'] ?? 'Email send failed'));
+
+	$_SESSION['reply'] = array (array("danger", "Unable to send reset email right now. Please try again later."));
+	header("location:../");
 
 }
 

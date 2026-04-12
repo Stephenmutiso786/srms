@@ -20,6 +20,7 @@ try {
 
     $student = report_get_student_identity($conn, $studentId);
     if (!$student) {
+        $_SESSION['reply'] = array(array('danger', 'Student record not found for PDF generation.'));
         header('location:report');
         exit;
     }
@@ -33,6 +34,7 @@ try {
     }
 
     if (!$card) {
+        $_SESSION['reply'] = array(array('danger', 'Report card data could not be generated for this student and term.'));
         header('location:report');
         exit;
     }
@@ -64,5 +66,7 @@ try {
 
     $pdf->Output('report-card.pdf', 'I');
 } catch (Throwable $e) {
-    header('location:report');
+    error_log('[academic/save_pdf] ' . $e->getMessage());
+    $_SESSION['reply'] = array(array('danger', 'Failed to generate PDF: ' . $e->getMessage()));
+    header('location:report?term=' . $termId . '&std=' . urlencode($studentId));
 }
