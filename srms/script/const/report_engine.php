@@ -131,6 +131,97 @@ function report_fetch_subjects_for_class(PDO $conn, int $classId): array
 	return $subjects;
 }
 
+function report_cbc_level_to_score(string $level): float
+{
+	$level = strtoupper(trim($level));
+	if ($level === 'EE') return 85.0;
+	if ($level === 'ME') return 70.0;
+	if ($level === 'AE') return 50.0;
+	if ($level === 'BE') return 30.0;
+	return 0.0;
+}
+
+function report_cbc_score_matrix(PDO $conn, int $classId, int $termId, array $subjects, ?string $studentId = null): array
+{
+	if ($classId < 1 || $termId < 1 || !app_table_exists($conn, 'tbl_cbc_assessments')) {
+		return [];
+	}
+
+	$hasSubjectId = app_column_exists($conn, 'tbl_cbc_assessments', 'subject_id');
+	$hasMarks = app_column_exists($conn, 'tbl_cbc_assessments', 'marks');
+
+	$subjectNameMap = [];
+	foreach ($subjects as $subject) {
+		$subjectNameMap[strtolower(trim((string)$subject['subject_name']))] = (int)$subject['subject'];
+	}
+
+	$selectCols = 'student_id, level';
+	if ($hasMarks) {
+		$selectCols .= ', marks';
+	}
+	if ($hasSubjectId) {
+		$selectCols .= ', subject_id';
+	} else {
+		$selectCols .= ', learning_area';
+	}
+
+	$sql = "SELECT $selectCols FROM tbl_cbc_assessments WHERE class_id = ? AND term_id = ?";
+	$args = [$classId, $termId];
+	if ($studentId !== null && $studentId !== '') {
+		$sql .= ' AND student_id = ?';
+		$args[] = $studentId;
+	}
+
+	$stmt = $conn->prepare($sql);
+	$stmt->execute($args);
+
+	$sum = [];
+	$count = [];
+	foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+		$rowStudentId = (string)($row['student_id'] ?? '');
+		if ($rowStudentId === '') {
+			continue;
+		}
+
+		$subjectId = 0;
+		if ($hasSubjectId) {
+			$subjectId = (int)($row['subject_id'] ?? 0);
+		} else {
+			$learningArea = strtolower(trim((string)($row['learning_area'] ?? '')));
+			$subjectId = (int)($subjectNameMap[$learningArea] ?? 0);
+		}
+		if ($subjectId < 1) {
+			continue;
+		}
+
+		$score = null;
+		if ($hasMarks && isset($row['marks']) && $row['marks'] !== null && $row['marks'] !== '') {
+			$score = (float)$row['marks'];
+		} else {
+			$score = report_cbc_level_to_score((string)($row['level'] ?? ''));
+		}
+
+		if (!isset($sum[$rowStudentId])) {
+			$sum[$rowStudentId] = [];
+			$count[$rowStudentId] = [];
+		}
+		$sum[$rowStudentId][$subjectId] = (float)($sum[$rowStudentId][$subjectId] ?? 0) + $score;
+		$count[$rowStudentId][$subjectId] = (int)($count[$rowStudentId][$subjectId] ?? 0) + 1;
+	}
+
+	$matrix = [];
+	foreach ($sum as $sid => $subjectRows) {
+		foreach ($subjectRows as $subjectId => $total) {
+			$den = (int)($count[$sid][$subjectId] ?? 0);
+			if ($den > 0) {
+				$matrix[$sid][$subjectId] = round($total / $den, 2);
+			}
+		}
+	}
+
+	return $matrix;
+}
+
 function report_fetch_scores(PDO $conn, string $studentId, int $classId, int $termId, array $subjects): array
 {
 	$subjectMap = [];
@@ -155,6 +246,9 @@ function report_fetch_scores(PDO $conn, string $studentId, int $classId, int $te
 		}
 	}
 
+	$cbcMatrix = report_cbc_score_matrix($conn, $classId, $termId, $subjects, $studentId);
+	$cbcSubjectScores = $cbcMatrix[$studentId] ?? [];
+
 	$scores = [];
 	$gradingCache = [];
 	foreach ($subjects as $subject) {
@@ -162,6 +256,11 @@ function report_fetch_scores(PDO $conn, string $studentId, int $classId, int $te
 		$value = $latest[(int)$subject['combination_id']] ?? null;
 		if ($value && $value['score'] !== null && $value['score'] !== '') {
 			$score = (float)$value['score'];
+		} else {
+			$subjectId = (int)$subject['subject'];
+			if (isset($cbcSubjectScores[$subjectId])) {
+				$score = (float)$cbcSubjectScores[$subjectId];
+			}
 		}
 		$examId = isset($value['exam_id']) ? (int)$value['exam_id'] : null;
 		if (!array_key_exists((int)$examId, $gradingCache)) {
@@ -483,6 +582,7 @@ function report_rank_students(PDO $conn, int $classId, int $termId): array
 			) latest ON latest.latest_id = er.id");
 		$stmt->execute([$classId, $termId]);
 		$bucket = [];
+		$examSubjectScores = [];
 		foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
 			$studentId = (string)$row['student'];
 			$combinationId = (int)$row['subject_combination'];
@@ -491,10 +591,22 @@ function report_rank_students(PDO $conn, int $classId, int $termId): array
 			}
 			$subjectId = $subjectByCombination[$combinationId];
 			$weight = (!empty($settings['use_weights']) && isset($weights[$subjectId])) ? (float)$weights[$subjectId] : 1.0;
-			$bucket[$studentId][] = ((float)$row['score']) * $weight;
+			$weightedScore = ((float)$row['score']) * $weight;
+			$bucket[$studentId][] = $weightedScore;
+			$examSubjectScores[$studentId][$subjectId] = $weightedScore;
 		}
+
+		$cbcMatrix = report_cbc_score_matrix($conn, $classId, $termId, $subjects, null);
 		foreach ($students as $studentId) {
 			$weightedScores = $bucket[$studentId] ?? [];
+			$cbcBySubject = $cbcMatrix[$studentId] ?? [];
+			foreach ($subjectByCombination as $subjectId) {
+				$alreadyPresent = isset($examSubjectScores[$studentId][$subjectId]);
+				if (!$alreadyPresent && isset($cbcBySubject[$subjectId])) {
+					$weight = (!empty($settings['use_weights']) && isset($weights[$subjectId])) ? (float)$weights[$subjectId] : 1.0;
+					$weightedScores[] = ((float)$cbcBySubject[$subjectId]) * $weight;
+				}
+			}
 			rsort($weightedScores, SORT_NUMERIC);
 			$bestOf = (int)$settings['best_of'];
 			if ($bestOf > 0 && count($weightedScores) > $bestOf) {
@@ -684,10 +796,51 @@ function report_subject_breakdown(PDO $conn, string $studentId, int $classId, in
 		}
 	}
 
+	$cbcCurrent = report_cbc_score_matrix($conn, $classId, $termId, $subjects, null);
+	$cbcCurrentStudent = $cbcCurrent[$studentId] ?? [];
+	$cbcCurrentClassMeans = [];
+	if (!empty($cbcCurrent)) {
+		$sum = [];
+		$cnt = [];
+		foreach ($cbcCurrent as $sid => $subjectScores) {
+			foreach ($subjectScores as $subjectId => $score) {
+				$sum[$subjectId] = (float)($sum[$subjectId] ?? 0) + (float)$score;
+				$cnt[$subjectId] = (int)($cnt[$subjectId] ?? 0) + 1;
+			}
+		}
+		foreach ($sum as $subjectId => $total) {
+			if ((int)$cnt[$subjectId] > 0) {
+				$cbcCurrentClassMeans[$subjectId] = round($total / (int)$cnt[$subjectId], 2);
+			}
+		}
+	}
+
+	$cbcPreviousClassMeans = [];
+	if ($prevTermId > 0) {
+		$cbcPrev = report_cbc_score_matrix($conn, $classId, $prevTermId, $subjects, null);
+		if (!empty($cbcPrev)) {
+			$sum = [];
+			$cnt = [];
+			foreach ($cbcPrev as $sid => $subjectScores) {
+				foreach ($subjectScores as $subjectId => $score) {
+					$sum[$subjectId] = (float)($sum[$subjectId] ?? 0) + (float)$score;
+					$cnt[$subjectId] = (int)($cnt[$subjectId] ?? 0) + 1;
+				}
+			}
+			foreach ($sum as $subjectId => $total) {
+				if ((int)$cnt[$subjectId] > 0) {
+					$cbcPreviousClassMeans[$subjectId] = round($total / (int)$cnt[$subjectId], 2);
+				}
+			}
+		}
+	}
+
 	foreach ($subjects as $subject) {
-		$currentScore = (float)($currentStudentScores[(int)$subject['combination_id']] ?? 0.0);
-		$classMean = (float)($currentMeans[(int)$subject['combination_id']] ?? 0.0);
-		$previousMean = (float)($previousMeans[(int)$subject['combination_id']] ?? 0.0);
+		$combinationId = (int)$subject['combination_id'];
+		$subjectId = (int)$subject['subject'];
+		$currentScore = (float)($currentStudentScores[$combinationId] ?? ($cbcCurrentStudent[$subjectId] ?? 0.0));
+		$classMean = (float)($currentMeans[$combinationId] ?? ($cbcCurrentClassMeans[$subjectId] ?? 0.0));
+		$previousMean = (float)($previousMeans[$combinationId] ?? ($cbcPreviousClassMeans[$subjectId] ?? 0.0));
 
 		$change = round($classMean - $previousMean, 2);
 		$trend = $change > 0 ? 'up' : ($change < 0 ? 'down' : 'steady');

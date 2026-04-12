@@ -226,7 +226,7 @@ try {
 	<?php } ?>
 	<?php if (!$blockReport): ?>
 	<div class="report-actions mt-4 d-flex flex-wrap gap-2">
-		<button class="btn btn-outline-secondary" onclick="window.print();"><i class="bi bi-printer me-2"></i>Print</button>
+		<a class="btn btn-outline-secondary" href="student/report_card_pdf?term=<?php echo $termId; ?>&print=1" target="_blank"><i class="bi bi-printer me-2"></i>Print</a>
 		<a class="btn btn-primary" href="student/report_card_pdf?term=<?php echo $termId; ?>" target="_blank"><i class="bi bi-download me-2"></i>Download PDF</a>
 		<a class="btn btn-outline-secondary" href="verify_report?code=<?php echo $card['verification_code']; ?>" target="_blank"><i class="bi bi-qr-code-scan me-2"></i>Verify</a>
 	</div>

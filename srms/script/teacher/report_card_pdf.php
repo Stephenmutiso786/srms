@@ -60,6 +60,10 @@ try {
         $stmt->execute([$reportId]);
     }
 
+    if (isset($_GET['print']) && (string)$_GET['print'] !== '0') {
+        $pdf->IncludeJS('print(true);');
+    }
+
     $pdf->Output('teacher-student-report.pdf', 'I');
 } catch (Throwable $e) {
     header('location:manage_results');

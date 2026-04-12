@@ -96,7 +96,7 @@ try {
 <strong>Verification Code:</strong><p class="mb-0"><?php echo htmlspecialchars($card['verification_code']); ?></p>
 </div>
 <div class="report-actions">
-<button class="btn btn-outline-secondary" onclick="window.print();"><i class="bi bi-printer me-2"></i>Print</button>
+<a class="btn btn-outline-secondary" href="teacher/report_card_pdf?term=<?php echo $termId; ?>&student=<?php echo urlencode($studentId); ?>&print=1" target="_blank"><i class="bi bi-printer me-2"></i>Print</a>
 <a class="btn btn-primary" href="teacher/report_card_pdf?term=<?php echo $termId; ?>&student=<?php echo urlencode($studentId); ?>" target="_blank"><i class="bi bi-download me-2"></i>Download PDF</a>
 </div>
 </div>
