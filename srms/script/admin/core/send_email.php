@@ -5,6 +5,7 @@ require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/rbac.php');
 require_once('const/notify.php');
+require_once('const/communication_targets.php');
 
 if ($res != "1" || $level != "0") { header("location:../"); }
 app_require_permission('communication.manage', '../communication');
@@ -15,12 +16,14 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 	exit;
 }
 
+$targetType = trim($_POST['target_type'] ?? '');
+$targetValue = trim($_POST['target_value'] ?? '');
 $recipient = trim($_POST['recipient'] ?? '');
 $subject = trim($_POST['subject'] ?? '');
 $message = trim($_POST['message'] ?? '');
 
-if ($recipient === '' || $subject === '' || $message === '') {
-	$_SESSION['reply'] = array (array("danger", "Recipient, subject, and message are required."));
+if ($subject === '' || $message === '') {
+	$_SESSION['reply'] = array (array("danger", "Subject and message are required."));
 	header("location:../communication");
 	exit;
 }
@@ -35,11 +38,29 @@ try {
 		exit;
 	}
 
-	$result = app_send_email($conn, $recipient, $subject, $message);
-	if ($result['ok']) {
+	$targets = [];
+	if ($targetType !== '') {
+		$targets = app_communication_targets($conn, $targetType, $targetValue);
+	} elseif ($recipient !== '') {
+		$targets[] = ['email' => $recipient, 'name' => $recipient];
+	}
+
+	$sent = 0;
+	foreach ($targets as $target) {
+		$email = trim((string)($target['email'] ?? ''));
+		if ($email === '') {
+			continue;
+		}
+		$result = app_send_email($conn, $email, $subject, $message);
+		if ($result['ok']) {
+			$sent++;
+		}
+	}
+
+	if ($sent > 0) {
 		$_SESSION['reply'] = array (array("success", "Email sent successfully."));
 	} else {
-		$msg = $result['error'] !== '' ? $result['error'] : 'Failed to send email.';
+		$msg = 'Failed to send email.';
 		$_SESSION['reply'] = array (array("danger", $msg));
 	}
 	header("location:../communication");

@@ -91,11 +91,26 @@ function app_send_sms(PDO $conn, string $recipient, string $message): array {
 	$status = 'failed';
 	$error = '';
 	$provider = 'custom';
+	$walletId = 1;
+	$tokensUsed = app_sms_token_segments($message);
+	$deductedTokens = false;
 
 	$settings = app_get_sms_settings($conn);
 	if (!$settings || (int)$settings['status'] !== 1 || empty($settings['api_url']) || empty($settings['api_key'])) {
 		$error = 'SMS gateway not configured';
 	} else {
+		if (app_table_exists($conn, 'tbl_sms_wallets')) {
+			app_ensure_sms_wallet_tables($conn);
+			if ($tokensUsed > 0 && app_sms_wallet_balance($conn, $walletId) < $tokensUsed) {
+				$error = 'Insufficient SMS tokens';
+				if (app_table_exists($conn, 'tbl_sms_logs')) {
+					$stmt = $conn->prepare("INSERT INTO tbl_sms_logs (recipient, message, status, provider) VALUES (?,?,?,?)");
+					$stmt->execute([$recipient, $message, $status, $provider]);
+				}
+				return ['ok' => false, 'status' => $status, 'error' => $error];
+			}
+		}
+
 		$provider = $settings['provider'] ?: 'custom';
 		$payload = json_encode([
 			'to' => $recipient,
@@ -119,6 +134,15 @@ function app_send_sms(PDO $conn, string $recipient, string $message): array {
 			$error = curl_error($ch);
 		} else if ($httpCode >= 200 && $httpCode < 300) {
 			$status = 'sent';
+			if (app_table_exists($conn, 'tbl_sms_wallets') && $tokensUsed > 0) {
+				try {
+					app_sms_wallet_adjust($conn, $walletId, -$tokensUsed, 'SMS-' . date('YmdHis'), 'Outbound SMS to ' . $recipient, 'usage');
+					$deductedTokens = true;
+				} catch (Throwable $e) {
+					$status = 'failed';
+					$error = 'SMS sent but token deduction failed';
+				}
+			}
 		} else {
 			$error = 'HTTP '.$httpCode;
 		}

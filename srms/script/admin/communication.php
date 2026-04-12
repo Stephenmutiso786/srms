@@ -12,14 +12,32 @@ $announcements = [];
 $messages = [];
 $smsLogs = [];
 $emailLogs = [];
+$classes = [];
+$roles = [];
 $students = [];
 $parents = [];
 $staff = [];
 $smsSettings = ['provider' => 'custom', 'api_url' => '', 'api_key' => '', 'sender_id' => '', 'status' => 0];
+$smsBalance = 0;
 
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	app_ensure_school_roles($conn);
+	app_ensure_sms_wallet_tables($conn);
+	$smsBalance = app_sms_wallet_balance($conn, 1);
+
+	if (app_table_exists($conn, 'tbl_classes')) {
+		$stmt = $conn->prepare('SELECT id, name FROM tbl_classes ORDER BY id');
+		$stmt->execute();
+		$classes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	}
+
+	if (app_table_exists($conn, 'tbl_roles')) {
+		$stmt = $conn->prepare('SELECT id, name, level FROM tbl_roles ORDER BY level DESC, name');
+		$stmt->execute();
+		$roles = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	}
 
 	if (app_table_exists($conn, 'tbl_announcements')) {
 		$stmt = $conn->prepare("SELECT id, title, announcement, create_date, level FROM tbl_announcements ORDER BY id DESC LIMIT 20");
@@ -101,8 +119,18 @@ try {
 <div class="app-title">
 <div>
 <h1>Communication Module</h1>
-<p>Announcements, internal messaging, and SMS/email hooks.</p>
+<p>Announcements, role-aware messaging, and SMS/email hooks.</p>
 </div>
+</div>
+
+<div class="tile mb-3">
+	<div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+		<div>
+			<h3 class="tile-title mb-1">School SMS Wallet</h3>
+			<p class="mb-0 text-muted">Current balance: <b><?php echo number_format((int)$smsBalance); ?></b> tokens. SMS segments are deducted automatically after successful delivery.</p>
+		</div>
+		<a class="btn btn-primary" href="admin/sms_topup"><i class="bi bi-wallet2 me-1"></i>Buy Tokens</a>
+	</div>
 </div>
 
 <div class="row">
@@ -136,8 +164,37 @@ try {
 <h3 class="tile-title">Internal Message</h3>
 <form class="app_frm" action="admin/core/send_message" method="POST">
 <div class="mb-3">
+<label class="form-label">Target Mode</label>
+<select class="form-control" name="target_type">
+<option value="">Direct recipient</option>
+<option value="all_students">All students</option>
+<option value="all_parents">All parents</option>
+<option value="all_staff">All staff</option>
+<option value="class_students">Students by class</option>
+<option value="class_parents">Parents by class</option>
+<option value="role_staff">Staff by role</option>
+</select>
+</div>
+<div class="mb-3">
+<label class="form-label">Target Value</label>
+<select class="form-control" name="target_value">
+<option value="">Select class or role when needed</option>
+<optgroup label="Classes">
+<?php foreach ($classes as $classRow): ?>
+<option value="<?php echo (int)$classRow['id']; ?>"><?php echo htmlspecialchars((string)$classRow['name']); ?></option>
+<?php endforeach; ?>
+</optgroup>
+<optgroup label="Roles">
+<?php foreach ($roles as $roleRow): ?>
+<option value="<?php echo (int)$roleRow['id']; ?>"><?php echo htmlspecialchars((string)$roleRow['name']); ?></option>
+<?php endforeach; ?>
+</optgroup>
+</select>
+</div>
+<div class="mb-3">
 <label class="form-label">Recipient Type</label>
-<select class="form-control" name="recipient_type" required>
+<select class="form-control" name="recipient_type">
+<option value="">Select if sending to one person</option>
 <option value="student">Student</option>
 <option value="parent">Parent</option>
 <option value="staff">Staff</option>
@@ -145,7 +202,8 @@ try {
 </div>
 <div class="mb-3">
 <label class="form-label">Recipient</label>
-<select class="form-control" name="recipient_id" required>
+<select class="form-control" name="recipient_id">
+<option value="">Select if sending to one person</option>
 <optgroup label="Students">
 <?php foreach ($students as $s): ?>
 <option value="student:<?php echo $s['id']; ?>"><?php echo htmlspecialchars($s['name'].' ('.$s['id'].')'); ?></option>
@@ -158,7 +216,7 @@ try {
 </optgroup>
 <optgroup label="Staff">
 <?php foreach ($staff as $st): ?>
-<option value="staff:<?php echo $st['id']; ?>"><?php echo htmlspecialchars($st['name'].' ('.$st['id'].')'); ?></option>
+<option value="staff:<?php echo $st['id']; ?>"><?php echo htmlspecialchars($st['name'].' ('.$st['id'].') - '.app_staff_primary_title($conn, (int)$st['id'], (string)$st['level'])); ?></option>
 <?php endforeach; ?>
 </optgroup>
 </select>
@@ -215,8 +273,36 @@ try {
 <h3 class="tile-title">SMS Hook</h3>
 <form class="app_frm" action="admin/core/send_sms" method="POST">
 <div class="mb-3">
+<label class="form-label">Target Mode</label>
+<select class="form-control" name="target_type">
+<option value="">Direct recipient</option>
+<option value="all_students">All students</option>
+<option value="all_parents">All parents</option>
+<option value="all_staff">All staff</option>
+<option value="class_students">Students by class</option>
+<option value="class_parents">Parents by class</option>
+<option value="role_staff">Staff by role</option>
+</select>
+</div>
+<div class="mb-3">
+<label class="form-label">Target Value</label>
+<select class="form-control" name="target_value">
+<option value="">Select class or role when needed</option>
+<optgroup label="Classes">
+<?php foreach ($classes as $classRow): ?>
+<option value="<?php echo (int)$classRow['id']; ?>"><?php echo htmlspecialchars((string)$classRow['name']); ?></option>
+<?php endforeach; ?>
+</optgroup>
+<optgroup label="Roles">
+<?php foreach ($roles as $roleRow): ?>
+<option value="<?php echo (int)$roleRow['id']; ?>"><?php echo htmlspecialchars((string)$roleRow['name']); ?></option>
+<?php endforeach; ?>
+</optgroup>
+</select>
+</div>
+<div class="mb-3">
 <label class="form-label">Recipient (Phone)</label>
-<input class="form-control" name="recipient" required placeholder="+2547xxxxxxx">
+<input class="form-control" name="recipient" placeholder="+2547xxxxxxx">
 </div>
 <div class="mb-3">
 <label class="form-label">Message</label>
@@ -232,8 +318,36 @@ try {
 <h3 class="tile-title">Email Hook</h3>
 <form class="app_frm" action="admin/core/send_email" method="POST">
 <div class="mb-3">
+<label class="form-label">Target Mode</label>
+<select class="form-control" name="target_type">
+<option value="">Direct recipient</option>
+<option value="all_students">All students</option>
+<option value="all_parents">All parents</option>
+<option value="all_staff">All staff</option>
+<option value="class_students">Students by class</option>
+<option value="class_parents">Parents by class</option>
+<option value="role_staff">Staff by role</option>
+</select>
+</div>
+<div class="mb-3">
+<label class="form-label">Target Value</label>
+<select class="form-control" name="target_value">
+<option value="">Select class or role when needed</option>
+<optgroup label="Classes">
+<?php foreach ($classes as $classRow): ?>
+<option value="<?php echo (int)$classRow['id']; ?>"><?php echo htmlspecialchars((string)$classRow['name']); ?></option>
+<?php endforeach; ?>
+</optgroup>
+<optgroup label="Roles">
+<?php foreach ($roles as $roleRow): ?>
+<option value="<?php echo (int)$roleRow['id']; ?>"><?php echo htmlspecialchars((string)$roleRow['name']); ?></option>
+<?php endforeach; ?>
+</optgroup>
+</select>
+</div>
+<div class="mb-3">
 <label class="form-label">Recipient (Email)</label>
-<input class="form-control" type="email" name="recipient" required>
+<input class="form-control" type="email" name="recipient">
 </div>
 <div class="mb-3">
 <label class="form-label">Subject</label>
@@ -298,8 +412,24 @@ try {
 <?php foreach ($messages as $m): ?>
 <tr>
 <td><input class="form-check-input message-checkbox" type="checkbox" name="message_ids[]" value="<?php echo (int)$m['id']; ?>"></td>
-<td><?php echo htmlspecialchars($m['sender_type'].'#'.$m['sender_id']); ?></td>
-<td><?php echo htmlspecialchars($m['recipient_type'].'#'.$m['recipient_id']); ?></td>
+<td>
+<?php
+$senderLabel = $m['sender_type'].'#'.$m['sender_id'];
+if ((string)$m['sender_type'] === 'staff' && ctype_digit((string)$m['sender_id'])) {
+	$senderLabel .= ' - ' . app_staff_primary_title($conn, (int)$m['sender_id'], '');
+}
+echo htmlspecialchars($senderLabel);
+?>
+</td>
+<td>
+<?php
+$recipientLabel = $m['recipient_type'].'#'.$m['recipient_id'];
+if ((string)$m['recipient_type'] === 'staff' && ctype_digit((string)$m['recipient_id'])) {
+	$recipientLabel .= ' - ' . app_staff_primary_title($conn, (int)$m['recipient_id'], '');
+}
+echo htmlspecialchars($recipientLabel);
+?>
+</td>
 <td><?php echo htmlspecialchars($m['subject']); ?></td>
 <td><?php echo htmlspecialchars($m['created_at']); ?></td>
 </tr>

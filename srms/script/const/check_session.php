@@ -50,6 +50,7 @@ try {
 		$email = (string)$row['email'];
 		$login = (string)$row['password'];
 		$level = (string)$row['level'];
+		$designation = app_staff_primary_title($conn, (int)$row['id'], $level);
 		if ($level === "9") {
 			$super_admin = true;
 			$level = "0";
@@ -93,6 +94,7 @@ try {
 		$login = (string)$row['password'];
 		$level = (string)$row['level'];
 		$img = (string)$row['display_image'];
+		$designation = app_level_title_label((int)$level);
 
 		$stmt = $conn->prepare("SELECT name FROM tbl_classes WHERE id = ? LIMIT 1");
 		$stmt->execute([$class]);
@@ -135,6 +137,7 @@ try {
 		$email = (string)$row['email'];
 		$login = (string)$row['password'];
 		$level = "4";
+		$designation = 'Parent';
 		$res = "1";
 		return;
 	}

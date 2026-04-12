@@ -5,6 +5,7 @@ require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/rbac.php');
 require_once('const/notify.php');
+require_once('const/communication_targets.php');
 
 if ($res != "1" || $level != "0") { header("location:../"); }
 app_require_permission('communication.manage', '../communication');
@@ -15,11 +16,13 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 	exit;
 }
 
+$targetType = trim($_POST['target_type'] ?? '');
+$targetValue = trim($_POST['target_value'] ?? '');
 $recipient = trim($_POST['recipient'] ?? '');
 $message = trim($_POST['message'] ?? '');
 
-if ($recipient === '' || $message === '') {
-	$_SESSION['reply'] = array (array("danger", "Recipient and message are required."));
+if ($message === '') {
+	$_SESSION['reply'] = array (array("danger", "Message is required."));
 	header("location:../communication");
 	exit;
 }
@@ -34,11 +37,29 @@ try {
 		exit;
 	}
 
-	$result = app_send_sms($conn, $recipient, $message);
-	if ($result['ok']) {
+	$targets = [];
+	if ($targetType !== '') {
+		$targets = app_communication_targets($conn, $targetType, $targetValue);
+	} elseif ($recipient !== '') {
+		$targets[] = ['phone' => $recipient, 'name' => $recipient];
+	}
+
+	$sent = 0;
+	foreach ($targets as $target) {
+		$phone = trim((string)($target['phone'] ?? ''));
+		if ($phone === '') {
+			continue;
+		}
+		$result = app_send_sms($conn, $phone, $message);
+		if ($result['ok']) {
+			$sent++;
+		}
+	}
+
+	if ($sent > 0) {
 		$_SESSION['reply'] = array (array("success", "SMS sent successfully."));
 	} else {
-		$msg = $result['error'] !== '' ? $result['error'] : 'Failed to send SMS.';
+		$msg = 'Failed to send SMS.';
 		$_SESSION['reply'] = array (array("danger", $msg));
 	}
 	header("location:../communication");

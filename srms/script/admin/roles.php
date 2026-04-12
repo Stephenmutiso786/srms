@@ -15,6 +15,7 @@ $error = '';
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	app_ensure_school_roles($conn);
 
 	if (!app_table_exists($conn, 'tbl_roles') || !app_table_exists($conn, 'tbl_user_roles')) {
 		throw new RuntimeException("RBAC tables missing. Run migration 012.");
@@ -90,7 +91,7 @@ try {
 <select class="form-control" name="staff_id" required>
 <option value="">Select</option>
 <?php foreach ($staff as $s): ?>
-<option value="<?php echo $s['id']; ?>"><?php echo htmlspecialchars($s['name'].' (#'.$s['id'].')'); ?></option>
+<option value="<?php echo $s['id']; ?>"><?php echo htmlspecialchars($s['name'].' (#'.$s['id'].') - '.app_staff_primary_title($conn, (int)$s['id'], (string)$s['level'])); ?></option>
 <?php endforeach; ?>
 </select>
 </div>
@@ -113,11 +114,12 @@ try {
 <h3 class="tile-title">Current Assignments</h3>
 <div class="table-responsive">
 <table class="table table-hover">
-<thead><tr><th>Staff</th><th>Role</th><th></th></tr></thead>
+<thead><tr><th>Staff</th><th>School Title</th><th>Role</th><th></th></tr></thead>
 <tbody>
 <?php foreach ($assignments as $a): ?>
 <tr>
 <td><?php echo htmlspecialchars(trim($a['fname'].' '.$a['lname']).' (#'.$a['staff_id'].')'); ?></td>
+<td><?php echo htmlspecialchars(app_staff_primary_title($conn, (int)$a['staff_id'], '')); ?></td>
 <td><?php echo htmlspecialchars($a['role_name']); ?></td>
 <td>
   <form class="d-inline" action="admin/core/remove_role" method="POST">

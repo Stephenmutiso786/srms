@@ -22,7 +22,7 @@ function app_tree_active($page)
   <div class="app-sidebar__user">
     <div>
       <p class="app-sidebar__user-name"><?php echo $fname.' '.$lname; ?></p>
-      <p class="app-sidebar__user-designation">Administrator</p>
+    <p class="app-sidebar__user-designation"><?php echo htmlspecialchars((string)($designation ?? app_level_title_label((int)($level ?? 0)))); ?></p>
     </div>
   </div>
   <ul class="app-menu">
@@ -48,6 +48,7 @@ function app_tree_active($page)
     <li><a class="app-menu__item<?php echo app_menu_active('fees'); ?>" href="admin/fees"><i class="app-menu__icon feather icon-credit-card"></i><span class="app-menu__label">Fees & Finance</span></a></li>
     <li><a class="app-menu__item<?php echo app_menu_active('import_export'); ?>" href="admin/import_export"><i class="app-menu__icon feather icon-upload-cloud"></i><span class="app-menu__label">Import / Export</span></a></li>
     <li><a class="app-menu__item<?php echo app_menu_active('communication'); ?>" href="admin/communication"><i class="app-menu__icon feather icon-message-circle"></i><span class="app-menu__label">Communication</span></a></li>
+    <li><a class="app-menu__item<?php echo app_menu_active('sms_topup'); ?>" href="admin/sms_topup"><i class="app-menu__icon feather icon-credit-card"></i><span class="app-menu__label">SMS Tokens</span></a></li>
     <li><a class="app-menu__item<?php echo app_menu_active('elearning'); ?>" href="admin/elearning"><i class="app-menu__icon feather icon-book-open"></i><span class="app-menu__label">E-Learning</span></a></li>
     <li><a class="app-menu__item<?php echo app_menu_active('feedback'); ?>" href="admin/feedback"><i class="app-menu__icon feather icon-message-square"></i><span class="app-menu__label">AI & Feedback</span></a></li>
     <li><a class="app-menu__item<?php echo app_menu_active('library'); ?>" href="admin/library"><i class="app-menu__icon feather icon-book"></i><span class="app-menu__label">Library</span></a></li>
