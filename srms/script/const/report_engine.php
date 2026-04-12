@@ -774,7 +774,18 @@ function report_load_card(PDO $conn, int $reportId): ?array
 function report_term_publish_state(PDO $conn, int $classId, int $termId): string
 {
 	if ($classId < 1 || $termId < 1 || !app_table_exists($conn, 'tbl_exams')) {
-		return 'published';
+		if (app_table_exists($conn, 'tbl_exam_results')) {
+			try {
+				$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_exam_results WHERE class = ? AND term = ?");
+				$stmt->execute([$classId, $termId]);
+				if ((int)$stmt->fetchColumn() > 0) {
+					return 'published';
+				}
+			} catch (Throwable $e) {
+				// fall through
+			}
+		}
+		return 'draft';
 	}
 
 	$stmt = $conn->prepare("SELECT status, COUNT(*) AS total
@@ -787,6 +798,17 @@ function report_term_publish_state(PDO $conn, int $classId, int $termId): string
 		$counts[(string)$row['status']] = (int)$row['total'];
 	}
 	if (empty($counts)) {
+		if (app_table_exists($conn, 'tbl_exam_results')) {
+			try {
+				$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_exam_results WHERE class = ? AND term = ?");
+				$stmt->execute([$classId, $termId]);
+				if ((int)$stmt->fetchColumn() > 0) {
+					return 'published';
+				}
+			} catch (Throwable $e) {
+				// fall through
+			}
+		}
 		return 'draft';
 	}
 	foreach (['published', 'finalized', 'reviewed', 'active', 'draft'] as $status) {
@@ -799,7 +821,8 @@ function report_term_publish_state(PDO $conn, int $classId, int $termId): string
 
 function report_term_is_published(PDO $conn, int $classId, int $termId): bool
 {
-	return report_term_publish_state($conn, $classId, $termId) === 'published';
+	$state = report_term_publish_state($conn, $classId, $termId);
+	return in_array($state, ['published', 'finalized', 'reviewed', 'active'], true);
 }
 
 function report_student_term_history(PDO $conn, string $studentId, int $classId, int $limit = 6): array
