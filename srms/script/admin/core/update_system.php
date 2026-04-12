@@ -10,27 +10,36 @@ try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
+// Start explicit transaction
+$conn->beginTransaction();
+
 $stmt = $conn->prepare("SELECT id FROM tbl_school LIMIT 1");
 $stmt->execute();
 $existingId = $stmt->fetchColumn();
 
 if ($existingId) {
-	$stmt = $conn->prepare("UPDATE tbl_school SET name = ?");
-	$stmt->execute([$_POST['name']]);
+	$stmt = $conn->prepare("UPDATE tbl_school SET name = ? WHERE id = ?");
+	$stmt->execute([$_POST['name'], $existingId]);
 } else {
 	$logo = $_POST['old_logo'] ?? 'school_logo1711003619.png';
 	$stmt = $conn->prepare("INSERT INTO tbl_school (name, logo, result_system, allow_results) VALUES (?,?,?,?)");
 	$stmt->execute([$_POST['name'], $logo, 1, 1]);
 }
 
+// Commit transaction
+$conn->commit();
 
 $_SESSION['reply'] = array (array("success","System settings updated"));
 header("location:../system");
 
 }catch(PDOException $e)
 {
+if ($conn->inTransaction()) {
+	$conn->rollBack();
+}
 error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
-echo "Connection failed.";
+$_SESSION['reply'] = array (array("danger", "Failed to update settings: " . $e->getMessage()));
+header("location:../system");
 }
 }else{
 	$uploadCheck = app_validate_upload($_FILES['company_logo'], ['jpg', 'jpeg', 'png']);
@@ -61,18 +70,22 @@ try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
+// Start explicit transaction
+$conn->beginTransaction();
+
 $stmt = $conn->prepare("SELECT id FROM tbl_school LIMIT 1");
 $stmt->execute();
 $existingId = $stmt->fetchColumn();
 
 if ($existingId) {
-	$stmt = $conn->prepare("UPDATE tbl_school SET name = ?, logo = ?");
-	$stmt->execute([$_POST['name'], $destn_file]);
+	$stmt = $conn->prepare("UPDATE tbl_school SET name = ?, logo = ? WHERE id = ?");
+	$stmt->execute([$_POST['name'], $destn_file, $existingId]);
 } else {
 	$stmt = $conn->prepare("INSERT INTO tbl_school (name, logo, result_system, allow_results) VALUES (?,?,?,?)");
 	$stmt->execute([$_POST['name'], $destn_file, 1, 1]);
 }
 
+/* Store logo as base64 blob for rendering */
 $logoBytes = @file_get_contents($destn_upload);
 if (is_string($logoBytes) && $logoBytes !== '') {
 	$logoB64 = base64_encode($logoBytes);
@@ -81,13 +94,20 @@ if (is_string($logoBytes) && $logoBytes !== '') {
 	app_setting_set($conn, 'school_logo_blob_name', $destn_file, null);
 }
 
+// Commit transaction
+$conn->commit();
+
 $_SESSION['reply'] = array (array("success","System settings updated"));
 header("location:../system");
 
 }catch(PDOException $e)
 {
+if ($conn->inTransaction()) {
+	$conn->rollBack();
+}
 error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
-echo "Connection failed.";
+$_SESSION['reply'] = array (array("danger", "Failed to update settings: " . $e->getMessage()));
+header("location:../system");
 }
 
 }else{
