@@ -180,6 +180,7 @@ foreach ($competencies as $key => $comp):
 </td>
 <td class="text-end">
 <a class="btn btn-sm btn-primary" target="_blank" href="certificate_pdf?id=<?php echo (int)$row['id']; ?>" title="Download PDF"><i class="bi bi-download"></i></a>
+<button class="btn btn-sm btn-info" onclick="openEmailModal('certificate', <?php echo (int)$row['id']; ?>, '<?php echo htmlspecialchars(addslashes($row['student_name'])); ?>')" title="Send via Email"><i class="bi bi-envelope"></i></button>
 <a class="btn btn-sm btn-outline-secondary" target="_blank" href="verify_certificate?code=<?php echo urlencode((string)$row['verification_code']); ?>" title="Verify"><i class="bi bi-check-circle"></i></a>
 </td>
 </tr>
@@ -210,6 +211,7 @@ $catCerts = array_filter($certificates, function($c) use ($cat) { return ($c['ce
 <td><?php echo htmlspecialchars((string)$row['issue_date']); ?></td>
 <td class="text-end">
 <a class="btn btn-sm btn-primary" target="_blank" href="certificate_pdf?id=<?php echo (int)$row['id']; ?>"><i class="bi bi-download"></i></a>
+<button class="btn btn-sm btn-info" onclick="openEmailModal('certificate', <?php echo (int)$row['id']; ?>, '<?php echo htmlspecialchars(addslashes($row['student_name'])); ?>')"><i class="bi bi-envelope"></i></button>
 </td>
 </tr>
 <?php endforeach; ?>
@@ -282,6 +284,50 @@ function loadStudentData() {
     console.log('Student from class level:', classLevel);
 }
 
+function openEmailModal(resultType, resultId, studentName) {
+    document.getElementById('emailResultType').value = resultType;
+    document.getElementById('emailResultId').value = resultId;
+    document.getElementById('emailStudentName').textContent = studentName;
+    document.getElementById('emailModalLabel').textContent = resultType === 'certificate' ? 'Send Certificate via Email' : 'Send Report Card via Email';
+    
+    const modal = new bootstrap.Modal(document.getElementById('emailModal'));
+    modal.show();
+}
+
+function sendEmailResult() {
+    const form = document.getElementById('emailForm');
+    const resultType = document.getElementById('emailResultType').value;
+    const resultId = document.getElementById('emailResultId').value;
+    const email = document.getElementById('emailAddress').value.trim();
+    const message = document.getElementById('emailMessage').value.trim();
+    
+    if (!email || !email.includes('@')) {
+        alert('Please enter a valid email address');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('result_type', resultType);
+    formData.append('result_id', resultId);
+    formData.append('recipient_email', email);
+    formData.append('message', message);
+    
+    fetch('admin/core/email_result', {
+        method: 'POST',
+        body: formData
+    }).then(response => {
+        if (response.ok) {
+            const modal = bootstrap.Modal.getInstance(document.getElementById('emailModal'));
+            modal.hide();
+            location.reload();
+        } else {
+            throw new Error('Failed to send email');
+        }
+    }).catch(error => {
+        alert('Error: ' + error.message);
+    });
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize bootstrap tabs
     const triggerTabList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tab"]'));
@@ -290,6 +336,46 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 </script>
+
+<!-- Email Modal -->
+<div class="modal fade" id="emailModal" tabindex="-1" aria-labelledby="emailModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="emailModalLabel">Send Certificate via Email</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="emailForm">
+          <input type="hidden" id="emailResultType">
+          <input type="hidden" id="emailResultId">
+          
+          <div class="mb-3">
+            <label class="form-label">Student:</label>
+            <p class="form-control-plaintext" id="emailStudentName"></p>
+          </div>
+          
+          <div class="mb-3">
+            <label for="emailAddress" class="form-label">Recipient Email *</label>
+            <input type="email" class="form-control" id="emailAddress" placeholder="Enter recipient email address" required>
+            <small class="text-muted">Send to parent, guardian, or student email</small>
+          </div>
+          
+          <div class="mb-3">
+            <label for="emailMessage" class="form-label">Message (Optional)</label>
+            <textarea class="form-control" id="emailMessage" rows="3" placeholder="Add a personal message to include in the email..."></textarea>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="sendEmailResult()">
+          <i class="bi bi-send"></i> Send Email
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <?php require_once('const/check-reply.php'); ?>
 </body>
