@@ -15,6 +15,7 @@ $terms = [];
 $generatedCards = [];
 $listClassId = (int)($_GET['list_class_id'] ?? 0);
 $listTermId = (int)($_GET['list_term_id'] ?? 0);
+$hasStudentEmail = false;
 
 try {
 	$conn = app_db();
@@ -27,6 +28,7 @@ try {
 	$stmt = $conn->prepare("SELECT id, name FROM tbl_terms ORDER BY id DESC");
 	$stmt->execute();
 	$terms = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	$hasStudentEmail = app_column_exists($conn, 'tbl_students', 'email');
 
 	if (app_table_exists($conn, 'tbl_report_cards')) {
 		$where = [];
@@ -42,7 +44,7 @@ try {
 
 		$sql = "SELECT rc.id, rc.student_id, rc.class_id, rc.term_id, rc.mean, rc.grade, rc.position, rc.total_students,
 			rc.verification_code, rc.generated_at, COALESCE(rc.downloads, 0) AS downloads,
-			st.school_id, st.fname, st.mname, st.lname, c.name AS class_name, t.name AS term_name
+			st.school_id, st.fname, st.mname, st.lname" . ($hasStudentEmail ? ', st.email AS student_email' : '') . ", c.name AS class_name, t.name AS term_name
 			FROM tbl_report_cards rc
 			LEFT JOIN tbl_students st ON st.id = rc.student_id
 			LEFT JOIN tbl_classes c ON c.id = rc.class_id
@@ -265,6 +267,18 @@ echo "Connection failed.";
 </div>
 </div>
 </div>
+
+<div class="col-12 mt-3">
+<div class="tile">
+<div class="tile-body d-flex justify-content-between align-items-center flex-wrap gap-2">
+<div>
+<h3 class="tile-title mb-1">Result Delivery</h3>
+<p class="text-muted mb-0">Publish exam results and send SMS or email notifications from one place.</p>
+</div>
+<a class="btn btn-success" href="admin/publish_results"><i class="bi bi-broadcast me-2"></i>Open Publish Results</a>
+</div>
+</div>
+</div>
 </div>
 
 <div class="col-12 mt-3">
@@ -336,6 +350,7 @@ echo "Connection failed.";
 <td><?php echo (int)$cardRow['downloads']; ?></td>
 <td>
 <a class="btn btn-sm btn-primary" target="_blank" href="admin/save_pdf?std=<?php echo urlencode((string)$cardRow['student_id']); ?>&term=<?php echo (int)$cardRow['term_id']; ?>"><i class="bi bi-download me-1"></i>PDF</a>
+<button class="btn btn-sm btn-info" type="button" onclick="openEmailModal('report_card', <?php echo (int)$cardRow['id']; ?>, '<?php echo htmlspecialchars(addslashes($studentName)); ?>', '<?php echo htmlspecialchars(addslashes((string)($cardRow['student_email'] ?? ''))); ?>')" title="Send via Email"><i class="bi bi-envelope me-1"></i>Email</button>
 <a class="btn btn-sm btn-outline-secondary" target="_blank" href="verify_report?code=<?php echo urlencode((string)$cardRow['verification_code']); ?>"><i class="bi bi-shield-check me-1"></i>Verify</a>
 </td>
 </tr>
@@ -365,7 +380,88 @@ echo "Connection failed.";
 <?php require_once('const/check-reply.php'); ?>
 <script>
 $('.select2').select2()
+
+function openEmailModal(resultType, resultId, studentName, studentEmail) {
+		document.getElementById('emailResultType').value = resultType;
+		document.getElementById('emailResultId').value = resultId;
+		document.getElementById('emailStudentName').textContent = studentName;
+		document.getElementById('emailAddress').value = studentEmail || '';
+		document.getElementById('emailModalLabel').textContent = resultType === 'certificate' ? 'Send Certificate via Email' : 'Send Report Card via Email';
+
+		const modal = new bootstrap.Modal(document.getElementById('emailModal'));
+		modal.show();
+}
+
+function sendEmailResult() {
+		const resultType = document.getElementById('emailResultType').value;
+		const resultId = document.getElementById('emailResultId').value;
+		const email = document.getElementById('emailAddress').value.trim();
+		const message = document.getElementById('emailMessage').value.trim();
+
+		if (!email || !email.includes('@')) {
+				alert('Please enter a valid email address');
+				return;
+		}
+
+		const formData = new FormData();
+		formData.append('result_type', resultType);
+		formData.append('result_id', resultId);
+		formData.append('recipient_email', email);
+		formData.append('message', message);
+
+		fetch('admin/core/email_result', {
+				method: 'POST',
+				body: formData
+		}).then(response => {
+				if (response.ok) {
+						const modal = bootstrap.Modal.getInstance(document.getElementById('emailModal'));
+						modal.hide();
+						location.reload();
+				} else {
+						throw new Error('Failed to send email');
+				}
+		}).catch(error => {
+				alert('Error: ' + error.message);
+		});
+}
 </script>
+
+<!-- Email Modal -->
+<div class="modal fade" id="emailModal" tabindex="-1" aria-labelledby="emailModalLabel" aria-hidden="true">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title" id="emailModalLabel">Send Report Card via Email</h5>
+				<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+			</div>
+			<div class="modal-body">
+				<form id="emailForm">
+					<input type="hidden" id="emailResultType">
+					<input type="hidden" id="emailResultId">
+					<div class="mb-3">
+						<label class="form-label">Student:</label>
+						<p class="form-control-plaintext" id="emailStudentName"></p>
+					</div>
+					<div class="mb-3">
+						<label for="emailAddress" class="form-label">Recipient Email *</label>
+						<input type="email" class="form-control" id="emailAddress" placeholder="Enter recipient email address" required>
+						<small class="text-muted">Send to parent, guardian, or student email</small>
+					</div>
+					<div class="mb-3">
+						<label for="emailMessage" class="form-label">Message (Optional)</label>
+						<textarea class="form-control" id="emailMessage" rows="3" placeholder="Add a personal message to include in the email..."></textarea>
+					</div>
+				</form>
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+				<button type="button" class="btn btn-primary" onclick="sendEmailResult()">
+					<i class="bi bi-send"></i> Send Email
+				</button>
+			</div>
+		</div>
+	</div>
+</div>
 </body>
 
 </html>
