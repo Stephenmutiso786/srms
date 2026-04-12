@@ -77,6 +77,9 @@ try {
 
 	if (app_table_exists($conn, 'tbl_cbc_assessments')) {
 		$useSubjectId = app_column_exists($conn, 'tbl_cbc_assessments', 'subject_id');
+    if ($mode !== 'marks' && app_column_exists($conn, 'tbl_cbc_assessments', 'marks')) {
+      $mode = 'marks';
+    }
 		if ($useSubjectId) {
 			$stmt = $conn->prepare("SELECT student_id, strand, level, marks, points
 				FROM tbl_cbc_assessments

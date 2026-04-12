@@ -88,5 +88,7 @@ try {
 
     $pdf->Output('report-card.pdf', 'I');
 } catch (Throwable $e) {
+    error_log('[parent/report_card_pdf] ' . $e->getMessage());
+    $_SESSION['reply'] = array(array('danger', 'Failed to generate PDF: ' . $e->getMessage()));
     header('location:report_card?term=' . $termId . '&student=' . urlencode($studentId));
 }

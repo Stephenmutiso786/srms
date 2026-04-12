@@ -66,5 +66,7 @@ try {
 
     $pdf->Output('teacher-student-report.pdf', 'I');
 } catch (Throwable $e) {
+    error_log('[teacher/report_card_pdf] ' . $e->getMessage());
+    $_SESSION['reply'] = array(array('danger', 'Failed to generate PDF: ' . $e->getMessage()));
     header('location:manage_results');
 }

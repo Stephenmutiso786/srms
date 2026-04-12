@@ -60,11 +60,15 @@ try {
 
   $examMode = app_exam_assessment_mode($conn, (int)$exam['id']);
   if ($assessmentMode === 'cbc' || $examMode === 'cbc') {
+    $cbcEntryMode = 'cbc';
+    if (app_table_exists($conn, 'tbl_cbc_assessments') && app_column_exists($conn, 'tbl_cbc_assessments', 'marks')) {
+      $cbcEntryMode = 'marks';
+    }
     $_SESSION['cbc_entry'] = [
       'term' => (int)$exam['term_id'],
       'class' => (int)$exam['class_id'],
       'subject' => (int)$combo['id'],
-      'mode' => 'cbc',
+      'mode' => $cbcEntryMode,
       'exam_id' => (int)$exam['id'],
     ];
     header("location:../cbc_entry");

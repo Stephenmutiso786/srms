@@ -92,7 +92,8 @@ ACADEMIC REPORT FORM - ' . htmlspecialchars((string)$payload['class_name']) . ' 
         <div style="font-size:9pt;"><b>NAME:</b> ' . htmlspecialchars((string)$payload['student_name']) . '</div>
         <div style="font-size:9pt;"><b>ADMNO:</b> ' . htmlspecialchars((string)$payload['school_id']) . '</div>
         <div style="font-size:9pt;"><b>CLASS:</b> ' . htmlspecialchars((string)$payload['class_name']) . '</div>
-        <div style="font-size:9pt;"><b>MEAN:</b> ' . number_format((float)($card['mean'] ?? 0), 2) . '%</div>
+        <div style="font-size:9pt;"><b>AVERAGE:</b> ' . number_format((float)($card['mean'] ?? 0), 2) . '%</div>
+        <div style="font-size:9pt;"><b>MEAN POINTS:</b> ' . number_format((float)($card['mean_points'] ?? 0), 2) . '</div>
         <div style="font-size:9pt;"><b>GRADE:</b> ' . htmlspecialchars((string)($card['grade'] ?? 'N/A')) . '</div>
     </td>
     <td width="40%" style="border:1px solid #95a5b3;vertical-align:top;">

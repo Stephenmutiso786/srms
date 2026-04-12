@@ -79,7 +79,8 @@ try {
 <div class="report-stat"><div class="label">Student</div><div class="value"><?php echo htmlspecialchars($student['name']); ?></div></div>
 <div class="report-stat"><div class="label">School ID</div><div class="value"><?php echo htmlspecialchars($student['school_id'] ?: $student['id']); ?></div></div>
 <div class="report-stat"><div class="label">Total Marks</div><div class="value"><?php echo $card['total']; ?></div></div>
-<div class="report-stat"><div class="label">Mean Score</div><div class="value"><?php echo $card['mean']; ?>%</div></div>
+<div class="report-stat"><div class="label">Average Score</div><div class="value"><?php echo $card['mean']; ?>%</div></div>
+<div class="report-stat"><div class="label">Mean Points</div><div class="value"><?php echo number_format((float)($card['mean_points'] ?? 0), 2); ?></div></div>
 <div class="report-stat"><div class="label">Grade</div><div class="value"><?php echo htmlspecialchars($card['grade']); ?></div></div>
 <div class="report-stat"><div class="label">Position</div><div class="value"><?php echo $card['position'].' / '.$card['total_students']; ?></div></div>
 </div>

@@ -141,6 +141,105 @@ function report_cbc_level_to_score(string $level): float
 	return 0.0;
 }
 
+function report_cbc_grading_rows(PDO $conn): array
+{
+	if (app_table_exists($conn, 'tbl_cbc_grading')) {
+		$stmt = $conn->prepare("SELECT level, min_mark, max_mark, points FROM tbl_cbc_grading WHERE active = 1 ORDER BY min_mark DESC, sort_order ASC");
+		$stmt->execute();
+		$rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		if (!empty($rows)) {
+			return $rows;
+		}
+	}
+
+	return [
+		['level' => 'EE', 'min_mark' => 80, 'max_mark' => 100, 'points' => 4],
+		['level' => 'ME', 'min_mark' => 60, 'max_mark' => 79, 'points' => 3],
+		['level' => 'AE', 'min_mark' => 40, 'max_mark' => 59, 'points' => 2],
+		['level' => 'BE', 'min_mark' => 0, 'max_mark' => 39, 'points' => 1],
+	];
+}
+
+function report_cbc_grade_for_score(PDO $conn, float $score): array
+{
+	$rows = report_cbc_grading_rows($conn);
+	foreach ($rows as $row) {
+		$min = (float)($row['min_mark'] ?? 0);
+		$max = (float)($row['max_mark'] ?? 100);
+		if ($score >= $min && $score <= $max) {
+			$level = strtoupper((string)($row['level'] ?? 'BE'));
+			$points = (float)($row['points'] ?? 0);
+			$remark = $level === 'EE' ? 'Exceeding Expectation' : ($level === 'ME' ? 'Meeting Expectation' : ($level === 'AE' ? 'Approaching Expectation' : 'Below Expectation'));
+			return [$level, $remark, $points];
+		}
+	}
+	return ['BE', 'Below Expectation', 1.0];
+}
+
+function report_term_assessment_mode(PDO $conn, int $classId, int $termId): string
+{
+	if ($classId < 1 || $termId < 1 || !app_table_exists($conn, 'tbl_exams')) {
+		return 'normal';
+	}
+	if (!app_column_exists($conn, 'tbl_exams', 'assessment_mode')) {
+		return 'normal';
+	}
+
+	$stmt = $conn->prepare("SELECT COALESCE(assessment_mode, 'normal') AS assessment_mode FROM tbl_exams WHERE class_id = ? AND term_id = ?");
+	$stmt->execute([$classId, $termId]);
+	$rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	if (empty($rows)) {
+		return 'normal';
+	}
+
+	$hasCbc = false;
+	$hasNormal = false;
+	foreach ($rows as $row) {
+		$mode = strtolower(trim((string)($row['assessment_mode'] ?? 'normal')));
+		if ($mode === 'cbc') {
+			$hasCbc = true;
+		} else {
+			$hasNormal = true;
+		}
+	}
+
+	if ($hasCbc && !$hasNormal) {
+		return 'cbc';
+	}
+
+	return 'normal';
+}
+
+function report_attach_computed_metrics(PDO $conn, array $card): array
+{
+	$subjects = is_array($card['subjects'] ?? null) ? $card['subjects'] : [];
+	$pointSum = 0.0;
+	$pointCount = 0;
+	foreach ($subjects as $subject) {
+		if (isset($subject['grade_points']) && $subject['grade_points'] !== '') {
+			$pointSum += (float)$subject['grade_points'];
+			$pointCount++;
+		}
+	}
+	$card['mean_points'] = $pointCount > 0 ? round($pointSum / $pointCount, 2) : 0.0;
+	$card['average_score'] = (float)($card['mean'] ?? 0);
+
+	$classId = (int)($card['class_id'] ?? 0);
+	$termId = (int)($card['term_id'] ?? 0);
+	$mode = report_term_assessment_mode($conn, $classId, $termId);
+	$card['assessment_mode'] = $mode;
+
+	if ($mode === 'cbc') {
+		list($cbcGrade, $cbcRemark,) = report_cbc_grade_for_score($conn, (float)($card['mean'] ?? 0));
+		$card['grade'] = $cbcGrade;
+		if (empty($card['remark'])) {
+			$card['remark'] = $cbcRemark;
+		}
+	}
+
+	return $card;
+}
+
 function report_cbc_score_matrix(PDO $conn, int $classId, int $termId, array $subjects, ?string $studentId = null): array
 {
 	if ($classId < 1 || $termId < 1 || !app_table_exists($conn, 'tbl_cbc_assessments')) {
@@ -267,7 +366,12 @@ function report_fetch_scores(PDO $conn, string $studentId, int $classId, int $te
 			$gradingCache[(int)$examId] = report_exam_grading_system_id($conn, $examId);
 		}
 		$gradingSystemId = $gradingCache[(int)$examId];
-		list($gradeLabel, $gradeRemark, $gradePoints) = report_grade_for_score($conn, $score, $gradingSystemId);
+		$usedCbcFallback = (!$value || $value['score'] === null || $value['score'] === '') && isset($cbcSubjectScores[(int)$subject['subject']]);
+		if ($usedCbcFallback) {
+			list($gradeLabel, $gradeRemark, $gradePoints) = report_cbc_grade_for_score($conn, $score);
+		} else {
+			list($gradeLabel, $gradeRemark, $gradePoints) = report_grade_for_score($conn, $score, $gradingSystemId);
+		}
 		$scores[] = [
 			'subject_id' => (int)$subject['subject'],
 			'subject_name' => $subject['subject_name'],
@@ -554,7 +658,7 @@ function report_compute_for_student(PDO $conn, string $studentId, int $classId, 
 	$card['strengths'] = $bundle['strengths'];
 	$card['weaknesses'] = $bundle['weaknesses'];
 
-	return $card;
+	return report_attach_computed_metrics($conn, $card);
 }
 
 function report_rank_students(PDO $conn, int $classId, int $termId): array
@@ -672,7 +776,8 @@ function report_load_card(PDO $conn, int $reportId): ?array
 		}
 	}
 	$card['subjects'] = $subjects;
-	return report_attach_ai_comments($conn, $card);
+	$card = report_attach_ai_comments($conn, $card);
+	return report_attach_computed_metrics($conn, $card);
 }
 
 function report_term_publish_state(PDO $conn, int $classId, int $termId): string

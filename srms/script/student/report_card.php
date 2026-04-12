@@ -240,7 +240,8 @@ try {
 <div class="report-surface-header">Academic Report Form · <?php echo htmlspecialchars($termName); ?></div>
 <div class="metric-grid">
 <div class="metric-card"><div class="label">Total Marks</div><div class="value"><?php echo $card['total']; ?></div></div>
-<div class="metric-card"><div class="label">Mean Score</div><div class="value"><?php echo $card['mean']; ?>%</div></div>
+<div class="metric-card"><div class="label">Average Score</div><div class="value"><?php echo $card['mean']; ?>%</div></div>
+<div class="metric-card"><div class="label">Mean Points</div><div class="value"><?php echo number_format((float)($card['mean_points'] ?? 0), 2); ?></div></div>
 <div class="metric-card"><div class="label">Overall Grade</div><div class="value"><?php echo $card['grade']; ?></div></div>
 <div class="metric-card"><div class="label">Class Position</div><div class="value"><?php echo $card['position'].'/'.$card['total_students']; ?></div></div>
 </div>
