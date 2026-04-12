@@ -14,14 +14,28 @@ function app_report_verify_url(string $verificationCode): string
 function app_report_student_photo_html(PDO $conn, string $studentId): string
 {
     try {
-        $stmt = $conn->prepare("SELECT gender, image FROM tbl_students WHERE id = ? LIMIT 1");
+        $hasDisplayImage = app_column_exists($conn, 'tbl_students', 'display_image');
+        $hasLegacyImage = app_column_exists($conn, 'tbl_students', 'image');
+
+        $columns = ['gender'];
+        if ($hasDisplayImage) {
+            $columns[] = 'display_image';
+        }
+        if ($hasLegacyImage) {
+            $columns[] = 'image';
+        }
+
+        $stmt = $conn->prepare('SELECT ' . implode(', ', $columns) . ' FROM tbl_students WHERE id = ? LIMIT 1');
         $stmt->execute([$studentId]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$row) {
             return '';
         }
 
-        $image = trim((string)($row['image'] ?? ''));
+        $image = trim((string)($row['display_image'] ?? ''));
+        if ($image === '' || strtoupper($image) === 'DEFAULT') {
+            $image = trim((string)($row['image'] ?? ''));
+        }
         $gender = trim((string)($row['gender'] ?? 'male'));
         $path = '';
         if ($image !== '' && strtoupper($image) !== 'DEFAULT') {
