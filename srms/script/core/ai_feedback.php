@@ -150,6 +150,12 @@ function app_detect_intent(string $message): string
 	if (strpos($lower, 'assignment') !== false || strpos($lower, 'quiz') !== false) {
 		return 'assignments';
 	}
+	if (strpos($lower, 'report card') !== false || strpos($lower, 'report') !== false || strpos($lower, 'publish') !== false) {
+		return 'report';
+	}
+	if (strpos($lower, 'timetable') !== false || strpos($lower, 'schedule') !== false || strpos($lower, 'drag') !== false) {
+		return 'timetable';
+	}
 	if (strpos($lower, 'class') !== false && (strpos($lower, 'best') !== false || strpos($lower, 'top') !== false)) {
 		return 'analytics';
 	}
@@ -408,6 +414,9 @@ function app_school_scope(PDO $conn): array
 		'staff' => 0,
 		'attendance_rate' => null,
 		'avg_score' => null,
+		'report_cards' => 0,
+		'published_terms' => 0,
+		'timetable_slots' => 0,
 	];
 
 	if (app_table_exists($conn, 'tbl_students')) {
@@ -432,6 +441,18 @@ function app_school_scope(PDO $conn): array
 		if ($avg !== false) {
 			$stats['avg_score'] = round((float)$avg, 2);
 		}
+	}
+	if (app_table_exists($conn, 'tbl_report_cards')) {
+		$stmt = $conn->query("SELECT COUNT(*) FROM tbl_report_cards");
+		$stats['report_cards'] = (int)$stmt->fetchColumn();
+	}
+	if (app_table_exists($conn, 'tbl_report_publication')) {
+		$stmt = $conn->query("SELECT COUNT(*) FROM tbl_report_publication WHERE state = 'published'");
+		$stats['published_terms'] = (int)$stmt->fetchColumn();
+	}
+	if (app_table_exists($conn, 'tbl_school_timetable')) {
+		$stmt = $conn->query("SELECT COUNT(*) FROM tbl_school_timetable");
+		$stats['timetable_slots'] = (int)$stmt->fetchColumn();
 	}
 	return $stats;
 }
@@ -524,6 +545,34 @@ function app_generate_ai_reply(string $message, array $scope, string $role, stri
 		return 'No assignment data available yet.';
 	}
 
+	if ($intent === 'report') {
+		$student = $scope['students'][0] ?? null;
+		if ($student && $student['avg_score'] !== null) {
+			$response = 'Report automation summary: current average score is '.$student['avg_score'].'.';
+			if (!empty($student['top_subjects'])) {
+				$tops = [];
+				foreach ($student['top_subjects'] as $row) {
+					$tops[] = $row['name'].' ('.round((float)$row['avg_score'], 1).')';
+				}
+				$response .= ' Strongest areas: '.implode(', ', $tops).'.';
+			}
+			$response .= ' Use Report Card to view AI summary and teacher/headteacher remarks.';
+			return $response;
+		}
+		if (!empty($scope['school'])) {
+			return 'Report automation status: '.(int)($scope['school']['report_cards'] ?? 0).' report cards generated, '.(int)($scope['school']['published_terms'] ?? 0).' published term releases. Admin can regenerate from Report > Generate Report Cards.';
+		}
+		return 'Report automation is available after marks are saved and results are locked.';
+	}
+
+	if ($intent === 'timetable') {
+		if ($role === 'admin' || $role === 'teacher') {
+			$slots = (int)($scope['school']['timetable_slots'] ?? 0);
+			return 'Timetable automation is active. Current stored lesson slots: '.$slots.'. Use School Timetable to auto-generate conflict-free slots, then drag and drop lessons to swap safely.';
+		}
+		return 'Timetable updates are managed by school administrators. Ask for the latest class schedule from your portal timetable page.';
+	}
+
 	if ($intent === 'live') {
 		$student = $scope['students'][0] ?? null;
 		if (!empty($student['live_classes'])) {
@@ -556,6 +605,12 @@ function app_generate_ai_reply(string $message, array $scope, string $role, stri
 	}
 	if (strpos($lower, 'results') !== false || strpos($lower, 'marks') !== false) {
 		return 'Marks entry is under Exam Marks Entry (teachers) and Marks Review (admin). Results unlock only by admin.';
+	}
+	if (strpos($lower, 'report') !== false) {
+		return 'Report cards use marks, attendance, fees status, ranking, and AI-generated comments. Admin can generate and publish them from the Report module.';
+	}
+	if (strpos($lower, 'timetable') !== false || strpos($lower, 'schedule') !== false) {
+		return 'School timetable supports smart auto-generation and drag-and-drop slot swaps with conflict checks for class, teacher, and room.';
 	}
 	if (strpos($lower, 'attendance') !== false) {
 		return 'Attendance is available under Attendance and Staff Attendance. Reports are on the dashboard.';

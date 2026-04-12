@@ -14,6 +14,9 @@ $classId = (int)($_GET['class_id'] ?? 0);
 $termId = (int)($_GET['term_id'] ?? 0);
 $error = '';
 $schoolDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+$sessionLabels = [];
+$slotTemplateBySession = [];
+$slotMap = [];
 
 try {
 	$conn = app_db();
@@ -48,6 +51,32 @@ try {
 				ELSE 8 END, st.start_time");
 		$stmt->execute([$classId, $termId]);
 		$rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		foreach ($rows as $row) {
+			$session = (string)$row['session_label'];
+			if ($session === '') {
+				continue;
+			}
+			$sessionLabels[$session] = $session;
+			if (!isset($slotTemplateBySession[$session])) {
+				$slotTemplateBySession[$session] = [
+					'session_label' => $session,
+					'start_time' => substr((string)$row['start_time'], 0, 8),
+					'end_time' => substr((string)$row['end_time'], 0, 8),
+				];
+			}
+			$slotMap[(string)$row['day_name'].'|'.$session] = $row;
+		}
+		$sessionLabels = array_values($sessionLabels);
+		usort($sessionLabels, function ($a, $b) {
+			preg_match('/(\d+)/', (string)$a, $ma);
+			preg_match('/(\d+)/', (string)$b, $mb);
+			$na = isset($ma[1]) ? (int)$ma[1] : PHP_INT_MAX;
+			$nb = isset($mb[1]) ? (int)$mb[1] : PHP_INT_MAX;
+			if ($na === $nb) {
+				return strcmp((string)$a, (string)$b);
+			}
+			return $na <=> $nb;
+		});
 	}
 } catch (Throwable $e) {
 	error_log("[".__FILE__.":".__LINE__." Throwable] " . $e->getMessage());
@@ -65,6 +94,38 @@ try {
 <link rel="stylesheet" type="text/css" href="css/main.css">
 <link rel="icon" href="images/icon.ico">
 <link rel="stylesheet" type="text/css" href="cdn.jsdelivr.net/npm/bootstrap-icons%401.10.5/font/bootstrap-icons.css">
+<style>
+.tt-grid { min-width: 940px; border-collapse: separate; border-spacing: 0; }
+.tt-grid th, .tt-grid td { border: 1px solid #e6edf5; vertical-align: top; }
+.tt-grid th { background: #f7fbff; font-size: .85rem; text-transform: uppercase; letter-spacing: .04em; color: #567; }
+.tt-grid .session-cell { width: 180px; min-width: 180px; background: #fbfdff; }
+.tt-slot-cell { min-height: 122px; position: relative; background: #fff; }
+.tt-dropzone { min-height: 120px; padding: 8px; transition: background .18s ease, outline-color .18s ease; }
+.tt-dropzone.is-over { background: #eef7ff; outline: 2px dashed #2f80ed; }
+.tt-card {
+	background: linear-gradient(145deg, #0d64b0, #1c8ad1);
+	color: #fff;
+	border-radius: 14px;
+	padding: 10px;
+	cursor: grab;
+	box-shadow: 0 10px 20px rgba(13,100,176,.22);
+}
+.tt-card:active { cursor: grabbing; }
+.tt-card .title { font-weight: 700; line-height: 1.2; }
+.tt-card .meta { font-size: .78rem; opacity: .92; }
+.tt-empty {
+	min-height: 78px;
+	border: 1px dashed #d8e4f2;
+	border-radius: 12px;
+	font-size: .8rem;
+	color: #7b8a9c;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	text-align: center;
+	padding: 6px;
+}
+</style>
 </head>
 <body class="app sidebar-mini">
 <header class="app-header"><a class="app-header__logo" href="javascript:void(0);"><?php echo APP_NAME; ?></a>
@@ -163,6 +224,52 @@ try {
 
 <div class="tile">
 	<h3 class="tile-title">Current Timetable</h3>
+	<p class="text-muted">Drag a lesson card and drop it to a new slot. Dropping onto an occupied slot swaps both lessons with full conflict validation.</p>
+	<?php if (!empty($sessionLabels)) { ?>
+	<div class="table-responsive mb-3">
+		<table class="table tt-grid mb-0">
+			<thead>
+				<tr>
+					<th class="session-cell">Session / Time</th>
+					<?php foreach ($schoolDays as $day): ?>
+					<th><?php echo htmlspecialchars($day); ?></th>
+					<?php endforeach; ?>
+				</tr>
+			</thead>
+			<tbody>
+				<?php foreach ($sessionLabels as $sessionLabel):
+					$template = $slotTemplateBySession[$sessionLabel] ?? ['start_time' => '08:00:00', 'end_time' => '08:40:00'];
+				?>
+				<tr>
+					<td class="session-cell">
+						<div class="fw-semibold"><?php echo htmlspecialchars($sessionLabel); ?></div>
+						<div class="small text-muted"><?php echo htmlspecialchars(substr((string)$template['start_time'], 0, 5)); ?> - <?php echo htmlspecialchars(substr((string)$template['end_time'], 0, 5)); ?></div>
+					</td>
+					<?php foreach ($schoolDays as $day):
+						$key = $day.'|'.$sessionLabel;
+						$slot = $slotMap[$key] ?? null;
+					?>
+					<td class="tt-slot-cell">
+						<div class="tt-dropzone" data-day="<?php echo htmlspecialchars($day); ?>" data-session="<?php echo htmlspecialchars($sessionLabel); ?>" data-start="<?php echo htmlspecialchars((string)$template['start_time']); ?>" data-end="<?php echo htmlspecialchars((string)$template['end_time']); ?>" data-target-id="<?php echo $slot ? (int)$slot['id'] : 0; ?>">
+							<?php if ($slot): ?>
+							<div class="tt-card" draggable="true" data-id="<?php echo (int)$slot['id']; ?>" data-day="<?php echo htmlspecialchars((string)$slot['day_name']); ?>" data-session="<?php echo htmlspecialchars((string)$slot['session_label']); ?>" data-start="<?php echo htmlspecialchars(substr((string)$slot['start_time'], 0, 8)); ?>" data-end="<?php echo htmlspecialchars(substr((string)$slot['end_time'], 0, 8)); ?>" data-room="<?php echo htmlspecialchars((string)($slot['room'] ?? '')); ?>" data-target-id="<?php echo (int)$slot['id']; ?>">
+								<div class="title"><?php echo htmlspecialchars((string)$slot['subject_name']); ?></div>
+								<div class="meta mt-1"><?php echo htmlspecialchars((string)$slot['teacher_name']); ?></div>
+								<div class="meta"><i class="bi bi-clock me-1"></i><?php echo htmlspecialchars(substr((string)$slot['start_time'], 0, 5)); ?> - <?php echo htmlspecialchars(substr((string)$slot['end_time'], 0, 5)); ?></div>
+								<div class="meta"><i class="bi bi-door-open me-1"></i><?php echo htmlspecialchars((string)($slot['room'] ?? '')); ?></div>
+							</div>
+							<?php else: ?>
+							<div class="tt-empty">Drop lesson here</div>
+							<?php endif; ?>
+						</div>
+					</td>
+					<?php endforeach; ?>
+				</tr>
+				<?php endforeach; ?>
+			</tbody>
+		</table>
+	</div>
+	<?php } ?>
 	<div class="table-responsive">
 		<table class="table table-hover">
 			<thead>
@@ -189,10 +296,84 @@ try {
 </div>
 <?php } ?>
 <?php } ?>
+
+<form id="ttMoveForm" method="POST" action="admin/core/update_school_timetable_slot" class="d-none">
+	<input type="hidden" name="id" id="tt-id">
+	<input type="hidden" name="class_id" value="<?php echo (int)$classId; ?>">
+	<input type="hidden" name="term_id" value="<?php echo (int)$termId; ?>">
+	<input type="hidden" name="day_name" id="tt-day">
+	<input type="hidden" name="session_label" id="tt-session">
+	<input type="hidden" name="start_time" id="tt-start">
+	<input type="hidden" name="end_time" id="tt-end">
+	<input type="hidden" name="room" id="tt-room">
+	<input type="hidden" name="swap_with_id" id="tt-swap-with-id" value="0">
+</form>
 </main>
 <script src="js/jquery-3.7.0.min.js"></script>
 <script src="js/bootstrap.min.js"></script>
 <script src="js/main.js"></script>
+<script>
+(function () {
+	const cards = document.querySelectorAll('.tt-card[draggable="true"]');
+	const zones = document.querySelectorAll('.tt-dropzone');
+	const form = document.getElementById('ttMoveForm');
+	if (!cards.length || !zones.length || !form) {
+		return;
+	}
+
+	let dragData = null;
+	cards.forEach(function (card) {
+		card.addEventListener('dragstart', function (event) {
+			dragData = {
+				id: card.dataset.id || '',
+				day: card.dataset.day || '',
+				session: card.dataset.session || '',
+				start: card.dataset.start || '',
+				end: card.dataset.end || '',
+				room: card.dataset.room || ''
+			};
+			event.dataTransfer.effectAllowed = 'move';
+			event.dataTransfer.setData('text/plain', dragData.id);
+		});
+	});
+
+	zones.forEach(function (zone) {
+		zone.addEventListener('dragover', function (event) {
+			event.preventDefault();
+			event.dataTransfer.dropEffect = 'move';
+			zone.classList.add('is-over');
+		});
+		zone.addEventListener('dragleave', function () {
+			zone.classList.remove('is-over');
+		});
+		zone.addEventListener('drop', function (event) {
+			event.preventDefault();
+			zone.classList.remove('is-over');
+			if (!dragData || !dragData.id) {
+				return;
+			}
+			const newDay = zone.dataset.day || '';
+			const newSession = zone.dataset.session || '';
+			const newStart = zone.dataset.start || '';
+			const newEnd = zone.dataset.end || '';
+			const targetId = zone.dataset.targetId || '0';
+
+			if (dragData.day === newDay && dragData.session === newSession) {
+				return;
+			}
+
+			document.getElementById('tt-id').value = dragData.id;
+			document.getElementById('tt-day').value = newDay;
+			document.getElementById('tt-session').value = newSession;
+			document.getElementById('tt-start').value = newStart;
+			document.getElementById('tt-end').value = newEnd;
+			document.getElementById('tt-room').value = dragData.room;
+			document.getElementById('tt-swap-with-id').value = (targetId && targetId !== dragData.id) ? targetId : '0';
+			form.submit();
+		});
+	});
+})();
+</script>
 <?php require_once('const/check-reply.php'); ?>
 </body>
 </html>

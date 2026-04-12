@@ -28,6 +28,17 @@ if ($classId < 1 || $termId < 1 || $year < 2000 || empty($days)) {
 	app_reply_redirect('danger', 'Missing timetable generation details.', '../school_timetable');
 }
 
+function app_timetable_subject_weight(string $subjectName): int {
+	$name = strtolower(trim($subjectName));
+	$coreWords = ['math', 'mathematics', 'english', 'kiswahili', 'science', 'cre', 'social', 'language'];
+	foreach ($coreWords as $word) {
+		if (strpos($name, $word) !== false) {
+			return 3;
+		}
+	}
+	return 1;
+}
+
 function app_timetable_time_add(string $time, int $minutes): string {
 	$dt = new DateTime('1970-01-01 '.$time.':00');
 	$dt->modify("+{$minutes} minutes");
@@ -53,6 +64,10 @@ function app_timetable_slot_conflict(array $candidate, array $existingRows): boo
 		}
 	}
 	return false;
+}
+
+function app_timetable_slot_key(array $slot): string {
+	return (string)$slot['day_name'].'|'.(string)$slot['session_label'];
 }
 
 try {
@@ -113,48 +128,160 @@ try {
 	$insert = $conn->prepare("INSERT INTO tbl_school_timetable (term_id, class_id, subject_id, teacher_id, day_name, session_label, start_time, end_time, room, created_by)
 		VALUES (?,?,?,?,?,?,?,?,?,?)");
 
-	$created = 0;
-	$slotIndex = 0;
-	$roomNo = 1;
+	$weeklySlots = max(1, count($days) * $sessionsPerDay);
+	$weightTotal = 0;
 	foreach ($assignments as $assignment) {
+		$weightTotal += app_timetable_subject_weight((string)$assignment['subject_name']);
+	}
+	$targets = [];
+	$allocated = 0;
+	foreach ($assignments as $idx => $assignment) {
+		$weight = app_timetable_subject_weight((string)$assignment['subject_name']);
+		$target = (int)floor(($weeklySlots * $weight) / max(1, $weightTotal));
+		if ($target < 1) {
+			$target = 1;
+		}
+		$targets[$idx] = $target;
+		$allocated += $target;
+	}
+	while ($allocated < $weeklySlots) {
+		foreach ($assignments as $idx => $assignment) {
+			if ($allocated >= $weeklySlots) {
+				break;
+			}
+			$targets[$idx]++;
+			$allocated++;
+		}
+	}
+	while ($allocated > $weeklySlots) {
+		$changed = false;
+		foreach ($assignments as $idx => $assignment) {
+			if ($allocated <= $weeklySlots) {
+				break;
+			}
+			if (($targets[$idx] ?? 1) > 1) {
+				$targets[$idx]--;
+				$allocated--;
+				$changed = true;
+			}
+		}
+		if (!$changed) {
+			break;
+		}
+	}
+
+	$lessonQueue = [];
+	$remaining = $targets;
+	while (count($lessonQueue) < $weeklySlots) {
+		$progress = false;
+		foreach ($assignments as $idx => $assignment) {
+			if (($remaining[$idx] ?? 0) > 0) {
+				$lessonQueue[] = $assignment;
+				$remaining[$idx]--;
+				$progress = true;
+				if (count($lessonQueue) >= $weeklySlots) {
+					break;
+				}
+			}
+		}
+		if (!$progress) {
+			break;
+		}
+	}
+
+	$created = 0;
+	$roomNo = 1;
+	$slotTemplate = [];
+	for ($sessionIndex = 0; $sessionIndex < $sessionsPerDay; $sessionIndex++) {
+		$minutesFromStart = $sessionIndex * ($durationMinutes + $breakMinutes);
+		$startTime = app_timetable_time_add($firstStartTime, $minutesFromStart);
+		$slotTemplate[] = [
+			'session_label' => 'Session '.($sessionIndex + 1),
+			'start_time' => $startTime,
+			'end_time' => app_timetable_time_add($startTime, $durationMinutes),
+		];
+	}
+
+	$allSlots = [];
+	foreach ($slotTemplate as $slotMeta) {
+		foreach ($days as $day) {
+			$allSlots[] = [
+				'day_name' => $day,
+				'session_label' => $slotMeta['session_label'],
+				'start_time' => $slotMeta['start_time'],
+				'end_time' => $slotMeta['end_time'],
+			];
+		}
+	}
+
+	$usedSlotKeys = [];
+	$subjectDailyCount = [];
+	foreach ($lessonQueue as $assignment) {
 		$placed = false;
-		for ($attempt = 0; $attempt < max(1, count($days) * $sessionsPerDay * 4); $attempt++) {
-			$dayIndex = $slotIndex % count($days);
-			$sessionIndex = (int)floor($slotIndex / count($days)) % $sessionsPerDay;
-			$minutesFromStart = $sessionIndex * ($durationMinutes + $breakMinutes);
-			$startTime = app_timetable_time_add($firstStartTime, $minutesFromStart);
-			$endTime = app_timetable_time_add($startTime, $durationMinutes);
+
+		$bestSlot = null;
+		$bestScore = PHP_INT_MAX;
+		foreach ($allSlots as $slot) {
+			$slotKey = app_timetable_slot_key($slot);
+			if (isset($usedSlotKeys[$slotKey])) {
+				continue;
+			}
+
+			$subjectId = (int)$assignment['subject_id'];
+			$dailyLoad = (int)($subjectDailyCount[$subjectId][$slot['day_name']] ?? 0);
+			if ($dailyLoad >= 2) {
+				continue;
+			}
+
 			$candidate = [
-				'day_name' => $days[$dayIndex],
-				'start_time' => $startTime,
-				'end_time' => $endTime,
+				'day_name' => $slot['day_name'],
+				'session_label' => $slot['session_label'],
+				'start_time' => $slot['start_time'],
+				'end_time' => $slot['end_time'],
 				'room' => trim($roomPrefix.' '.$roomNo),
 				'class_id' => $classId,
 				'teacher_id' => (int)$assignment['teacher_id'],
 			];
 
-			if (!app_timetable_slot_conflict($candidate, $existingRows)) {
-				$sessionLabel = 'Session '.($sessionIndex + 1);
-				$insert->execute([
-					$termId,
-					$classId,
-					(int)$assignment['subject_id'],
-					(int)$assignment['teacher_id'],
-					$candidate['day_name'],
-					$sessionLabel,
-					$candidate['start_time'],
-					$candidate['end_time'],
-					$candidate['room'],
-					(int)$account_id
-				]);
-				$existingRows[] = $candidate;
-				$created++;
-				$slotIndex++;
-				$roomNo = ($roomNo % max(1, $sessionsPerDay)) + 1;
-				$placed = true;
-				break;
+			if (app_timetable_slot_conflict($candidate, $existingRows)) {
+				continue;
 			}
-			$slotIndex++;
+
+			$spreadPenalty = $dailyLoad * 10;
+			$dayLoad = 0;
+			foreach ($subjectDailyCount as $subjectLoads) {
+				$dayLoad += (int)($subjectLoads[$slot['day_name']] ?? 0);
+			}
+			$score = $spreadPenalty + $dayLoad;
+			if ($score < $bestScore) {
+				$bestScore = $score;
+				$bestSlot = $candidate;
+			}
+		}
+
+		if ($bestSlot !== null) {
+			$insert->execute([
+				$termId,
+				$classId,
+				(int)$assignment['subject_id'],
+				(int)$assignment['teacher_id'],
+				$bestSlot['day_name'],
+				$bestSlot['session_label'],
+				$bestSlot['start_time'],
+				$bestSlot['end_time'],
+				$bestSlot['room'],
+				(int)$account_id
+			]);
+			$existingRows[] = $bestSlot;
+			$usedSlotKeys[app_timetable_slot_key($bestSlot)] = true;
+			$subjectId = (int)$assignment['subject_id'];
+			if (!isset($subjectDailyCount[$subjectId])) {
+				$subjectDailyCount[$subjectId] = [];
+			}
+			$subjectDailyCount[$subjectId][$bestSlot['day_name']] = (int)($subjectDailyCount[$subjectId][$bestSlot['day_name']] ?? 0) + 1;
+			$created++;
+			$roomNo = ($roomNo % max(1, $sessionsPerDay)) + 1;
+			$placed = true;
 		}
 
 		if (!$placed) {
