@@ -47,8 +47,16 @@ try {
 	$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_exam_results WHERE class = ? AND term = ?");
 	$stmt->execute([$classId, $termId]);
 	$totalResults = (int)$stmt->fetchColumn();
-	if ($totalResults < 1) {
-		throw new RuntimeException('No saved exam results were found for the selected class and term.');
+
+	$totalCbc = 0;
+	if (app_table_exists($conn, 'tbl_cbc_assessments')) {
+		$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_cbc_assessments WHERE class_id = ? AND term_id = ?");
+		$stmt->execute([$classId, $termId]);
+		$totalCbc = (int)$stmt->fetchColumn();
+	}
+
+	if (($totalResults + $totalCbc) < 1) {
+		throw new RuntimeException('No saved results were found for the selected class and term (exam results and CBC assessments are both empty).');
 	}
 
 	if (!app_table_exists($conn, 'tbl_report_cards')) {
