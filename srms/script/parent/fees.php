@@ -10,6 +10,7 @@ $studentId = trim((string)($_GET['student_id'] ?? ''));
 $linked = [];
 $invoices = [];
 $error = '';
+$hasReceipts = false;
 
 try {
 	$conn = app_db();
@@ -21,6 +22,7 @@ try {
 	if (!app_table_exists($conn, 'tbl_invoices') || !app_table_exists($conn, 'tbl_invoice_lines') || !app_table_exists($conn, 'tbl_payments')) {
 		throw new RuntimeException("Fees module is not installed on the server.");
 	}
+	$hasReceipts = app_table_exists($conn, 'tbl_receipts');
 
 	$stmt = $conn->prepare("SELECT st.id, concat_ws(' ', st.fname, st.mname, st.lname) AS name, c.name AS class_name
 		FROM tbl_parent_students ps
@@ -46,15 +48,29 @@ try {
 		throw new RuntimeException("This student is not linked to your account.");
 	}
 
-	$stmt = $conn->prepare("SELECT i.id, t.name AS term_name, i.issue_date, i.due_date,
-		COALESCE(SUM(l.amount),0) AS total,
-		COALESCE((SELECT SUM(p.amount) FROM tbl_payments p WHERE p.invoice_id = i.id), 0) AS paid
-		FROM tbl_invoices i
-		JOIN tbl_terms t ON t.id = i.term_id
-		LEFT JOIN tbl_invoice_lines l ON l.invoice_id = i.id
-		WHERE i.student_id = ? AND i.status != 'void'
-		GROUP BY i.id, t.name, i.issue_date, i.due_date
-		ORDER BY i.term_id DESC, i.id DESC");
+	if ($hasReceipts) {
+		$stmt = $conn->prepare("SELECT i.id, t.name AS term_name, i.issue_date, i.due_date,
+			COALESCE(SUM(l.amount),0) AS total,
+			COALESCE((SELECT SUM(p.amount) FROM tbl_payments p WHERE p.invoice_id = i.id), 0) AS paid,
+			(SELECT r.id FROM tbl_receipts r JOIN tbl_payments p2 ON p2.id = r.payment_id WHERE p2.invoice_id = i.id ORDER BY r.id DESC LIMIT 1) AS latest_receipt_id,
+			(SELECT r.receipt_number FROM tbl_receipts r JOIN tbl_payments p2 ON p2.id = r.payment_id WHERE p2.invoice_id = i.id ORDER BY r.id DESC LIMIT 1) AS latest_receipt_no
+			FROM tbl_invoices i
+			JOIN tbl_terms t ON t.id = i.term_id
+			LEFT JOIN tbl_invoice_lines l ON l.invoice_id = i.id
+			WHERE i.student_id = ? AND i.status != 'void'
+			GROUP BY i.id, t.name, i.issue_date, i.due_date
+			ORDER BY i.term_id DESC, i.id DESC");
+	} else {
+		$stmt = $conn->prepare("SELECT i.id, t.name AS term_name, i.issue_date, i.due_date,
+			COALESCE(SUM(l.amount),0) AS total,
+			COALESCE((SELECT SUM(p.amount) FROM tbl_payments p WHERE p.invoice_id = i.id), 0) AS paid
+			FROM tbl_invoices i
+			JOIN tbl_terms t ON t.id = i.term_id
+			LEFT JOIN tbl_invoice_lines l ON l.invoice_id = i.id
+			WHERE i.student_id = ? AND i.status != 'void'
+			GROUP BY i.id, t.name, i.issue_date, i.due_date
+			ORDER BY i.term_id DESC, i.id DESC");
+	}
 	$stmt->execute([$studentId]);
 	$invoices = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Throwable $e) {
@@ -145,11 +161,12 @@ try {
 		  <th>Total</th>
 		  <th>Paid</th>
 		  <th>Balance</th>
+		  <th>Receipt</th>
 		</tr>
 	  </thead>
 	  <tbody>
 	  <?php if (count($invoices) < 1) { ?>
-		<tr><td colspan="6" class="text-muted">No invoices yet.</td></tr>
+		<tr><td colspan="7" class="text-muted">No invoices yet.</td></tr>
 	  <?php } else { foreach ($invoices as $inv) {
 		$total = (float)$inv['total'];
 		$paid = (float)$inv['paid'];
@@ -162,6 +179,13 @@ try {
 		  <td><?php echo number_format($total, 2); ?></td>
 		  <td><?php echo number_format($paid, 2); ?></td>
 		  <td><b><?php echo number_format($bal, 2); ?></b></td>
+		  <td>
+			<?php if ($hasReceipts && (int)($inv['latest_receipt_id'] ?? 0) > 0): ?>
+			  <a class="btn btn-sm btn-outline-secondary" target="_blank" href="receipt?id=<?php echo (int)$inv['latest_receipt_id']; ?>"><?php echo htmlspecialchars((string)$inv['latest_receipt_no']); ?></a>
+			<?php else: ?>
+			  <span class="text-muted">-</span>
+			<?php endif; ?>
+		  </td>
 		</tr>
 	  <?php } } ?>
 	  </tbody>

@@ -16,6 +16,41 @@ if (!is_array($payload)) {
 	$payload = $_POST;
 }
 
+$action = trim((string)($_GET['action'] ?? $payload['action'] ?? ''));
+
+function app_role_from_level(int $level): string
+{
+	if ($level === 3) { return 'student'; }
+	if ($level === 4) { return 'parent'; }
+	if ($level === 2) { return 'teacher'; }
+	if ($level === 0) { return 'admin'; }
+	if ($level === 1) { return 'admin'; }
+	if ($level === 5) { return 'accountant'; }
+	return 'staff';
+}
+
+if ($action === 'history') {
+	try {
+		$conn = app_db();
+		$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+		$actorType = 'staff';
+		if ((int)$level === 3) { $actorType = 'student'; }
+		if ((int)$level === 4) { $actorType = 'parent'; }
+		$actorId = (string)$account_id;
+
+		echo json_encode([
+			'ok' => true,
+			'user_key' => $actorType . ':' . $actorId,
+			'role' => app_role_from_level((int)$level),
+			'history' => app_ai_history($conn, $actorType, $actorId, 30),
+		]);
+	} catch (Throwable $e) {
+		echo json_encode(['ok' => true, 'history' => []]);
+	}
+	exit;
+}
+
 $message = trim((string)($payload['message'] ?? ''));
 $category = trim((string)($payload['category'] ?? 'feedback'));
 if ($message === '') {
@@ -122,17 +157,6 @@ try {
 	echo json_encode(['ok' => true, 'response' => $response]);
 } catch (Throwable $e) {
 	echo json_encode(['ok' => false, 'message' => 'Failed to save message']);
-}
-
-function app_role_from_level(int $level): string
-{
-	if ($level === 3) { return 'student'; }
-	if ($level === 4) { return 'parent'; }
-	if ($level === 2) { return 'teacher'; }
-	if ($level === 0) { return 'admin'; }
-	if ($level === 1) { return 'admin'; }
-	if ($level === 5) { return 'accountant'; }
-	return 'staff';
 }
 
 function app_detect_intent(string $message): string
@@ -709,4 +733,39 @@ function app_ai_log(PDO $conn, string $actorType, string $actorId, string $role,
 	} catch (Throwable $e) {
 		// best-effort only
 	}
+}
+
+function app_ai_history(PDO $conn, string $actorType, string $actorId, int $limit = 30): array
+{
+	if ($limit < 1) {
+		$limit = 30;
+	}
+	$limit = min($limit, 100);
+
+	if (!app_table_exists($conn, 'tbl_ai_logs')) {
+		return [];
+	}
+
+	$stmt = $conn->prepare("SELECT question, response
+		FROM tbl_ai_logs
+		WHERE actor_type = ? AND actor_id = ?
+		ORDER BY id DESC
+		LIMIT " . (int)$limit);
+	$stmt->execute([$actorType, $actorId]);
+	$rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	$rows = array_reverse($rows);
+
+	$history = [];
+	foreach ($rows as $row) {
+		$q = trim((string)($row['question'] ?? ''));
+		$r = trim((string)($row['response'] ?? ''));
+		if ($q !== '') {
+			$history[] = ['role' => 'user', 'text' => $q];
+		}
+		if ($r !== '') {
+			$history[] = ['role' => 'edu', 'text' => $r];
+		}
+	}
+
+	return array_slice($history, -60);
 }

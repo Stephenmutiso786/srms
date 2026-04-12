@@ -73,7 +73,7 @@
 			'</div>';
 		document.body.appendChild(panel);
 
-		var storageKey = 'srms-ai-widget-history';
+		var storageKey = 'srms-ai-widget-history:anon';
 		var chatBox = null;
 		var statusBox = null;
 		var messageBox = null;
@@ -137,6 +137,26 @@
 			}
 		}
 
+		function loadServerHistory() {
+			return fetch('core/ai_feedback?action=history', { credentials: 'same-origin' })
+				.then(function (r) { return r.json(); })
+				.then(function (data) {
+					if (data && data.ok) {
+						var userKey = (data.user_key || 'anon').replace(/[^a-zA-Z0-9:_-]/g, '');
+						storageKey = 'srms-ai-widget-history:' + userKey;
+						var history = Array.isArray(data.history) ? data.history : [];
+						if (history.length) {
+							saveHistory(history);
+						}
+						return history;
+					}
+					return [];
+				})
+				.catch(function () {
+					return [];
+				});
+		}
+
 		function sendMessage() {
 			var msg = (messageBox ? messageBox.value : '').trim();
 			if (!msg) return;
@@ -153,6 +173,7 @@
 			fetch('core/ai_feedback', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
+				credentials: 'same-origin',
 				body: JSON.stringify({ message: msg, category: mode })
 			}).then(function (r) { return r.json(); }).then(function (data) {
 				var currentThinking = chatBox.querySelector('.ai-message.thinking');
@@ -176,18 +197,20 @@
 		}
 
 		fab.addEventListener('click', function () {
-			panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
-			if (panel.style.display === 'block') {
+			panel.classList.toggle('is-open');
+			if (panel.classList.contains('is-open')) {
 				setTimeout(function () {
 					if (!chatBox) {
 						chatBox = document.getElementById('aiChat');
 						statusBox = document.getElementById('aiStatus');
 						messageBox = document.getElementById('aiMessage');
-						syncHistory();
-						if (!loadHistory().length) {
-							pushHistory('edu', 'Hello. Ask me about reports, fees, attendance, or send feedback.');
+						loadServerHistory().then(function () {
 							syncHistory();
-						}
+							if (!loadHistory().length) {
+								pushHistory('edu', 'Hello. Ask me about reports, fees, attendance, or send feedback.');
+								syncHistory();
+							}
+						});
 					}
 					if (messageBox) {
 						messageBox.focus();
@@ -197,7 +220,7 @@
 		});
 		document.addEventListener('click', function (e) {
 			if (e.target && e.target.id === 'aiClose') {
-				panel.style.display = 'none';
+				panel.classList.remove('is-open');
 			}
 		});
 
@@ -218,7 +241,7 @@
 		});
 
 		document.addEventListener('keydown', function (e) {
-			if (panel.style.display === 'block' && e.key === 'Enter' && !e.shiftKey && document.activeElement === messageBox) {
+			if (panel.classList.contains('is-open') && e.key === 'Enter' && !e.shiftKey && document.activeElement === messageBox) {
 				e.preventDefault();
 				sendMessage();
 			}

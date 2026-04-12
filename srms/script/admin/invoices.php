@@ -15,6 +15,7 @@ $filterClass = (int)($_GET['class_id'] ?? 0);
 $filterTerm = (int)($_GET['term_id'] ?? 0);
 $invoices = [];
 $error = '';
+$hasReceipts = false;
 
 try {
 	$conn = app_db();
@@ -23,6 +24,7 @@ try {
 	if (!app_table_exists($conn, 'tbl_invoices') || !app_table_exists($conn, 'tbl_invoice_lines') || !app_table_exists($conn, 'tbl_payments')) {
 		throw new RuntimeException("Fees module is not installed. Run migration 003_fees_finance.sql.");
 	}
+	$hasReceipts = app_table_exists($conn, 'tbl_receipts');
 
 	$stmt = $conn->prepare("SELECT id, name FROM tbl_classes ORDER BY id");
 	$stmt->execute();
@@ -125,6 +127,7 @@ try {
 <?php if ($filterClass > 0 && $filterTerm > 0) { ?>
 <div class="tile mb-3">
   <h3 class="tile-title">Generate Invoices</h3>
+  <p class="text-muted mb-2">Cash workflow enabled: payments recorded by accounts office with official receipt numbers.</p>
   <form class="row g-3" method="POST" action="admin/core/generate_invoices">
 	<input type="hidden" name="class_id" value="<?php echo $filterClass; ?>">
 	<input type="hidden" name="term_id" value="<?php echo $filterTerm; ?>">
@@ -178,34 +181,35 @@ try {
 		  <td><?php echo number_format($paid, 2); ?></td>
 		  <td><b><?php echo number_format($bal, 2); ?></b></td>
 		  <td>
-			<div class="d-flex gap-2 align-items-start" style="min-width:400px;">
-			<form class="row g-2" method="POST" action="admin/core/add_payment" style="margin:0; flex:1;">
+			<?php
+			$latestReceiptId = 0;
+			$latestReceiptNo = '';
+			if ($hasReceipts) {
+				$stmtR = $conn->prepare("SELECT r.id, r.receipt_number FROM tbl_receipts r JOIN tbl_payments p ON p.id = r.payment_id WHERE p.invoice_id = ? ORDER BY r.id DESC LIMIT 1");
+				$stmtR->execute([(int)$inv['id']]);
+				$rRow = $stmtR->fetch(PDO::FETCH_ASSOC) ?: [];
+				$latestReceiptId = (int)($rRow['id'] ?? 0);
+				$latestReceiptNo = (string)($rRow['receipt_number'] ?? '');
+			}
+			?>
+			<div class="row g-2" style="min-width:380px;">
+			<form class="row g-2" method="POST" action="admin/core/add_payment" style="margin:0;">
 			  <input type="hidden" name="invoice_id" value="<?php echo (int)$inv['id']; ?>">
 			  <input type="hidden" name="class_id" value="<?php echo $filterClass; ?>">
 			  <input type="hidden" name="term_id" value="<?php echo $filterTerm; ?>">
-			  <div class="col-4">
-				<input class="form-control" name="amount" type="number" min="0" step="0.01" placeholder="Amount" required>
+			  <div class="col-5">
+				<input class="form-control" name="amount" type="number" min="0" step="0.01" placeholder="Cash amount" required>
 			  </div>
-			  <div class="col-4">
-				<select class="form-control" name="method">
-				  <option value="cash">Cash</option>
-				  <option value="mpesa">M-Pesa</option>
-				  <option value="bank">Bank</option>
-				  <option value="card">Card</option>
-				  <option value="other">Other</option>
-				</select>
-			  </div>
-			  <div class="col-4">
-				<input class="form-control" name="reference" placeholder="Ref (optional)">
+			  <div class="col-7">
+				<input class="form-control" name="reference" placeholder="Cashbook ref (optional)">
 			  </div>
 			  <div class="col-12 d-grid">
-				<button class="btn btn-sm btn-outline-primary" type="submit">Add Payment</button>
+				<button class="btn btn-sm btn-outline-primary" type="submit">Record Cash Payment</button>
 			  </div>
 			</form>
-			<div style="width:140px;">
-			  <a class="btn btn-sm btn-primary w-100" href="admin/mpesa_pay?invoice_id=<?php echo (int)$inv['id']; ?>"><i class="bi bi-phone me-1"></i>STK Push</a>
-			  <div class="text-muted mt-1" style="font-size:12px;">Auto posts payment</div>
-			</div>
+			<?php if ($latestReceiptId > 0): ?>
+			  <div class="col-12"><a class="btn btn-sm btn-secondary" target="_blank" href="receipt?id=<?php echo $latestReceiptId; ?>">Latest Receipt: <?php echo htmlspecialchars($latestReceiptNo); ?></a></div>
+			<?php endif; ?>
 			</div>
 		  </td>
 		</tr>
