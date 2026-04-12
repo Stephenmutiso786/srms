@@ -149,6 +149,7 @@ try {
 <li><a class="app-menu__item" href="student/elearning"><i class="app-menu__icon feather icon-book-open"></i><span class="app-menu__label">E-Learning</span></a></li>
 <li><a class="app-menu__item" href="student/results"><i class="app-menu__icon feather icon-bar-chart-2"></i><span class="app-menu__label">Results</span></a></li>
 <li><a class="app-menu__item active" href="student/report_card"><i class="app-menu__icon feather icon-file-text"></i><span class="app-menu__label">Report Card</span></a></li>
+<li><a class="app-menu__item" href="student/certificates"><i class="app-menu__icon feather icon-award"></i><span class="app-menu__label">Certificates</span></a></li>
 <li><a class="app-menu__item" href="student/fees"><i class="app-menu__icon feather icon-credit-card"></i><span class="app-menu__label">Fees</span></a></li>
 <li><a class="app-menu__item" href="student/attendance"><i class="app-menu__icon feather icon-check-square"></i><span class="app-menu__label">My Attendance</span></a></li>
 </ul>

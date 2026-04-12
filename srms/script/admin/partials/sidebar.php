@@ -2,7 +2,7 @@
 $currentPage = basename($_SERVER['PHP_SELF'], '.php');
 $studentPages = ['register_students', 'import_students', 'manage_students', 'students'];
 $isStudentsOpen = in_array($currentPage, $studentPages, true);
-$examPages = ['exams', 'exam_timetable', 'marks_review', 'publish_results', 'results_analytics', 'results_locks', 'report', 'report_settings', 'merit_list'];
+$examPages = ['exams', 'exam_timetable', 'marks_review', 'publish_results', 'results_analytics', 'results_locks', 'report', 'report_settings', 'merit_list', 'certificates'];
 $isExamsOpen = in_array($currentPage, $examPages, true);
 
 function app_menu_active($page)
@@ -63,6 +63,7 @@ function app_tree_active($page)
         <li><a class="treeview-item<?php echo app_tree_active('results_analytics'); ?>" href="admin/results_analytics"><i class="icon bi bi-circle-fill"></i> Results Analytics</a></li>
         <li><a class="treeview-item<?php echo app_tree_active('results_locks'); ?>" href="admin/results_locks"><i class="icon bi bi-circle-fill"></i> Results Locks</a></li>
         <li><a class="treeview-item<?php echo app_tree_active('report'); ?>" href="admin/report"><i class="icon bi bi-circle-fill"></i> Report Tool</a></li>
+        <li><a class="treeview-item<?php echo app_tree_active('certificates'); ?>" href="admin/certificates"><i class="icon bi bi-circle-fill"></i> Certificates</a></li>
         <li><a class="treeview-item<?php echo app_tree_active('merit_list'); ?>" href="admin/merit_list"><i class="icon bi bi-circle-fill"></i> Merit List</a></li>
         <li><a class="treeview-item<?php echo app_tree_active('report_settings'); ?>" href="admin/report_settings"><i class="icon bi bi-circle-fill"></i> Report Settings</a></li>
       </ul>
