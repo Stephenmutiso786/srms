@@ -69,16 +69,21 @@ function app_report_one_page_html(PDO $conn, array $payload): string
         $photoHtml = '<div style="width:78px;height:88px;border:1px solid #8ea0b2;text-align:center;line-height:88px;font-size:8pt;color:#555;">PHOTO</div>';
     }
 
-    $logoHtml = app_pdf_image_html('images/logo/' . WBLogo, 56, 0, WBName);
+    $schoolName = defined('WBName') ? (string)WBName : (defined('APP_NAME') ? (string)APP_NAME : 'School');
+    $schoolLogo = defined('WBLogo') ? (string)WBLogo : '';
+    $schoolAddress = defined('WBAddress') ? (string)WBAddress : '';
+    $schoolEmail = defined('WBEmail') ? (string)WBEmail : '';
+
+    $logoHtml = app_pdf_image_html('images/logo/' . $schoolLogo, 56, 0, $schoolName);
 
     return '
 <table width="100%" cellpadding="3" cellspacing="0" style="font-family:helvetica,sans-serif;">
 <tr>
     <td width="12%">' . $logoHtml . '</td>
     <td width="88%" style="text-align:right;">
-        <div style="font-size:14pt;font-weight:bold;">' . htmlspecialchars(WBName) . '</div>
-        <div style="font-size:9pt;">' . htmlspecialchars(WBAddress) . '</div>
-        <div style="font-size:9pt;">' . htmlspecialchars(WBEmail) . '</div>
+        <div style="font-size:14pt;font-weight:bold;">' . htmlspecialchars($schoolName) . '</div>
+        <div style="font-size:9pt;">' . htmlspecialchars($schoolAddress) . '</div>
+        <div style="font-size:9pt;">' . htmlspecialchars($schoolEmail) . '</div>
     </td>
 </tr>
 </table>

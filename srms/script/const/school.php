@@ -28,6 +28,30 @@ if (defined('APP_NAME') && (!defined('WBName') || WBName === '')) {
 	DEFINE('WBName', APP_NAME);
 }
 
+if (!defined('WBAddress')) {
+	$address = '';
+	try {
+		if (function_exists('app_setting_get')) {
+			$address = (string)app_setting_get($conn, 'school_address', '');
+		}
+	} catch (Throwable $e) {
+		$address = '';
+	}
+	DEFINE('WBAddress', $address);
+}
+
+if (!defined('WBEmail')) {
+	$email = '';
+	try {
+		if (function_exists('app_setting_get')) {
+			$email = (string)app_setting_get($conn, 'school_email', '');
+		}
+	} catch (Throwable $e) {
+		$email = '';
+	}
+	DEFINE('WBEmail', $email);
+}
+
 try {
 	if (!defined('WBLogo')) {
 		DEFINE('WBLogo', 'school_logo1711003619.png');
