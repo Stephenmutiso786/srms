@@ -34,11 +34,12 @@ try {
         . ' | Email Sent: ' . (int)$stats['sent_email'] . ', Email Failed: ' . (int)$stats['failed_email']
         . ' | Missing Contacts: ' . (int)$stats['missing_contacts']
         . ' | Fees Not Cleared: ' . (int)$stats['skipped_fees'];
+    $detailsHtml = app_results_delivery_report_html($stats);
 
     if ((int)$stats['sent_sms'] > 0 || (int)$stats['sent_email'] > 0) {
-        $_SESSION['reply'] = array(array('success', 'Result notifications sent. ' . $summary));
+        $_SESSION['reply'] = array(array('success', 'Result notifications sent. ' . $summary, array('html' => $detailsHtml)));
     } else {
-        $_SESSION['reply'] = array(array('danger', 'No notifications sent. ' . $summary));
+        $_SESSION['reply'] = array(array('danger', 'No notifications sent. ' . $summary, array('html' => $detailsHtml)));
     }
 
     header('location:../publish_results');

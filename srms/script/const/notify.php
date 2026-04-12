@@ -70,7 +70,7 @@ function app_send_email(PDO $conn, string $recipient, string $subject, string $m
 			}
 		} catch (Throwable $e) {
 	error_log("[".__FILE__.":".__LINE__." Throwable] " . $e->getMessage());
-	$error = "An internal error occurred.";
+	$error = $e->getMessage();
 		}
 	}
 

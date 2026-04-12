@@ -2,6 +2,7 @@
 if (isset($_SESSION['reply'])) {
 $alert_type = $_SESSION['reply'][0][0];
 $alert_msg = $_SESSION['reply'][0][1];
+$alert_html = isset($_SESSION['reply'][0][2]['html']) ? $_SESSION['reply'][0][2]['html'] : '';
 
 if ($alert_type == "danger") {
 $not_icon = "error";
@@ -12,10 +13,14 @@ $not_icon = $alert_type;
 
 <Script>
 Swal.fire({
-title: '<?php echo $alert_msg; ?>',
+title: <?php echo json_encode($alert_msg); ?>,
+<?php if ($alert_html !== '') { ?>
+html: <?php echo json_encode($alert_html); ?>,
+<?php } ?>
 icon: '<?php echo $not_icon; ?>',
 showDenyButton: false,
 confirmButtonText: 'Okay',
+width: '900px',
 })
 </script>
 <?php

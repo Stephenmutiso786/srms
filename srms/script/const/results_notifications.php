@@ -159,6 +159,72 @@ function app_results_temp_report_pdf(PDO $conn, array $ctx): ?array
     }
 }
 
+function app_results_record_delivery(array &$details, string $channel, string $recipient, string $studentName, string $status, string $reason): void
+{
+    $details[] = [
+        'channel' => strtoupper($channel),
+        'recipient' => $recipient,
+        'student' => $studentName,
+        'status' => $status,
+        'reason' => $reason,
+    ];
+}
+
+function app_results_delivery_report_html(array $stats): string
+{
+    $delivered = is_array($stats['delivered'] ?? null) ? $stats['delivered'] : [];
+    $failed = is_array($stats['failed'] ?? null) ? $stats['failed'] : [];
+
+    $html = '<div style="text-align:left; line-height:1.5">';
+    $html .= '<p><strong>Delivery Summary</strong><br>'
+        . 'SMS Sent: ' . (int)($stats['sent_sms'] ?? 0) . ', SMS Failed: ' . (int)($stats['failed_sms'] ?? 0) . '<br>'
+        . 'Email Sent: ' . (int)($stats['sent_email'] ?? 0) . ', Email Failed: ' . (int)($stats['failed_email'] ?? 0) . '<br>'
+        . 'Missing Contacts: ' . (int)($stats['missing_contacts'] ?? 0) . '<br>'
+        . 'Fees Not Cleared: ' . (int)($stats['skipped_fees'] ?? 0) . '</p>';
+
+    $html .= '<p><strong>Delivered</strong></p>';
+    if (!$delivered) {
+        $html .= '<p>None</p>';
+    } else {
+        $html .= '<ul style="margin:0 0 1rem 1.25rem; padding:0;">';
+        foreach (array_slice($delivered, 0, 40) as $row) {
+            $html .= '<li>'
+                . htmlspecialchars((string)($row['channel'] ?? '')) . ': '
+                . htmlspecialchars((string)($row['recipient'] ?? ''))
+                . ' - ' . htmlspecialchars((string)($row['student'] ?? ''))
+                . ' (' . htmlspecialchars((string)($row['status'] ?? 'delivered')) . ')'
+                . '</li>';
+        }
+        if (count($delivered) > 40) {
+            $html .= '<li>And ' . (count($delivered) - 40) . ' more delivered messages.</li>';
+        }
+        $html .= '</ul>';
+    }
+
+    $html .= '<p><strong>Not Delivered</strong></p>';
+    if (!$failed) {
+        $html .= '<p>None</p>';
+    } else {
+        $html .= '<ul style="margin:0 0 1rem 1.25rem; padding:0;">';
+        foreach (array_slice($failed, 0, 40) as $row) {
+            $html .= '<li>'
+                . htmlspecialchars((string)($row['channel'] ?? '')) . ': '
+                . htmlspecialchars((string)($row['recipient'] ?? ''))
+                . ' - ' . htmlspecialchars((string)($row['student'] ?? ''))
+                . ' | Reason: ' . htmlspecialchars((string)($row['reason'] ?? 'Unknown error'))
+                . '</li>';
+        }
+        if (count($failed) > 40) {
+            $html .= '<li>And ' . (count($failed) - 40) . ' more failed messages.</li>';
+        }
+        $html .= '</ul>';
+    }
+
+    $html .= '</div>';
+
+    return $html;
+}
+
 function app_results_send_notifications(PDO $conn, int $examId, string $channel = 'both'): array
 {
     $channel = strtolower(trim($channel));
@@ -221,6 +287,8 @@ function app_results_send_notifications(PDO $conn, int $examId, string $channel 
     $failedEmail = 0;
     $missingContacts = 0;
     $skippedFees = 0;
+    $delivered = [];
+    $failed = [];
 
     foreach ($students as $student) {
         $studentId = (string)($student['id'] ?? '');
@@ -289,9 +357,11 @@ function app_results_send_notifications(PDO $conn, int $examId, string $channel 
 
         if (($channel === 'sms' || $channel === 'both') && empty($smsTargets) && ($channel !== 'email')) {
             $missingContacts++;
+            app_results_record_delivery($failed, 'sms', 'N/A', $studentName, 'failed', 'No SMS contact found for parent or student');
         }
         if (($channel === 'email' || $channel === 'both') && empty($emailTargets) && ($channel !== 'sms')) {
             $missingContacts++;
+            app_results_record_delivery($failed, 'email', 'N/A', $studentName, 'failed', 'No email contact found for parent or student');
         }
 
         if ($channel === 'sms' || $channel === 'both') {
@@ -302,7 +372,13 @@ function app_results_send_notifications(PDO $conn, int $examId, string $channel 
                 if (isset($sentMap[$key])) { continue; }
                 $sentMap[$key] = true;
                 $result = app_send_sms($conn, $to, $smsMessage);
-                if (!empty($result['ok'])) { $sentSms++; } else { $failedSms++; }
+                if (!empty($result['ok'])) {
+                    $sentSms++;
+                    app_results_record_delivery($delivered, 'sms', $to, $studentName, 'delivered', 'Sent successfully');
+                } else {
+                    $failedSms++;
+                    app_results_record_delivery($failed, 'sms', $to, $studentName, 'failed', (string)($result['error'] ?? 'SMS send failed'));
+                }
             }
         }
 
@@ -319,10 +395,17 @@ function app_results_send_notifications(PDO $conn, int $examId, string $channel 
                 $sentMap[$key] = true;
                 if (!filter_var($to, FILTER_VALIDATE_EMAIL)) {
                     $failedEmail++;
+                    app_results_record_delivery($failed, 'email', $to, $studentName, 'failed', 'Invalid email address');
                     continue;
                 }
                 $result = app_send_email($conn, $to, $emailSubject, $emailHtml, $attachments);
-                if (!empty($result['ok'])) { $sentEmail++; } else { $failedEmail++; }
+                if (!empty($result['ok'])) {
+                    $sentEmail++;
+                    app_results_record_delivery($delivered, 'email', $to, $studentName, 'delivered', 'Sent successfully');
+                } else {
+                    $failedEmail++;
+                    app_results_record_delivery($failed, 'email', $to, $studentName, 'failed', (string)($result['error'] ?? 'Email send failed'));
+                }
             }
 
             if ($attachment && isset($attachment['path']) && is_file((string)$attachment['path'])) {
@@ -339,5 +422,7 @@ function app_results_send_notifications(PDO $conn, int $examId, string $channel 
         'missing_contacts' => $missingContacts,
         'skipped_fees' => $skippedFees,
         'students' => count($students),
+        'delivered' => $delivered,
+        'failed' => $failed,
     ];
 }
