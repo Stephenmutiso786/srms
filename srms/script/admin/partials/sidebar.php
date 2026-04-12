@@ -1,6 +1,6 @@
 <?php
 $currentPage = basename($_SERVER['PHP_SELF'], '.php');
-$studentPages = ['register_students', 'import_students', 'manage_students', 'students'];
+$studentPages = ['register_students', 'import_students', 'manage_students', 'students', 'student_leaders'];
 $isStudentsOpen = in_array($currentPage, $studentPages, true);
 $certificatePages = ['certificates', 'promotions', 'promotion_approvals'];
 $isCertificatesOpen = in_array($currentPage, $certificatePages, true);
@@ -42,6 +42,7 @@ function app_tree_active($page)
         <li><a class="treeview-item<?php echo app_tree_active('register_students'); ?>" href="admin/register_students"><i class="icon bi bi-circle-fill"></i> Register Students</a></li>
         <li><a class="treeview-item<?php echo app_tree_active('import_students'); ?>" href="admin/import_students"><i class="icon bi bi-circle-fill"></i> Import Students</a></li>
         <li><a class="treeview-item<?php echo app_tree_active('manage_students'); ?>" href="admin/manage_students"><i class="icon bi bi-circle-fill"></i> Manage Students</a></li>
+        <li><a class="treeview-item<?php echo app_tree_active('student_leaders'); ?>" href="admin/student_leaders"><i class="icon bi bi-circle-fill"></i> Student Leadership</a></li>
       </ul>
     </li>
     <li><a class="app-menu__item<?php echo app_menu_active('parents'); ?>" href="admin/parents"><i class="app-menu__icon feather icon-user-plus"></i><span class="app-menu__label">Parents</span></a></li>
@@ -82,6 +83,7 @@ function app_tree_active($page)
     <li><a class="app-menu__item<?php echo app_menu_active('notifications'); ?>" href="admin/notifications"><i class="app-menu__icon feather icon-bell"></i><span class="app-menu__label">Notifications</span></a></li>
     <li><a class="app-menu__item<?php echo app_menu_active('audit_logs'); ?>" href="admin/audit_logs"><i class="app-menu__icon feather icon-shield"></i><span class="app-menu__label">Audit Logs</span></a></li>
     <li><a class="app-menu__item<?php echo app_menu_active('roles'); ?>" href="admin/roles"><i class="app-menu__icon feather icon-shield"></i><span class="app-menu__label">Roles & Permissions</span></a></li>
+    <li><a class="app-menu__item<?php echo app_menu_active('bom'); ?>" href="admin/bom"><i class="app-menu__icon feather icon-briefcase"></i><span class="app-menu__label">BOM Management</span></a></li>
     <li><a class="app-menu__item<?php echo app_menu_active('mpesa'); ?>" href="admin/mpesa"><i class="app-menu__icon feather icon-smartphone"></i><span class="app-menu__label">M-Pesa</span></a></li>
     <li><a class="app-menu__item<?php echo app_menu_active('smtp'); ?>" href="admin/smtp"><i class="app-menu__icon feather icon-mail"></i><span class="app-menu__label">SMTP Settings</span></a></li>
     <li><a class="app-menu__item<?php echo app_menu_active('migrations'); ?>" href="admin/migrations"><i class="app-menu__icon feather icon-database"></i><span class="app-menu__label">Migrations</span></a></li>

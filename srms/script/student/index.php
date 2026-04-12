@@ -222,6 +222,7 @@ body.app{background:var(--student-bg)}
 		</div>
 		<nav class="student-menu">
 			<a class="active" href="student"><i class="bi bi-grid"></i><span>Dashboard</span></a>
+			<a href="student/leadership"><i class="bi bi-people"></i><span>Leadership</span></a>
 			<a href="student/results"><i class="bi bi-graph-up"></i><span>Analytics</span></a>
 			<a href="student/report_card"><i class="bi bi-file-earmark-text"></i><span>Report Card</span></a>
 			<a href="student/subjects"><i class="bi bi-journal-bookmark"></i><span>Subjects</span></a>

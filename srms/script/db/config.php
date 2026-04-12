@@ -218,6 +218,9 @@ function app_ensure_school_roles(PDO $conn): void
 		['students.manage', 'Manage students'],
 		['staff.manage', 'Manage staff and role assignment'],
 		['teacher.allocate', 'Allocate teachers to subjects/classes'],
+		['student.leadership.manage', 'Manage student leadership assignments and reports'],
+		['bom.manage', 'Manage Board of Management records and meetings'],
+		['bom.view', 'View Board of Management records'],
 		['attendance.manage', 'Manage attendance'],
 		['exams.manage', 'Manage exams and timetable'],
 		['marks.enter', 'Enter marks and assessments'],
@@ -246,12 +249,12 @@ function app_ensure_school_roles(PDO $conn): void
 	$roles = [
 		['Headteacher', 100, 'Overall in charge of school operations, policy, staff and performance.', [
 			'system.manage','audit.view','students.manage','staff.manage','attendance.manage','exams.manage','marks.enter',
-			'results.approve','results.lock','results.unlock','report.generate','report.view','teacher.allocate','finance.manage','finance.view',
+			'results.approve','results.lock','results.unlock','report.generate','report.view','teacher.allocate','student.leadership.manage','bom.manage','bom.view','finance.manage','finance.view',
 			'communication.manage','transport.manage','library.manage','inventory.manage'
 		]],
 		['Deputy Headteacher', 95, 'Assists the headteacher and runs day-to-day academics, discipline, timetable and attendance.', [
 			'audit.view','students.manage','staff.manage','attendance.manage','exams.manage','marks.enter','results.approve',
-			'results.lock','results.unlock','report.generate','report.view','teacher.allocate','finance.view','communication.manage','transport.manage',
+			'results.lock','results.unlock','report.generate','report.view','teacher.allocate','student.leadership.manage','bom.view','finance.view','communication.manage','transport.manage',
 			'library.manage','inventory.manage'
 		]],
 		['HOD Academics', 90, 'Oversees teaching and learning and syllabus coverage.', ['attendance.manage','exams.manage','marks.enter','results.approve','report.generate','report.view','teacher.allocate','communication.manage']],
@@ -264,6 +267,9 @@ function app_ensure_school_roles(PDO $conn): void
 		['Subject Teacher', 70, 'Teaches subjects across classes and records continuous assessment.', ['marks.enter','report.view']],
 		['Examination Officer', 88, 'Supports HOD Exams in recording marks, report generation and analysis.', ['exams.manage','marks.enter','report.generate','report.view','communication.manage']],
 		['Bursar / Accounts Clerk', 80, 'Handles fees, payments and school financial records.', ['finance.manage','finance.view']],
+		['BOM Chairperson', 82, 'Heads Board of Management and oversees governance meetings and decisions.', ['bom.manage','bom.view','finance.view','report.view','audit.view']],
+		['BOM Treasurer', 79, 'Oversees BOM financial approvals and controls.', ['bom.manage','bom.view','finance.view','audit.view']],
+		['BOM Member', 74, 'Participates in BOM meetings and governance decisions.', ['bom.view']],
 		['Secretary / Office Admin', 65, 'Manages communication, records and office administration.', ['students.manage','communication.manage','report.view']],
 		['ICT Teacher / System Admin', 92, 'Maintains school digital systems, e-learning and technical operations.', ['system.manage','audit.view','exams.manage','report.generate','report.view','communication.manage']],
 		['Guidance and Counselling Teacher', 72, 'Supports learner welfare, behaviour and counselling records.', ['attendance.manage','report.view','communication.manage']],
@@ -333,6 +339,278 @@ function app_staff_primary_title(PDO $conn, int $staffId, string $level = ''): s
 	}
 
 	return app_level_title_label((int)$level);
+}
+
+function app_student_role_catalog(): array
+{
+	return [
+		'head_boy' => 'Head Boy',
+		'head_girl' => 'Head Girl',
+		'deputy_head_boy' => 'Deputy Head Boy',
+		'deputy_head_girl' => 'Deputy Head Girl',
+		'class_prefect' => 'Class Prefect',
+		'dining_prefect' => 'Dining Prefect',
+		'sanitation_prefect' => 'Sanitation / Environment Prefect',
+		'time_keeper' => 'Time Keeper',
+		'library_prefect' => 'Library Prefect',
+		'games_captain' => 'Games / Sports Captain',
+		'dormitory_prefect' => 'Dormitory Prefect',
+		'class_monitor' => 'Class Monitor',
+		'class_rep' => 'Class Representative',
+	];
+}
+
+function app_ensure_student_roles_table(PDO $conn): void
+{
+	static $done = false;
+	if ($done) {
+		return;
+	}
+
+	if (app_table_exists($conn, 'tbl_student_roles')) {
+		if (!app_column_exists($conn, 'tbl_student_roles', 'responsibilities')) {
+			if (defined('DBDriver') && DBDriver === 'pgsql') {
+				$conn->exec("ALTER TABLE tbl_student_roles ADD COLUMN responsibilities text NOT NULL DEFAULT ''");
+			} else {
+				$conn->exec("ALTER TABLE tbl_student_roles ADD COLUMN responsibilities text NOT NULL");
+			}
+		}
+		$done = true;
+		return;
+	}
+
+	if (defined('DBDriver') && DBDriver === 'pgsql') {
+		$conn->exec("CREATE TABLE IF NOT EXISTS tbl_student_roles (
+			id integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+			student_id varchar(20) NOT NULL,
+			class_id integer NOT NULL,
+			role_code varchar(40) NOT NULL,
+			responsibilities text NOT NULL DEFAULT '',
+			term_id integer NULL,
+			year integer NOT NULL,
+			status integer NOT NULL DEFAULT 1,
+			created_by integer NULL,
+			created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			CONSTRAINT tbl_student_roles_student_fk FOREIGN KEY (student_id) REFERENCES tbl_students (id) ON DELETE CASCADE,
+			CONSTRAINT tbl_student_roles_class_fk FOREIGN KEY (class_id) REFERENCES tbl_classes (id) ON DELETE CASCADE,
+			CONSTRAINT tbl_student_roles_term_fk FOREIGN KEY (term_id) REFERENCES tbl_terms (id) ON DELETE SET NULL,
+			CONSTRAINT tbl_student_roles_staff_fk FOREIGN KEY (created_by) REFERENCES tbl_staff (id) ON DELETE SET NULL,
+			CONSTRAINT tbl_student_roles_unique UNIQUE (student_id, class_id, role_code, term_id, year)
+		)");
+		$conn->exec("CREATE INDEX IF NOT EXISTS tbl_student_roles_class_term_idx ON tbl_student_roles (class_id, term_id, year, status)");
+	} else {
+		$conn->exec("CREATE TABLE IF NOT EXISTS tbl_student_roles (
+			id int NOT NULL AUTO_INCREMENT PRIMARY KEY,
+			student_id varchar(20) NOT NULL,
+			class_id int NOT NULL,
+			role_code varchar(40) NOT NULL,
+			responsibilities text NOT NULL,
+			term_id int NULL,
+			year int NOT NULL,
+			status int NOT NULL DEFAULT 1,
+			created_by int NULL,
+			created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			UNIQUE KEY tbl_student_roles_unique (student_id, class_id, role_code, term_id, year),
+			KEY tbl_student_roles_class_term_idx (class_id, term_id, year, status),
+			CONSTRAINT tbl_student_roles_student_fk FOREIGN KEY (student_id) REFERENCES tbl_students (id) ON DELETE CASCADE,
+			CONSTRAINT tbl_student_roles_class_fk FOREIGN KEY (class_id) REFERENCES tbl_classes (id) ON DELETE CASCADE,
+			CONSTRAINT tbl_student_roles_term_fk FOREIGN KEY (term_id) REFERENCES tbl_terms (id) ON DELETE SET NULL,
+			CONSTRAINT tbl_student_roles_staff_fk FOREIGN KEY (created_by) REFERENCES tbl_staff (id) ON DELETE SET NULL
+		)");
+	}
+
+	$done = true;
+}
+
+function app_ensure_student_leadership_reports_table(PDO $conn): void
+{
+	static $done = false;
+	if ($done || app_table_exists($conn, 'tbl_student_leadership_reports')) {
+		$done = true;
+		return;
+	}
+
+	if (defined('DBDriver') && DBDriver === 'pgsql') {
+		$conn->exec("CREATE TABLE IF NOT EXISTS tbl_student_leadership_reports (
+			id integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+			student_id varchar(20) NOT NULL,
+			class_id integer NULL,
+			role_code varchar(40) NOT NULL,
+			term_id integer NULL,
+			year integer NOT NULL,
+			report_type varchar(50) NOT NULL DEFAULT 'discipline',
+			title varchar(200) NOT NULL,
+			details text NOT NULL,
+			status varchar(20) NOT NULL DEFAULT 'open',
+			handled_by integer NULL,
+			handled_at timestamp NULL,
+			created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			CONSTRAINT tbl_student_leadership_reports_student_fk FOREIGN KEY (student_id) REFERENCES tbl_students (id) ON DELETE CASCADE,
+			CONSTRAINT tbl_student_leadership_reports_class_fk FOREIGN KEY (class_id) REFERENCES tbl_classes (id) ON DELETE SET NULL,
+			CONSTRAINT tbl_student_leadership_reports_term_fk FOREIGN KEY (term_id) REFERENCES tbl_terms (id) ON DELETE SET NULL,
+			CONSTRAINT tbl_student_leadership_reports_staff_fk FOREIGN KEY (handled_by) REFERENCES tbl_staff (id) ON DELETE SET NULL
+		)");
+	} else {
+		$conn->exec("CREATE TABLE IF NOT EXISTS tbl_student_leadership_reports (
+			id int NOT NULL AUTO_INCREMENT PRIMARY KEY,
+			student_id varchar(20) NOT NULL,
+			class_id int NULL,
+			role_code varchar(40) NOT NULL,
+			term_id int NULL,
+			year int NOT NULL,
+			report_type varchar(50) NOT NULL DEFAULT 'discipline',
+			title varchar(200) NOT NULL,
+			details text NOT NULL,
+			status varchar(20) NOT NULL DEFAULT 'open',
+			handled_by int NULL,
+			handled_at timestamp NULL,
+			created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			KEY tbl_student_leadership_reports_lookup (class_id, term_id, year, status),
+			CONSTRAINT tbl_student_leadership_reports_student_fk FOREIGN KEY (student_id) REFERENCES tbl_students (id) ON DELETE CASCADE,
+			CONSTRAINT tbl_student_leadership_reports_class_fk FOREIGN KEY (class_id) REFERENCES tbl_classes (id) ON DELETE SET NULL,
+			CONSTRAINT tbl_student_leadership_reports_term_fk FOREIGN KEY (term_id) REFERENCES tbl_terms (id) ON DELETE SET NULL,
+			CONSTRAINT tbl_student_leadership_reports_staff_fk FOREIGN KEY (handled_by) REFERENCES tbl_staff (id) ON DELETE SET NULL
+		)");
+	}
+
+	$done = true;
+}
+
+function app_bom_role_catalog(): array
+{
+	return [
+		'chairperson' => 'Chairperson',
+		'secretary_headteacher' => 'Secretary (Headteacher)',
+		'treasurer' => 'Treasurer',
+		'parent_representative' => 'Parent Representative',
+		'teacher_representative' => 'Teacher Representative',
+		'sponsor_representative' => 'Sponsor Representative',
+		'community_representative' => 'Local Community Representative',
+		'special_interest' => 'Special Interest Member',
+	];
+}
+
+function app_ensure_bom_tables(PDO $conn): void
+{
+	if (!app_table_exists($conn, 'tbl_bom_members')) {
+		if (defined('DBDriver') && DBDriver === 'pgsql') {
+			$conn->exec("CREATE TABLE IF NOT EXISTS tbl_bom_members (
+				id integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+				full_name varchar(160) NOT NULL,
+				role_code varchar(60) NOT NULL,
+				representing varchar(120) NOT NULL DEFAULT '',
+				phone varchar(30) NOT NULL DEFAULT '',
+				email varchar(120) NOT NULL DEFAULT '',
+				term_start date NULL,
+				term_end date NULL,
+				status integer NOT NULL DEFAULT 1,
+				created_by integer NULL,
+				created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				CONSTRAINT tbl_bom_members_staff_fk FOREIGN KEY (created_by) REFERENCES tbl_staff (id) ON DELETE SET NULL
+			)");
+		} else {
+			$conn->exec("CREATE TABLE IF NOT EXISTS tbl_bom_members (
+				id int NOT NULL AUTO_INCREMENT PRIMARY KEY,
+				full_name varchar(160) NOT NULL,
+				role_code varchar(60) NOT NULL,
+				representing varchar(120) NOT NULL DEFAULT '',
+				phone varchar(30) NOT NULL DEFAULT '',
+				email varchar(120) NOT NULL DEFAULT '',
+				term_start date NULL,
+				term_end date NULL,
+				status int NOT NULL DEFAULT 1,
+				created_by int NULL,
+				created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				CONSTRAINT tbl_bom_members_staff_fk FOREIGN KEY (created_by) REFERENCES tbl_staff (id) ON DELETE SET NULL
+			)");
+		}
+	}
+
+	if (!app_table_exists($conn, 'tbl_bom_meetings')) {
+		if (defined('DBDriver') && DBDriver === 'pgsql') {
+			$conn->exec("CREATE TABLE IF NOT EXISTS tbl_bom_meetings (
+				id integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+				meeting_date date NOT NULL,
+				title varchar(180) NOT NULL,
+				agenda text NOT NULL,
+				minutes text NOT NULL DEFAULT '',
+				decisions text NOT NULL DEFAULT '',
+				status varchar(20) NOT NULL DEFAULT 'planned',
+				created_by integer NULL,
+				created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				CONSTRAINT tbl_bom_meetings_staff_fk FOREIGN KEY (created_by) REFERENCES tbl_staff (id) ON DELETE SET NULL
+			)");
+		} else {
+			$conn->exec("CREATE TABLE IF NOT EXISTS tbl_bom_meetings (
+				id int NOT NULL AUTO_INCREMENT PRIMARY KEY,
+				meeting_date date NOT NULL,
+				title varchar(180) NOT NULL,
+				agenda text NOT NULL,
+				minutes text NOT NULL,
+				decisions text NOT NULL,
+				status varchar(20) NOT NULL DEFAULT 'planned',
+				created_by int NULL,
+				created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				CONSTRAINT tbl_bom_meetings_staff_fk FOREIGN KEY (created_by) REFERENCES tbl_staff (id) ON DELETE SET NULL
+			)");
+		}
+	}
+
+	if (!app_table_exists($conn, 'tbl_bom_financial_approvals')) {
+		if (defined('DBDriver') && DBDriver === 'pgsql') {
+			$conn->exec("CREATE TABLE IF NOT EXISTS tbl_bom_financial_approvals (
+				id integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+				approval_date date NOT NULL,
+				item_title varchar(180) NOT NULL,
+				amount numeric(12,2) NOT NULL DEFAULT 0,
+				status varchar(20) NOT NULL DEFAULT 'pending',
+				notes text NOT NULL DEFAULT '',
+				approved_by_member_id integer NULL,
+				created_by integer NULL,
+				created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				CONSTRAINT tbl_bom_financial_approvals_member_fk FOREIGN KEY (approved_by_member_id) REFERENCES tbl_bom_members (id) ON DELETE SET NULL,
+				CONSTRAINT tbl_bom_financial_approvals_staff_fk FOREIGN KEY (created_by) REFERENCES tbl_staff (id) ON DELETE SET NULL
+			)");
+		} else {
+			$conn->exec("CREATE TABLE IF NOT EXISTS tbl_bom_financial_approvals (
+				id int NOT NULL AUTO_INCREMENT PRIMARY KEY,
+				approval_date date NOT NULL,
+				item_title varchar(180) NOT NULL,
+				amount decimal(12,2) NOT NULL DEFAULT 0,
+				status varchar(20) NOT NULL DEFAULT 'pending',
+				notes text NOT NULL,
+				approved_by_member_id int NULL,
+				created_by int NULL,
+				created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				CONSTRAINT tbl_bom_financial_approvals_member_fk FOREIGN KEY (approved_by_member_id) REFERENCES tbl_bom_members (id) ON DELETE SET NULL,
+				CONSTRAINT tbl_bom_financial_approvals_staff_fk FOREIGN KEY (created_by) REFERENCES tbl_staff (id) ON DELETE SET NULL
+			)");
+		}
+	}
+
+	if (!app_table_exists($conn, 'tbl_bom_documents')) {
+		if (defined('DBDriver') && DBDriver === 'pgsql') {
+			$conn->exec("CREATE TABLE IF NOT EXISTS tbl_bom_documents (
+				id integer GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+				title varchar(180) NOT NULL,
+				document_type varchar(80) NOT NULL DEFAULT 'policy',
+				file_path varchar(255) NOT NULL,
+				uploaded_by integer NULL,
+				uploaded_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				CONSTRAINT tbl_bom_documents_staff_fk FOREIGN KEY (uploaded_by) REFERENCES tbl_staff (id) ON DELETE SET NULL
+			)");
+		} else {
+			$conn->exec("CREATE TABLE IF NOT EXISTS tbl_bom_documents (
+				id int NOT NULL AUTO_INCREMENT PRIMARY KEY,
+				title varchar(180) NOT NULL,
+				document_type varchar(80) NOT NULL DEFAULT 'policy',
+				file_path varchar(255) NOT NULL,
+				uploaded_by int NULL,
+				uploaded_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				CONSTRAINT tbl_bom_documents_staff_fk FOREIGN KEY (uploaded_by) REFERENCES tbl_staff (id) ON DELETE SET NULL
+			)");
+		}
+	}
 }
 
 function app_sms_token_segments(string $message): int
