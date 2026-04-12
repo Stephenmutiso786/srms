@@ -166,21 +166,7 @@ try {
 <style>
 :root{--student-primary:#00695C;--student-primary-deep:#00544a;--student-primary-soft:#e7f1ef;--student-bg:#f4f7f6;--student-card:#ffffff;--student-text:#263238;--student-muted:#6b7c93}
 body.app{background:var(--student-bg)}
-.student-shell{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
-.student-side{background:#fff;color:var(--student-text);padding:18px 14px;position:sticky;top:0;height:100vh;border-right:1px solid #e3ebe8}
-.student-brand{display:flex;align-items:center;gap:10px;padding:8px 10px 18px;border-bottom:1px solid #e7efec;margin-bottom:14px}
-.student-brand-mark{width:36px;height:36px;border-radius:12px;background:var(--student-primary-soft);color:var(--student-primary);display:flex;align-items:center;justify-content:center;font-weight:800}
-.student-brand-title{font-weight:800;line-height:1.1}
-.student-brand-sub{font-size:.75rem;color:var(--student-muted)}
-.student-menu{display:grid;gap:4px;margin-top:8px}
-.student-menu a{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;color:#4a5a68;text-decoration:none;font-size:.92rem}
-.student-menu a.active,.student-menu a:hover{background:var(--student-primary-soft);color:var(--student-primary);font-weight:700}
-.student-main{padding:0 0 28px}
-.student-topbar{background:#fff;border-bottom:1px solid #e7eef5;padding:12px 24px;display:flex;justify-content:space-between;align-items:center;gap:12px}
-.student-tabbar{background:#fdfefe;border-bottom:1px solid #e9eef5;padding:0 24px;display:flex;gap:18px}
-.student-tabbar a{padding:11px 0;color:#607082;text-decoration:none;font-weight:700;font-size:.86rem;border-bottom:3px solid transparent}
-.student-tabbar a.active{color:var(--student-primary-deep);border-bottom-color:var(--student-primary)}
-.student-content{padding:20px 24px}
+.portal-content{padding:20px 0}
 .hero-banner{background:linear-gradient(135deg,var(--student-primary),#0b7d6d);border-radius:16px;padding:16px 18px;color:#fff;box-shadow:0 16px 40px rgba(0,105,92,.16);margin-bottom:18px}
 .profile-card{background:#fff;border:1px solid #e5edf5;border-radius:18px;padding:16px 18px;margin-bottom:18px}
 .profile-head{display:flex;align-items:center;gap:14px}
@@ -207,48 +193,51 @@ body.app{background:var(--student-bg)}
 .bottom-panel{margin-top:18px}
 .note-list{display:grid;gap:10px}
 .note-item{background:#fff;border:1px solid #e8eef4;border-radius:14px;padding:12px 14px}
-@media (max-width: 1100px){.student-shell{grid-template-columns:1fr}.student-side{position:relative;height:auto}.analytics-layout{grid-template-columns:1fr}}
+@media (max-width: 1100px){.analytics-layout{grid-template-columns:1fr}}
 </style>
 </head>
-<body class="app">
-<div class="student-shell">
-	<aside class="student-side">
-		<div class="student-brand">
-			<div class="student-brand-mark">E</div>
-			<div>
-				<div class="student-brand-title">Elimu Hub</div>
-				<div class="student-brand-sub">Student Portal</div>
-			</div>
-		</div>
-		<nav class="student-menu">
-			<a class="active" href="student"><i class="bi bi-grid"></i><span>Dashboard</span></a>
-			<a href="student/leadership"><i class="bi bi-people"></i><span>Leadership</span></a>
-			<a href="student/results"><i class="bi bi-graph-up"></i><span>Analytics</span></a>
-			<a href="student/report_card"><i class="bi bi-file-earmark-text"></i><span>Report Card</span></a>
-			<a href="student/subjects"><i class="bi bi-journal-bookmark"></i><span>Subjects</span></a>
-			<a href="student/attendance"><i class="bi bi-check2-square"></i><span>Attendance</span></a>
-			<a href="student/elearning"><i class="bi bi-laptop"></i><span>Learning</span></a>
-			<a href="student/exam_timetable"><i class="bi bi-calendar3"></i><span>Exam Timetable</span></a>
-			<a href="student/view"><i class="bi bi-person-circle"></i><span>Profile</span></a>
-		</nav>
-	</aside>
+<body class="app sidebar-mini">
+<header class="app-header"><a class="app-header__logo" href="javascript:void(0);"><?php echo APP_NAME; ?></a>
+<a class="app-sidebar__toggle" href="#" data-toggle="sidebar" aria-label="Hide Sidebar"></a>
+<ul class="app-nav">
+<li class="dropdown"><a class="app-nav__item" href="#" data-bs-toggle="dropdown" aria-label="Open Profile Menu"><i class="bi bi-person fs-4"></i></a>
+<ul class="dropdown-menu settings-menu dropdown-menu-right">
+<li><a class="dropdown-item" href="student/settings"><i class="bi bi-person me-2 fs-5"></i> Change Password</a></li>
+<li><a class="dropdown-item" href="logout"><i class="bi bi-box-arrow-right me-2 fs-5"></i> Logout</a></li>
+</ul>
+</li>
+</ul>
+</header>
 
-	<div class="student-main">
-		<div class="student-topbar">
-			<div class="fw-bold"><?php echo htmlspecialchars(WBName); ?></div>
-			<div class="d-flex align-items-center gap-3">
-				<div class="small text-muted"><?php echo htmlspecialchars($studentName); ?></div>
-				<a class="text-decoration-none" href="logout"><i class="bi bi-box-arrow-right"></i></a>
-			</div>
-		</div>
-		<div class="student-tabbar">
-			<a class="active" href="student">Overview</a>
-			<a href="student/results">Performance</a>
-			<a href="student/report_card">Report Card</a>
-			<a href="student/elearning">E-Learning</a>
-		</div>
+<div class="app-sidebar__overlay" data-toggle="sidebar"></div>
+<aside class="app-sidebar">
+<div class="app-sidebar__user">
+<div>
+<p class="app-sidebar__user-name"><?php echo $fname.' '.$lname; ?></p>
+<p class="app-sidebar__user-designation">Student</p>
+</div>
+</div>
+<ul class="app-menu">
+<li><a class="app-menu__item active" href="student"><i class="app-menu__icon feather icon-monitor"></i><span class="app-menu__label">Dashboard</span></a></li>
+<li><a class="app-menu__item" href="student/leadership"><i class="app-menu__icon feather icon-users"></i><span class="app-menu__label">Leadership</span></a></li>
+<li><a class="app-menu__item" href="student/elearning"><i class="app-menu__icon feather icon-book-open"></i><span class="app-menu__label">E-Learning</span></a></li>
+<li><a class="app-menu__item" href="student/view"><i class="app-menu__icon feather icon-user"></i><span class="app-menu__label">My Profile</span></a></li>
+<li><a class="app-menu__item" href="student/subjects"><i class="app-menu__icon feather icon-book-open"></i><span class="app-menu__label">My Subjects</span></a></li>
+<li><a class="app-menu__item" href="student/attendance"><i class="app-menu__icon feather icon-check-square"></i><span class="app-menu__label">My Attendance</span></a></li>
+<li><a class="app-menu__item" href="student/results"><i class="app-menu__icon feather icon-file-text"></i><span class="app-menu__label">My Examination Results</span></a></li>
+<li><a class="app-menu__item" href="student/report_card"><i class="app-menu__icon feather icon-file-text"></i><span class="app-menu__label">Report Card</span></a></li>
+</ul>
+</aside>
 
-		<main class="student-content">
+<main class="app-content">
+	<div class="app-title">
+		<div>
+			<h1>Student Dashboard</h1>
+			<p><?php echo htmlspecialchars($studentName); ?><?php echo !empty($act_class) ? ' - '.htmlspecialchars((string)$act_class) : ''; ?></p>
+		</div>
+	</div>
+
+	<div class="portal-content">
 			<?php if ($error !== '') { ?>
 			<div class="analytics-panel"><div class="panel-body"><div class="alert alert-danger mb-0"><?php echo htmlspecialchars($error); ?></div></div></div>
 			<?php } else { ?>
@@ -383,9 +372,8 @@ body.app{background:var(--student-bg)}
 				</section>
 			</div>
 			<?php } ?>
-		</main>
 	</div>
-</div>
+</main>
 
 <script src="js/jquery-3.7.0.min.js"></script>
 <script src="js/bootstrap.min.js"></script>
