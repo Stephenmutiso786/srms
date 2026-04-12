@@ -210,22 +210,67 @@ function app_ensure_school_roles(PDO $conn): void
 	if (!app_table_exists($conn, 'tbl_roles') || !app_table_exists($conn, 'tbl_permissions') || !app_table_exists($conn, 'tbl_role_permissions')) {
 		return;
 	}
+	$isPgsql = (defined('DBDriver') && DBDriver === 'pgsql');
+
+	$permissions = [
+		['system.manage', 'Manage system settings'],
+		['audit.view', 'View audit logs'],
+		['students.manage', 'Manage students'],
+		['staff.manage', 'Manage staff and role assignment'],
+		['teacher.allocate', 'Allocate teachers to subjects/classes'],
+		['attendance.manage', 'Manage attendance'],
+		['exams.manage', 'Manage exams and timetable'],
+		['marks.enter', 'Enter marks and assessments'],
+		['results.approve', 'Approve results'],
+		['results.lock', 'Lock results'],
+		['results.unlock', 'Unlock results'],
+		['report.generate', 'Generate report cards'],
+		['report.view', 'View report cards'],
+		['finance.manage', 'Manage fees and payments'],
+		['finance.view', 'View finance reports'],
+		['communication.manage', 'Manage communication'],
+		['transport.manage', 'Manage transport'],
+		['library.manage', 'Manage library'],
+		['inventory.manage', 'Manage inventory'],
+	];
+
+	foreach ($permissions as $perm) {
+		if ($isPgsql) {
+			$stmt = $conn->prepare("INSERT INTO tbl_permissions (code, description) VALUES (?, ?) ON CONFLICT (code) DO UPDATE SET description = EXCLUDED.description");
+		} else {
+			$stmt = $conn->prepare("INSERT INTO tbl_permissions (code, description) VALUES (?, ?) ON DUPLICATE KEY UPDATE description = VALUES(description)");
+		}
+		$stmt->execute([$perm[0], $perm[1]]);
+	}
 
 	$roles = [
-		['Headteacher', 0, 'Full school control', [
+		['Headteacher', 100, 'Overall in charge of school operations, policy, staff and performance.', [
 			'system.manage','audit.view','students.manage','staff.manage','attendance.manage','exams.manage','marks.enter',
-			'results.approve','results.lock','results.unlock','report.generate','report.view','finance.manage','finance.view',
+			'results.approve','results.lock','results.unlock','report.generate','report.view','teacher.allocate','finance.manage','finance.view',
 			'communication.manage','transport.manage','library.manage','inventory.manage'
 		]],
-		['Deputy Headteacher', 1, 'Deputy school leadership and academic oversight', [
+		['Deputy Headteacher', 95, 'Assists the headteacher and runs day-to-day academics, discipline, timetable and attendance.', [
 			'audit.view','students.manage','staff.manage','attendance.manage','exams.manage','marks.enter','results.approve',
-			'results.lock','results.unlock','report.generate','report.view','finance.view','communication.manage','transport.manage',
+			'results.lock','results.unlock','report.generate','report.view','teacher.allocate','finance.view','communication.manage','transport.manage',
 			'library.manage','inventory.manage'
 		]],
-		['HOD', 2, 'Head of department with academic coordination rights', ['attendance.manage','marks.enter','report.view','communication.manage']],
-		['Exam Officer', 2, 'Exam operations, result publishing and communication', ['exams.manage','marks.enter','results.approve','results.lock','results.unlock','report.generate','report.view','communication.manage']],
+		['HOD Academics', 90, 'Oversees teaching and learning and syllabus coverage.', ['attendance.manage','exams.manage','marks.enter','results.approve','report.generate','report.view','teacher.allocate','communication.manage']],
+		['HOD Exams', 89, 'Leads exam planning, marking standards, CBC-aligned assessment and grading workflows.', ['exams.manage','marks.enter','results.approve','results.lock','results.unlock','report.generate','report.view','teacher.allocate','communication.manage']],
+		['HOD Languages', 84, 'Leads language department instruction and quality assurance.', ['marks.enter','report.view','communication.manage']],
+		['HOD Sciences', 84, 'Leads science department instruction and quality assurance.', ['marks.enter','report.view','communication.manage']],
+		['HOD Mathematics', 84, 'Leads mathematics department instruction and quality assurance.', ['marks.enter','report.view','communication.manage']],
+		['HOD Creative Arts / Co-curricular', 84, 'Leads arts and co-curricular teaching programs.', ['marks.enter','report.view','communication.manage']],
+		['Class Teacher', 75, 'In charge of class performance, discipline and parent communication.', ['attendance.manage','marks.enter','report.view','communication.manage']],
+		['Subject Teacher', 70, 'Teaches subjects across classes and records continuous assessment.', ['marks.enter','report.view']],
+		['Examination Officer', 88, 'Supports HOD Exams in recording marks, report generation and analysis.', ['exams.manage','marks.enter','report.generate','report.view','communication.manage']],
+		['Bursar / Accounts Clerk', 80, 'Handles fees, payments and school financial records.', ['finance.manage','finance.view']],
+		['Secretary / Office Admin', 65, 'Manages communication, records and office administration.', ['students.manage','communication.manage','report.view']],
+		['ICT Teacher / System Admin', 92, 'Maintains school digital systems, e-learning and technical operations.', ['system.manage','audit.view','exams.manage','report.generate','report.view','communication.manage']],
+		['Guidance and Counselling Teacher', 72, 'Supports learner welfare, behaviour and counselling records.', ['attendance.manage','report.view','communication.manage']],
+		['Games / Sports Teacher', 68, 'Manages sports and co-curricular participation records.', ['attendance.manage','report.view','communication.manage']],
+		['HOD', 85, 'Legacy generic HOD role kept for backward compatibility.', ['attendance.manage','marks.enter','report.view','communication.manage']],
+		['Exam Officer', 86, 'Legacy exam officer role kept for backward compatibility.', ['exams.manage','marks.enter','results.approve','results.lock','results.unlock','report.generate','report.view','communication.manage']],
 	];
-	$isPgsql = (defined('DBDriver') && DBDriver === 'pgsql');
 
 	$roleIds = [];
 	foreach ($roles as $role) {

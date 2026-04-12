@@ -33,6 +33,14 @@ function app_get_permissions(PDO $conn, string $staffId, string $level): array
 		return ['*'];
 	}
 
+	if (function_exists('app_ensure_school_roles')) {
+		try {
+			app_ensure_school_roles($conn);
+		} catch (Throwable $e) {
+			// Continue with whatever permissions are available.
+		}
+	}
+
 	if (!app_table_exists($conn, 'tbl_user_roles') || !app_table_exists($conn, 'tbl_role_permissions') || !app_table_exists($conn, 'tbl_permissions')) {
 		return $defaults;
 	}

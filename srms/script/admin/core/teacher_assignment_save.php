@@ -5,8 +5,8 @@ require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/rbac.php');
 
-if ($res != "1" || $level != "0") { header("location:../"); exit; }
-app_require_permission('staff.manage', '../');
+if ($res != "1") { header("location:../"); exit; }
+app_require_permission('teacher.allocate', '../');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 	header("location:../teacher_allocation");

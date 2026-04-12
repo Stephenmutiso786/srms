@@ -6,8 +6,8 @@ require_once('const/check_session.php');
 require_once('const/school.php');
 require_once('const/rbac.php');
 
-if ($res != "1" || $level != "0") { header("location:../"); exit; }
-app_require_permission('staff.manage', '../admin');
+if ($res != "1") { header("location:../"); exit; }
+app_require_permission('teacher.allocate', '../admin');
 
 $teachers = [];
 $classes = [];

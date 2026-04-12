@@ -73,7 +73,7 @@ try {
 <div class="app-title">
 <div>
 <h1>Roles & Permissions</h1>
-<p>Assign enterprise roles to staff.</p>
+<p>Assign school leadership, departmental and support roles to staff. Only admin can allocate roles.</p>
 </div>
 </div>
 
@@ -100,7 +100,7 @@ try {
 <select class="form-control" name="role_id" required>
 <option value="">Select</option>
 <?php foreach ($roles as $r): ?>
-<option value="<?php echo $r['id']; ?>"><?php echo htmlspecialchars($r['name']); ?></option>
+<option value="<?php echo $r['id']; ?>"><?php echo htmlspecialchars($r['name'].' - '.$r['description']); ?></option>
 <?php endforeach; ?>
 </select>
 </div>
