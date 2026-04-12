@@ -4,6 +4,7 @@ session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/rbac.php');
+require_once('const/results_notifications.php');
 
 if ($res != "1" || $level != "0") { header("location:../"); }
 app_require_permission('exams.manage', '../exams');
@@ -134,9 +135,39 @@ try {
 
 	$stmt = $conn->prepare("UPDATE tbl_exams SET status = ? WHERE id = ?");
 	$stmt->execute([$status, $examId]);
+
+	$autoNotifySummary = '';
+	if ($status === 'published') {
+		if (app_table_exists($conn, 'tbl_results_locks')) {
+			$lockStmt = $conn->prepare("SELECT id FROM tbl_results_locks WHERE class_id = ? AND term_id = ? LIMIT 1");
+			$lockStmt->execute([(int)$exam['class_id'], (int)$exam['term_id']]);
+			$lockId = (int)$lockStmt->fetchColumn();
+			if ($lockId > 0) {
+				$lockStmt = $conn->prepare("UPDATE tbl_results_locks SET locked = 1, reason = ?, locked_by = ?, locked_at = CURRENT_TIMESTAMP WHERE id = ?");
+				$lockStmt->execute(['Auto-locked on result publish', (int)$account_id, $lockId]);
+			} else {
+				$lockStmt = $conn->prepare("INSERT INTO tbl_results_locks (class_id, term_id, locked, reason, locked_by, locked_at) VALUES (?,?,?,?,?,CURRENT_TIMESTAMP)");
+				$lockStmt->execute([(int)$exam['class_id'], (int)$exam['term_id'], 1, 'Auto-locked on result publish', (int)$account_id]);
+			}
+		}
+
+		try {
+			$stats = app_results_send_notifications($conn, $examId, 'both');
+			$autoNotifySummary = ' Auto-send => SMS: ' . (int)$stats['sent_sms'] . ' sent, Email: ' . (int)$stats['sent_email'] . ' sent.';
+			app_audit_log($conn, 'staff', (string)$account_id, 'results.notify.auto', 'exam', (string)$examId, $stats);
+		} catch (Throwable $notifyError) {
+			$autoNotifySummary = ' Auto-send failed: ' . $notifyError->getMessage();
+		}
+	}
+
+	if ($currentStatus === 'published' && $status === 'finalized' && app_table_exists($conn, 'tbl_results_locks')) {
+		$lockStmt = $conn->prepare("UPDATE tbl_results_locks SET locked = 0, reason = ?, locked_by = ?, locked_at = CURRENT_TIMESTAMP WHERE class_id = ? AND term_id = ?");
+		$lockStmt->execute(['Unlocked on unpublish', (int)$account_id, (int)$exam['class_id'], (int)$exam['term_id']]);
+	}
+
 	app_audit_log($conn, 'staff', (string)$account_id, 'exam.status', 'exam', (string)$examId, ['from' => $currentStatus, 'to' => $status]);
 
-	$_SESSION['reply'] = array (array("success", "Exam status updated."));
+	$_SESSION['reply'] = array (array("success", "Exam status updated." . $autoNotifySummary));
 	header("location:../exams");
 } catch (Throwable $e) {
 	$_SESSION['reply'] = array (array("danger", "Failed to update status: " . $e->getMessage()));

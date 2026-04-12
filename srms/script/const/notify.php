@@ -21,7 +21,7 @@ function app_get_smtp(PDO $conn): ?array {
 	}
 }
 
-function app_send_email(PDO $conn, string $recipient, string $subject, string $message): array {
+function app_send_email(PDO $conn, string $recipient, string $subject, string $message, array $attachments = []): array {
 	$status = 'failed';
 	$error = '';
 	$provider = 'smtp';
@@ -54,6 +54,14 @@ function app_send_email(PDO $conn, string $recipient, string $subject, string $m
 			$mail->Subject = $subject;
 			$mail->Body = $message;
 			$mail->AltBody = strip_tags($message);
+			foreach ($attachments as $attachment) {
+				$path = trim((string)($attachment['path'] ?? ''));
+				if ($path === '' || !is_file($path)) {
+					continue;
+				}
+				$name = trim((string)($attachment['name'] ?? basename($path)));
+				$mail->addAttachment($path, $name === '' ? basename($path) : $name);
+			}
 
 			if ($mail->send()) {
 				$status = 'sent';

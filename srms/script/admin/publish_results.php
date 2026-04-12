@@ -190,6 +190,11 @@ try {
 						</form>
 						<form method="POST" action="admin/core/send_results_notifications" class="d-inline">
 							<input type="hidden" name="exam_id" value="<?php echo (int)$row['id']; ?>">
+							<input type="hidden" name="channel" value="both">
+							<button class="btn btn-sm btn-primary" type="submit"><i class="bi bi-send-check me-1"></i>Send Both</button>
+						</form>
+						<form method="POST" action="admin/core/send_results_notifications" class="d-inline">
+							<input type="hidden" name="exam_id" value="<?php echo (int)$row['id']; ?>">
 							<input type="hidden" name="channel" value="sms">
 							<button class="btn btn-sm btn-outline-primary" type="submit"><i class="bi bi-chat-dots me-1"></i>Send SMS</button>
 						</form>
