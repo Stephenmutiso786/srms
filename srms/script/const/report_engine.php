@@ -767,6 +767,7 @@ function report_load_card(PDO $conn, int $reportId): ?array
 		$stmt->execute([$reportId]);
 		foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
 			$subjects[] = [
+				'subject_id' => (int)($row['subject_id'] ?? 0),
 				'subject_name' => $row['subject_name'],
 				'score' => (float)$row['score'],
 				'grade' => $row['grade'],
