@@ -17,6 +17,7 @@ $schoolDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 $sessionLabels = [];
 $slotTemplateBySession = [];
 $slotMap = [];
+$selectedClassName = '';
 
 try {
 	$conn = app_db();
@@ -26,6 +27,12 @@ try {
 	$stmt = $conn->prepare("SELECT id, name FROM tbl_classes ORDER BY name");
 	$stmt->execute();
 	$classes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	foreach ($classes as $classRow) {
+		if ((int)$classRow['id'] === $classId) {
+			$selectedClassName = (string)$classRow['name'];
+			break;
+		}
+	}
 
 	$stmt = $conn->prepare("SELECT id, name FROM tbl_terms ORDER BY id DESC");
 	$stmt->execute();
@@ -148,8 +155,8 @@ try {
 	<form class="row g-3" method="GET" action="admin/school_timetable">
 		<div class="col-md-5">
 			<label class="form-label">Class</label>
-			<select class="form-control" name="class_id" required>
-				<option value="" disabled <?php echo $classId ? '' : 'selected'; ?>>Select class</option>
+			<select class="form-control" name="class_id">
+				<option value="" <?php echo $classId ? '' : 'selected'; ?>>All classes (for whole-school generation)</option>
 				<?php foreach ($classes as $class): ?>
 				<option value="<?php echo (int)$class['id']; ?>" <?php echo ((int)$class['id'] === $classId) ? 'selected' : ''; ?>>
 					<?php echo htmlspecialchars($class['name']); ?>
@@ -174,12 +181,24 @@ try {
 	</form>
 </div>
 
-<?php if ($classId > 0 && $termId > 0) { ?>
+<?php if ($termId > 0) { ?>
 <div class="tile mb-3">
 	<h3 class="tile-title">Smart Auto Generate</h3>
 	<form class="row g-3" method="POST" action="admin/core/auto_generate_school_timetable">
 		<input type="hidden" name="class_id" value="<?php echo $classId; ?>">
 		<input type="hidden" name="term_id" value="<?php echo $termId; ?>">
+		<div class="col-md-4">
+			<label class="form-label">Generation Scope</label>
+			<select class="form-control" name="generation_scope" id="generation_scope">
+				<option value="single_class" <?php echo $classId > 0 ? 'selected' : ''; ?>>Selected class block timetable</option>
+				<option value="whole_school" <?php echo $classId > 0 ? '' : 'selected'; ?>>Whole school block timetable (all classes)</option>
+			</select>
+		</div>
+		<div class="col-md-4">
+			<label class="form-label">Target Class</label>
+			<input class="form-control" value="<?php echo $classId > 0 ? htmlspecialchars($selectedClassName !== '' ? $selectedClassName : 'Selected class') : 'All classes'; ?>" readonly>
+			<div class="form-text">Pick a class above when using selected-class scope.</div>
+		</div>
 		<div class="col-md-4">
 			<label class="form-label">Academic Year</label>
 			<input class="form-control" type="number" name="year" value="<?php echo (int)date('Y'); ?>" min="2000" required>
@@ -219,9 +238,10 @@ try {
 			<button class="btn btn-success" type="submit"><i class="bi bi-stars me-1"></i>Generate School Timetable</button>
 		</div>
 	</form>
-	<p class="text-muted mt-2 mb-0">The generator uses teacher allocations and avoids putting one teacher in two classes during the same session.</p>
+	<p class="text-muted mt-2 mb-0">The generator uses teacher allocations and avoids putting one teacher in two classes during the same session. Whole-school mode builds class block timetables in one run.</p>
 </div>
 
+<?php if ($classId > 0) { ?>
 <div class="tile">
 	<h3 class="tile-title">Current Timetable</h3>
 	<p class="text-muted">Drag a lesson card and drop it to a new slot. Dropping onto an occupied slot swaps both lessons with full conflict validation.</p>
@@ -294,6 +314,11 @@ try {
 		</table>
 	</div>
 </div>
+<?php } else { ?>
+<div class="tile">
+	<div class="alert alert-info mb-0">Select a class above to view and drag-drop a specific class timetable. You can still generate whole-school timetables without selecting a class.</div>
+</div>
+<?php } ?>
 <?php } ?>
 <?php } ?>
 
@@ -314,6 +339,12 @@ try {
 <script src="js/main.js"></script>
 <script>
 (function () {
+	const scopeSelect = document.getElementById('generation_scope');
+	const classSelected = <?php echo $classId > 0 ? 'true' : 'false'; ?>;
+	if (scopeSelect && !classSelected) {
+		scopeSelect.value = 'whole_school';
+	}
+
 	const cards = document.querySelectorAll('.tt-card[draggable="true"]');
 	const zones = document.querySelectorAll('.tt-dropzone');
 	const form = document.getElementById('ttMoveForm');
