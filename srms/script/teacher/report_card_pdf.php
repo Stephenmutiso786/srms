@@ -72,7 +72,9 @@ try {
 	<tr><td><strong>Total:</strong> ' . $card['total'] . '</td><td><strong>Mean:</strong> ' . $card['mean'] . '%</td><td><strong>Grade:</strong> ' . htmlspecialchars($card['grade']) . '</td></tr>
 	<tr><td><strong>Position:</strong> ' . $card['position'] . ' / ' . $card['total_students'] . '</td><td><strong>Attendance:</strong> ' . $attendance['present'] . ' / ' . $attendance['days_open'] . '</td><td><strong>Fees Balance:</strong> KES ' . number_format($feesBalance, 0) . '</td></tr>
 	</table><br>
-	<p><strong>Remarks:</strong> ' . htmlspecialchars($card['remark']) . '</p>
+	<p><strong>AI Summary:</strong> ' . htmlspecialchars((string)($card['ai_summary'] ?? '')) . '</p>
+	<p><strong>Teacher Comment:</strong> ' . htmlspecialchars((string)($card['teacher_comment'] ?? $card['remark'])) . '</p>
+	<p><strong>Headteacher Remark:</strong> ' . htmlspecialchars((string)($card['headteacher_comment'] ?? $card['remark'])) . '</p>
 	<p><strong>Verification Code:</strong> ' . htmlspecialchars($card['verification_code']) . '</p>';
 
 	$pdf->writeHTML($html, true, false, true, false, '');

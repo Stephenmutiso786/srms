@@ -300,11 +300,15 @@ try {
 <div class="report-footer-grid">
 	<div class="metric-card">
 		<div class="label">Teacher / Class Teacher Comment</div>
-		<div class="mt-2 fw-semibold"><?php echo htmlspecialchars($card['remark']); ?></div>
+		<div class="mt-2 fw-semibold"><?php echo htmlspecialchars($card['teacher_comment'] ?? $card['remark']); ?></div>
+		<div class="label mt-3">Headteacher Remark</div>
+		<div class="mt-2"><?php echo htmlspecialchars($card['headteacher_comment'] ?? $card['remark']); ?></div>
 		<div class="signature-box">Signature</div>
 	</div>
 	<div class="metric-card">
-		<div class="label">School Verification</div>
+		<div class="label">AI Performance Summary</div>
+		<div class="mt-2"><?php echo htmlspecialchars($card['ai_summary'] ?? ''); ?></div>
+		<div class="label mt-3">School Verification</div>
 		<div class="mt-2">Use code <strong><?php echo htmlspecialchars($card['verification_code']); ?></strong> to verify this report online.</div>
 		<div class="mt-3 small text-muted"><?php echo htmlspecialchars(WBAddress); ?><br><?php echo htmlspecialchars(WBEmail); ?></div>
 	</div>

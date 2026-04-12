@@ -45,6 +45,7 @@ try {
 		header("location:report_card?term=" . $termId . "&student=" . $studentId);
 		exit;
 	}
+	$reportId = (int)($card['id'] ?? 0);
 
 	$attendance = report_attendance_summary($conn, $studentId, $classId, $termId);
 	$feesBalance = report_fees_balance($conn, $studentId, $termId);
@@ -147,7 +148,16 @@ try {
 	<table width="100%" cellpadding="4">
 	<tr>
 		<td><strong>Attendance:</strong> ' . $attendance['present'] . ' / ' . $attendance['days_open'] . '</td>
-		<td><strong>Remarks:</strong> ' . $card['remark'] . '</td>
+		<td><strong>Teacher Comment:</strong> ' . htmlspecialchars((string)($card['teacher_comment'] ?? $card['remark'])) . '</td>
+	</tr>
+	</table>
+	<br>
+	<table width="100%" cellpadding="4">
+	<tr>
+		<td><strong>AI Summary:</strong> ' . htmlspecialchars((string)($card['ai_summary'] ?? '')) . '</td>
+	</tr>
+	<tr>
+		<td><strong>Headteacher Remark:</strong> ' . htmlspecialchars((string)($card['headteacher_comment'] ?? $card['remark'])) . '</td>
 	</tr>
 	</table>
 	<br>

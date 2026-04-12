@@ -299,6 +299,118 @@ function report_trend(PDO $conn, string $studentId, int $currentTermId, float $m
 	return 'No change';
 }
 
+function report_previous_mean(PDO $conn, string $studentId, int $currentTermId): ?float
+{
+	if (!app_table_exists($conn, 'tbl_report_cards')) {
+		return null;
+	}
+	$stmt = $conn->prepare("SELECT mean FROM tbl_report_cards WHERE student_id = ? AND term_id < ? ORDER BY term_id DESC LIMIT 1");
+	$stmt->execute([$studentId, $currentTermId]);
+	$value = $stmt->fetchColumn();
+	if ($value === false || $value === null || $value === '') {
+		return null;
+	}
+	return (float)$value;
+}
+
+function report_ai_comment_bundle(array $subjects, float $mean, ?float $previousMean, string $grade, string $trend): array
+{
+	$strengths = [];
+	$weaknesses = [];
+	foreach ($subjects as $subject) {
+		$score = (float)($subject['score'] ?? 0);
+		$name = (string)($subject['subject_name'] ?? 'Subject');
+		if ($score >= 75) {
+			$strengths[] = $name;
+		}
+		if ($score < 50) {
+			$weaknesses[] = $name;
+		}
+	}
+
+	$summaryParts = [];
+	$summaryParts[] = 'Overall average: ' . number_format($mean, 2) . '%. Grade: ' . $grade . '.';
+	if ($previousMean !== null) {
+		if ($mean > $previousMean) {
+			$summaryParts[] = 'There is a positive improvement from last term.';
+		} elseif ($mean < $previousMean) {
+			$summaryParts[] = 'Performance has slightly dropped. More effort is needed.';
+		} else {
+			$summaryParts[] = 'Performance remains consistent.';
+		}
+	} else {
+		$summaryParts[] = 'This is the first published report in the current trend window.';
+	}
+
+	$teacherParts = [];
+	if (!empty($strengths)) {
+		$teacherParts[] = 'The learner shows strong performance in ' . implode(', ', $strengths) . '.';
+	}
+	if (!empty($weaknesses)) {
+		$teacherParts[] = 'Improvement is needed in ' . implode(', ', $weaknesses) . '.';
+	}
+	if (empty($weaknesses)) {
+		$teacherParts[] = 'Keep up the excellent work across all learning areas.';
+	}
+
+	$headParts = [];
+	if ($trend === 'Improved') {
+		$headParts[] = 'Good progress this term. Maintain the momentum.';
+	} elseif ($trend === 'Dropped') {
+		$headParts[] = 'More support and focused revision are recommended next term.';
+	} else {
+		$headParts[] = 'Steady progress noted. Continue working consistently.';
+	}
+	if (!empty($weaknesses)) {
+		$headParts[] = 'Priority support areas: ' . implode(', ', $weaknesses) . '.';
+	}
+
+	$summary = trim(implode(' ', $summaryParts));
+	$teacherComment = trim(implode(' ', $teacherParts));
+	$headComment = trim(implode(' ', $headParts));
+
+	if (!preg_match('/\s+ofx_steve$/i', $summary)) {
+		$summary .= ' ofx_steve';
+	}
+	if (!preg_match('/\s+ofx_steve$/i', $teacherComment)) {
+		$teacherComment .= ' ofx_steve';
+	}
+	if (!preg_match('/\s+ofx_steve$/i', $headComment)) {
+		$headComment .= ' ofx_steve';
+	}
+
+	return [
+		'ai_summary' => $summary,
+		'teacher_comment' => $teacherComment,
+		'headteacher_comment' => $headComment,
+		'strengths' => $strengths,
+		'weaknesses' => $weaknesses,
+	];
+}
+
+function report_attach_ai_comments(PDO $conn, array $card): array
+{
+	$subjects = is_array($card['subjects'] ?? null) ? $card['subjects'] : [];
+	$mean = (float)($card['mean'] ?? 0);
+	$grade = (string)($card['grade'] ?? 'N/A');
+	$trend = (string)($card['trend'] ?? 'New');
+	$studentId = (string)($card['student_id'] ?? '');
+	$termId = (int)($card['term_id'] ?? 0);
+
+	$previousMean = null;
+	if ($studentId !== '' && $termId > 0) {
+		$previousMean = report_previous_mean($conn, $studentId, $termId);
+	}
+
+	$bundle = report_ai_comment_bundle($subjects, $mean, $previousMean, $grade, $trend);
+	$card['ai_summary'] = $bundle['ai_summary'];
+	$card['teacher_comment'] = $bundle['teacher_comment'];
+	$card['headteacher_comment'] = $bundle['headteacher_comment'];
+	$card['strengths'] = $bundle['strengths'];
+	$card['weaknesses'] = $bundle['weaknesses'];
+	return $card;
+}
+
 function report_generate_code(string $studentId): string
 {
 	$year = date('Y');
@@ -324,7 +436,7 @@ function report_compute_for_student(PDO $conn, string $studentId, int $classId, 
 	$fees = report_fees_balance($conn, $studentId, $termId);
 	$trend = report_trend($conn, $studentId, $termId, $totals['mean']);
 
-	return [
+	$card = [
 		'subjects' => $totals['rows'],
 		'total' => $totals['total'],
 		'mean' => $totals['mean'],
@@ -335,6 +447,15 @@ function report_compute_for_student(PDO $conn, string $studentId, int $classId, 
 		'trend' => $trend,
 		'settings' => $settings
 	];
+
+	$bundle = report_ai_comment_bundle($totals['rows'], (float)$totals['mean'], report_previous_mean($conn, $studentId, $termId), (string)$totals['grade'], (string)$trend);
+	$card['ai_summary'] = $bundle['ai_summary'];
+	$card['teacher_comment'] = $bundle['teacher_comment'];
+	$card['headteacher_comment'] = $bundle['headteacher_comment'];
+	$card['strengths'] = $bundle['strengths'];
+	$card['weaknesses'] = $bundle['weaknesses'];
+
+	return $card;
 }
 
 function report_rank_students(PDO $conn, int $classId, int $termId): array
@@ -439,7 +560,7 @@ function report_load_card(PDO $conn, int $reportId): ?array
 		}
 	}
 	$card['subjects'] = $subjects;
-	return $card;
+	return report_attach_ai_comments($conn, $card);
 }
 
 function report_term_publish_state(PDO $conn, int $classId, int $termId): string

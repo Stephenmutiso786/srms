@@ -89,7 +89,12 @@ try {
 <div class="report-stat"><div class="label">Attendance</div><div class="value"><?php echo $attendance['present'].' / '.$attendance['days_open']; ?> Present</div></div>
 <div class="report-stat"><div class="label">Fees Balance</div><div class="value">KES <?php echo number_format((float)$feesBalance, 0); ?></div></div>
 </div>
-<div class="report-comments"><strong>Teacher Remarks:</strong><p class="mb-1"><?php echo htmlspecialchars($card['remark']); ?></p><strong>Verification Code:</strong><p class="mb-0"><?php echo htmlspecialchars($card['verification_code']); ?></p></div>
+<div class="report-comments">
+<strong>AI Summary:</strong><p class="mb-1"><?php echo htmlspecialchars($card['ai_summary'] ?? ''); ?></p>
+<strong>Teacher Remarks:</strong><p class="mb-1"><?php echo htmlspecialchars($card['teacher_comment'] ?? $card['remark']); ?></p>
+<strong>Headteacher Remarks:</strong><p class="mb-1"><?php echo htmlspecialchars($card['headteacher_comment'] ?? $card['remark']); ?></p>
+<strong>Verification Code:</strong><p class="mb-0"><?php echo htmlspecialchars($card['verification_code']); ?></p>
+</div>
 <div class="report-actions">
 <button class="btn btn-outline-secondary" onclick="window.print();"><i class="bi bi-printer me-2"></i>Print</button>
 <a class="btn btn-primary" href="teacher/report_card_pdf?term=<?php echo $termId; ?>&student=<?php echo urlencode($studentId); ?>" target="_blank"><i class="bi bi-download me-2"></i>Download PDF</a>
