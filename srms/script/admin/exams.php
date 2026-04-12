@@ -283,21 +283,21 @@ try {
 	<form class="d-inline" action="admin/core/update_exam_status" method="POST">
 		<input type="hidden" name="exam_id" value="<?php echo (int)$exam['id']; ?>">
 		<?php if (($exam['status'] ?? '') === 'draft') { ?>
-			<button class="btn btn-sm btn-outline-primary" name="status" value="active">Activate</button>
+			<button type="submit" class="btn btn-sm btn-outline-primary" name="status" value="active">Activate</button>
 		<?php } elseif (($exam['status'] ?? '') === 'active') { ?>
-			<button class="btn btn-sm btn-outline-info" name="status" value="reviewed">Mark Reviewed</button>
+			<button type="submit" class="btn btn-sm btn-outline-info" name="status" value="reviewed">Mark Reviewed</button>
 		<?php } elseif (($exam['status'] ?? '') === 'reviewed') { ?>
-			<button class="btn btn-sm btn-outline-success" name="status" value="finalized">Finalize</button>
+			<button type="submit" class="btn btn-sm btn-outline-success" name="status" value="finalized">Finalize</button>
 		<?php } elseif (($exam['status'] ?? '') === 'finalized') { ?>
-			<button class="btn btn-sm btn-outline-dark" name="status" value="published">Publish</button>
+			<button type="submit" class="btn btn-sm btn-outline-dark" name="status" value="published">Publish</button>
 		<?php } elseif (($exam['status'] ?? '') === 'published') { ?>
-			<button class="btn btn-sm btn-outline-warning" name="status" value="finalized">Unpublish</button>
+			<button type="submit" class="btn btn-sm btn-outline-warning" name="status" value="finalized">Unpublish</button>
 		<?php } ?>
 	</form>
 	<?php if (in_array((string)($exam['status'] ?? ''), ['active','reviewed'], true)) { ?>
 	<form class="d-inline" action="admin/core/update_exam_status" method="POST">
 		<input type="hidden" name="exam_id" value="<?php echo (int)$exam['id']; ?>">
-		<button class="btn btn-sm btn-outline-secondary" name="status" value="draft">Back to Draft</button>
+		<button type="submit" class="btn btn-sm btn-outline-secondary" name="status" value="draft">Back to Draft</button>
 	</form>
 	<?php } ?>
 	</div>
