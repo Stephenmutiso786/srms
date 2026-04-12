@@ -572,16 +572,6 @@ function report_ai_comment_bundle(array $subjects, float $mean, ?float $previous
 	$teacherComment = trim(implode(' ', $teacherParts));
 	$headComment = trim(implode(' ', $headParts));
 
-	if (!preg_match('/\s+ofx_steve$/i', $summary)) {
-		$summary .= ' ofx_steve';
-	}
-	if (!preg_match('/\s+ofx_steve$/i', $teacherComment)) {
-		$teacherComment .= ' ofx_steve';
-	}
-	if (!preg_match('/\s+ofx_steve$/i', $headComment)) {
-		$headComment .= ' ofx_steve';
-	}
-
 	return [
 		'ai_summary' => $summary,
 		'teacher_comment' => $teacherComment,
