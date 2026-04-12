@@ -80,6 +80,7 @@ try {
 <div class="tile">
 
 <div class="d-flex justify-content-end mb-3">
+<a href="student/profile" class="btn btn-outline-primary btn-sm me-2"><i class="bi bi-pencil-square me-2"></i>Edit Profile</a>
 <a href="student/id_card" class="btn btn-primary btn-sm"><i class="bi bi-credit-card-2-front me-2"></i>Open ID Card</a>
 </div>
 
