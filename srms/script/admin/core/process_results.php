@@ -62,22 +62,52 @@ try {
 	}
 
 	if (app_table_exists($conn, 'tbl_notifications')) {
-		$stmt = $conn->prepare("SELECT name FROM tbl_terms WHERE id = ? LIMIT 1");
-		$stmt->execute([$termId]);
-		$termName = (string)$stmt->fetchColumn();
-		$stmt = $conn->prepare("SELECT name FROM tbl_classes WHERE id = ? LIMIT 1");
-		$stmt->execute([$classId]);
-		$className = (string)$stmt->fetchColumn();
-		$title = "Results Released";
-		$message = "Report cards for " . ($className !== '' ? $className : "the class") . " (" . ($termName !== '' ? $termName : "term") . ") are now ready for student, parent, and teacher access.";
+		try {
+			$stmt = $conn->prepare("SELECT name FROM tbl_terms WHERE id = ? LIMIT 1");
+			$stmt->execute([$termId]);
+			$termName = (string)$stmt->fetchColumn();
+			$stmt = $conn->prepare("SELECT name FROM tbl_classes WHERE id = ? LIMIT 1");
+			$stmt->execute([$classId]);
+			$className = (string)$stmt->fetchColumn();
+			$title = "Results Released";
+			$message = "Report cards for " . ($className !== '' ? $className : "the class") . " (" . ($termName !== '' ? $termName : "term") . ") are now ready for student, parent, and teacher access.";
 
-		$stmt = $conn->prepare("INSERT INTO tbl_notifications (title, message, audience, class_id, term_id, link, created_by) VALUES (?,?,?,?,?,?,?)");
-		$stmt->execute([$title, $message, 'class', $classId, $termId, 'report_card?term=' . $termId, $generatedBy]);
+			$columns = ['title', 'message'];
+			$values = [$title, $message];
+
+			if (app_column_exists($conn, 'tbl_notifications', 'audience')) {
+				$columns[] = 'audience';
+				$values[] = 'class';
+			}
+			if (app_column_exists($conn, 'tbl_notifications', 'class_id')) {
+				$columns[] = 'class_id';
+				$values[] = $classId;
+			}
+			if (app_column_exists($conn, 'tbl_notifications', 'term_id')) {
+				$columns[] = 'term_id';
+				$values[] = $termId;
+			}
+			if (app_column_exists($conn, 'tbl_notifications', 'link')) {
+				$columns[] = 'link';
+				$values[] = 'report_card?term=' . $termId;
+			}
+			if (app_column_exists($conn, 'tbl_notifications', 'created_by')) {
+				$columns[] = 'created_by';
+				$values[] = $generatedBy;
+			}
+
+			$placeholders = implode(',', array_fill(0, count($columns), '?'));
+			$sql = "INSERT INTO tbl_notifications (" . implode(',', $columns) . ") VALUES (" . $placeholders . ")";
+			$stmt = $conn->prepare($sql);
+			$stmt->execute($values);
+		} catch (Throwable $notifyError) {
+			error_log('['.__FILE__.':'.__LINE__.'] Notification insert skipped: ' . $notifyError->getMessage());
+		}
 	}
 
 	$_SESSION['reply'] = array (array("success", "Report cards are ready for " . $meritList['total_students'] . " learners. The class merit list has also been recalculated and saved."));
 	header("location:../report");
 } catch (Throwable $e) {
-	$_SESSION['reply'] = array (array("danger", "Failed to generate report cards. Please check the term results and try again."));
+	$_SESSION['reply'] = array (array("danger", "Failed to generate report cards: " . $e->getMessage()));
 	header("location:../report");
 }
