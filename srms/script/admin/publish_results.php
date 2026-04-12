@@ -27,7 +27,7 @@ try {
 	$stmt->execute();
 	$terms = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-	$sql = "SELECT e.id, e.name, e.status, e.created_at, c.name AS class_name, t.name AS term_name, et.name AS type_name,
+	$sql = "SELECT e.id, e.name, e.status, e.created_at, e.class_id, e.term_id, c.name AS class_name, t.name AS term_name, et.name AS type_name,
 		COALESCE((SELECT COUNT(*) FROM tbl_exam_mark_submissions ms WHERE ms.exam_id = e.id AND ms.status = 'reviewed'), 0) AS reviewed_count,
 		COALESCE((SELECT COUNT(*) FROM tbl_exam_mark_submissions ms WHERE ms.exam_id = e.id AND ms.status = 'submitted'), 0) AS submitted_count,
 		COALESCE((SELECT COUNT(*) FROM tbl_exam_mark_submissions ms WHERE ms.exam_id = e.id AND ms.status = 'rejected'), 0) AS rejected_count,
@@ -187,6 +187,16 @@ try {
 						<form method="POST" action="admin/core/update_exam_status" class="d-inline">
 							<input type="hidden" name="exam_id" value="<?php echo (int)$row['id']; ?>">
 							<button class="btn btn-sm btn-outline-warning" name="status" value="finalized"><i class="bi bi-eye-slash me-1"></i>Unpublish</button>
+						</form>
+						<form method="POST" action="admin/core/send_results_notifications" class="d-inline">
+							<input type="hidden" name="exam_id" value="<?php echo (int)$row['id']; ?>">
+							<input type="hidden" name="channel" value="sms">
+							<button class="btn btn-sm btn-outline-primary" type="submit"><i class="bi bi-chat-dots me-1"></i>Send SMS</button>
+						</form>
+						<form method="POST" action="admin/core/send_results_notifications" class="d-inline">
+							<input type="hidden" name="exam_id" value="<?php echo (int)$row['id']; ?>">
+							<input type="hidden" name="channel" value="email">
+							<button class="btn btn-sm btn-outline-success" type="submit"><i class="bi bi-envelope me-1"></i>Send Email</button>
 						</form>
 						<?php } else { ?>
 						<span class="text-muted small">Move this exam to finalized before publishing.</span>
