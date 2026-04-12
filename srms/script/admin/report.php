@@ -9,6 +9,56 @@ require_once('const/rbac.php');
 if ($res == "1" && $level == "0") {}else{header("location:../");}
 app_require_permission('report.generate', 'admin');
 app_require_unlocked('reports', 'admin');
+
+$classes = [];
+$terms = [];
+$generatedCards = [];
+$listClassId = (int)($_GET['list_class_id'] ?? 0);
+$listTermId = (int)($_GET['list_term_id'] ?? 0);
+
+try {
+	$conn = app_db();
+	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+	$stmt = $conn->prepare("SELECT id, name FROM tbl_classes ORDER BY id");
+	$stmt->execute();
+	$classes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+	$stmt = $conn->prepare("SELECT id, name FROM tbl_terms ORDER BY id DESC");
+	$stmt->execute();
+	$terms = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+	if (app_table_exists($conn, 'tbl_report_cards')) {
+		$where = [];
+		$params = [];
+		if ($listClassId > 0) {
+			$where[] = 'rc.class_id = ?';
+			$params[] = $listClassId;
+		}
+		if ($listTermId > 0) {
+			$where[] = 'rc.term_id = ?';
+			$params[] = $listTermId;
+		}
+
+		$sql = "SELECT rc.id, rc.student_id, rc.class_id, rc.term_id, rc.mean, rc.grade, rc.position, rc.total_students,
+			rc.verification_code, rc.generated_at, COALESCE(rc.downloads, 0) AS downloads,
+			st.school_id, st.fname, st.mname, st.lname, c.name AS class_name, t.name AS term_name
+			FROM tbl_report_cards rc
+			LEFT JOIN tbl_students st ON st.id = rc.student_id
+			LEFT JOIN tbl_classes c ON c.id = rc.class_id
+			LEFT JOIN tbl_terms t ON t.id = rc.term_id";
+		if (!empty($where)) {
+			$sql .= " WHERE " . implode(' AND ', $where);
+		}
+		$sql .= " ORDER BY rc.generated_at DESC, rc.id DESC LIMIT 250";
+
+		$stmt = $conn->prepare($sql);
+		$stmt->execute($params);
+		$generatedCards = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	}
+} catch (Throwable $e) {
+	error_log("[".__FILE__.":".__LINE__." Throwable] " . $e->getMessage());
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -213,6 +263,90 @@ echo "Connection failed.";
 </div>
 <a class="btn btn-primary" href="admin/merit_list"><i class="bi bi-trophy me-2"></i>Open Merit List</a>
 </div>
+</div>
+</div>
+</div>
+
+<div class="col-12 mt-3">
+<div class="tile">
+<div class="tile-body">
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+<div>
+<h3 class="tile-title mb-1">Generated Report Cards</h3>
+<p class="text-muted mb-0">View generated report cards and download PDFs directly from this report tool.</p>
+</div>
+</div>
+
+<form class="row g-2 align-items-end mb-3" method="GET" action="admin/report">
+<div class="col-md-4">
+<label class="form-label">Filter by Class</label>
+<select class="form-control" name="list_class_id">
+<option value="">All classes</option>
+<?php foreach ($classes as $classOpt): ?>
+<option value="<?php echo (int)$classOpt['id']; ?>" <?php echo ((int)$classOpt['id'] === $listClassId) ? 'selected' : ''; ?>><?php echo htmlspecialchars((string)$classOpt['name']); ?></option>
+<?php endforeach; ?>
+</select>
+</div>
+<div class="col-md-4">
+<label class="form-label">Filter by Term</label>
+<select class="form-control" name="list_term_id">
+<option value="">All terms</option>
+<?php foreach ($terms as $termOpt): ?>
+<option value="<?php echo (int)$termOpt['id']; ?>" <?php echo ((int)$termOpt['id'] === $listTermId) ? 'selected' : ''; ?>><?php echo htmlspecialchars((string)$termOpt['name']); ?></option>
+<?php endforeach; ?>
+</select>
+</div>
+<div class="col-md-4 d-flex gap-2">
+<button class="btn btn-primary" type="submit">Apply Filter</button>
+<a class="btn btn-outline-secondary" href="admin/report">Reset</a>
+</div>
+</form>
+
+<div class="table-responsive">
+<table class="table table-hover">
+<thead>
+<tr>
+<th>Student</th>
+<th>Class</th>
+<th>Term</th>
+<th>Mean</th>
+<th>Grade</th>
+<th>Position</th>
+<th>Generated</th>
+<th>Downloads</th>
+<th>Actions</th>
+</tr>
+</thead>
+<tbody>
+<?php foreach ($generatedCards as $cardRow): ?>
+<tr>
+<td>
+<?php
+	$studentName = trim((string)($cardRow['fname'] ?? '') . ' ' . (string)($cardRow['mname'] ?? '') . ' ' . (string)($cardRow['lname'] ?? ''));
+	echo htmlspecialchars($studentName !== '' ? $studentName : (string)$cardRow['student_id']);
+?>
+<br><small class="text-muted"><?php echo htmlspecialchars((string)($cardRow['school_id'] !== '' ? $cardRow['school_id'] : $cardRow['student_id'])); ?></small>
+</td>
+<td><?php echo htmlspecialchars((string)($cardRow['class_name'] ?? '')); ?></td>
+<td><?php echo htmlspecialchars((string)($cardRow['term_name'] ?? '')); ?></td>
+<td><?php echo number_format((float)$cardRow['mean'], 2); ?>%</td>
+<td><span class="badge bg-primary"><?php echo htmlspecialchars((string)$cardRow['grade']); ?></span></td>
+<td><?php echo (int)$cardRow['position']; ?> / <?php echo (int)$cardRow['total_students']; ?></td>
+<td><?php echo htmlspecialchars((string)$cardRow['generated_at']); ?></td>
+<td><?php echo (int)$cardRow['downloads']; ?></td>
+<td>
+<a class="btn btn-sm btn-primary" target="_blank" href="admin/save_pdf?std=<?php echo urlencode((string)$cardRow['student_id']); ?>&term=<?php echo (int)$cardRow['term_id']; ?>"><i class="bi bi-download me-1"></i>PDF</a>
+<a class="btn btn-sm btn-outline-secondary" target="_blank" href="verify_report?code=<?php echo urlencode((string)$cardRow['verification_code']); ?>"><i class="bi bi-shield-check me-1"></i>Verify</a>
+</td>
+</tr>
+<?php endforeach; ?>
+<?php if (!$generatedCards): ?>
+<tr><td colspan="9" class="text-muted text-center">No generated report cards found for the selected filter.</td></tr>
+<?php endif; ?>
+</tbody>
+</table>
+</div>
+
 </div>
 </div>
 </div>
