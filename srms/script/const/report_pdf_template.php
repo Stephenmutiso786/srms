@@ -124,6 +124,76 @@ function app_report_trend_chart_html(array $history): string
         . '</table>';
 }
 
+function app_report_student_meta(PDO $conn, string $studentId): array
+{
+    $meta = [
+        'admno' => '',
+        'stream' => '',
+        'kcpe' => '',
+        'vap' => '',
+    ];
+
+    try {
+        $columns = [];
+        $map = [
+            'school_id' => 'admno',
+            'stream' => 'stream',
+            'kcpe' => 'kcpe',
+            'vap' => 'vap',
+        ];
+        foreach ($map as $column => $alias) {
+            if (app_column_exists($conn, 'tbl_students', $column)) {
+                $columns[] = $column;
+            }
+        }
+        if (empty($columns)) {
+            return $meta;
+        }
+
+        $stmt = $conn->prepare('SELECT ' . implode(', ', $columns) . ' FROM tbl_students WHERE id = ? LIMIT 1');
+        $stmt->execute([$studentId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            return $meta;
+        }
+
+        if (isset($row['school_id'])) { $meta['admno'] = (string)$row['school_id']; }
+        if (isset($row['stream'])) { $meta['stream'] = (string)$row['stream']; }
+        if (isset($row['kcpe'])) { $meta['kcpe'] = (string)$row['kcpe']; }
+        if (isset($row['vap'])) { $meta['vap'] = (string)$row['vap']; }
+    } catch (Throwable $e) {
+        return $meta;
+    }
+
+    return $meta;
+}
+
+function app_report_school_dates(PDO $conn): array
+{
+    $closing = '';
+    $opening = '';
+    try {
+        if (function_exists('app_setting_get')) {
+            $closing = (string)app_setting_get($conn, 'school_closing_date', '');
+            if ($closing === '') {
+                $closing = (string)app_setting_get($conn, 'closing_date', '');
+            }
+            $opening = (string)app_setting_get($conn, 'school_opening_date', '');
+            if ($opening === '') {
+                $opening = (string)app_setting_get($conn, 'opening_date', '');
+            }
+        }
+    } catch (Throwable $e) {
+        $closing = '';
+        $opening = '';
+    }
+
+    return [
+        'closing' => $closing,
+        'opening' => $opening,
+    ];
+}
+
 function app_report_one_page_html(PDO $conn, array $payload): string
 {
     $card = $payload['card'];
@@ -139,26 +209,33 @@ function app_report_one_page_html(PDO $conn, array $payload): string
     $history = ($classId > 0 && $termId > 0)
         ? report_student_term_history($conn, (string)$payload['student_id'], $classId, 6)
         : [];
+    $studentMeta = app_report_student_meta($conn, (string)$payload['student_id']);
+    $schoolDates = app_report_school_dates($conn);
 
     foreach ($subjects as $subject) {
         $subjectId = (int)($subject['subject_id'] ?? 0);
         $classMean = (float)($classMeans[$subjectId] ?? 0);
         $deviation = round(((float)($subject['score'] ?? 0)) - $classMean, 1);
         $deviationLabel = ($deviation > 0 ? '+' : '') . number_format($deviation, 1);
+        $cat1 = number_format((float)($subject['score'] ?? 0), 0) . '%';
+        $cat2 = number_format($classMean, 0) . '%';
+        $endTerm = number_format((float)($subject['score'] ?? 0), 0) . '%';
 
         $subjectRows .= '<tr>'
             . '<td style="border:1px solid #444;padding:4px;font-size:8.3pt;">' . htmlspecialchars((string)($subject['subject_name'] ?? '')) . '</td>'
-            . '<td style="border:1px solid #444;padding:4px;text-align:center;font-size:8.3pt;">' . number_format((float)($subject['score'] ?? 0), 1) . '%</td>'
-            . '<td style="border:1px solid #444;padding:4px;text-align:center;font-size:8.3pt;">' . number_format($classMean, 1) . '%</td>'
+            . '<td style="border:1px solid #444;padding:4px;text-align:center;font-size:8.3pt;">' . $cat1 . '</td>'
+            . '<td style="border:1px solid #444;padding:4px;text-align:center;font-size:8.3pt;">' . $cat2 . '</td>'
+            . '<td style="border:1px solid #444;padding:4px;text-align:center;font-size:8.3pt;">' . $endTerm . '</td>'
             . '<td style="border:1px solid #444;padding:4px;text-align:center;font-size:8.3pt;">' . $deviationLabel . '</td>'
             . '<td style="border:1px solid #444;padding:4px;text-align:center;font-size:8.3pt;">' . htmlspecialchars((string)($subject['grade'] ?? '')) . '</td>'
             . '<td style="border:1px solid #444;padding:4px;text-align:center;font-size:8.3pt;">' . $position . '/' . $totalStudents . '</td>'
+            . '<td style="border:1px solid #444;padding:4px;font-size:8.3pt;">' . htmlspecialchars((string)($subject['remark'] ?? ($card['remark'] ?? '')) ) . '</td>'
             . '<td style="border:1px solid #444;padding:4px;font-size:8.3pt;">' . htmlspecialchars((string)($subject['teacher_name'] ?? '')) . '</td>'
             . '</tr>';
     }
 
     if ($subjectRows === '') {
-        $subjectRows = '<tr><td colspan="7" style="border:1px solid #444;padding:6px;text-align:center;font-size:8.3pt;">No subjects available.</td></tr>';
+        $subjectRows = '<tr><td colspan="9" style="border:1px solid #444;padding:6px;text-align:center;font-size:8.3pt;">No subjects available.</td></tr>';
     }
 
     $photoHtml = app_report_student_photo_html($conn, (string)$payload['student_id']);
@@ -177,7 +254,11 @@ function app_report_one_page_html(PDO $conn, array $payload): string
     $trendChartHtml = app_report_trend_chart_html($history);
 
     return '
-<table width="100%" cellpadding="3" cellspacing="0" style="font-family:helvetica,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="font-family:helvetica,sans-serif;">
+<tr>
+    <td width="2%" style="background:#2f9ed6;">&nbsp;</td>
+    <td width="96%" style="background:#ffffff;">
+<table width="100%" cellpadding="3" cellspacing="0">
 <tr>
     <td width="12%">' . $logoHtml . '</td>
     <td width="88%" style="text-align:right;">
@@ -195,11 +276,10 @@ ACADEMIC REPORT FORM - ' . htmlspecialchars((string)$payload['class_name']) . ' 
     <td width="20%" style="border:1px solid #95a5b3;vertical-align:top;">' . $photoHtml . '</td>
     <td width="40%" style="border:1px solid #95a5b3;vertical-align:top;">
         <div style="font-size:9pt;"><b>NAME:</b> ' . htmlspecialchars((string)$payload['student_name']) . '</div>
-        <div style="font-size:9pt;"><b>ADMNO:</b> ' . htmlspecialchars((string)$payload['school_id']) . '</div>
-        <div style="font-size:9pt;"><b>CLASS:</b> ' . htmlspecialchars((string)$payload['class_name']) . '</div>
-        <div style="font-size:9pt;"><b>AVERAGE:</b> ' . number_format((float)($card['mean'] ?? 0), 2) . '%</div>
-        <div style="font-size:9pt;"><b>MEAN POINTS:</b> ' . number_format((float)($card['mean_points'] ?? 0), 2) . '</div>
-        <div style="font-size:9pt;"><b>GRADE:</b> ' . htmlspecialchars((string)($card['grade'] ?? 'N/A')) . '</div>
+        <div style="font-size:9pt;"><b>ADMNO:</b> ' . htmlspecialchars((string)($studentMeta['admno'] !== '' ? $studentMeta['admno'] : $payload['school_id'])) . '</div>
+        <div style="font-size:9pt;"><b>FORM:</b> ' . htmlspecialchars((string)$payload['class_name']) . (trim((string)$studentMeta['stream']) !== '' ? (' ' . htmlspecialchars((string)$studentMeta['stream'])) : '') . '</div>
+        <div style="font-size:9pt;"><b>KCPE:</b> ' . htmlspecialchars((string)($studentMeta['kcpe'] !== '' ? $studentMeta['kcpe'] : '-')) . '</div>
+        <div style="font-size:9pt;"><b>VAP:</b> ' . htmlspecialchars((string)($studentMeta['vap'] !== '' ? $studentMeta['vap'] : '-')) . '</div>
     </td>
     <td width="40%" style="border:1px solid #95a5b3;vertical-align:top;">' . $subjectChartHtml . '</td>
 </tr>
@@ -208,7 +288,7 @@ ACADEMIC REPORT FORM - ' . htmlspecialchars((string)$payload['class_name']) . ' 
 <tr>
     <td width="24%" style="border:1px solid #95a5b3;background:#eef5fa;">
         <div style="font-size:7.2pt;text-transform:uppercase;">Mean</div>
-        <div style="font-size:10.5pt;"><b>' . htmlspecialchars((string)($card['grade'] ?? 'N/A')) . '</b> &nbsp; ' . number_format((float)($card['mean'] ?? 0), 2) . '%</div>
+        <div style="font-size:10.5pt;"><b>' . htmlspecialchars((string)($card['grade'] ?? 'N/A')) . '</b> &nbsp; ' . number_format((float)($card['mean'] ?? 0), 1) . '</div>
     </td>
     <td width="24%" style="border:1px solid #95a5b3;background:#eef5fa;">
         <div style="font-size:7.2pt;text-transform:uppercase;">Total Marks</div>
@@ -216,7 +296,7 @@ ACADEMIC REPORT FORM - ' . htmlspecialchars((string)$payload['class_name']) . ' 
     </td>
     <td width="24%" style="border:1px solid #95a5b3;background:#eef5fa;">
         <div style="font-size:7.2pt;text-transform:uppercase;">Total Points</div>
-        <div style="font-size:10.5pt;"><b>' . number_format((float)($card['mean_points'] ?? 0), 2) . '</b></div>
+        <div style="font-size:10.5pt;"><b>' . number_format((float)($card['mean_points'] ?? 0), 0) . '</b></div>
     </td>
     <td width="28%" style="border:1px solid #95a5b3;background:#eef5fa;">
         <div style="font-size:7.2pt;text-transform:uppercase;">Overall Position</div>
@@ -227,11 +307,13 @@ ACADEMIC REPORT FORM - ' . htmlspecialchars((string)$payload['class_name']) . ' 
 <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:6px;border-collapse:collapse;">
 <tr style="background:#eceff1;">
     <th style="border:1px solid #444;padding:4px;text-align:left;font-size:8pt;">SUBJECT</th>
-    <th style="border:1px solid #444;padding:4px;font-size:8pt;">MARKS</th>
-    <th style="border:1px solid #444;padding:4px;font-size:8pt;">CLASS AVG</th>
+    <th style="border:1px solid #444;padding:4px;font-size:8pt;">CAT 1</th>
+    <th style="border:1px solid #444;padding:4px;font-size:8pt;">CAT 2</th>
+    <th style="border:1px solid #444;padding:4px;font-size:8pt;">END TERM</th>
     <th style="border:1px solid #444;padding:4px;font-size:8pt;">DEV</th>
-    <th style="border:1px solid #444;padding:4px;font-size:8pt;">GRADE</th>
+    <th style="border:1px solid #444;padding:4px;font-size:8pt;">GR</th>
     <th style="border:1px solid #444;padding:4px;font-size:8pt;">RANK</th>
+    <th style="border:1px solid #444;padding:4px;font-size:8pt;">COMMENT</th>
     <th style="border:1px solid #444;padding:4px;font-size:8pt;">TEACHER</th>
 </tr>
 ' . $subjectRows . '
@@ -240,23 +322,28 @@ ACADEMIC REPORT FORM - ' . htmlspecialchars((string)$payload['class_name']) . ' 
 <tr>
     <td width="50%" style="border:1px solid #95a5b3;vertical-align:top;">
         ' . $trendChartHtml . '
-        <div style="font-size:8pt;margin-top:5px;"><b>Attendance:</b> ' . (int)($payload['attendance']['present'] ?? 0) . '/' . (int)($payload['attendance']['days_open'] ?? 0) . '</div>
-        <div style="font-size:8pt;"><b>Fees Balance:</b> KES ' . number_format((float)($payload['fees_balance'] ?? 0), 0) . '</div>
+        <table width="100%" cellpadding="3" cellspacing="0" style="margin-top:6px;border-collapse:collapse;">
+            <tr><td style="background:#2bb24c;color:#fff;font-size:8pt;"><b>SCHOOL DATES</b></td></tr>
+            <tr><td style="border:1px solid #95a5b3;font-size:8pt;"><b>Closing Date:</b> ' . htmlspecialchars((string)($schoolDates['closing'] !== '' ? $schoolDates['closing'] : '-')) . '</td></tr>
+            <tr><td style="border:1px solid #95a5b3;font-size:8pt;"><b>Opening Date:</b> ' . htmlspecialchars((string)($schoolDates['opening'] !== '' ? $schoolDates['opening'] : '-')) . '</td></tr>
+        </table>
     </td>
     <td width="50%" style="border:1px solid #95a5b3;vertical-align:top;">
         <div style="font-size:8pt;"><b>Teacher Remark:</b></div>
         <div style="font-size:8.5pt;">' . htmlspecialchars((string)($card['teacher_comment'] ?? $card['remark'] ?? '')) . '</div>
         <div style="font-size:8pt;margin-top:4px;"><b>Headteacher Remark:</b></div>
         <div style="font-size:8.5pt;">' . htmlspecialchars((string)($card['headteacher_comment'] ?? $card['remark'] ?? '')) . '</div>
-        <div style="font-size:8pt;margin-top:4px;"><b>AI Summary:</b> ' . htmlspecialchars((string)($card['ai_summary'] ?? '')) . '</div>
-        <div style="font-size:8pt;"><b>Verification Code:</b> ' . htmlspecialchars((string)($card['verification_code'] ?? '')) . '</div>
-        <div style="font-size:8pt;"><b>Document Hash:</b> ' . htmlspecialchars(substr((string)($card['report_hash'] ?? ''), 0, 24)) . '...</div>
-        <div style="font-size:8pt;"><b>Generated:</b> ' . date('Y-m-d H:i') . '</div>
+        <div style="font-size:8pt;margin-top:4px;"><b>Parent Signature:</b> __________________</div>
         <div style="font-size:8pt;margin-top:8px;"><b>Signature:</b> ________________________</div>
+        <div style="font-size:8pt;margin-top:6px;"><b>Verification Code:</b> ' . htmlspecialchars((string)($card['verification_code'] ?? '')) . '</div>
     </td>
 </tr>
 </table>
-';
+</table>
+    </td>
+    <td width="2%" style="background:#2f9ed6;">&nbsp;</td>
+</tr>
+</table>';
 }
 
 function app_output_single_page_report_pdf(PDO $conn, TCPDF $pdf, array $payload): void
@@ -273,5 +360,5 @@ function app_output_single_page_report_pdf(PDO $conn, TCPDF $pdf, array $payload
     $pdf->writeHTML($html, true, false, true, false, '');
 
     $verifyUrl = app_report_verify_url((string)($payload['card']['verification_code'] ?? ''));
-    $pdf->write2DBarcode($verifyUrl, 'QRCODE,H', 12, 252, 24, 24);
+    $pdf->write2DBarcode($verifyUrl, 'QRCODE,H', 108, 252, 22, 22);
 }
