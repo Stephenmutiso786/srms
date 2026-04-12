@@ -17,7 +17,7 @@ try {
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     app_ensure_certificates_table($conn);
 
-    $stmt = $conn->prepare('SELECT cert.*, st.class AS student_class, st.school_id, st.gender, st.image,
+    $stmt = $conn->prepare('SELECT cert.*, st.class AS student_class, st.school_id, st.gender, st.image, st.dob,
         concat_ws(\' \' , st.fname, st.mname, st.lname) AS student_name,
         c.name AS class_name
         FROM tbl_certificates cert
@@ -31,6 +31,7 @@ try {
         exit;
     }
 
+    // Permission check
     $allowed = false;
     if ((int)$level === 0 || (int)$level === 1) {
         $allowed = true;
@@ -52,7 +53,10 @@ try {
     }
 
     $verifyUrl = app_certificate_verify_url((string)$cert['verification_code']);
+    $certificateType = (string)($cert['certificate_type'] ?? 'general');
+    $category = (string)($cert['certificate_category'] ?? 'general');
 
+    // Get student photo
     $studentPhoto = '';
     $image = trim((string)($cert['image'] ?? ''));
     $gender = trim((string)($cert['gender'] ?? 'male'));
@@ -63,59 +67,344 @@ try {
 
     $logoHtml = app_pdf_image_html('images/logo/' . WBLogo, 65, 0, WBName);
 
-    $pdf = new TCPDF(PDF_PAGE_ORIENTATION, PDF_UNIT, 'A4', true, 'UTF-8', false);
-    $pdf->setPrintHeader(false);
-    $pdf->setPrintFooter(false);
-    $pdf->SetMargins(12, 12, 12);
-    $pdf->SetAutoPageBreak(false, 0);
+    // Parse competencies if available
+    $competencies = [];
+    if (!empty($cert['competencies_json'])) {
+        $parsed = @json_decode($cert['competencies_json'], true);
+        if (is_array($parsed) && isset($parsed['competencies'])) {
+            $competencies = $parsed['competencies'];
+        }
+    }
+
+    // Create PDF
+    $pdf = new TCPDF('P', 'mm', 'A4', true, 'UTF-8', false);
+    $pdf->SetDefaultMonospacedFont(PDF_FONT_MONOSPACED);
+    $pdf->SetMargins(15, 15, 15);
+    $pdf->SetAutoPageBreak(false, 20);
     $pdf->AddPage();
-    $pdf->SetFont('helvetica', '', 11);
 
-    $html = '
-    <table width="100%" cellpadding="4" cellspacing="0">
-      <tr>
-        <td width="16%">' . $logoHtml . '</td>
-        <td width="84%" style="text-align:right;">
-          <div style="font-size:18pt;font-weight:bold;">' . htmlspecialchars(WBName) . '</div>
-          <div style="font-size:10pt;">' . htmlspecialchars(WBAddress) . '</div>
-          <div style="font-size:10pt;">' . htmlspecialchars(WBEmail) . '</div>
-        </td>
-      </tr>
-    </table>
-    <div style="text-align:center;border:1px solid #7aa4bf;background:#e7f4fb;padding:8px;margin-top:8px;">
-      <div style="font-size:18pt;font-weight:bold;">' . htmlspecialchars((string)$cert['title']) . '</div>
-      <div style="font-size:10pt;">Official school certificate</div>
-    </div>
-    <table width="100%" cellpadding="5" cellspacing="0" style="margin-top:10px;">
-      <tr>
-        <td width="75%" style="border:1px solid #aab7c4;">
-          <p style="font-size:11pt;">This is to certify that <b>' . htmlspecialchars((string)$cert['student_name']) . '</b> (Admission No: <b>' . htmlspecialchars((string)($cert['school_id'] ?: $cert['student_id'])) . '</b>)
-          of <b>' . htmlspecialchars((string)($cert['class_name'] ?? '')) . '</b> has been issued this <b>' . htmlspecialchars((string)$cert['title']) . '</b>
-          on <b>' . htmlspecialchars((string)$cert['issue_date']) . '</b>.</p>
-          <p style="font-size:10pt;"><b>Serial No:</b> ' . htmlspecialchars((string)$cert['serial_no']) . '<br>
-          <b>Verification Code:</b> ' . htmlspecialchars((string)$cert['verification_code']) . '</p>
-          <p style="font-size:10pt;">' . nl2br(htmlspecialchars((string)($cert['notes'] ?? ''))) . '</p>
-          <p style="font-size:9pt;color:#556;"><b>Certificate Hash:</b> ' . htmlspecialchars(substr((string)$cert['cert_hash'], 0, 32)) . '...</p>
-        </td>
-        <td width="25%" style="border:1px solid #aab7c4;text-align:center;vertical-align:top;">' . $studentPhoto . '</td>
-      </tr>
-    </table>
-    <table width="100%" cellpadding="5" cellspacing="0" style="margin-top:14px;">
-      <tr>
-        <td width="50%" style="border-top:1px solid #444;">Authorized Signature</td>
-        <td width="50%" style="text-align:right;">Date: ' . date('Y-m-d') . '</td>
-      </tr>
-    </table>';
+    // Select template based on certificate type
+    switch ($category) {
+        case 'primary_completion':
+            renderPrimaryCompletionCertificate($pdf, $cert, $studentPhoto, $logoHtml, $competencies, $verifyUrl);
+            break;
+        case 'junior_completion':
+            renderJuniorCompletionCertificate($pdf, $cert, $studentPhoto, $logoHtml, $competencies, $verifyUrl);
+            break;
+        case 'conduct':
+            renderConductCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verifyUrl);
+            break;
+        case 'transfer':
+            renderTransferCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verifyUrl);
+            break;
+        case 'leaving':
+            renderLeavingCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verifyUrl);
+            break;
+        case 'merit':
+            renderMeritCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verifyUrl);
+            break;
+        default:
+            renderGeneralCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verifyUrl);
+    }
 
-    $pdf->writeHTML($html, true, false, true, false, '');
-    $pdf->write2DBarcode($verifyUrl, 'QRCODE,H', 14, 232, 30, 30);
-    $pdf->SetFont('helvetica', '', 8);
-    $pdf->Text(48, 246, 'Scan to verify originality: ' . $verifyUrl);
-
+    // Update download counter
     $stmt = $conn->prepare('UPDATE tbl_certificates SET downloads = downloads + 1 WHERE id = ?');
     $stmt->execute([$certificateId]);
 
-    $pdf->Output('certificate.pdf', 'I');
+    $pdf->Output('certificate-' . $cert['serial_no'] . '.pdf', 'I');
 } catch (Throwable $e) {
+    error_log('Certificate PDF Error: ' . $e->getMessage());
     header('location:./');
 }
+
+/**
+ * Render Primary Completion Certificate (Grade 6)
+ */
+function renderPrimaryCompletionCertificate($pdf, $cert, $studentPhoto, $logoHtml, $competencies, $verifyUrl) {
+    $pdf->SetFont('helvetica', '', 11);
+    
+    $html = '
+    <table width="100%" cellpadding="3" cellspacing="0">
+      <tr>
+        <td width="20%">' . $logoHtml . '</td>
+        <td width="80%" style="text-align:center;">
+          <div style="font-size:14pt;font-weight:bold;color:#1a3a52;">REPUBLIC OF KENYA</div>
+          <div style="font-size:12pt;font-weight:bold;color:#1a3a52;">MINISTRY OF EDUCATION</div>
+          <div style="font-size:10pt;">Under the Competency Based Curriculum (CBC)</div>
+        </td>
+      </tr>
+    </table>
+    
+    <div  style="text-align:center;border:3px solid #d4af37;background:#fffef0;padding:12px;margin-top:10px;">
+      <div style="font-size:22pt;font-weight:bold;color:#1a3a52;">PRIMARY EDUCATION COMPLETION CERTIFICATE</div>
+      <div style="font-size:11pt;color:#556;">This certifies academic achievement at Grade 6</div>
+    </div>
+    
+    <div style="text-align:center;margin-top:12px;font-size:11pt;">
+      <p>This is to certify that</p>
+      <div style="font-size:16pt;font-weight:bold;color:#1a3a52;">
+        ' . htmlspecialchars((string)$cert['student_name']) . '
+      </div>
+      <p>Admission No: <strong>' . htmlspecialchars((string)($cert['school_id'] ?: $cert['student_id'])) . '</strong></p>
+      <p>has successfully completed Primary Education under the Competency Based Curriculum (CBC)</p>
+    </div>
+    
+    <table width="100%" cellpadding="4" cellspacing="0" style="margin-top:10px;background:#f0f4f8;border:1px solid #ccc;">
+      <tr>
+        <td width="60%">
+          <p style="font-size:10pt;margin:0;"><strong>OVERALL PERFORMANCE:</strong></p>
+          <p style="font-size:11pt;margin:2px 0;"><strong>Mean Score:</strong> ' . 
+            ($cert['mean_score'] !== null ? number_format((float)$cert['mean_score'], 2) . '%' : 'N/A') . '</p>
+          <p style="font-size:11pt;margin:2px 0;"><strong>Grade:</strong> ' . 
+            ($cert['merit_grade'] ? htmlspecialchars($cert['merit_grade']) . ' - ' . app_merit_grade_label($cert['merit_grade']) : 'N/A') . '</p>
+          ' . (isset($cert['position_in_class']) && $cert['position_in_class'] ? 
+          '<p style="font-size:11pt;margin:2px 0;"><strong>Class Position:</strong> ' . (int)$cert['position_in_class'] . '</p>' : '') . '
+        </td>
+        <td width="40%" style="text-align:center;vertical-align:middle;">
+          ' . $studentPhoto . '
+        </td>
+      </tr>
+    </table>' . 
+    (count($competencies) > 0 ? '
+    <p style="font-size:11pt;font-weight:bold;margin-top:8px;">CBC COMPETENCIES ACHIEVED:</p>
+    <table width="100%" cellpadding="4" cellspacing="1" style="background:#ddd;">
+      ' . implode('', array_map(function($comp, $key) {
+          $level = $comp['achievement_level'] ?? 'Not Assessed';
+          $levelBadge = match($level) {
+              'excellent' => '<span style="background:#28a745;color:white;padding:2px 6px;border-radius:3px;">Excellent</span>',
+              'advanced' => '<span style="background:#007bff;color:white;padding:2px 6px;border-radius:3px;">Advanced</span>',
+              'proficient' => '<span style="background:#ffc107;color:black;padding:2px 6px;border-radius:3px;">Proficient</span>',
+              'developing' => '<span style="background:#6c757d;color:white;padding:2px 6px;border-radius:3px;">Developing</span>',
+              default => '<span style="background:#e9ecef;color:black;padding:2px 6px;border-radius:3px;">Not Assessed</span>'
+          };
+          $compNames = [
+              'communication' => 'Communication & Collaboration',
+              'critical_thinking' => 'Critical Thinking',
+              'creativity' => 'Creativity',
+              'citizenship' => 'Citizenship',
+              'digital' => 'Digital Literacy'
+          ];
+          return '<tr style="background:white;"><td width="60%">' . htmlspecialchars($compNames[$key] ?? $key) . '</td><td>' . $levelBadge . '</td></tr>';
+      }, $competencies, array_keys($competencies))) . '
+    </table>' : '') . '
+    
+    <table width="100%" cellpadding="5" cellspacing="0" style="margin-top:12px;">
+      <tr>
+        <td width="50%">
+          <p style="margin:0;"><strong>Class Teacher</strong></p>
+          <p style="border-top:1px solid #000;margin:20px 0 0 0;min-height:30px;"></p>
+        </td>
+        <td width="50%" style="text-align:right;">
+          <p style="margin:0;"><strong>Headteacher / Principal</strong></p>
+          <p style="border-top:1px solid #000;margin:20px 0 0 0;min-height:30px;"></p>
+        </td>
+      </tr>
+      <tr>
+        <td style="font-size:9pt;color:#666;"><strong>SERIAL:</strong> ' . htmlspecialchars((string)$cert['serial_no']) . '</td>
+        <td style="text-align:right;font-size:9pt;color:#666;"><strong>DATE:</strong> ' . htmlspecialchars((string)$cert['issue_date']) . '</td>
+      </tr>
+    </table>';
+    
+    $pdf->writeHTML($html, true, false, true, false, '');
+    $pdf->SetXY(15, 255);
+    $pdf->write2DBarcode($verifyUrl, 'QRCODE,H', 15, 255, 25, 25);
+    $pdf->SetFont('helvetica', '', 7);
+    $pdf->SetXY(45, 273);
+    $pdf->MultiCell(150, 3, 'Verify at: ' . substr($verifyUrl, 0, 50) . '...', 0, 'L');
+}
+
+/**
+ * Render Junior Completion Certificate (Grade 9)
+ */
+function renderJuniorCompletionCertificate($pdf, $cert, $studentPhoto, $logoHtml, $competencies, $verifyUrl) {
+    // Similar to primary but for Grade 9/Junior Secondary
+    renderPrimaryCompletionCertificate($pdf, $cert, $studentPhoto, $logoHtml, $competencies, $verifyUrl);
+}
+
+/**
+ * Render Good Conduct Certificate
+ */
+function renderConductCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verifyUrl) {
+    $pdf->SetFont('helvetica', '', 11);
+    $html = '
+    <table width="100%" cellpadding="4" cellspacing="0" style="text-align:center;">
+      <tr>
+        <td>' . $logoHtml . '</td>
+        <td style="font-size:14pt;font-weight:bold;color:#1a3a52;">GOOD CONDUCT CERTIFICATE</td>
+      </tr>
+    </table>
+    
+    <div style="text-align:center;margin-top:15px;">
+      <p style="font-size:11pt;">This is to certify that</p>
+      <div style="font-size:16pt;font-weight:bold;color:#1a3a52;margin:10px 0;">
+        ' . htmlspecialchars((string)$cert['student_name']) . '
+      </div>
+      <p>Admission No: ' . htmlspecialchars((string)($cert['school_id'] ?: $cert['student_id'])) . '</p>
+      <p style="margin-top:15px;">has demonstrated exemplary conduct, discipline, and moral character</p>
+      <p style="margin:10px 0;">throughout their academic term.</p>
+      <p style="margin-top:10px;">' . nl2br(htmlspecialchars((string)($cert['notes'] ?? ''))) . '</p>
+    </div>
+    
+    <table width="100%" cellpadding="8" cellspacing="0" style="margin-top:20px;">
+      <tr>
+        <td width="50%" style="text-align:center;">
+          <p style="border-top:1px solid #000;padding-top:20px;">Class Teacher</p>
+        </td>
+        <td width="50%" style="text-align:center;">
+          <p style="border-top:1px solid #000;padding-top:20px;">School Principal</p>
+        </td>
+      </tr>
+      <tr>
+        <td style="text-align:center;font-size:9pt;color:#666;padding-top:5px;">Date: ' . htmlspecialchars((string)$cert['issue_date']) . '</td>
+        <td style="text-align:center;font-size:9pt;color:#666;padding-top:5px;"><strong>' . htmlspecialchars((string)$cert['serial_no']) . '</strong></td>
+      </tr>
+    </table>';
+    
+    $pdf->writeHTML($html, true, false, true, false, '');
+}
+
+/**
+ * Render Leaving Certificate
+ */
+function renderLeavingCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verifyUrl) {
+    $pdf->SetFont('helvetica', '', 11);
+    $html = '
+    <table width="100%" cellpadding="4" cellspacing="0" style="text-align:center;">
+      <tr>
+        <td width="20%">' . $logoHtml . '</td>
+        <td width="80%">
+          <div style="font-size:14pt;font-weight:bold;">LEAVING CERTIFICATE</div>
+          <div style="font-size:10pt;">This certifies that the bearer is a bonafide student of this school</div>
+        </td>
+      </tr>
+    </table>
+    
+    <table width="100%" cellpadding="5" cellspacing="0" style="margin-top:15px;border:1px solid #999;">
+      <tr>
+        <td width="70%">
+          <p><strong>Student Name:</strong> ' . htmlspecialchars((string)$cert['student_name']) . '</p>
+          <p><strong>Admission Number:</strong> ' . htmlspecialchars((string)($cert['school_id'] ?: $cert['student_id'])) . '</p>
+          <p><strong>Last Class:</strong> ' . htmlspecialchars((string)($cert['class_name'] ?? '')) . '</p>
+          <p><strong>Reason for Leaving:</strong> ' . nl2br(htmlspecialchars((string)($cert['notes'] ?? ''))) . '</p>
+        </td>
+        <td width="30%" style="text-align:center;">
+          ' . $studentPhoto . '
+        </td>
+      </tr>
+    </table>
+    
+    <table width="100%" cellpadding="8" cellspacing="0" style="margin-top:20px;">
+      <tr>
+        <td width="50%"><strong>Class Teacher</strong><p style="border-top:1px solid #000;margin:15px 0;"></p></td>
+        <td width="50%"><strong>Headteacher</strong><p style="border-top:1px solid #000;margin:15px 0;"></p></td>
+      </tr>
+      <tr>
+        <td style="font-size:9pt;">Date: ' . htmlspecialchars((string)$cert['issue_date']) . '</td>
+        <td style="font-size:9pt;">Ref: ' . htmlspecialchars((string)$cert['serial_no']) . '</td>
+      </tr>
+    </table>';
+    
+    $pdf->writeHTML($html, true, false, true, false, '');
+}
+
+/**
+ * Render Transfer Certificate
+ */
+function renderTransferCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verifyUrl) {
+    renderLeavingCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verifyUrl);
+}
+
+/**
+ * Render Merit Certificate
+ */
+function renderMeritCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verifyUrl) {
+    $pdf->SetFont('helvetica', '', 12);
+    $meritDesc = $cert['merit_grade'] ? app_merit_grade_description($cert['merit_grade']) : 'Exceptional achievement';
+    
+    $html = '
+    <div style="text-align:center;margin-top:20px;">
+      <div style="font-size:24pt;font-weight:bold;color:#d4af37;">★ MERIT CERTIFICATE ★</div>
+      <div style="font-size:12pt;color:#666;margin-bottom:15px;">In Recognition of Academic Excellence</div>
+    </div>
+    
+    <table width="100%" cellpadding="5" cellspacing="0" style="margin-top:15px;">
+      <tr>
+        <td width="60%">
+          <p style="font-size:11pt;">This certificate is proudly awarded to</p>
+          <div style="font-size:16pt;font-weight:bold;color:#1a3a52;margin:8px 0;">
+            ' . htmlspecialchars((string)$cert['student_name']) . '
+          </div>
+          <p style="font-size:10pt;">For outstanding academic performance</p>
+          <p style="font-size:12pt;font-weight:bold;margin:8px 0;">Mean Score: ' . 
+            ($cert['mean_score'] ? number_format((float)$cert['mean_score'], 2) . '% (Grade ' . htmlspecialchars($cert['merit_grade']) . ')' : 'Excellent') . '</p>
+          <p style="font-size:10pt;color:#666;margin:8px 0;">' . htmlspecialchars($meritDesc) . '</p>
+        </td>
+        <td width="40%" style="text-align:center;">
+          ' . $studentPhoto . '
+        </td>
+      </tr>
+    </table>
+    
+    <div style="text-align:center;margin-top:20px;">
+      <p><strong>Issued: </strong>' . htmlspecialchars((string)$cert['issue_date']) . '</p>
+    </div>
+    
+    <table width="100%" cellpadding="8" cellspacing="0" style="margin-top:15px;">
+      <tr>
+        <td width="50%" style="text-align:center;border-top:1px solid #000;padding-top:15px;">
+          <strong>Headteacher</strong>
+        </td>
+        <td width="50%" style="text-align:center;border-top:1px solid #000;padding-top:15px;">
+          <strong>Chairman, Board of Governors</strong>
+        </td>
+      </tr>
+    </table>';
+    
+    $pdf->writeHTML($html, true, false, true, false, '');
+}
+
+/**
+ * Render General / Default Certificate
+ */
+function renderGeneralCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verifyUrl) {
+    $pdf->SetFont('helvetica', '', 11);
+    $html = '
+    <table width="100%" cellpadding="4" cellspacing="0">
+      <tr>
+        <td width="20%">' . $logoHtml . '</td>
+        <td width="80%" style="text-align:right;">
+          <div style="font-size:14pt;font-weight:bold;">' . htmlspecialchars(WBName) . '</div>
+          <div style="font-size:9pt;">' . htmlspecialchars(WBAddress) . '</div>
+        </td>
+      </tr>
+    </table>
+    <div style="text-align:center;border:2px solid #7aa4bf;background:#e7f4fb;padding:10px;margin-top:10px;">
+      <div style="font-size:18pt;font-weight:bold;">' . htmlspecialchars((string)$cert['title']) . '</div>
+      <div style="font-size:9pt;color:#556;">Official School Certificate</div>
+    </div>
+    <table width="100%" cellpadding="6" cellspacing="0" style="margin-top:15px;">
+      <tr>
+        <td width="65%" style="border:1px solid #bbb;padding:8px;">
+          <p style="font-size:11pt;"><strong>' . htmlspecialchars((string)$cert['student_name']) . '</strong></p>
+          <p style="font-size:10pt;"><strong>Admission No:</strong> ' . htmlspecialchars((string)($cert['school_id'] ?: $cert['student_id'])) . '</p>
+          <p style="font-size:10pt;"><strong>Class:</strong> ' . htmlspecialchars((string)($cert['class_name'] ?? '')) . '</p>
+          <p style="font-size:11pt;margin-top:8px;">' . nl2br(htmlspecialchars((string)($cert['notes'] ?? ''))) . '</p>
+          <p style="font-size:9pt;color:#999;margin-top:6px;"><strong>Serial:</strong> ' . htmlspecialchars((string)$cert['serial_no']) . '</p>
+        </td>
+        <td width="35%" style="border:1px solid #bbb;text-align:center;vertical-align:top;">
+          ' . $studentPhoto . '
+        </td>
+      </tr>
+    </table>
+    <table width="100%" cellpadding="6" cellspacing="0" style="margin-top:14px;">
+      <tr>
+        <td width="40%" style="border-top:1px solid #333;text-align:center;padding-top:10px;"><strong>Authorized Signature</strong></td>
+        <td width="60%" style="text-align:right;"><strong>Date:</strong> ' . htmlspecialchars((string)$cert['issue_date']) . '</td>
+      </tr>
+    </table>';
+    
+    $pdf->writeHTML($html, true, false, true, false, '');
+    $pdf->SetXY(15, 250);
+    $pdf->write2DBarcode($verifyUrl, 'QRCODE,H', 15, 250, 20, 20);
+}
+

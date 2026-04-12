@@ -19,7 +19,8 @@ try {
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     app_ensure_certificates_table($conn);
 
-    $stmt = $conn->prepare('SELECT st.id, st.school_id, concat_ws(\' \' , st.fname, st.mname, st.lname) AS student_name, c.name AS class_name
+    // Get students for certificate generation
+    $stmt = $conn->prepare('SELECT st.id, st.school_id, st.class, concat_ws(\' \' , st.fname, st.mname, st.lname) AS student_name, c.name AS class_name
         FROM tbl_students st
         LEFT JOIN tbl_classes c ON c.id = st.class
         ORDER BY st.fname, st.lname
@@ -27,8 +28,10 @@ try {
     $stmt->execute();
     $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    $stmt = $conn->prepare('SELECT cert.id, cert.certificate_type, cert.title, cert.serial_no, cert.issue_date, cert.status, cert.verification_code,
-        concat_ws(\' \' , st.fname, st.mname, st.lname) AS student_name, st.school_id, c.name AS class_name
+    // Get issued certificates with all new fields
+    $stmt = $conn->prepare('SELECT cert.id, cert.certificate_type, cert.certificate_category, cert.title, cert.serial_no, 
+            cert.issue_date, cert.status, cert.verification_code, cert.mean_score, cert.merit_grade, cert.locked,
+            concat_ws(\' \' , st.fname, st.mname, st.lname) AS student_name, st.school_id, c.name AS class_name
         FROM tbl_certificates cert
         JOIN tbl_students st ON st.id = cert.student_id
         LEFT JOIN tbl_classes c ON c.id = cert.class_id
@@ -57,74 +60,237 @@ try {
 <a class="app-sidebar__toggle" href="#" data-toggle="sidebar" aria-label="Hide Sidebar"></a></header>
 <?php include('admin/partials/sidebar.php'); ?>
 <main class="app-content">
-<div class="app-title"><div><h1>School Certificates</h1><p>Generate leaving and school certificates with verification QR codes.</p></div></div>
+<div class="app-title"><div><h1>🎓 School Certificates</h1><p>Generate leaving, completion, conduct, merit, and transfer certificates with CBC competency tracking.</p></div></div>
 
 <div class="tile mb-3">
-<h3 class="tile-title">Generate Certificate</h3>
+<h3 class="tile-title"><i class="bi bi-plus-circle"></i> Generate New Certificate</h3>
 <form class="row g-3" method="POST" action="admin/core/generate_certificate">
-<div class="col-md-4">
-<label class="form-label">Certificate Type</label>
-<select class="form-control" name="certificate_type" required>
+
+<div class="col-md-3">
+<label class="form-label">Certificate Type *</label>
+<select class="form-control" name="certificate_type" id="certType" required onchange="toggleCertificateFields()">
+<option value="" disabled selected>-- Select Type --</option>
 <?php foreach ($types as $key => $label): ?>
 <option value="<?php echo htmlspecialchars($key); ?>"><?php echo htmlspecialchars($label); ?></option>
 <?php endforeach; ?>
 </select>
+<small class="form-text text-muted d-block mt-1">
+📜 Primary Completion → Grade 6<br>
+📜 Junior Completion → Grade 9<br>
+📜 Leaving → Student departure
+</small>
 </div>
-<div class="col-md-4">
-<label class="form-label">Student</label>
-<select class="form-control" name="student_id" required>
-<option value="" disabled selected>Select student</option>
+
+<div class="col-md-3">
+<label class="form-label">Student *</label>
+<select class="form-control" name="student_id" id="studentId" required onchange="loadStudentData()">
+<option value="" disabled selected>-- Select Student --</option>
 <?php foreach ($students as $student): ?>
-<option value="<?php echo htmlspecialchars((string)$student['id']); ?>"><?php echo htmlspecialchars((string)$student['student_name'] . ' (' . ((string)$student['school_id'] !== '' ? (string)$student['school_id'] : (string)$student['id']) . ')'); ?></option>
+<option value="<?php echo htmlspecialchars((string)$student['id']); ?>" data-class="<?php echo htmlspecialchars((string)$student['class']); ?>">
+<?php echo htmlspecialchars((string)$student['student_name'] . ' (' . ((string)$student['school_id'] ?: (string)$student['id']) . ')'); ?>
+</option>
 <?php endforeach; ?>
 </select>
 </div>
+
 <div class="col-md-2">
-<label class="form-label">Issue Date</label>
+<label class="form-label">Issue Date *</label>
 <input class="form-control" type="date" name="issue_date" value="<?php echo date('Y-m-d'); ?>" required>
 </div>
-<div class="col-md-12">
-<label class="form-label">Notes</label>
-<textarea class="form-control" name="notes" rows="2" placeholder="Optional notes/remarks"></textarea>
+
+<div class="col-md-2" id="meanScoreField" style="display:none;">
+<label class="form-label">Mean Score</label>
+<input class="form-control" type="number" name="mean_score" min="0" max="100" step="0.01" placeholder="e.g. 72.50">
+<small class="text-muted d-block">Optional</small>
 </div>
+
+<div class="col-md-12">
+<label class="form-label">Remarks / Notes</label>
+<textarea class="form-control" name="notes" rows="2" placeholder="Optional remarks or achievements to include on certificate"></textarea>
+</div>
+
+<div class="col-md-12" id="competenciesField" style="display:none;">
+<label class="form-label">🧩 CBC Competencies Status</label>
+<div class="row g-2">
+<?php 
+$competencies = app_cbc_competencies();
+foreach ($competencies as $key => $comp):
+?>
+<div class="col-md-4">
+<label class="small d-block mb-1"><strong><?php echo htmlspecialchars($comp['name']); ?></strong></label>
+<select class="form-control form-control-sm" name="competencies[<?php echo htmlspecialchars($key); ?>]">
+<option value="">-- Not Assessed --</option>
+<option value="developing">Developing</option>
+<option value="proficient">Proficient</option>
+<option value="advanced">Advanced</option>
+<option value="excellent">Excellent</option>
+</select>
+</div>
+<?php endforeach; ?>
+</div>
+</div>
+
 <div class="col-md-12 d-grid">
-<button class="btn btn-primary" type="submit"><i class="bi bi-award me-1"></i>Generate Certificate</button>
+<button class="btn btn-primary btn-lg" type="submit"><i class="bi bi-award me-2"></i>Generate Certificate</button>
 </div>
 </form>
 </div>
 
+<!-- ===== ISSUED CERTIFICATES TABLE ===== --
 <div class="tile">
-<h3 class="tile-title">Issued Certificates</h3>
-<div class="table-responsive">
-<table class="table table-hover">
-<thead><tr><th>#</th><th>Student</th><th>Class</th><th>Type</th><th>Serial</th><th>Issue Date</th><th>Verify Code</th><th>Action</th></tr></thead>
+<h3 class="tile-title">📋 Issued Certificates</h3>
+<ul class="nav nav-tabs mb-3" role="tablist">
+<li class="nav-item" role="presentation">
+<button class="nav-link active" id="allTab" data-bs-toggle="tab" data-bs-target="#allCerts" type="button" role="tab">All (<?php echo count($certificates); ?>)</button>
+</li>
+<?php $categoryGroups = array_reduce($certificates, function($carry, $cert) {
+    $cat = $cert['certificate_category'] ?? 'general';
+    $carry[$cat] = ($carry[$cat] ?? 0) + 1;
+    return $carry;
+}, []); ?>
+<?php foreach (array_keys($categoryGroups) as $cat): ?>
+<li class="nav-item" role="presentation">
+<button class="nav-link" data-bs-toggle="tab" data-bs-target="#cat<?php echo htmlspecialchars($cat); ?>" type="button" role="tab">
+<?php echo htmlspecialchars(app_certificate_category_label($cat)); ?> (<?php echo $categoryGroups[$cat]; ?>)
+</button>
+</li>
+<?php endforeach; ?>
+</ul>
+
+<div class="tab-content">
+<div class="tab-pane fade show active" id="allCerts" role="tabpanel">
+<div class="table-responsive-md">
+<table class="table table-sm table-hover">
+<thead><tr><th>#</th><th>Student</th><th>Class</th><th>Type</th><th>Mean</th><th>Grade</th><th>Issued</th><th>Status</th><th>Action</th></tr></thead>
 <tbody>
 <?php foreach ($certificates as $row): ?>
-<tr>
+<tr<?php echo $row['locked'] ? ' class="table-secondary"' : ''; ?>>
 <td><?php echo (int)$row['id']; ?></td>
 <td><?php echo htmlspecialchars((string)$row['student_name']); ?><div class="small text-muted"><?php echo htmlspecialchars((string)($row['school_id'] ?: '')); ?></div></td>
 <td><?php echo htmlspecialchars((string)($row['class_name'] ?? '')); ?></td>
-<td><?php echo htmlspecialchars((string)$row['title']); ?></td>
-<td><?php echo htmlspecialchars((string)$row['serial_no']); ?></td>
+<td><small><?php echo htmlspecialchars((string)$row['certificate_type']); ?></small></td>
+<td><?php echo $row['mean_score'] !== null ? number_format((float)$row['mean_score'], 2) : '—'; ?></td>
+<td><?php if ($row['merit_grade']): ?><span class="badge bg-warning text-dark"><?php echo htmlspecialchars($row['merit_grade']); ?></span><?php else: ?>—<?php endif; ?></td>
 <td><?php echo htmlspecialchars((string)$row['issue_date']); ?></td>
-<td class="small text-muted"><?php echo htmlspecialchars((string)$row['verification_code']); ?></td>
 <td>
-<a class="btn btn-sm btn-primary" target="_blank" href="certificate_pdf?id=<?php echo (int)$row['id']; ?>">Download</a>
-<a class="btn btn-sm btn-outline-secondary" target="_blank" href="verify_certificate?code=<?php echo urlencode((string)$row['verification_code']); ?>">Verify</a>
+<span class="badge bg-<?php echo $row['status'] === 'issued' ? 'success' : ($row['status'] === 'pending' ? 'warning' : 'danger'); ?>">
+<?php echo ucfirst(htmlspecialchars((string)$row['status'])); ?>
+</span>
+<?php if ($row['locked']): ?><br><small class="text-muted">🔒 Locked</small><?php endif; ?>
+</td>
+<td class="text-end">
+<a class="btn btn-sm btn-primary" target="_blank" href="certificate_pdf?id=<?php echo (int)$row['id']; ?>" title="Download PDF"><i class="bi bi-download"></i></a>
+<a class="btn btn-sm btn-outline-secondary" target="_blank" href="verify_certificate?code=<?php echo urlencode((string)$row['verification_code']); ?>" title="Verify"><i class="bi bi-check-circle"></i></a>
 </td>
 </tr>
 <?php endforeach; ?>
 <?php if (!$certificates): ?>
-<tr><td colspan="8" class="text-center text-muted">No certificates issued yet.</td></tr>
+<tr><td colspan="9" class="text-center text-muted">No certificates issued yet.</td></tr>
 <?php endif; ?>
 </tbody>
 </table>
 </div>
 </div>
+
+<?php foreach ($categoryGroups as $cat => $count): 
+$catCerts = array_filter($certificates, function($c) use ($cat) { return ($c['certificate_category'] ?? 'general') === $cat; });
+?>
+<div class="tab-pane fade" id="cat<?php echo htmlspecialchars($cat); ?>" role="tabpanel">
+<div class="table-responsive-md">
+<table class="table table-sm table-hover">
+<thead><tr><th>#</th><th>Student</th><th>Class</th><th>Mean</th><th>Grade</th><th>Issued</th><th>Action</th></tr></thead>
+<tbody>
+<?php foreach ($catCerts as $row): ?>
+<tr<?php echo $row['locked'] ? ' class="table-secondary"' : ''; ?>>
+<td><?php echo (int)$row['id']; ?></td>
+<td><?php echo htmlspecialchars((string)$row['student_name']); ?></td>
+<td><?php echo htmlspecialchars((string)($row['class_name'] ?? '')); ?></td>
+<td><?php echo $row['mean_score'] !== null ? number_format((float)$row['mean_score'], 2) : '—'; ?></td>
+<td><?php if ($row['merit_grade']): ?><strong><?php echo htmlspecialchars($row['merit_grade']); ?></strong><?php else: ?>—<?php endif; ?></td>
+<td><?php echo htmlspecialchars((string)$row['issue_date']); ?></td>
+<td class="text-end">
+<a class="btn btn-sm btn-primary" target="_blank" href="certificate_pdf?id=<?php echo (int)$row['id']; ?>"><i class="bi bi-download"></i></a>
+</td>
+</tr>
+<?php endforeach; ?>
+</tbody>
+</table>
+</div>
+</div>
+<?php endforeach; ?>
+
+</div>
+</div>
+
+<!-- ===== CERTIFICATE STATS ===== -->
+<div class="row mt-4">
+<div class="col-md-3">
+<div class="tile tile-colored bg-primary">
+<div class="tile-body">
+<h4><?php echo count($certificates); ?></h4>
+<p>Total Certificates Issued</p>
+</div>
+</div>
+</div>
+<div class="col-md-3">
+<div class="tile tile-colored bg-success">
+<div class="tile-body">
+<h4><?php echo count(array_filter($certificates, fn($c) => $c['merit_grade'] === 'A')); ?></h4>
+<p>Grade A Certificates</p>
+</div>
+</div>
+</div>
+<div class="col-md-3">
+<div class="tile tile-colored bg-warning">
+<div class="tile-body">
+<h4><?php echo count(array_filter($certificates, fn($c) => $c['locked'])); ?></h4>
+<p>Locked / Approved</p>
+</div>
+</div>
+</div>
+<div class="col-md-3">
+<div class="tile tile-colored bg-info">
+<div class="tile-body">
+<h4><?php echo count(array_filter($certificates, fn($c) => $c['certificate_category'] === 'primary_completion')); ?></h4>
+<p>Primary Completion</p>
+</div>
+</div>
+</div>
+</div>
 </main>
+
 <script src="js/jquery-3.7.0.min.js"></script>
 <script src="js/bootstrap.min.js"></script>
 <script src="js/main.js"></script>
+<script>
+function toggleCertificateFields() {
+    const type = document.getElementById('certType').value;
+    const meanScoreField = document.getElementById('meanScoreField');
+    const competenciesField = document.getElementById('competenciesField');
+    
+    // Show mean score and competencies for completion certificates and merit
+    const showFields = ['primary_completion', 'junior_completion', 'merit'].includes(type);
+    meanScoreField.style.display = showFields ? 'block' : 'none';
+    competenciesField.style.display = showFields ? 'block' : 'none';
+}
+
+function loadStudentData() {
+    const select = document.getElementById('studentId');
+    const selectedOption = select.options[select.selectedIndex];
+    const classLevel = selectedOption.getAttribute('data-class');
+    
+    console.log('Student from class level:', classLevel);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize bootstrap tabs
+    const triggerTabList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tab"]'));
+    triggerTabList.forEach(function (triggerEl) {
+        const tabTrigger = new bootstrap.Tab(triggerEl);
+    });
+});
+</script>
+
 <?php require_once('const/check-reply.php'); ?>
 </body>
 </html>

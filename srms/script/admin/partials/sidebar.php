@@ -2,7 +2,9 @@
 $currentPage = basename($_SERVER['PHP_SELF'], '.php');
 $studentPages = ['register_students', 'import_students', 'manage_students', 'students'];
 $isStudentsOpen = in_array($currentPage, $studentPages, true);
-$examPages = ['exams', 'exam_timetable', 'marks_review', 'publish_results', 'results_analytics', 'results_locks', 'report', 'report_settings', 'merit_list', 'certificates'];
+$certificatePages = ['certificates', 'promotions', 'promotion_approvals'];
+$isCertificatesOpen = in_array($currentPage, $certificatePages, true);
+$examPages = ['exams', 'exam_timetable', 'marks_review', 'publish_results', 'results_analytics', 'results_locks', 'report', 'report_settings', 'merit_list'];
 $isExamsOpen = in_array($currentPage, $examPages, true);
 
 function app_menu_active($page)
@@ -64,9 +66,15 @@ function app_tree_active($page)
         <li><a class="treeview-item<?php echo app_tree_active('results_analytics'); ?>" href="admin/results_analytics"><i class="icon bi bi-circle-fill"></i> Results Analytics</a></li>
         <li><a class="treeview-item<?php echo app_tree_active('results_locks'); ?>" href="admin/results_locks"><i class="icon bi bi-circle-fill"></i> Results Locks</a></li>
         <li><a class="treeview-item<?php echo app_tree_active('report'); ?>" href="admin/report"><i class="icon bi bi-circle-fill"></i> Report Tool</a></li>
-        <li><a class="treeview-item<?php echo app_tree_active('certificates'); ?>" href="admin/certificates"><i class="icon bi bi-circle-fill"></i> Certificates</a></li>
         <li><a class="treeview-item<?php echo app_tree_active('merit_list'); ?>" href="admin/merit_list"><i class="icon bi bi-circle-fill"></i> Merit List</a></li>
         <li><a class="treeview-item<?php echo app_tree_active('report_settings'); ?>" href="admin/report_settings"><i class="icon bi bi-circle-fill"></i> Report Settings</a></li>
+      </ul>
+    </li>
+    <li class="treeview<?php echo $isCertificatesOpen ? ' is-expanded' : ''; ?>">
+      <a class="app-menu__item" href="javascript:void(0);" data-toggle="treeview"><i class="app-menu__icon feather icon-award"></i><span class="app-menu__label">Certificates</span><i class="treeview-indicator bi bi-chevron-right"></i></a>
+      <ul class="treeview-menu">
+        <li><a class="treeview-item<?php echo app_tree_active('certificates'); ?>" href="admin/certificates"><i class="icon bi bi-circle-fill"></i> Generate Certificates</a></li>
+        <li><a class="treeview-item<?php echo app_tree_active('promotions'); ?>" href="admin/promotions"><i class="icon bi bi-circle-fill"></i> Student Promotions</a></li>
       </ul>
     </li>
     <li><a class="app-menu__item<?php echo app_menu_active('analytics_engine'); ?>" href="admin/analytics_engine"><i class="app-menu__icon feather icon-activity"></i><span class="app-menu__label">Analytics Engine</span></a></li>
