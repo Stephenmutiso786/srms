@@ -2495,11 +2495,6 @@ function app_pdf_image_html(string $relativePath, int $width = 60, int $height =
 		return '';
 	}
 
-	$extension = strtolower(pathinfo($relativePath, PATHINFO_EXTENSION));
-	if ($extension === 'png' && !extension_loaded('gd') && !extension_loaded('imagick')) {
-		return '';
-	}
-
 	$size = $height > 0 ? ' width="'.$width.'" height="'.$height.'"' : ' width="'.$width.'"';
 	return '<img src="'.$relativePath.'"'.$size.' alt="'.htmlspecialchars($alt, ENT_QUOTES).'" />';
 }
