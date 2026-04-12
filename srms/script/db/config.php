@@ -752,18 +752,35 @@ function app_refresh_exam_status(PDO $conn, int $examId): string
 	}
 
 	try {
-		$stmt = $conn->prepare("SELECT status FROM tbl_exams WHERE id = ? LIMIT 1");
+		$stmt = $conn->prepare("SELECT status, class_id, term_id, COALESCE(assessment_mode, 'normal') AS assessment_mode FROM tbl_exams WHERE id = ? LIMIT 1");
 		$stmt->execute([$examId]);
-		$current = (string)$stmt->fetchColumn();
+		$examRow = $stmt->fetch(PDO::FETCH_ASSOC);
+		$current = (string)($examRow['status'] ?? '');
 		if ($current === '') {
 			return 'draft';
 		}
-		if (in_array($current, ['finalized', 'published'], true) || !app_table_exists($conn, 'tbl_exam_mark_submissions')) {
+		if (in_array($current, ['finalized', 'published'], true)) {
 			return $current;
 		}
 
-		$stmt = $conn->prepare("SELECT status, COUNT(*) AS total FROM tbl_exam_mark_submissions WHERE exam_id = ? GROUP BY status");
-		$stmt->execute([$examId]);
+		$assessmentMode = (string)($examRow['assessment_mode'] ?? 'normal');
+		$counts = [];
+
+		if ($assessmentMode === 'cbc' && app_table_exists($conn, 'tbl_cbc_mark_submissions')) {
+			$classId = (int)($examRow['class_id'] ?? 0);
+			$termId = (int)($examRow['term_id'] ?? 0);
+			$stmt = $conn->prepare("SELECT s.status, COUNT(*) AS total
+				FROM tbl_cbc_mark_submissions s
+				WHERE s.class_id = ? AND s.term_id = ?
+				GROUP BY s.status");
+			$stmt->execute([$classId, $termId]);
+		} elseif (app_table_exists($conn, 'tbl_exam_mark_submissions')) {
+			$stmt = $conn->prepare("SELECT status, COUNT(*) AS total FROM tbl_exam_mark_submissions WHERE exam_id = ? GROUP BY status");
+			$stmt->execute([$examId]);
+		} else {
+			return $current;
+		}
+
 		$counts = [];
 		foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
 			$counts[(string)$row['status']] = (int)$row['total'];
@@ -772,7 +789,7 @@ function app_refresh_exam_status(PDO $conn, int $examId): string
 			$nextStatus = in_array($current, ['active', 'reviewed'], true) ? 'active' : 'draft';
 		} elseif (!empty($counts['submitted'])) {
 			$nextStatus = 'active';
-		} elseif (!empty($counts['reviewed']) || !empty($counts['finalized'])) {
+		} elseif (!empty($counts['reviewed']) || !empty($counts['approved']) || !empty($counts['finalized'])) {
 			$nextStatus = 'reviewed';
 		} else {
 			$nextStatus = 'active';

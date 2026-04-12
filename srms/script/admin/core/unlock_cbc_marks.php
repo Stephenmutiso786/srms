@@ -20,8 +20,23 @@ try {
   }
   $conn = app_db();
   $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+  $meta = $conn->prepare("SELECT class_id, term_id FROM tbl_cbc_mark_submissions WHERE id = ? LIMIT 1");
+  $meta->execute([$submissionId]);
+  $submissionMeta = $meta->fetch(PDO::FETCH_ASSOC);
+  $classId = (int)($submissionMeta['class_id'] ?? 0);
+  $termId = (int)($submissionMeta['term_id'] ?? 0);
   $stmt = $conn->prepare("UPDATE tbl_cbc_mark_submissions SET status = 'draft', reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ? WHERE id = ? AND status = 'approved'");
   $stmt->execute([(int)$account_id, $submissionId]);
+  if ((int)$stmt->rowCount() < 1) {
+    throw new RuntimeException("Submission is not in approved state.");
+  }
+  if ($classId > 0 && $termId > 0 && app_table_exists($conn, 'tbl_exams')) {
+    $examStmt = $conn->prepare("SELECT id FROM tbl_exams WHERE class_id = ? AND term_id = ? AND COALESCE(assessment_mode, 'normal') = 'cbc'");
+    $examStmt->execute([$classId, $termId]);
+    foreach ($examStmt->fetchAll(PDO::FETCH_COLUMN) as $examId) {
+      app_refresh_exam_status($conn, (int)$examId);
+    }
+  }
   app_audit_log($conn, 'staff', (string)$account_id, 'cbc_marks.unlock', 'submission', (string)$submissionId);
   $_SESSION['reply'] = array (array("success", "CBC marks unlocked to draft."));
 } catch (Throwable $e) {

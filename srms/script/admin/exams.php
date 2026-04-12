@@ -64,7 +64,12 @@ try {
 	if (app_table_exists($conn, 'tbl_exams')) {
 	$stmt = $conn->prepare("SELECT e.id, e.name, e.status, e.created_at, t.name AS term_name, c.name AS class_name, et.name AS type_name,
 			gs.name AS grading_name, COALESCE(e.assessment_mode, 'normal') AS assessment_mode,
-			COALESCE((SELECT COUNT(*) FROM tbl_exam_mark_submissions ms WHERE ms.exam_id = e.id), 0) AS submission_count
+			CASE
+				WHEN COALESCE(e.assessment_mode, 'normal') = 'cbc' THEN
+					COALESCE((SELECT COUNT(*) FROM tbl_cbc_mark_submissions cms WHERE cms.class_id = e.class_id AND cms.term_id = e.term_id), 0)
+				ELSE
+					COALESCE((SELECT COUNT(*) FROM tbl_exam_mark_submissions ms WHERE ms.exam_id = e.id), 0)
+			END AS submission_count
 			FROM tbl_exams e
 			LEFT JOIN tbl_terms t ON t.id = e.term_id
 			LEFT JOIN tbl_classes c ON c.id = e.class_id

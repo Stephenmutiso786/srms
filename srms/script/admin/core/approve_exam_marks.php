@@ -19,6 +19,9 @@ try {
   $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
   $stmt = $conn->prepare("UPDATE tbl_exam_mark_submissions SET status = 'reviewed', reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ? WHERE id = ? AND status = 'submitted'");
   $stmt->execute([(int)$account_id, $submissionId]);
+  if ((int)$stmt->rowCount() < 1) {
+    throw new RuntimeException("Submission is no longer in submitted state.");
+  }
   $meta = $conn->prepare("SELECT exam_id FROM tbl_exam_mark_submissions WHERE id = ? LIMIT 1");
   $meta->execute([$submissionId]);
   $examId = (int)$meta->fetchColumn();

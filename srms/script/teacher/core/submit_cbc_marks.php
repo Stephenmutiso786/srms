@@ -77,6 +77,15 @@ try {
   }
 
   app_audit_log($conn, 'staff', (string)$account_id, 'cbc_marks.submit', 'cbc', $classId.':'.$termId);
+
+  if (app_table_exists($conn, 'tbl_exams')) {
+    $examStmt = $conn->prepare("SELECT id FROM tbl_exams WHERE class_id = ? AND term_id = ? AND COALESCE(assessment_mode, 'normal') = 'cbc'");
+    $examStmt->execute([$classId, $termId]);
+    foreach ($examStmt->fetchAll(PDO::FETCH_COLUMN) as $examId) {
+      app_refresh_exam_status($conn, (int)$examId);
+    }
+  }
+
   $_SESSION['reply'] = array (array("success", "Marks submitted for review."));
   header("location:../cbc_entry");
   exit;
