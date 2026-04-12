@@ -53,7 +53,9 @@ header("location:../system");
 }else{
 
 if (move_uploaded_file($_FILES["company_logo"]["tmp_name"], $destn_upload)) {
-unlink($unlink);
+if (is_file($unlink)) {
+	@unlink($unlink);
+}
 
 try {
 $conn = app_db();
@@ -69,6 +71,14 @@ if ($existingId) {
 } else {
 	$stmt = $conn->prepare("INSERT INTO tbl_school (name, logo, result_system, allow_results) VALUES (?,?,?,?)");
 	$stmt->execute([$_POST['name'], $destn_file, 1, 1]);
+}
+
+$logoBytes = @file_get_contents($destn_upload);
+if (is_string($logoBytes) && $logoBytes !== '') {
+	$logoB64 = base64_encode($logoBytes);
+	app_setting_set($conn, 'school_logo_blob_b64', $logoB64, null);
+	app_setting_set($conn, 'school_logo_blob_ext', $imageFileType, null);
+	app_setting_set($conn, 'school_logo_blob_name', $destn_file, null);
 }
 
 $_SESSION['reply'] = array (array("success","System settings updated"));

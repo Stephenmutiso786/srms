@@ -27,4 +27,29 @@ if (!defined('WBResAvi')) { DEFINE('WBResAvi', 1); }
 if (defined('APP_NAME') && (!defined('WBName') || WBName === '')) {
 	DEFINE('WBName', APP_NAME);
 }
+
+try {
+	if (!defined('WBLogo')) {
+		DEFINE('WBLogo', 'school_logo1711003619.png');
+	}
+	$logoFile = trim((string)WBLogo);
+	if ($logoFile !== '') {
+		$logoPath = 'images/logo/' . $logoFile;
+		if (!is_file($logoPath)) {
+			$blobB64 = app_setting_get($conn, 'school_logo_blob_b64', '');
+			if ($blobB64 !== '') {
+				$blob = base64_decode($blobB64, true);
+				if (is_string($blob) && $blob !== '') {
+					$logoDir = dirname($logoPath);
+					if (!is_dir($logoDir)) {
+						@mkdir($logoDir, 0755, true);
+					}
+					@file_put_contents($logoPath, $blob);
+				}
+			}
+		}
+	}
+} catch (Throwable $e) {
+	// Best-effort restore only.
+}
 ?>
