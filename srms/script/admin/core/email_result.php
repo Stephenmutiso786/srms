@@ -32,11 +32,36 @@ function app_email_result_reply(string $type, string $message, string $redirect)
     app_reply_redirect($type, $message, $redirect);
 }
 
-if ($res !== '1' || $level !== '0') { 
-    header('location:../../'); 
-    exit; 
+if ($res !== '1' || $level !== '0') {
+    if (app_email_result_is_ajax()) {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['ok' => false, 'message' => 'Unauthorized request.']);
+        exit;
+    }
+    header('location:../../');
+    exit;
 }
-app_require_permission('report.generate', '../certificates');
+
+try {
+    $permConn = app_db();
+    $permConn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $allowed = app_has_permission($permConn, (string)$account_id, (string)$level, 'report.generate');
+    if (!$allowed) {
+        if (app_email_result_is_ajax()) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['ok' => false, 'message' => 'Access denied: missing permission (report.generate).']);
+            exit;
+        }
+        app_reply_redirect('danger', 'Access denied: missing permission (report.generate).', '../certificates');
+    }
+} catch (Throwable $e) {
+    if (app_email_result_is_ajax()) {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['ok' => false, 'message' => 'Permission check failed.']);
+        exit;
+    }
+    app_reply_redirect('danger', 'Permission check failed.', '../certificates');
+}
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     if (app_email_result_is_ajax()) {
@@ -53,7 +78,7 @@ $resultId = (int)($_POST['result_id'] ?? 0);
 $recipientEmail = trim((string)($_POST['recipient_email'] ?? ''));
 $message = trim((string)($_POST['message'] ?? ''));
 $returnTo = trim((string)($_POST['return_to'] ?? '../certificates'));
-if ($returnTo === '' || strpos($returnTo, '..') !== false || strpos($returnTo, 'http') === 0) {
+if (!in_array($returnTo, ['../certificates', '../report'], true)) {
     $returnTo = '../certificates';
 }
 

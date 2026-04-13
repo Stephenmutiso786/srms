@@ -323,19 +323,34 @@ function sendEmailResult() {
     formData.append('result_id', resultId);
     formData.append('recipient_email', email);
     formData.append('message', message);
+    formData.append('return_to', '../certificates');
     
     fetch('admin/core/email_result', {
         method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest'
+      },
+      credentials: 'same-origin',
         body: formData
-    }).then(response => {
-        if (response.ok) {
+    }).then(response => response.json())
+      .then(data => {
+      if (data && data.ok) {
             const modal = bootstrap.Modal.getInstance(document.getElementById('emailModal'));
             modal.hide();
+        if (window.Swal) {
+          Swal.fire('Success', data.message || 'Email sent successfully.', 'success').then(() => location.reload());
+          return;
+        }
             location.reload();
         } else {
-            throw new Error('Failed to send email');
+        throw new Error((data && data.message) ? data.message : 'Failed to send email');
         }
     }).catch(error => {
+      if (window.Swal) {
+        Swal.fire('Failed', error.message, 'error');
+        return;
+      }
         alert('Error: ' + error.message);
     });
 }

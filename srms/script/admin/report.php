@@ -412,7 +412,11 @@ function sendEmailResult() {
 
 		fetch('admin/core/email_result', {
 				method: 'POST',
-				headers: { 'Accept': 'application/json' },
+				headers: {
+					'Accept': 'application/json',
+					'X-Requested-With': 'XMLHttpRequest'
+				},
+				credentials: 'same-origin',
 				body: formData
 		}).then(response => response.json())
 		  .then(data => {
