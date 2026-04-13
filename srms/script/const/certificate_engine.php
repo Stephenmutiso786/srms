@@ -5,7 +5,7 @@ function app_certificate_types(): array
     return [
         'primary_completion' => 'Primary Education Completion Certificate',
         'junior_completion' => 'Junior Secondary Completion Certificate',
-        'leaving' => 'Leaving Certificate',
+        'leaving' => 'Kenya Primary School Leaving Certificate',
         'transfer' => 'Transfer Certificate',
         'conduct' => 'Good Conduct Certificate',
         'merit' => 'Merit Certificate',
@@ -18,7 +18,7 @@ function app_certificate_category_label(string $category): string
     $categories = [
         'primary_completion' => 'Primary Completion',
         'junior_completion' => 'Junior Secondary Completion',
-        'leaving' => 'Leaving',
+        'leaving' => 'Kenya Primary School Leaving',
         'transfer' => 'Transfer',
         'conduct' => 'Good Conduct',
         'merit' => 'Merit',

@@ -60,7 +60,7 @@ try {
 <a class="app-sidebar__toggle" href="#" data-toggle="sidebar" aria-label="Hide Sidebar"></a></header>
 <?php include('admin/partials/sidebar.php'); ?>
 <main class="app-content">
-<div class="app-title"><div><h1>🎓 School Certificates</h1><p>Generate leaving, completion, conduct, merit, and transfer certificates with CBC competency tracking.</p></div></div>
+<div class="app-title"><div><h1>🎓 School Certificates</h1><p>Generate Kenya Primary School Leaving, completion, conduct, merit, and transfer certificates with CBC competency tracking.</p></div></div>
 
 <div class="tile mb-3">
 <h3 class="tile-title"><i class="bi bi-plus-circle"></i> Generate New Certificate</h3>
@@ -77,7 +77,7 @@ try {
 <small class="form-text text-muted d-block mt-1">
 📜 Primary Completion → Grade 6<br>
 📜 Junior Completion → Grade 9<br>
-📜 Leaving → Student departure
+📜 Kenya Primary School Leaving → Student departure
 </small>
 </div>
 
