@@ -213,9 +213,6 @@ function renderPrimaryCompletionCertificate($pdf, $cert, $studentPhoto, $logoHtm
     $pdf->writeHTML($html, true, false, true, false, '');
     $pdf->SetXY(15, 255);
     $pdf->write2DBarcode($verifyUrl, 'QRCODE,H', 15, 255, 25, 25);
-    $pdf->SetFont('helvetica', '', 7);
-    $pdf->SetXY(45, 273);
-    $pdf->MultiCell(150, 3, 'Verify at: ' . substr($verifyUrl, 0, 50) . '...', 0, 'L');
 }
 
 /**
@@ -291,10 +288,11 @@ function renderLeavingCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verify
       <tr>
         <td width="18%" style="text-align:center;">' . $logoHtml . '</td>
         <td width="82%" style="text-align:center;">
+          <div style="font-size:11pt;font-weight:bold;letter-spacing:0.3px;">REPUBLIC OF KENYA</div>
           <div style="font-size:14pt;font-weight:bold;letter-spacing:0.3px;">MINISTRY OF EDUCATION</div>
           <div style="font-size:10.5pt;font-weight:bold;margin-top:2px;">KENYA PRIMARY SCHOOL EDUCATION ASSESSMENT</div>
           <div style="font-size:13pt;font-weight:bold;margin-top:4px;letter-spacing:0.2px;">TRANSITION LEAVING CERTIFICATE</div>
-          <div style="font-size:8.5pt;margin-top:2px;">Official School Leaving Record</div>
+          <div style="font-size:8.5pt;margin-top:2px;">(Official Primary School Leaving Form)</div>
         </td>
       </tr>
     </table>';
@@ -380,7 +378,7 @@ function renderLeavingCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verify
 
           <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:12px;">
             <tr>
-              <td style="font-size:10pt;font-weight:bold;">READ HEADINGS FOR CORE COMPETENCIES ABOVE</td>
+              <td style="font-size:10pt;font-weight:bold;">CORE COMPETENCIES SUMMARY</td>
             </tr>
             <tr>
               <td><div style="border-bottom:1px solid #222;height:20px;"></div></td>
@@ -389,7 +387,7 @@ function renderLeavingCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verify
 
           <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:10px;">
             <tr>
-              <td style="font-size:10pt;font-weight:bold;">LEARNERS LEADERSHIP / COMMUNITY SERVICE</td>
+              <td style="font-size:10pt;font-weight:bold;">LEARNER LEADERSHIP / COMMUNITY SERVICE</td>
             </tr>
             <tr>
               <td><div style="border-bottom:1px solid #222;height:20px;"></div></td>
@@ -414,17 +412,16 @@ function renderLeavingCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verify
           </div>
 
           <div style="margin-top:10px;border:1px solid #222;padding:8px;min-height:252px;">
-            <div style="font-size:9pt;font-weight:bold;">OFFICIAL CERTIFICATION</div>
-            <div style="font-size:8.5pt;margin-top:6px;line-height:1.5;">
-              This is to certify that the learner named above has completed the school program and is cleared for transition.
-            </div>
-            <div style="font-size:8.5pt;margin-top:8px;line-height:1.5;">
-              <strong>School:</strong> ' . htmlspecialchars($schoolName) . '<br>
-              <strong>Ref:</strong> ' . htmlspecialchars($serialNo) . '<br>
-              <strong>Issue Date:</strong> ' . htmlspecialchars($issueDate) . '
-            </div>
-            <div style="margin-top:10px;">' . app_pdf_image_html('images/logo/' . WBLogo, 35, 0, WBName) . '</div>
-            <div style="margin-top:8px;font-size:8pt;word-wrap:break-word;">' . htmlspecialchars($verifyUrl) . '</div>
+            <div style="font-size:9pt;font-weight:bold;">FOR OFFICIAL USE ONLY</div>
+            <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:8px;font-size:8.5pt;">
+              <tr><td width="45%">Institution</td><td width="55%"><div style="border-bottom:1px solid #222;height:14px;">' . htmlspecialchars($schoolName) . '</div></td></tr>
+              <tr><td>Candidate No.</td><td><div style="border-bottom:1px solid #222;height:14px;">' . htmlspecialchars($admissionNo) . '</div></td></tr>
+              <tr><td>Form Ref</td><td><div style="border-bottom:1px solid #222;height:14px;">' . htmlspecialchars($serialNo) . '</div></td></tr>
+              <tr><td>Date Issued</td><td><div style="border-bottom:1px solid #222;height:14px;">' . htmlspecialchars($issueDate) . '</div></td></tr>
+            </table>
+            <div style="margin-top:12px;font-size:8.5pt;font-weight:bold;">VERIFICATION</div>
+            <div style="margin-top:4px;border:1px solid #222;padding:10px;text-align:center;font-size:8pt;">Scan QR at bottom-right corner</div>
+            <div style="margin-top:8px;">' . app_pdf_image_html('images/logo/' . WBLogo, 30, 0, WBName) . '</div>
           </div>
         </td>
       </tr>
@@ -446,9 +443,8 @@ function renderLeavingCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verify
     $pdf->SetTextColor(0, 0, 0);
     $pdf->writeHTML('<div style="border:2px solid #222;padding:10px;min-height:272mm;">' . $headerHtml . $bodyHtml . '</div>', true, false, true, false, '');
 
-    $pdf->SetFont('helvetica', '', 7);
-    $pdf->SetXY(12, 286);
-    $pdf->MultiCell(180, 3, 'Verify: ' . $verifyUrl, 0, 'L', false, 1);
+    $pdf->SetXY(168, 274);
+    $pdf->write2DBarcode($verifyUrl, 'QRCODE,H', 168, 274, 24, 24);
     return;
 }
 
