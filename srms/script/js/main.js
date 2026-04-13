@@ -406,6 +406,10 @@
 	}
 
 	function appEnsurePublicWebsiteButton() {
+		if (appCurrentPortal() !== 'other') {
+			return;
+		}
+
 		if (document.getElementById('appPublicWebsiteButton')) {
 			return;
 		}
