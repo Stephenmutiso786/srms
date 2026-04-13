@@ -21,7 +21,7 @@ $offers = [
 	['title' => 'Academics', 'description' => 'Competency-Based Curriculum from PP1 to Grade 9.'],
 	['title' => 'ICT Studies', 'description' => 'Foundational digital skills and guided computer learning.'],
 	['title' => 'Sports & Clubs', 'description' => 'Co-curricular activities for fitness, teamwork, and talent growth.'],
-	['title' => 'Boarding / Day', 'description' => 'Flexible learning setup based on student and family needs.'],
+	['title' => 'Day School', 'description' => 'Structured day-learning program with strong parent partnership.'],
 	['title' => 'Transport & Meals', 'description' => 'Safe school transport and balanced meals for learners.'],
 	['title' => 'Qualified Staff', 'description' => 'Dedicated teachers and mentorship-focused support team.'],
 ];
@@ -48,6 +48,11 @@ try {
 } catch (Throwable $e) {
 	$conn = null;
 }
+
+$offers = array_values(array_filter($offers, function ($item) {
+	$title = strtolower(trim((string)($item['title'] ?? '')));
+	return $title === '' || strpos($title, 'boarding') === false;
+}));
 
 if (isset($conn) && $conn instanceof PDO) {
 	$schoolMotto = app_setting_get($conn, 'public_school_motto', $schoolMotto);
@@ -610,7 +615,6 @@ if (count($slides) === 0) {
 	<header class="hero" id="home">
 		<div class="slider-shell" id="mainSlider" aria-label="School showcase slider">
 			<div class="hero-copy">
-				<span class="kicker">Public Front-End</span>
 				<h1><?php echo htmlspecialchars($schoolName); ?></h1>
 				<p><strong><?php echo htmlspecialchars($schoolMotto); ?></strong></p>
 				<p><?php echo htmlspecialchars($schoolTagline); ?></p>
