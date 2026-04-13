@@ -189,39 +189,35 @@ body.app{background:#f4f7f6}
 .note-list{display:grid;gap:10px}
 .note-item{background:#fff;border:1px solid #e9eef5;border-radius:14px;padding:12px 14px}
 @media (max-width:1100px){.portal-shell{grid-template-columns:1fr}.portal-side{position:relative;height:auto}.hero-controls,.stats-grid,.grid-two{grid-template-columns:1fr 1fr}}
-</style>
-</head>
-<body class="app">
-<div class="portal-shell">
-	<aside class="portal-side">
-		<div class="portal-brand"><div class="portal-mark">T</div><div><div class="fw-bold">Elimu Hub</div><div class="small opacity-75">Teacher Portal</div></div></div>
-		<nav class="portal-menu">
-			<a class="active" href="teacher"><i class="bi bi-grid"></i><span>Dashboard</span></a>
-			<a href="teacher/exam_marks_entry"><i class="bi bi-pencil-square"></i><span>Exam Marks Entry</span></a>
-			<a href="teacher/manage_results"><i class="bi bi-graph-up-arrow"></i><span>View Results</span></a>
-			<a href="teacher/import_results"><i class="bi bi-upload"></i><span>Import Results</span></a>
-			<a href="teacher/exam_timetable"><i class="bi bi-calendar3"></i><span>Exam Timetable</span></a>
-			<a href="teacher/elearning"><i class="bi bi-laptop"></i><span>E-Learning</span></a>
-		</nav>
-	</aside>
-	<div class="portal-main">
-		<div class="portal-top">
-			<div class="fw-bold"><?php echo htmlspecialchars(WBName); ?></div>
-			<div class="d-flex gap-3 align-items-center"><span class="small text-muted"><?php echo htmlspecialchars($fname.' '.$lname); ?></span><a href="logout" class="text-decoration-none"><i class="bi bi-box-arrow-right"></i></a></div>
-		</div>
-		<main class="portal-content">
+	</style>
+	</head>
+	<body class="app sidebar-mini">
+	<header class="app-header"><a class="app-header__logo" href="javascript:void(0);"><?php echo APP_NAME; ?></a>
+	<a class="app-sidebar__toggle" href="#" data-toggle="sidebar" aria-label="Hide Sidebar"></a>
+	<ul class="app-nav">
+	<li class="dropdown"><a class="app-nav__item" href="#" data-bs-toggle="dropdown" aria-label="Open Profile Menu"><i class="bi bi-person fs-4"></i></a>
+	<ul class="dropdown-menu settings-menu dropdown-menu-right">
+	<li><a class="dropdown-item" href="teacher/profile"><i class="bi bi-person me-2 fs-5"></i> Profile</a></li>
+	<li><a class="dropdown-item" href="logout"><i class="bi bi-box-arrow-right me-2 fs-5"></i> Logout</a></li>
+	</ul>
+	</li>
+	</ul>
+	</header>
+
+	<?php include('teacher/partials/sidebar.php'); ?>
+	<main class="app-content dashboard">
 			<?php if ($error !== '') { ?>
-			<div class="panel"><div class="panel-body"><div class="alert alert-danger mb-0"><?php echo htmlspecialchars($error); ?></div></div></div>
+			<div class="tile"><div class="alert alert-danger mb-0"><?php echo htmlspecialchars($error); ?></div></div>
 			<?php } else { ?>
-			<div class="hero">
+			<div class="dashboard-hero">
 				<div class="d-flex justify-content-between flex-wrap gap-3">
-					<div>
-						<div class="small text-uppercase opacity-75">Teacher Dashboard</div>
+					<div class="hero-main">
+						<span class="hero-kicker">Teacher Dashboard</span>
 						<h2 class="mb-1">Track class or subject performance</h2>
-						<div class="small">Choose the class, subject, and term you want to review. Exams stay visible and accessible from the left menu.</div>
+						<p>Choose the class, subject, and term you want to review. Exams stay visible and accessible from the left menu.</p>
 					</div>
 				</div>
-				<form method="GET" action="teacher" class="hero-controls">
+				<form method="GET" action="teacher" class="hero-actions">
 					<select class="glass-input" name="class_id" onchange="this.form.submit()">
 						<?php foreach ($classOptions as $id => $name): ?><option value="<?php echo (int)$id; ?>" <?php echo $selectedClass===$id?'selected':''; ?>><?php echo htmlspecialchars($name); ?></option><?php endforeach; ?>
 					</select>
@@ -235,39 +231,32 @@ body.app{background:#f4f7f6}
 				</form>
 			</div>
 
-			<div class="stats-grid">
-				<div class="stat-card"><div class="label">Subjects</div><div class="value"><?php echo (int)$summary['subjects']; ?></div></div>
+			<div class="dashboard-stats">
 				<div class="stat-card"><div class="label">Classes</div><div class="value"><?php echo (int)$summary['classes']; ?></div></div>
+				<div class="stat-card"><div class="label">Subjects</div><div class="value"><?php echo (int)$summary['subjects']; ?></div></div>
 				<div class="stat-card"><div class="label">Students</div><div class="value"><?php echo (int)$summary['students']; ?></div></div>
 				<div class="stat-card"><div class="label">Selected Avg</div><div class="value"><?php echo number_format((float)$summary['avg'],2); ?></div></div>
 				<div class="stat-card"><div class="label">Best Score</div><div class="value"><?php echo number_format((float)$summary['best'],0); ?></div></div>
 			</div>
 
-			<div class="grid-two">
-				<section class="panel">
-					<div class="panel-body">
-						<h3 class="mb-3">Class / Subject Performance</h3>
-						<div id="teacherTrendChart" style="height:300px;"></div>
+			<div class="dashboard-grid">
+				<section class="tile">
+					<h3 class="tile-title">Class / Subject Performance</h3>
+					<div class="chart-lg" id="teacherTrendChart"></div>
+				</section>
+				<section class="tile">
+					<h3 class="tile-title">Current Selection Summary</h3>
+					<div class="small text-muted mb-3">The selected class and subject drive the student list and chart below.</div>
+					<div class="note-list">
+						<div class="note-item"><strong>Class:</strong> <?php echo htmlspecialchars($classOptions[$selectedClass] ?? 'N/A'); ?></div>
+						<div class="note-item"><strong>Subject:</strong> <?php echo htmlspecialchars($subjectOptions[$selectedSubject] ?? 'N/A'); ?></div>
+						<div class="note-item"><strong>Term:</strong> <?php echo htmlspecialchars($termOptions[$selectedTerm] ?? 'N/A'); ?></div>
 					</div>
 				</section>
-				<section class="panel">
-					<div class="panel-body">
-						<h3 class="mb-3">Current Selection Summary</h3>
-						<div class="small text-muted mb-3">The selected class and subject drive the student list and chart below.</div>
-						<div class="note-list">
-							<div class="note-item"><strong>Class:</strong> <?php echo htmlspecialchars($classOptions[$selectedClass] ?? 'N/A'); ?></div>
-							<div class="note-item"><strong>Subject:</strong> <?php echo htmlspecialchars($subjectOptions[$selectedSubject] ?? 'N/A'); ?></div>
-							<div class="note-item"><strong>Term:</strong> <?php echo htmlspecialchars($termOptions[$selectedTerm] ?? 'N/A'); ?></div>
-						</div>
-					</div>
-				</section>
-			</div>
-
-			<section class="panel mt-3">
-				<div class="panel-body">
-					<h3 class="mb-3">Student Performance List</h3>
+				<section class="tile">
+					<h3 class="tile-title">Student Performance List</h3>
 					<div class="table-responsive">
-						<table class="subject-table">
+						<table class="table table-hover table-striped">
 							<thead><tr><th>Student</th><th>School ID</th><th>Score</th><th>Grade</th></tr></thead>
 							<tbody>
 							<?php if (!$rows) { ?><tr><td colspan="4" class="text-muted">No performance data yet for the selected class/subject.</td></tr><?php } ?>
@@ -282,17 +271,13 @@ body.app{background:#f4f7f6}
 							</tbody>
 						</table>
 					</div>
+				</section>
+				<div class="grid-two">
+					<section class="tile"><h3 class="tile-title">Notifications</h3><div class="note-list"><?php if(!$notifications){ ?><div class="note-item text-muted">No notifications yet.</div><?php } foreach($notifications as $note){ ?><div class="note-item"><div class="fw-bold"><?php echo htmlspecialchars((string)$note['title']); ?></div><div class="small text-muted mt-1"><?php echo htmlspecialchars((string)$note['message']); ?></div><div class="small text-muted mt-2"><?php echo htmlspecialchars((string)$note['created_at']); ?></div></div><?php } ?></div></section>
+					<section class="tile"><h3 class="tile-title">Announcements</h3><div class="note-list"><?php if(!$announcements){ ?><div class="note-item text-muted">No announcements right now.</div><?php } foreach($announcements as $row){ ?><div class="note-item"><div class="fw-bold"><?php echo htmlspecialchars((string)$row[1]); ?></div><div class="small text-muted mt-1"><?php echo htmlspecialchars((string)$row[2]); ?></div><div class="small text-muted mt-2"><?php echo htmlspecialchars((string)$row[3]); ?></div></div><?php } ?></div></section>
 				</div>
-			</section>
-
-			<div class="grid-two mt-3">
-				<section class="panel"><div class="panel-body"><h3 class="mb-3">Notifications</h3><div class="note-list"><?php if(!$notifications){ ?><div class="note-item text-muted">No notifications yet.</div><?php } foreach($notifications as $note){ ?><div class="note-item"><div class="fw-bold"><?php echo htmlspecialchars((string)$note['title']); ?></div><div class="small text-muted mt-1"><?php echo htmlspecialchars((string)$note['message']); ?></div><div class="small text-muted mt-2"><?php echo htmlspecialchars((string)$note['created_at']); ?></div></div><?php } ?></div></div></section>
-				<section class="panel"><div class="panel-body"><h3 class="mb-3">Announcements</h3><div class="note-list"><?php if(!$announcements){ ?><div class="note-item text-muted">No announcements right now.</div><?php } foreach($announcements as $row){ ?><div class="note-item"><div class="fw-bold"><?php echo htmlspecialchars((string)$row[1]); ?></div><div class="small text-muted mt-1"><?php echo htmlspecialchars((string)$row[2]); ?></div><div class="small text-muted mt-2"><?php echo htmlspecialchars((string)$row[3]); ?></div></div><?php } ?></div></div></section>
-			</div>
 			<?php } ?>
-		</main>
-	</div>
-</div>
+</main>
 <script src="js/jquery-3.7.0.min.js"></script>
 <script src="js/bootstrap.min.js"></script>
 <script src="js/main.js"></script>
