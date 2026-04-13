@@ -83,6 +83,9 @@ CREATE INDEX IF NOT EXISTS idx_promotion_batches_status ON tbl_promotion_batches
 -- CREATE tbl_student_promotions: Individual student promotion records
 -- ============================================================================
 
+ALTER TABLE IF EXISTS tbl_student_promotions
+    ALTER COLUMN student_id TYPE VARCHAR(20) USING student_id::VARCHAR(20);
+
 CREATE TABLE IF NOT EXISTS tbl_student_promotions (
     id SERIAL PRIMARY KEY,
     batch_id INT NOT NULL REFERENCES tbl_promotion_batches(id) ON DELETE CASCADE,
@@ -126,6 +129,9 @@ CREATE TABLE IF NOT EXISTS tbl_cbc_competencies (
 -- ============================================================================
 -- CREATE tbl_student_competencies: Track student competency achievements
 -- ============================================================================
+
+ALTER TABLE IF EXISTS tbl_student_competencies
+    ALTER COLUMN student_id TYPE VARCHAR(20) USING student_id::VARCHAR(20);
 
 CREATE TABLE IF NOT EXISTS tbl_student_competencies (
     id SERIAL PRIMARY KEY,
