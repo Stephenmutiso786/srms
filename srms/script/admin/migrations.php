@@ -10,6 +10,13 @@ app_require_permission('system.manage', 'admin');
 $migrations = [];
 $applied = [];
 $error = '';
+$flashType = '';
+$flashMessage = '';
+
+if (isset($_SESSION['reply'][0][0], $_SESSION['reply'][0][1])) {
+	$flashType = (string)$_SESSION['reply'][0][0];
+	$flashMessage = (string)$_SESSION['reply'][0][1];
+}
 
 function app_find_migrations_dir(): ?string
 {
@@ -92,6 +99,20 @@ try {
 <p>Apply missing migrations to install modules.</p>
 </div>
 </div>
+
+<?php if ($flashMessage !== '') { ?>
+	<?php
+		$flashClass = 'alert-info';
+		if ($flashType === 'success') {
+			$flashClass = 'alert-success';
+		} elseif ($flashType === 'danger') {
+			$flashClass = 'alert-danger';
+		} elseif ($flashType === 'warning') {
+			$flashClass = 'alert-warning';
+		}
+	?>
+	<div class="tile"><div class="alert <?php echo $flashClass; ?> mb-0"><?php echo htmlspecialchars($flashMessage); ?></div></div>
+<?php } ?>
 
 <?php if ($error !== '') { ?>
   <div class="tile"><div class="alert alert-danger mb-0"><?php echo htmlspecialchars($error); ?></div></div>

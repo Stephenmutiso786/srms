@@ -12,16 +12,22 @@ $not_icon = $alert_type;
 ?>
 
 <Script>
-Swal.fire({
-title: <?php echo json_encode($alert_msg); ?>,
-<?php if ($alert_html !== '') { ?>
-html: <?php echo json_encode($alert_html); ?>,
-<?php } ?>
-icon: '<?php echo $not_icon; ?>',
-showDenyButton: false,
-confirmButtonText: 'Okay',
-width: '900px',
-})
+(function () {
+	if (typeof Swal !== 'undefined' && Swal && typeof Swal.fire === 'function') {
+		Swal.fire({
+			title: <?php echo json_encode($alert_msg); ?>,
+			<?php if ($alert_html !== '') { ?>
+			html: <?php echo json_encode($alert_html); ?>,
+			<?php } ?>
+			icon: '<?php echo $not_icon; ?>',
+			showDenyButton: false,
+			confirmButtonText: 'Okay',
+			width: '900px',
+		});
+		return;
+	}
+	window.alert(<?php echo json_encode($alert_msg); ?>);
+})();
 </script>
 <?php
 unset($_SESSION['reply']);
