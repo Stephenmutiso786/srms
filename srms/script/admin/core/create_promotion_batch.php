@@ -71,21 +71,26 @@ try {
 
     // Generate students promotion records
     $stmt = $conn->prepare('
-        SELECT 
+        SELECT
             st.id, st.fname, st.mname, st.lname,
-            COALESCE(rc.mean_score, 0) as mean_score,
-            COALESCE(fc.balance, 0) as fees_balance,
-            COALESCE(rc.finalized, FALSE) as report_finalized
+            COALESCE(rc.mean_score, 0) AS mean_score,
+            COALESCE(fc.balance, 0) AS fees_balance,
+            COALESCE(rc.finalized, FALSE) AS report_finalized
         FROM tbl_students st
-        LEFT JOIN tbl_report_cards rc ON rc.student_id = st.id
-        LEFT JOIN (
-            SELECT student_id, 
-                   (COALESCE(SUM(cf.amount), 0) - COALESCE(SUM(cp.amount), 0)) as balance
-            FROM tbl_students
-            LEFT JOIN tbl_fees_charged cf ON cf.student_id = id
-            LEFT JOIN tbl_fees_paid cp ON cp.student_id = id
-            GROUP BY student_id
-        ) fc ON fc.student_id = st.id
+        LEFT JOIN LATERAL (
+            SELECT r.mean_score, r.finalized
+            FROM tbl_report_cards r
+            WHERE r.student_id = st.id
+            ORDER BY r.id DESC
+            LIMIT 1
+        ) rc ON TRUE
+        LEFT JOIN LATERAL (
+            SELECT
+                COALESCE((SELECT SUM(cf.amount) FROM tbl_fees_charged cf WHERE cf.student_id = st.id), 0)
+                -
+                COALESCE((SELECT SUM(cp.amount) FROM tbl_fees_paid cp WHERE cp.student_id = st.id), 0)
+                AS balance
+        ) fc ON TRUE
         WHERE st.class = ? AND st.status = \'active\'
     ');
     $stmt->execute([(int)$classId]);
@@ -112,7 +117,7 @@ try {
         ');
         $stmt->execute([
             (int)$batchId,
-            (int)$student['id'],
+            (string)$student['id'],
             (int)$classId,
             $status === 'promoted' ? $nextClassId : (int)$classId,
             $status,

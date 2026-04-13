@@ -62,7 +62,7 @@ try {
         if ($student['status'] === 'promoted') {
             // Update student's class
             $stmt = $conn->prepare('UPDATE tbl_students SET class = ? WHERE id = ?');
-            $stmt->execute([(int)$student['to_class'], (int)$student['student_id']]);
+            $stmt->execute([(int)$student['to_class'], (string)$student['student_id']]);
             $promoted++;
 
             // Auto-generate certificate if this is a completion class (Grade 6 or 9)
@@ -98,7 +98,7 @@ try {
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ');
                     $stmt->execute([
-                        (int)$student['student_id'],
+                        (string)$student['student_id'],
                         (int)$student['to_class'],
                         $certType,
                         $certType,
@@ -146,7 +146,7 @@ try {
                 WHERE id IN (SELECT parent_id FROM tbl_parent_students WHERE student_id = ?)
                 LIMIT 1
             ');
-            $stmt->execute([(int)$student['student_id']]);
+            $stmt->execute([(string)$student['student_id']]);
             $parent = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if ($parent && !empty($parent['phone'])) {
