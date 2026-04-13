@@ -19,19 +19,41 @@ function app_public_media_data_uri(string $b64, string $ext): string
 
 function app_public_login_background(PDO $conn): string
 {
+	$data = app_public_login_background_data($conn);
+	if (!empty($data['src'])) {
+		return (string)$data['src'];
+	}
+
+	return '';
+}
+
+function app_public_login_background_data(PDO $conn): array
+{
 	$bgB64 = app_setting_get($conn, 'public_login_bg_b64', '');
 	$bgExt = app_setting_get($conn, 'public_login_bg_ext', 'jpeg');
 	$uri = app_public_media_data_uri($bgB64, $bgExt);
 	if ($uri !== '') {
-		return $uri;
+		return [
+			'src' => $uri,
+			'width' => (int)app_setting_get($conn, 'public_login_bg_width', 0),
+			'height' => (int)app_setting_get($conn, 'public_login_bg_height', 0)
+		];
 	}
 
 	$gallery = app_public_showcase_images($conn);
 	if (!empty($gallery) && !empty($gallery[0]['src'])) {
-		return (string)$gallery[0]['src'];
+		return [
+			'src' => (string)$gallery[0]['src'],
+			'width' => isset($gallery[0]['width']) ? (int)$gallery[0]['width'] : 0,
+			'height' => isset($gallery[0]['height']) ? (int)$gallery[0]['height'] : 0
+		];
 	}
 
-	return '';
+	return [
+		'src' => '',
+		'width' => 0,
+		'height' => 0
+	];
 }
 
 function app_public_showcase_images(PDO $conn): array
@@ -60,7 +82,9 @@ function app_public_showcase_images(PDO $conn): array
 		$rows[] = [
 			'src' => $src,
 			'caption' => isset($item['caption']) ? trim((string)$item['caption']) : '',
-			'name' => isset($item['name']) ? trim((string)$item['name']) : ''
+			'name' => isset($item['name']) ? trim((string)$item['name']) : '',
+			'width' => isset($item['width']) ? (int)$item['width'] : 0,
+			'height' => isset($item['height']) ? (int)$item['height'] : 0
 		];
 	}
 

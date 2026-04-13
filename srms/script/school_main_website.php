@@ -121,7 +121,9 @@ if ($conn instanceof PDO) {
 		foreach ($dbSlides as $i => $row) {
 			$slides[] = array(
 				'src' => (string)$row['src'],
-				'caption' => trim((string)($row['caption'] ?? ''))
+				'caption' => trim((string)($row['caption'] ?? '')),
+				'width' => isset($row['width']) ? (int)$row['width'] : 0,
+				'height' => isset($row['height']) ? (int)$row['height'] : 0
 			);
 		}
 	}
@@ -352,6 +354,7 @@ if (count($slides) === 0) {
 		.slide img {
 			width: 100%;
 			height: 100%;
+			display: block;
 			object-fit: cover;
 			object-position: center center;
 			image-rendering: auto;
@@ -659,7 +662,7 @@ if (count($slides) === 0) {
 			</div>
 			<?php foreach ($slides as $i => $slide): ?>
 				<figure class="slide<?php echo $i === 0 ? ' active' : ''; ?>">
-					<img src="<?php echo htmlspecialchars($slide['src']); ?>" alt="Showcase image <?php echo $i + 1; ?>">
+					<img src="<?php echo htmlspecialchars($slide['src']); ?>" alt="Showcase image <?php echo $i + 1; ?>"<?php echo !empty($slide['width']) ? ' width="' . (int)$slide['width'] . '"' : ''; ?><?php echo !empty($slide['height']) ? ' height="' . (int)$slide['height'] . '"' : ''; ?> loading="<?php echo $i === 0 ? 'eager' : 'lazy'; ?>" fetchpriority="<?php echo $i === 0 ? 'high' : 'auto'; ?>" decoding="async">
 					<figcaption class="slide-caption"><?php echo htmlspecialchars(trim((string)$slide['caption']) !== '' ? (string)$slide['caption'] : $captions[$i % count($captions)]); ?></figcaption>
 				</figure>
 			<?php endforeach; ?>
@@ -717,7 +720,7 @@ if (count($slides) === 0) {
 			<div class="gallery-grid">
 				<?php foreach ($slides as $i => $slide): ?>
 					<button type="button" class="gallery-item" data-full-src="<?php echo htmlspecialchars($slide['src']); ?>" aria-label="Open gallery image <?php echo $i + 1; ?>">
-						<img src="<?php echo htmlspecialchars($slide['src']); ?>" alt="Gallery image <?php echo $i + 1; ?>">
+						<img src="<?php echo htmlspecialchars($slide['src']); ?>" alt="Gallery image <?php echo $i + 1; ?>"<?php echo !empty($slide['width']) ? ' width="' . (int)$slide['width'] . '"' : ''; ?><?php echo !empty($slide['height']) ? ' height="' . (int)$slide['height'] . '"' : ''; ?> loading="lazy" decoding="async">
 					</button>
 				<?php endforeach; ?>
 			</div>

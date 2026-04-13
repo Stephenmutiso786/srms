@@ -5,12 +5,15 @@ require_once('const/school.php');
 require_once('const/public_media.php');
 $schoolTitle = (defined('WBName') && WBName !== '') ? WBName : APP_NAME;
 $loginBackgroundSrc = '';
+$loginBackgroundMeta = ['src' => '', 'width' => 0, 'height' => 0];
 try {
   $conn = app_db();
   $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-  $loginBackgroundSrc = app_public_login_background($conn);
+  $loginBackgroundMeta = app_public_login_background_data($conn);
+  $loginBackgroundSrc = isset($loginBackgroundMeta['src']) ? (string)$loginBackgroundMeta['src'] : '';
 } catch (Throwable $e) {
   $loginBackgroundSrc = '';
+  $loginBackgroundMeta = ['src' => '', 'width' => 0, 'height' => 0];
 }
 ?>
 <!DOCTYPE html>
@@ -30,6 +33,9 @@ try {
 <title><?php echo $schoolTitle; ?> - Login</title>
 <style>
 .login-content {
+  position: relative;
+  overflow: hidden;
+  min-height: 100vh;
   background-image: linear-gradient(rgba(14, 43, 31, 0.56), rgba(14, 43, 31, 0.62));
   background-size: cover;
   background-position: center;
@@ -37,8 +43,31 @@ try {
 }
 
 <?php if ($loginBackgroundSrc !== ''): ?>
-.login-content {
-  background-image: linear-gradient(rgba(14, 43, 31, 0.48), rgba(14, 43, 31, 0.58)), url('<?php echo htmlspecialchars($loginBackgroundSrc, ENT_QUOTES, 'UTF-8'); ?>');
+.login-content__bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.login-content__bg img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  object-position: center center;
+}
+
+.login-content__veil {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: linear-gradient(rgba(14, 43, 31, 0.48), rgba(14, 43, 31, 0.58));
+}
+
+.login-content .login-box {
+  position: relative;
+  z-index: 2;
 }
 <?php endif; ?>
 
@@ -51,6 +80,12 @@ try {
 <body>
 
 <section class="login-content">
+<?php if ($loginBackgroundSrc !== ''): ?>
+<div class="login-content__bg" aria-hidden="true">
+  <img src="<?php echo htmlspecialchars($loginBackgroundSrc, ENT_QUOTES, 'UTF-8'); ?>" alt=""<?php echo !empty($loginBackgroundMeta['width']) ? ' width="' . (int)$loginBackgroundMeta['width'] . '"' : ''; ?><?php echo !empty($loginBackgroundMeta['height']) ? ' height="' . (int)$loginBackgroundMeta['height'] . '"' : ''; ?> loading="eager" fetchpriority="high" decoding="async">
+</div>
+<div class="login-content__veil" aria-hidden="true"></div>
+<?php endif; ?>
 
 <div class="login-box">
 
