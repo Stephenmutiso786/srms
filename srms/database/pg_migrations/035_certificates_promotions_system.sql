@@ -6,9 +6,21 @@
 -- ALTER tbl_certificates: Add new columns for enhanced certificate data
 -- ============================================================================
 
-INSERT INTO tbl_audit_logs (actor_type, actor_id, action, entity, entity_id, ip, user_agent)
-VALUES ('system', 'migration-035', 'MIGRATION', 'schema', '035_certificates_promotions_system.sql', '', 'Applied migration 035: Enhanced certificates and promotion system')
-;
+DO $$
+BEGIN
+    IF to_regclass('public.tbl_audit_logs') IS NOT NULL THEN
+        BEGIN
+            INSERT INTO tbl_audit_logs (actor_type, actor_id, action, entity, entity_id, ip, user_agent)
+            VALUES ('system', 'migration-035', 'MIGRATION', 'schema', '035_certificates_promotions_system.sql', '', 'Applied migration 035: Enhanced certificates and promotion system');
+        EXCEPTION
+            WHEN undefined_column THEN
+                -- Keep migration idempotent for legacy audit schemas.
+                NULL;
+            WHEN others THEN
+                NULL;
+        END;
+    END IF;
+END $$;
 
 ALTER TABLE IF EXISTS tbl_certificates ADD COLUMN IF NOT EXISTS merit_grade VARCHAR(1) DEFAULT NULL CHECK (merit_grade IN ('A', 'B', 'C', 'D', 'E'));
 
@@ -30,7 +42,7 @@ ALTER TABLE IF EXISTS tbl_certificates ADD COLUMN IF NOT EXISTS locked BOOLEAN D
 
 CREATE TABLE IF NOT EXISTS tbl_promotion_batches (
     id SERIAL PRIMARY KEY,
-    school_id INT DEFAULT NULL REFERENCES tbl_school(id) ON DELETE CASCADE,
+    school_id INT DEFAULT NULL,
     class_id INT NOT NULL REFERENCES tbl_classes(id) ON DELETE CASCADE,
     academic_year VARCHAR(10) NOT NULL,
     promotion_cycle VARCHAR(50) DEFAULT 'year_end',
@@ -50,12 +62,41 @@ CREATE TABLE IF NOT EXISTS tbl_promotion_batches (
 CREATE INDEX IF NOT EXISTS idx_promotion_batches_class ON tbl_promotion_batches(class_id, academic_year, status);
 CREATE INDEX IF NOT EXISTS idx_promotion_batches_status ON tbl_promotion_batches(status, approved_at DESC);
 
+DO $$
+BEGIN
+    IF to_regclass('public.tbl_school') IS NOT NULL
+       AND NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'tbl_promotion_batches_school_fk'
+       ) THEN
+        ALTER TABLE tbl_promotion_batches
+            ADD CONSTRAINT tbl_promotion_batches_school_fk
+            FOREIGN KEY (school_id) REFERENCES tbl_school(id) ON DELETE CASCADE;
+    END IF;
+END $$;
+
 -- ============================================================================
 -- CREATE tbl_student_promotions: Individual student promotion records
 -- ============================================================================
 
-ALTER TABLE IF EXISTS tbl_student_promotions
-    ALTER COLUMN student_id TYPE VARCHAR(20) USING student_id::VARCHAR(20);
+DO $$
+BEGIN
+    IF to_regclass('public.tbl_student_promotions') IS NOT NULL
+       AND EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'tbl_student_promotions'
+              AND column_name = 'student_id'
+       ) THEN
+        BEGIN
+            ALTER TABLE tbl_student_promotions
+                ALTER COLUMN student_id TYPE VARCHAR(20) USING student_id::VARCHAR(20);
+        EXCEPTION WHEN others THEN
+            NULL;
+        END;
+    END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS tbl_student_promotions (
     id SERIAL PRIMARY KEY,
@@ -86,7 +127,7 @@ CREATE INDEX IF NOT EXISTS idx_student_promotions_status ON tbl_student_promotio
 
 CREATE TABLE IF NOT EXISTS tbl_cbc_competencies (
     id SERIAL PRIMARY KEY,
-    school_id INT DEFAULT NULL REFERENCES tbl_school(id) ON DELETE CASCADE,
+    school_id INT DEFAULT NULL,
     competency_name VARCHAR(100) NOT NULL,
     competency_code VARCHAR(20) UNIQUE NOT NULL,
     description TEXT DEFAULT NULL,
@@ -97,12 +138,41 @@ CREATE TABLE IF NOT EXISTS tbl_cbc_competencies (
     CONSTRAINT unique_competency_per_school UNIQUE (school_id, competency_code)
 );
 
+DO $$
+BEGIN
+    IF to_regclass('public.tbl_school') IS NOT NULL
+       AND NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'tbl_cbc_competencies_school_fk'
+       ) THEN
+        ALTER TABLE tbl_cbc_competencies
+            ADD CONSTRAINT tbl_cbc_competencies_school_fk
+            FOREIGN KEY (school_id) REFERENCES tbl_school(id) ON DELETE CASCADE;
+    END IF;
+END $$;
+
 -- ============================================================================
 -- CREATE tbl_student_competencies: Track student competency achievements
 -- ============================================================================
 
-ALTER TABLE IF EXISTS tbl_student_competencies
-    ALTER COLUMN student_id TYPE VARCHAR(20) USING student_id::VARCHAR(20);
+DO $$
+BEGIN
+    IF to_regclass('public.tbl_student_competencies') IS NOT NULL
+       AND EXISTS (
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = 'public'
+              AND table_name = 'tbl_student_competencies'
+              AND column_name = 'student_id'
+       ) THEN
+        BEGIN
+            ALTER TABLE tbl_student_competencies
+                ALTER COLUMN student_id TYPE VARCHAR(20) USING student_id::VARCHAR(20);
+        EXCEPTION WHEN others THEN
+            NULL;
+        END;
+    END IF;
+END $$;
 
 CREATE TABLE IF NOT EXISTS tbl_student_competencies (
     id SERIAL PRIMARY KEY,
@@ -127,7 +197,7 @@ CREATE INDEX IF NOT EXISTS idx_student_competencies_competency ON tbl_student_co
 
 CREATE TABLE IF NOT EXISTS tbl_promotion_rules (
     id SERIAL PRIMARY KEY,
-    school_id INT DEFAULT NULL REFERENCES tbl_school(id) ON DELETE CASCADE,
+    school_id INT DEFAULT NULL,
     grade_level INT NOT NULL,
     min_score_for_promotion DECIMAL(5,2) DEFAULT 40.0,
     require_fees_clearance BOOLEAN DEFAULT TRUE,
@@ -139,6 +209,19 @@ CREATE TABLE IF NOT EXISTS tbl_promotion_rules (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT unique_promotion_rule UNIQUE (school_id, grade_level)
 );
+
+DO $$
+BEGIN
+    IF to_regclass('public.tbl_school') IS NOT NULL
+       AND NOT EXISTS (
+            SELECT 1 FROM pg_constraint
+            WHERE conname = 'tbl_promotion_rules_school_fk'
+       ) THEN
+        ALTER TABLE tbl_promotion_rules
+            ADD CONSTRAINT tbl_promotion_rules_school_fk
+            FOREIGN KEY (school_id) REFERENCES tbl_school(id) ON DELETE CASCADE;
+    END IF;
+END $$;
 
 -- ============================================================================
 -- SEED: Default CBC Competencies (Kenya Primary/Secondary)
