@@ -319,7 +319,9 @@ if (count($slides) === 0) {
 			overflow: hidden;
 			border-radius: 0;
 			width: 100%;
-			min-height: clamp(420px, 74vh, 860px);
+			height: min(62vh, 620px);
+			min-height: 360px;
+			max-height: 620px;
 			box-shadow: none;
 			animation: riseUp 0.95s ease both;
 		}
@@ -340,6 +342,7 @@ if (count($slides) === 0) {
 			width: 100%;
 			height: 100%;
 			object-fit: cover;
+			object-position: center center;
 			image-rendering: auto;
 		}
 
@@ -580,7 +583,9 @@ if (count($slides) === 0) {
 			}
 
 			.slider-shell {
-				min-height: 64vh;
+				height: min(54vh, 440px);
+				min-height: 280px;
+				max-height: 440px;
 			}
 
 			.hero-copy {
