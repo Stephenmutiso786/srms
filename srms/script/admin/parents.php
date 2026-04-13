@@ -122,9 +122,8 @@ try {
 <div class="tile">
   <h3 class="tile-title">Manage Parents</h3>
   <div class="table-responsive">
-	<form id="bulkParentsForm" method="POST" action="admin/core/bulk_delete_parents" onsubmit="return confirmBulkDeleteParents();">
 	<div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-	  <button type="submit" class="btn btn-danger btn-sm">Delete Selected</button>
+	  <button type="button" class="btn btn-danger btn-sm" id="bulkDeleteParentsBtn">Delete Selected</button>
 	  <div class="form-check ms-2">
 		<input class="form-check-input" type="checkbox" id="selectAllParents">
 		<label class="form-check-label" for="selectAllParents">Select all</label>
@@ -193,7 +192,6 @@ try {
 	  <?php } ?>
 	  </tbody>
 	</table>
-	</form>
   </div>
 </div>
 
@@ -214,6 +212,28 @@ function confirmBulkDeleteParents(){
   }
   return confirm('Delete selected parents? This action cannot be undone.');
 }
+function submitBulkDeleteParents(){
+	var checked = document.querySelectorAll('.parent-checkbox:checked');
+	if (!checked.length) {
+		alert('Please select at least one parent to delete.');
+		return;
+	}
+	if (!confirm('Delete selected parents? This action cannot be undone.')) {
+		return;
+	}
+	var form = document.createElement('form');
+	form.method = 'POST';
+	form.action = 'admin/core/bulk_delete_parents';
+	checked.forEach(function (checkbox) {
+		var input = document.createElement('input');
+		input.type = 'hidden';
+		input.name = 'parent_ids[]';
+		input.value = checkbox.value;
+		form.appendChild(input);
+	});
+	document.body.appendChild(form);
+	form.submit();
+}
 function bindSelectAllParents(sourceId, targetClass) {
   var source = document.getElementById(sourceId);
   if (!source) return;
@@ -225,6 +245,10 @@ function bindSelectAllParents(sourceId, targetClass) {
 }
 bindSelectAllParents('selectAllParents', '.parent-checkbox');
 bindSelectAllParents('selectAllParentsHead', '.parent-checkbox');
+var bulkDeleteBtn = document.getElementById('bulkDeleteParentsBtn');
+if (bulkDeleteBtn) {
+	bulkDeleteBtn.addEventListener('click', submitBulkDeleteParents);
+}
 </script>
 </body>
 </html>
