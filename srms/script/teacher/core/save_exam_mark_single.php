@@ -69,7 +69,10 @@ try {
 		exit;
 	}
 
-	$scoreVal = max(0, min(100, $scoreVal));
+	if ($scoreVal < 0 || $scoreVal > 100) {
+		echo json_encode(['ok' => false, 'message' => 'Marks must be between 0 and 100']);
+		exit;
+	}
 	$useExamId = app_column_exists($conn, 'tbl_exam_results', 'exam_id');
 	$useGradeColumns = app_column_exists($conn, 'tbl_exam_results', 'grade_label') && app_column_exists($conn, 'tbl_exam_results', 'grade_points');
 	$gradingSystemId = report_exam_grading_system_id($conn, $examId);
@@ -112,7 +115,7 @@ try {
 		}
 	}
 
-	echo json_encode(['ok' => true]);
+	echo json_encode(['ok' => true, 'grade' => $gradeLabel, 'points' => $gradePoints]);
 } catch (Throwable $e) {
 	echo json_encode(['ok' => false, 'message' => $e->getMessage()]);
 }

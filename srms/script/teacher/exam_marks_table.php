@@ -184,19 +184,33 @@ try {
 <input type="hidden" name="subject_combination" value="<?php echo (int)$subjectComb; ?>">
 <div class="table-responsive">
 <table class="table table-hover">
-<thead><tr><th>Student</th><th width="160">Marks (0-100)</th></tr></thead>
+<thead><tr><th>Student</th><th width="180">Marks (0-100)</th><th width="140">Grade</th></tr></thead>
 <tbody>
 <?php foreach ($students as $student): ?>
 <?php
   $sid = (string)$student['id'];
   $fullName = trim(($student['fname'] ?? '').' '.($student['mname'] ?? '').' '.($student['lname'] ?? ''));
   $scoreVal = $scores[$sid] ?? '';
+  $gradeVal = '';
+  if ($scoreVal !== '' && $scoreVal !== null) {
+    $scoreFloat = (float)$scoreVal;
+    if ($scoreFloat >= 90.0) {
+      $gradeVal = 'EE';
+    } elseif ($scoreFloat >= 75.0) {
+      $gradeVal = 'ME';
+    } elseif ($scoreFloat >= 50.0) {
+      $gradeVal = 'AE';
+    } else {
+      $gradeVal = 'BE';
+    }
+  }
 ?>
 <tr>
   <td><?php echo htmlspecialchars($fullName); ?></td>
   <td>
     <input class="form-control exam-score" type="number" min="0" max="100" step="0.01" data-student="<?php echo htmlspecialchars($sid); ?>" name="scores[<?php echo htmlspecialchars($sid); ?>]" value="<?php echo htmlspecialchars($scoreVal); ?>" <?php echo ($isLocked || in_array($submissionStatus, ['submitted','reviewed','finalized'], true)) ? 'readonly' : ''; ?>>
   </td>
+  <td><span class="badge bg-secondary exam-grade" data-grade-for="<?php echo htmlspecialchars($sid); ?>"><?php echo htmlspecialchars($gradeVal !== '' ? $gradeVal : '--'); ?></span></td>
 </tr>
 <?php endforeach; ?>
 </tbody>
@@ -233,10 +247,76 @@ const basePayload = {
   subject_combination: <?php echo (int)$subjectComb; ?>
 };
 
+const gradeBands = [
+  { min: 90, max: 100, grade: 'EE' },
+  { min: 75, max: 89.99, grade: 'ME' },
+  { min: 50, max: 74.99, grade: 'AE' },
+  { min: 0, max: 49.99, grade: 'BE' }
+];
+
+function gradeForScore(score) {
+  for (const band of gradeBands) {
+    if (score >= band.min && score <= band.max) {
+      return band.grade;
+    }
+  }
+  return 'BE';
+}
+
+function updateGradeBadge(studentId, grade) {
+  const badge = document.querySelector(`.exam-grade[data-grade-for="${studentId}"]`);
+  if (!badge) return;
+  badge.textContent = grade || '--';
+  badge.classList.remove('bg-secondary', 'bg-success', 'bg-primary', 'bg-warning', 'bg-danger');
+  if (!grade || grade === '--') {
+    badge.classList.add('bg-secondary');
+    return;
+  }
+  if (grade === 'EE') badge.classList.add('bg-success');
+  else if (grade === 'ME') badge.classList.add('bg-primary');
+  else if (grade === 'AE') badge.classList.add('bg-warning');
+  else badge.classList.add('bg-danger');
+}
+
 document.querySelectorAll('.exam-score').forEach((el) => {
+  el.addEventListener('input', (e) => {
+    const studentId = e.target.dataset.student;
+    const raw = e.target.value;
+    if (raw === '') {
+      updateGradeBadge(studentId, '--');
+      return;
+    }
+    let value = parseFloat(raw);
+    if (!Number.isFinite(value)) {
+      e.target.value = '';
+      updateGradeBadge(studentId, '--');
+      return;
+    }
+    if (value > 100) {
+      value = 100;
+      e.target.value = '100';
+      setStatus('Marks cannot exceed 100', false);
+    }
+    if (value < 0) {
+      value = 0;
+      e.target.value = '0';
+      setStatus('Marks cannot be below 0', false);
+    }
+    updateGradeBadge(studentId, gradeForScore(value));
+  });
+
   el.addEventListener('change', async (e) => {
     const value = e.target.value;
     const studentId = e.target.dataset.student;
+    if (value === '') {
+      updateGradeBadge(studentId, '--');
+      return;
+    }
+    const score = parseFloat(value);
+    if (!Number.isFinite(score) || score < 0 || score > 100) {
+      setStatus('Marks must be between 0 and 100', false);
+      return;
+    }
     setStatus('Saving...', true);
     const res = await fetch('teacher/core/save_exam_mark_single', {
       method: 'POST',
@@ -245,6 +325,7 @@ document.querySelectorAll('.exam-score').forEach((el) => {
     });
     const data = await res.json().catch(() => ({ ok: false }));
     if (data && data.ok) {
+      updateGradeBadge(studentId, data.grade || gradeForScore(score));
       setStatus('Saved', true);
     } else {
       setStatus(data.message || 'Save failed', false);

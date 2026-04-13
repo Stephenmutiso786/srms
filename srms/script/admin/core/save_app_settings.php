@@ -18,6 +18,16 @@ if (!is_array($settings) || !$settings) {
 	app_reply_redirect('danger', 'No settings were submitted.', '../system');
 }
 
+if (isset($settings['top_banner_type'])) {
+	$type = strtolower(trim((string)$settings['top_banner_type']));
+	$settings['top_banner_type'] = ($type === 'warning') ? 'warning' : 'info';
+}
+foreach (['top_banner_enabled', 'maintenance_mode_enabled'] as $toggleKey) {
+	if (isset($settings[$toggleKey])) {
+		$settings[$toggleKey] = ((string)$settings[$toggleKey] === '1') ? '1' : '0';
+	}
+}
+
 $continuousWeight = isset($settings['continuous_weight']) ? (int)$settings['continuous_weight'] : null;
 $summativeWeight = isset($settings['summative_weight']) ? (int)$settings['summative_weight'] : null;
 if ($continuousWeight !== null && $summativeWeight !== null && ($continuousWeight + $summativeWeight) !== 100) {

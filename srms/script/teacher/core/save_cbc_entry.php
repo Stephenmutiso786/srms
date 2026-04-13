@@ -50,10 +50,10 @@ try {
 	}
 	if (count($grading) < 1) {
 		$grading = [
-			['level' => 'EE', 'min_mark' => 80, 'max_mark' => 100, 'points' => 4, 'sort_order' => 1],
-			['level' => 'ME', 'min_mark' => 60, 'max_mark' => 79, 'points' => 3, 'sort_order' => 2],
-			['level' => 'AE', 'min_mark' => 40, 'max_mark' => 59, 'points' => 2, 'sort_order' => 3],
-			['level' => 'BE', 'min_mark' => 0, 'max_mark' => 39, 'points' => 1, 'sort_order' => 4],
+			['level' => 'EE', 'min_mark' => 90, 'max_mark' => 100, 'points' => 4, 'sort_order' => 1],
+			['level' => 'ME', 'min_mark' => 75, 'max_mark' => 89, 'points' => 3, 'sort_order' => 2],
+			['level' => 'AE', 'min_mark' => 50, 'max_mark' => 74, 'points' => 2, 'sort_order' => 3],
+			['level' => 'BE', 'min_mark' => 0, 'max_mark' => 49, 'points' => 1, 'sort_order' => 4],
 		];
 	}
 	$validLevels = array_values(array_unique(array_map(function ($row) {
@@ -65,8 +65,10 @@ try {
 			echo json_encode(['ok' => false, 'message' => 'Marks required']);
 			exit;
 		}
-		if ($marksVal < 0) { $marksVal = 0; }
-		if ($marksVal > 100) { $marksVal = 100; }
+		if ($marksVal < 0 || $marksVal > 100) {
+			echo json_encode(['ok' => false, 'message' => 'Marks must be between 0 and 100']);
+			exit;
+		}
 		foreach ($grading as $band) {
 			$min = (float)$band['min_mark'];
 			$max = (float)$band['max_mark'];

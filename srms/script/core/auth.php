@@ -61,6 +61,20 @@ $ip =  $_SERVER['REMOTE_ADDR'];
 
 $loginLevel = (int)$row[3];
 
+$maintenanceEnabled = app_setting_get($conn, 'maintenance_mode_enabled', '0') === '1';
+if ($maintenanceEnabled) {
+	$isAdminLogin = ($loginLevel === 0 || $loginLevel === 9);
+	if (!$isAdminLogin) {
+		$maintenanceMessage = trim(app_setting_get($conn, 'maintenance_mode_message', 'System is under maintenance. Please try again later.'));
+		if ($maintenanceMessage === '') {
+			$maintenanceMessage = 'System is under maintenance. Please try again later.';
+		}
+		$_SESSION['reply'] = array (array("danger", $maintenanceMessage));
+		header("location:../");
+		exit;
+	}
+}
+
 if ($loginLevel === 4) {
 	if (!$hasParentSessions) {
 		$_SESSION['reply'] = array (array("danger", "Parent portal is not enabled on this server yet. Ask the admin to run DB migrations (001 + 002)."));

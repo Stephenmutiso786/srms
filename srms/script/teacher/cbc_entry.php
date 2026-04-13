@@ -111,10 +111,10 @@ try {
 
 if (count($grading) < 1) {
 	$grading = [
-		['level' => 'EE', 'min_mark' => 80, 'max_mark' => 100, 'points' => 4, 'sort_order' => 1],
-		['level' => 'ME', 'min_mark' => 60, 'max_mark' => 79, 'points' => 3, 'sort_order' => 2],
-		['level' => 'AE', 'min_mark' => 40, 'max_mark' => 59, 'points' => 2, 'sort_order' => 3],
-		['level' => 'BE', 'min_mark' => 0, 'max_mark' => 39, 'points' => 1, 'sort_order' => 4],
+    ['level' => 'EE', 'min_mark' => 90, 'max_mark' => 100, 'points' => 4, 'sort_order' => 1],
+    ['level' => 'ME', 'min_mark' => 75, 'max_mark' => 89, 'points' => 3, 'sort_order' => 2],
+    ['level' => 'AE', 'min_mark' => 50, 'max_mark' => 74, 'points' => 2, 'sort_order' => 3],
+    ['level' => 'BE', 'min_mark' => 0, 'max_mark' => 49, 'points' => 1, 'sort_order' => 4],
 	];
 }
 
@@ -429,10 +429,40 @@ document.querySelectorAll('.cbc-level').forEach((el) => {
 
 document.querySelectorAll('.cbc-marks').forEach((el) => {
   if (<?php echo ($isLocked || in_array($submissionStatus, ['submitted','approved'], true)) ? 'true' : 'false'; ?>) { el.disabled = true; }
+  el.addEventListener('input', (e) => {
+    const raw = e.target.value;
+    if (raw === '') {
+      return;
+    }
+    let mark = parseFloat(raw);
+    if (!Number.isFinite(mark)) {
+      e.target.value = '';
+      markStatus('Enter a valid mark', false);
+      return;
+    }
+    if (mark > 100) {
+      mark = 100;
+      e.target.value = '100';
+      markStatus('Marks cannot exceed 100', false);
+    }
+    if (mark < 0) {
+      mark = 0;
+      e.target.value = '0';
+      markStatus('Marks cannot be below 0', false);
+    }
+  });
   el.addEventListener('change', async (e) => {
     const studentId = e.target.dataset.student;
     const strand = e.target.dataset.strand;
+    if (e.target.value === '') {
+      markStatus('Marks required', false);
+      return;
+    }
     const mark = parseFloat(e.target.value || '0');
+    if (!Number.isFinite(mark) || mark < 0 || mark > 100) {
+      markStatus('Marks must be between 0 and 100', false);
+      return;
+    }
     const mapped = mapMarks(mark);
     const badge = e.target.parentElement.querySelector('[data-badge]');
     applyLevelBadge(badge, mapped.level);

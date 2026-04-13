@@ -78,8 +78,9 @@ try {
       continue;
     }
     $scoreVal = (float)$score;
-    if ($scoreVal < 0) { $scoreVal = 0; }
-    if ($scoreVal > 100) { $scoreVal = 100; }
+    if ($scoreVal < 0 || $scoreVal > 100) {
+      throw new RuntimeException("Marks must be between 0 and 100.");
+    }
     list($gradeLabel, , $gradePoints) = report_grade_for_score($conn, $scoreVal, $gradingSystemId);
 
     if ($useExamId) {
@@ -129,7 +130,7 @@ try {
     $conn->rollBack();
   }
   error_log("[".__FILE__.":".__LINE__." Throwable] " . $e->getMessage());
-  $_SESSION['reply'] = array(array("danger", "Operation failed. Please try again."));
+  $_SESSION['reply'] = array(array("danger", $e->getMessage()));
   header("location:../exam_marks_table");
   exit;
 }

@@ -11,15 +11,50 @@ function report_grading_systems(PDO $conn): array
 	return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
+function report_default_grading_system_id(PDO $conn): ?int
+{
+	if (!app_table_exists($conn, 'tbl_grading_systems')) {
+		return null;
+	}
+	$stmt = $conn->prepare("SELECT id FROM tbl_grading_systems WHERE is_active = 1 ORDER BY is_default DESC, id ASC LIMIT 1");
+	$stmt->execute();
+	$value = $stmt->fetchColumn();
+	return $value ? (int)$value : null;
+}
+
 function report_exam_grading_system_id(PDO $conn, ?int $examId): ?int
 {
+	$defaultSystemId = report_default_grading_system_id($conn);
 	if (!$examId || !app_table_exists($conn, 'tbl_exams') || !app_column_exists($conn, 'tbl_exams', 'grading_system_id')) {
-		return null;
+		return $defaultSystemId;
 	}
 	$stmt = $conn->prepare("SELECT grading_system_id FROM tbl_exams WHERE id = ? LIMIT 1");
 	$stmt->execute([$examId]);
 	$value = $stmt->fetchColumn();
-	return $value ? (int)$value : null;
+	if (!$value) {
+		return $defaultSystemId;
+	}
+
+	$examSystemId = (int)$value;
+	if (!app_table_exists($conn, 'tbl_grading_scales')) {
+		return $defaultSystemId;
+	}
+	$stmt = $conn->prepare("SELECT grade FROM tbl_grading_scales WHERE grading_system_id = ? AND is_active = 1");
+	$stmt->execute([$examSystemId]);
+	$grades = $stmt->fetchAll(PDO::FETCH_COLUMN);
+	$legacyGradeCount = 0;
+	foreach ($grades as $grade) {
+		$normalized = strtoupper(trim((string)$grade));
+		if (in_array($normalized, ['A+', 'A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D+', 'D', 'D-', 'E'], true)) {
+			$legacyGradeCount++;
+		}
+	}
+
+	if ($legacyGradeCount > 0 && $defaultSystemId) {
+		return $defaultSystemId;
+	}
+
+	return $examSystemId;
 }
 
 function report_grading_scales(PDO $conn, ?int $gradingSystemId = null): array
@@ -85,7 +120,7 @@ function report_get_weight_map(PDO $conn): array
 
 function report_grade_for_score(PDO $conn, float $score, ?int $gradingSystemId = null): array
 {
-	$grade = 'E';
+	$grade = 'BE';
 	$remark = 'Needs improvement';
 	$points = 0;
 	$rows = report_grading_scales($conn, $gradingSystemId);
@@ -153,10 +188,10 @@ function report_cbc_grading_rows(PDO $conn): array
 	}
 
 	return [
-		['level' => 'EE', 'min_mark' => 80, 'max_mark' => 100, 'points' => 4],
-		['level' => 'ME', 'min_mark' => 60, 'max_mark' => 79, 'points' => 3],
-		['level' => 'AE', 'min_mark' => 40, 'max_mark' => 59, 'points' => 2],
-		['level' => 'BE', 'min_mark' => 0, 'max_mark' => 39, 'points' => 1],
+		['level' => 'EE', 'min_mark' => 90, 'max_mark' => 100, 'points' => 4],
+		['level' => 'ME', 'min_mark' => 75, 'max_mark' => 89, 'points' => 3],
+		['level' => 'AE', 'min_mark' => 50, 'max_mark' => 74, 'points' => 2],
+		['level' => 'BE', 'min_mark' => 0, 'max_mark' => 49, 'points' => 1],
 	];
 }
 

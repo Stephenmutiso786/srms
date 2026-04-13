@@ -3,6 +3,81 @@
 
 	"use strict";
 
+	function initSiteLoader() {
+		if (document.getElementById('siteLoader')) {
+			return;
+		}
+
+		var overlay = document.createElement('div');
+		overlay.id = 'siteLoader';
+		overlay.className = 'site-loader';
+		overlay.innerHTML = '<div class="site-loader__dots" aria-label="Loading"><span></span><span></span><span></span></div>';
+		document.body.appendChild(overlay);
+
+		var hideLoader = function () {
+			overlay.classList.add('is-hidden');
+			setTimeout(function () {
+				if (overlay && overlay.parentNode) {
+					overlay.parentNode.removeChild(overlay);
+				}
+			}, 320);
+		};
+
+		if (document.readyState === 'complete') {
+			hideLoader();
+			return;
+		}
+
+		window.addEventListener('load', hideLoader, { once: true });
+	}
+
+	function applyTopBanner(banner) {
+		if (!banner || !banner.enabled || !banner.text) {
+			return;
+		}
+		if (document.getElementById('appTopBanner')) {
+			return;
+		}
+
+		var wrapper = document.createElement('div');
+		wrapper.id = 'appTopBanner';
+		wrapper.className = 'app-top-banner app-top-banner--' + (banner.type === 'warning' ? 'warning' : 'info');
+
+		var track = document.createElement('div');
+		track.className = 'app-top-banner__track';
+
+		var text1 = document.createElement('span');
+		text1.className = 'app-top-banner__text';
+		text1.textContent = banner.text + '   •   ';
+
+		var text2 = document.createElement('span');
+		text2.className = 'app-top-banner__text';
+		text2.textContent = banner.text + '   •   ';
+
+		track.appendChild(text1);
+		track.appendChild(text2);
+		wrapper.appendChild(track);
+
+		document.body.appendChild(wrapper);
+		document.body.classList.add('has-top-banner');
+	}
+
+	function loadUiSettings() {
+		return fetch('core/ui_settings.php', { credentials: 'same-origin' })
+			.then(function (r) { return r.json(); })
+			.then(function (data) {
+				if (data && data.ok && data.banner) {
+					applyTopBanner(data.banner);
+				}
+			})
+			.catch(function () {
+				return null;
+			});
+	}
+
+	initSiteLoader();
+	loadUiSettings();
+
 	var treeviewMenu = $('.app-menu');
 
 	// Toggle Sidebar

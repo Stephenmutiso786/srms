@@ -45,6 +45,11 @@ $appSettings = [
 	'send_results_automatically' => '0',
 	'mark_entry_deadline_days' => '7',
 	'default_school_days' => 'Monday,Tuesday,Wednesday,Thursday,Friday',
+	'top_banner_enabled' => '0',
+	'top_banner_type' => 'info',
+	'top_banner_text' => '',
+	'maintenance_mode_enabled' => '0',
+	'maintenance_mode_message' => 'System is under maintenance. Please try again later.',
 ];
 $gradingSystems = [];
 $gradingScalesBySystem = [];
@@ -416,6 +421,35 @@ Manage school terms directly from <a href="admin/terms">Academic Terms</a>. Curr
 <div class="col-md-3 mb-3">
 <label class="form-label">Mark Entry Deadline (days)</label>
 <input class="form-control" type="number" name="settings[mark_entry_deadline_days]" value="<?php echo htmlspecialchars($appSettings['mark_entry_deadline_days']); ?>" min="0">
+</div>
+<div class="col-md-3 mb-3">
+<label class="form-label">Top Banner Enabled</label>
+<select class="form-control" name="settings[top_banner_enabled]">
+<option value="1" <?php echo $appSettings['top_banner_enabled'] === '1' ? 'selected' : ''; ?>>Yes</option>
+<option value="0" <?php echo $appSettings['top_banner_enabled'] === '0' ? 'selected' : ''; ?>>No</option>
+</select>
+</div>
+<div class="col-md-3 mb-3">
+<label class="form-label">Top Banner Type</label>
+<select class="form-control" name="settings[top_banner_type]">
+<option value="info" <?php echo $appSettings['top_banner_type'] === 'info' ? 'selected' : ''; ?>>Information</option>
+<option value="warning" <?php echo $appSettings['top_banner_type'] === 'warning' ? 'selected' : ''; ?>>Warning</option>
+</select>
+</div>
+<div class="col-md-6 mb-3">
+<label class="form-label">Top Banner Running Text</label>
+<input class="form-control" name="settings[top_banner_text]" value="<?php echo htmlspecialchars($appSettings['top_banner_text']); ?>" placeholder="e.g. Warning: Fee payment deadline is Friday 5 PM.">
+</div>
+<div class="col-md-3 mb-3">
+<label class="form-label">Maintenance Mode</label>
+<select class="form-control" name="settings[maintenance_mode_enabled]">
+<option value="1" <?php echo $appSettings['maintenance_mode_enabled'] === '1' ? 'selected' : ''; ?>>On</option>
+<option value="0" <?php echo $appSettings['maintenance_mode_enabled'] === '0' ? 'selected' : ''; ?>>Off</option>
+</select>
+</div>
+<div class="col-md-9 mb-3">
+<label class="form-label">Maintenance Message</label>
+<input class="form-control" name="settings[maintenance_mode_message]" value="<?php echo htmlspecialchars($appSettings['maintenance_mode_message']); ?>" placeholder="Shown when non-admin users try to login during maintenance.">
 </div>
 </div>
 <button class="btn btn-primary app_btn">Save App Settings</button>
