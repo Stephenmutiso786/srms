@@ -46,6 +46,9 @@ $schoolTitle = (defined('WBName') && WBName !== '') ? WBName : APP_NAME;
 <div class="mb-3 btn-container d-grid">
 <button type="submit" class="btn btn-primary btn-block app_btn"><i class="bi bi-box-arrow-in-right me-2 fs-5"></i>SIGN IN</button>
 </div>
+<div class="mb-3 btn-container d-grid">
+<a href="school_main_website.php" class="btn btn-outline-success btn-block" style="font-weight:700;">visit the  school main website</a>
+</div>
 </form>
 
 <form class="forget-form app_frm" action="core/forgot_pw" method="POST" autocomplete="OFF">
