@@ -13,17 +13,27 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 	exit;
 }
 
-function app_uploaded_image_payload(array $file): ?array
+function app_uploaded_image_payload(array $file, int $maxBytes, int $minWidth, int $minHeight, string $label): ?array
 {
 	if (!isset($file['name']) || (string)$file['name'] === '') {
 		return null;
 	}
-	$check = app_validate_upload($file, ['jpg', 'jpeg', 'png', 'webp']);
+	$check = app_validate_upload($file, ['jpg', 'jpeg', 'png', 'webp'], $maxBytes);
 	if (!$check['ok']) {
-		throw new RuntimeException((string)$check['message']);
+		throw new RuntimeException($label . ': ' . (string)$check['message']);
 	}
 
 	$path = (string)($file['tmp_name'] ?? '');
+	$size = @getimagesize($path);
+	if (!is_array($size) || empty($size[0]) || empty($size[1])) {
+		throw new RuntimeException($label . ': invalid image file.');
+	}
+	$width = (int)$size[0];
+	$height = (int)$size[1];
+	if ($width < $minWidth || $height < $minHeight) {
+		throw new RuntimeException($label . ': image is too small. Minimum ' . $minWidth . 'x' . $minHeight . ' required.');
+	}
+
 	$bytes = @file_get_contents($path);
 	if (!is_string($bytes) || $bytes === '') {
 		throw new RuntimeException('Failed to read uploaded image.');
@@ -37,7 +47,9 @@ function app_uploaded_image_payload(array $file): ?array
 	return [
 		'b64' => base64_encode($bytes),
 		'ext' => $ext,
-		'name' => basename((string)$file['name'])
+		'name' => basename((string)$file['name']),
+		'width' => $width,
+		'height' => $height
 	];
 }
 
@@ -48,11 +60,13 @@ try {
 		throw new RuntimeException('Application settings support is not installed. Run migration 030.');
 	}
 
-	$loginPayload = app_uploaded_image_payload($_FILES['login_background'] ?? []);
+	$loginPayload = app_uploaded_image_payload($_FILES['login_background'] ?? [], 12 * 1024 * 1024, 1600, 900, 'Login background');
 	if (is_array($loginPayload)) {
 		app_setting_set($conn, 'public_login_bg_b64', (string)$loginPayload['b64'], (int)$account_id, false);
 		app_setting_set($conn, 'public_login_bg_ext', (string)$loginPayload['ext'], (int)$account_id, false);
 		app_setting_set($conn, 'public_login_bg_name', (string)$loginPayload['name'], (int)$account_id, false);
+		app_setting_set($conn, 'public_login_bg_width', (string)$loginPayload['width'], (int)$account_id, false);
+		app_setting_set($conn, 'public_login_bg_height', (string)$loginPayload['height'], (int)$account_id, false);
 	}
 
 	$replace = isset($_POST['replace_gallery']) && (string)$_POST['replace_gallery'] === '1';
@@ -86,7 +100,7 @@ try {
 				'error' => (int)($files['error'][$i] ?? UPLOAD_ERR_NO_FILE),
 				'size' => (int)($files['size'][$i] ?? 0),
 			];
-			$payload = app_uploaded_image_payload($single);
+			$payload = app_uploaded_image_payload($single, 8 * 1024 * 1024, 1000, 700, 'Showcase image');
 			if (!is_array($payload)) {
 				continue;
 			}
@@ -94,6 +108,8 @@ try {
 				'b64' => (string)$payload['b64'],
 				'ext' => (string)$payload['ext'],
 				'name' => (string)$payload['name'],
+				'width' => (int)$payload['width'],
+				'height' => (int)$payload['height'],
 				'caption' => isset($captions[$i]) ? trim((string)$captions[$i]) : ''
 			];
 		}
@@ -113,6 +129,10 @@ try {
 			app_setting_set($conn, 'public_login_bg_b64', (string)$first['b64'], (int)$account_id, false);
 			app_setting_set($conn, 'public_login_bg_ext', (string)$first['ext'], (int)$account_id, false);
 			app_setting_set($conn, 'public_login_bg_name', (string)($first['name'] ?? 'showcase_1'), (int)$account_id, false);
+			if (!empty($first['width']) && !empty($first['height'])) {
+				app_setting_set($conn, 'public_login_bg_width', (string)$first['width'], (int)$account_id, false);
+				app_setting_set($conn, 'public_login_bg_height', (string)$first['height'], (int)$account_id, false);
+			}
 		}
 	}
 

@@ -2864,7 +2864,8 @@ function app_validate_upload(array $file, array $allowedExtensions = [], ?int $m
 		return ['ok' => false, 'message' => 'Uploaded file is empty.', 'extension' => ''];
 	}
 	if ($size > $maxBytes) {
-		return ['ok' => false, 'message' => 'Files larger than 1MB are not allowed.', 'extension' => ''];
+		$maxMb = round($maxBytes / (1024 * 1024), 1);
+		return ['ok' => false, 'message' => 'Files larger than ' . $maxMb . 'MB are not allowed.', 'extension' => ''];
 	}
 
 	$extension = strtolower(pathinfo((string)($file['name'] ?? ''), PATHINFO_EXTENSION));
