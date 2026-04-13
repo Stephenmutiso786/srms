@@ -75,33 +75,10 @@ BEGIN
     END IF;
 END $$;
 
--- ============================================================================
--- CREATE tbl_student_promotions: Individual student promotion records
--- ============================================================================
-
-DO $$
-BEGIN
-    IF to_regclass('public.tbl_student_promotions') IS NOT NULL
-       AND EXISTS (
-            SELECT 1
-            FROM information_schema.columns
-            WHERE table_schema = 'public'
-              AND table_name = 'tbl_student_promotions'
-              AND column_name = 'student_id'
-       ) THEN
-        BEGIN
-            ALTER TABLE tbl_student_promotions
-                ALTER COLUMN student_id TYPE VARCHAR(20) USING student_id::VARCHAR(20);
-        EXCEPTION WHEN others THEN
-            NULL;
-        END;
-    END IF;
-END $$;
-
 CREATE TABLE IF NOT EXISTS tbl_student_promotions (
     id SERIAL PRIMARY KEY,
     batch_id INT NOT NULL REFERENCES tbl_promotion_batches(id) ON DELETE CASCADE,
-    student_id VARCHAR(20) NOT NULL REFERENCES tbl_students(id) ON DELETE CASCADE,
+    student_id VARCHAR(64) NOT NULL REFERENCES tbl_students(id) ON DELETE CASCADE,
     from_class INT NOT NULL REFERENCES tbl_classes(id) ON DELETE CASCADE,
     to_class INT DEFAULT NULL REFERENCES tbl_classes(id) ON DELETE SET NULL,
     status VARCHAR(20) DEFAULT 'promoted' CHECK (status IN ('promoted', 'repeated', 'exited', 'suspended')),
@@ -151,32 +128,9 @@ BEGIN
     END IF;
 END $$;
 
--- ============================================================================
--- CREATE tbl_student_competencies: Track student competency achievements
--- ============================================================================
-
-DO $$
-BEGIN
-    IF to_regclass('public.tbl_student_competencies') IS NOT NULL
-       AND EXISTS (
-            SELECT 1
-            FROM information_schema.columns
-            WHERE table_schema = 'public'
-              AND table_name = 'tbl_student_competencies'
-              AND column_name = 'student_id'
-       ) THEN
-        BEGIN
-            ALTER TABLE tbl_student_competencies
-                ALTER COLUMN student_id TYPE VARCHAR(20) USING student_id::VARCHAR(20);
-        EXCEPTION WHEN others THEN
-            NULL;
-        END;
-    END IF;
-END $$;
-
 CREATE TABLE IF NOT EXISTS tbl_student_competencies (
     id SERIAL PRIMARY KEY,
-    student_id VARCHAR(20) NOT NULL REFERENCES tbl_students(id) ON DELETE CASCADE,
+    student_id VARCHAR(64) NOT NULL REFERENCES tbl_students(id) ON DELETE CASCADE,
     competency_id INT NOT NULL REFERENCES tbl_cbc_competencies(id) ON DELETE CASCADE,
     exam_id INT DEFAULT NULL REFERENCES tbl_exams(id) ON DELETE SET NULL,
     achievement_level VARCHAR(20) DEFAULT 'developing' 
