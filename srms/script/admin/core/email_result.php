@@ -7,6 +7,31 @@ require_once('const/rbac.php');
 require_once('const/notify.php');
 require_once('const/certificate_engine.php');
 
+function app_email_result_is_ajax(): bool
+{
+    $xhr = strtolower((string)($_SERVER['HTTP_X_REQUESTED_WITH'] ?? ''));
+    if ($xhr === 'xmlhttprequest') {
+        return true;
+    }
+    $accept = strtolower((string)($_SERVER['HTTP_ACCEPT'] ?? ''));
+    return strpos($accept, 'application/json') !== false;
+}
+
+function app_email_result_reply(string $type, string $message, string $redirect): void
+{
+    if (app_email_result_is_ajax()) {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode([
+            'ok' => ($type === 'success'),
+            'type' => $type,
+            'message' => $message,
+            'redirect' => $redirect,
+        ]);
+        exit;
+    }
+    app_reply_redirect($type, $message, $redirect);
+}
+
 if ($res !== '1' || $level !== '0') { 
     header('location:../../'); 
     exit; 
@@ -14,6 +39,11 @@ if ($res !== '1' || $level !== '0') {
 app_require_permission('report.generate', '../certificates');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    if (app_email_result_is_ajax()) {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['ok' => false, 'message' => 'Invalid request method.']);
+        exit;
+    }
     header('location:../certificates');
     exit;
 }
@@ -22,13 +52,17 @@ $resultType = trim((string)($_POST['result_type'] ?? 'certificate'));
 $resultId = (int)($_POST['result_id'] ?? 0);
 $recipientEmail = trim((string)($_POST['recipient_email'] ?? ''));
 $message = trim((string)($_POST['message'] ?? ''));
+$returnTo = trim((string)($_POST['return_to'] ?? '../certificates'));
+if ($returnTo === '' || strpos($returnTo, '..') !== false || strpos($returnTo, 'http') === 0) {
+    $returnTo = '../certificates';
+}
 
 if ($resultId < 1 || !in_array($resultType, ['certificate', 'report_card'], true)) {
-    app_reply_redirect('danger', 'Invalid request.', '../certificates');
+    app_email_result_reply('danger', 'Invalid request.', $returnTo);
 }
 
 if (!filter_var($recipientEmail, FILTER_VALIDATE_EMAIL)) {
-    app_reply_redirect('danger', 'Invalid email address.', '../certificates');
+    app_email_result_reply('danger', 'Invalid email address.', $returnTo);
 }
 
 try {
@@ -189,11 +223,11 @@ try {
             'to' => $recipientEmail,
             'student' => $studentName,
         ]);
-        app_reply_redirect('success', 'Email sent successfully to ' . htmlspecialchars($recipientEmail), '../certificates');
+        app_email_result_reply('success', 'Email sent successfully to ' . htmlspecialchars($recipientEmail), $returnTo);
     } else {
         throw new RuntimeException($result['error'] ?: 'Failed to send email');
     }
     
 } catch (Throwable $e) {
-    app_reply_redirect('danger', 'Failed to send email: ' . $e->getMessage(), '../certificates');
+    app_email_result_reply('danger', 'Failed to send email: ' . $e->getMessage(), $returnTo);
 }
