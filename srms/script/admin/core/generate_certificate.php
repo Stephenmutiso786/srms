@@ -6,7 +6,7 @@ require_once('const/check_session.php');
 require_once('const/rbac.php');
 require_once('const/certificate_engine.php');
 
-if ($res !== '1' || $level !== '0') { header('location:../../'); exit; }
+if ($res !== '1' || !in_array((int)$level, [0, 1])) { header('location:../../'); exit; }
 app_require_permission('report.generate', '../certificates');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -26,11 +26,20 @@ if ($studentId === '' || !isset($types[$type])) {
     app_reply_redirect('danger', 'Missing certificate details.', '../certificates');
 }
 
+if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $issueDate)) {
+    app_reply_redirect('danger', 'Invalid issue date.', '../certificates');
+}
+
+if ($meanScore !== null && ($meanScore < 0 || $meanScore > 100)) {
+    app_reply_redirect('danger', 'Mean score must be between 0 and 100.', '../certificates');
+}
+
 $category = $type;
 
 try {
     $conn = app_db();
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $conn->beginTransaction();
     app_ensure_certificates_table($conn);
 
     $stmt = $conn->prepare('SELECT id, class, fname, mname, lname FROM tbl_students WHERE id = ? LIMIT 1');
@@ -38,6 +47,14 @@ try {
     $student = $stmt->fetch(PDO::FETCH_ASSOC);
     if (!$student) {
         throw new RuntimeException('Student not found.');
+    }
+
+    $stmt = $conn->prepare('SELECT id, serial_no FROM tbl_certificates WHERE student_id = ? AND certificate_type = ? AND issue_date = ? LIMIT 1');
+    $stmt->execute([$studentId, $type, $issueDate]);
+    $existing = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($existing) {
+        $conn->rollBack();
+        app_reply_redirect('warning', 'Certificate already exists for this student/type/date (Serial: ' . $existing['serial_no'] . ').', '../certificates');
     }
 
     $serial = app_certificate_serial($type, $studentId);
@@ -52,7 +69,7 @@ try {
     ];
     $hash = app_certificate_hash($payload);
     
-    // Prepare competencies JSON if provided
+    // Prepare competencies JSON if provided.
     $competenciesJson = null;
     if (!empty($competencies)) {
         $normalized = [];
@@ -74,7 +91,7 @@ try {
         }
     }
     
-    // Determine merit grade from mean score
+    // Determine merit grade from mean score.
     $meritGrade = null;
     if ($meanScore !== null) {
         $meritGrade = app_merit_grade_from_score($meanScore);
@@ -100,7 +117,22 @@ try {
         $competenciesJson,
     ]);
 
+    app_audit_log(
+        $conn,
+        'staff',
+        (string)$account_id,
+        'certificate.generate',
+        'tbl_certificates',
+        (string)$studentId,
+        ['certificate_type' => $type, 'issue_date' => $issueDate]
+    );
+
+    $conn->commit();
+
     app_reply_redirect('success', 'Certificate generated successfully.', '../certificates');
 } catch (Throwable $e) {
+    if (isset($conn) && $conn instanceof PDO && $conn->inTransaction()) {
+        $conn->rollBack();
+    }
     app_reply_redirect('danger', 'Failed to generate certificate: ' . $e->getMessage(), '../certificates');
 }

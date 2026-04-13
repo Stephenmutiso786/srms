@@ -45,7 +45,14 @@ try {
     $stmt->execute(['rejected', (int)$account_id, (int)$batchId]);
 
     // Log action
-    app_audit_log($conn, 'promotion.batch.reject', 'Rejected promotion batch ' . $batchId, 'tbl_promotion_batches');
+    app_audit_log(
+        $conn,
+        'staff',
+        (string)$account_id,
+        'promotion.batch.reject',
+        'tbl_promotion_batches',
+        (string)$batchId
+    );
 
     app_reply_redirect('success', 'Promotion batch rejected. No student classes were updated.', '../promotions');
 

@@ -24,64 +24,75 @@ if ($batchId === '') {
 try {
     $conn = app_db();
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    app_ensure_certificates_table($conn);
+    $conn->beginTransaction();
 
-    // Get batch details
-    $stmt = $conn->prepare('SELECT * FROM tbl_promotion_batches WHERE id = ? LIMIT 1');
+    // Lock batch row to avoid concurrent approvals.
+    $stmt = $conn->prepare('SELECT * FROM tbl_promotion_batches WHERE id = ? LIMIT 1 FOR UPDATE');
     $stmt->execute([(int)$batchId]);
     $batch = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$batch) {
-        app_reply_redirect('danger', 'Promotion batch not found.', '../promotions');
+        throw new RuntimeException('Promotion batch not found.');
     }
 
     if ($batch['status'] !== 'pending') {
-        app_reply_redirect('warning', 'This batch has already been processed.', '../promotions?batch_id=' . $batchId);
+        throw new RuntimeException('This batch has already been processed.');
     }
 
-    // Get students in batch
+    // Get students in batch.
     $stmt = $conn->prepare('
-        SELECT sp.*, st.id, st.fname, st.mname, st.lname, 
-               concat_ws(\' \', st.fname, st.mname, st.lname) as student_name
+        SELECT sp.*, st.id, st.fname, st.mname, st.lname,
+               concat_ws(\' \, st.fname, st.mname, st.lname) AS student_name,
+               c_from.grade AS from_grade,
+               c_to.grade AS to_grade
         FROM tbl_student_promotions sp
         JOIN tbl_students st ON st.id = sp.student_id
+        LEFT JOIN tbl_classes c_from ON c_from.id = sp.from_class
+        LEFT JOIN tbl_classes c_to ON c_to.id = sp.to_class
         WHERE sp.batch_id = ?
     ');
     $stmt->execute([(int)$batchId]);
     $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     if (empty($students)) {
-        app_reply_redirect('danger', 'No students found in batch.', '../promotions');
+        throw new RuntimeException('No students found in batch.');
     }
 
     $promoted = 0;
     $repeated = 0;
+    $exited = 0;
     $certificates_generated = 0;
 
-    // Process each student
+    $today = date('Y-m-d');
+
+    // Process each student.
     foreach ($students as $student) {
         if ($student['status'] === 'promoted') {
-            // Update student's class
+            // Update student's class.
             $stmt = $conn->prepare('UPDATE tbl_students SET class = ? WHERE id = ?');
             $stmt->execute([(int)$student['to_class'], (string)$student['student_id']]);
             $promoted++;
 
-            // Auto-generate certificate if this is a completion class (Grade 6 or 9)
-            if ($student['mean_score'] >= 40.0) {
+            // Auto-generate completion certificates based on the completed class grade.
+            $completedGrade = (int)($student['from_grade'] ?? 0);
+            $certType = null;
+            if ($completedGrade === 6) {
+                $certType = 'primary_completion';
+            } elseif ($completedGrade === 9) {
+                $certType = 'junior_completion';
+            }
+
+            if ($certType) {
                 $stmt = $conn->prepare('
-                    SELECT grade FROM tbl_classes WHERE id = ? LIMIT 1
+                    SELECT id FROM tbl_certificates
+                    WHERE student_id = ? AND certificate_type = ? AND class_id = ?
+                    LIMIT 1
                 ');
-                $stmt->execute([(int)$student['to_class']]);
-                $classData = $stmt->fetch(PDO::FETCH_ASSOC);
-                $classGrade = (int)($classData['grade'] ?? 0);
+                $stmt->execute([(string)$student['student_id'], $certType, (int)$student['from_class']]);
+                $existingCertId = (int)($stmt->fetchColumn() ?: 0);
 
-                $certType = null;
-                if ($classGrade === 6) {
-                    $certType = 'primary_completion';
-                } elseif ($classGrade === 9) {
-                    $certType = 'junior_completion';
-                }
-
-                if ($certType) {
+                if ($existingCertId === 0) {
                     $serial = app_certificate_serial($certType, (string)$student['student_id']);
                     $code = app_certificate_code((string)$student['student_id']);
                     $payload = [
@@ -92,19 +103,19 @@ try {
                     $hash = app_certificate_hash($payload);
 
                     $stmt = $conn->prepare('
-                        INSERT INTO tbl_certificates 
-                        (student_id, class_id, certificate_type, certificate_category, title, serial_no, 
+                        INSERT INTO tbl_certificates
+                        (student_id, class_id, certificate_type, certificate_category, title, serial_no,
                          issue_date, status, mean_score, merit_grade, issued_by, verification_code, cert_hash)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ');
                     $stmt->execute([
                         (string)$student['student_id'],
-                        (int)$student['to_class'],
+                        (int)$student['from_class'],
                         $certType,
                         $certType,
                         app_certificate_types()[$certType] ?? 'Certificate',
                         $serial,
-                        date('Y-m-d'),
+                        $today,
                         'issued',
                         $student['mean_score'],
                         $student['merit_grade'],
@@ -113,29 +124,38 @@ try {
                         $hash
                     ]);
                     $certificates_generated++;
-
-                    // Mark as certificate generated
-                    $stmt = $conn->prepare('
-                        UPDATE tbl_student_promotions 
-                        SET certificate_generated = TRUE 
-                        WHERE id = ?
-                    ');
-                    $stmt->execute([(int)$student['id']]);
                 }
+
+                $stmt = $conn->prepare('
+                    UPDATE tbl_student_promotions
+                    SET certificate_generated = TRUE
+                    WHERE id = ?
+                ');
+                $stmt->execute([(int)$student['id']]);
             }
-        } else {
+
+            continue;
+        }
+
+        if ($student['status'] === 'repeated') {
             $repeated++;
+            continue;
+        }
+
+        if ($student['status'] === 'exited') {
+            $exited++;
+            continue;
         }
     }
 
-    // Update batch status
+    // Update batch status.
     $stmt = $conn->prepare('
         UPDATE tbl_promotion_batches 
         SET status = ?, approved_by = ?, approved_at = CURRENT_TIMESTAMP,
-            students_promoted = ?, students_repeated = ?
+            students_promoted = ?, students_repeated = ?, students_exited = ?
         WHERE id = ?
     ');
-    $stmt->execute(['approved', (int)$account_id, $promoted, $repeated, (int)$batchId]);
+    $stmt->execute(['approved', (int)$account_id, $promoted, $repeated, $exited, (int)$batchId]);
 
     // Send SMS to parents about promotion (if SMS wallet exists)
     if (app_table_exists($conn, 'tbl_sms_wallets')) {
@@ -156,13 +176,26 @@ try {
         }
     }
 
-    // Log action
-    app_audit_log($conn, 'promotion.batch.approve', 'Approved promotion batch ' . $batchId . ': ' . $promoted . ' promoted, ' . $repeated . ' repeated', 'tbl_promotion_batches');
+    // Log action.
+    app_audit_log(
+        $conn,
+        'staff',
+        (string)$account_id,
+        'promotion.batch.approve',
+        'tbl_promotion_batches',
+        (string)$batchId,
+        ['promoted' => $promoted, 'repeated' => $repeated, 'exited' => $exited, 'certificates_generated' => $certificates_generated]
+    );
+
+    $conn->commit();
 
     $msg = 'Promotion approved successfully! ' . $promoted . ' students promoted, ' . $repeated . ' will repeat. ' . $certificates_generated . ' certificates generated.';
     app_reply_redirect('success', $msg, '../promotions');
 
 } catch (Throwable $e) {
+    if (isset($conn) && $conn instanceof PDO && $conn->inTransaction()) {
+        $conn->rollBack();
+    }
     error_log('Promotion approval error: ' . $e->getMessage());
     app_reply_redirect('danger', 'Failed to approve promotion: ' . $e->getMessage(), '../promotions');
 }
