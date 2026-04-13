@@ -60,7 +60,7 @@ try {
 		throw new RuntimeException('Application settings support is not installed. Run migration 030.');
 	}
 
-	$loginPayload = app_uploaded_image_payload($_FILES['login_background'] ?? [], 12 * 1024 * 1024, 1600, 900, 'Login background');
+	$loginPayload = app_uploaded_image_payload($_FILES['login_background'] ?? [], 12 * 1024 * 1024, 600, 400, 'Login background');
 	if (is_array($loginPayload)) {
 		app_setting_set($conn, 'public_login_bg_b64', (string)$loginPayload['b64'], (int)$account_id, false);
 		app_setting_set($conn, 'public_login_bg_ext', (string)$loginPayload['ext'], (int)$account_id, false);
@@ -100,7 +100,7 @@ try {
 				'error' => (int)($files['error'][$i] ?? UPLOAD_ERR_NO_FILE),
 				'size' => (int)($files['size'][$i] ?? 0),
 			];
-			$payload = app_uploaded_image_payload($single, 8 * 1024 * 1024, 1000, 700, 'Showcase image');
+			$payload = app_uploaded_image_payload($single, 8 * 1024 * 1024, 600, 400, 'Showcase image');
 			if (!is_array($payload)) {
 				continue;
 			}

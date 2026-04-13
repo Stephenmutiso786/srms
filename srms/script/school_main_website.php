@@ -227,32 +227,37 @@ if (count($slides) === 0) {
 		}
 
 		.hero {
-			padding: 3rem 1rem 2rem;
-			max-width: 1160px;
-			margin: 0 auto;
-			display: grid;
-			grid-template-columns: 1.1fr 1fr;
-			gap: 1.3rem;
+			position: relative;
+			margin: 0;
+			padding: 0;
 		}
 
 		.hero-copy {
-			background: linear-gradient(135deg, #ffffff, #eff8f2);
-			border-radius: 22px;
-			padding: 1.5rem;
+			position: absolute;
+			left: 50%;
+			top: 50%;
+			transform: translate(-50%, -50%);
+			width: min(94vw, 980px);
+			z-index: 6;
+			background: linear-gradient(120deg, rgba(10, 30, 21, 0.72), rgba(10, 30, 21, 0.45));
+			border-radius: 18px;
+			padding: clamp(1rem, 2.4vw, 2rem);
 			box-shadow: var(--card-shadow);
 			animation: riseUp 0.8s ease both;
+			backdrop-filter: blur(2px);
 		}
 
 		.hero-copy h1 {
 			margin: 0;
-			font-size: clamp(1.5rem, 4vw, 2.7rem);
+			font-size: clamp(1.7rem, 4vw, 3rem);
 			line-height: 1.1;
-			color: var(--brand-forest);
+			color: #ffffff;
 		}
 
 		.hero-copy p {
 			margin: 0.8rem 0 0;
 			line-height: 1.68;
+			color: #f1fbf5;
 		}
 
 		.kicker {
@@ -262,7 +267,7 @@ if (count($slides) === 0) {
 			font-size: 0.8rem;
 			font-weight: 900;
 			letter-spacing: 0.04em;
-			background: #0f2e1f;
+			background: rgba(255, 255, 255, 0.16);
 			color: #fff;
 			text-transform: uppercase;
 		}
@@ -307,9 +312,10 @@ if (count($slides) === 0) {
 		.slider-shell {
 			position: relative;
 			overflow: hidden;
-			border-radius: 22px;
-			min-height: 385px;
-			box-shadow: var(--card-shadow);
+			border-radius: 0;
+			width: 100%;
+			min-height: clamp(420px, 74vh, 860px);
+			box-shadow: none;
 			animation: riseUp 0.95s ease both;
 		}
 
@@ -329,13 +335,15 @@ if (count($slides) === 0) {
 			width: 100%;
 			height: 100%;
 			object-fit: cover;
+			image-rendering: auto;
 		}
 
 		.slide-caption {
 			position: absolute;
-			left: 1rem;
-			right: 1rem;
-			bottom: 1rem;
+			left: 50%;
+			transform: translateX(-50%);
+			width: min(92vw, 980px);
+			bottom: 1.25rem;
 			padding: 0.7rem 0.9rem;
 			background: linear-gradient(90deg, rgba(0, 0, 0, 0.65), rgba(0, 0, 0, 0.25));
 			color: #fff;
@@ -539,10 +547,6 @@ if (count($slides) === 0) {
 		}
 
 		@media (max-width: 980px) {
-			.hero {
-				grid-template-columns: 1fr;
-			}
-
 			.offer-grid,
 			.facility-grid,
 			.news-grid,
@@ -571,7 +575,19 @@ if (count($slides) === 0) {
 			}
 
 			.slider-shell {
-				min-height: 300px;
+				min-height: 64vh;
+			}
+
+			.hero-copy {
+				width: calc(100vw - 1.3rem);
+				left: 0.65rem;
+				top: auto;
+				bottom: 4rem;
+				transform: none;
+			}
+
+			.slide-caption {
+				width: calc(100vw - 1.3rem);
 			}
 		}
 	</style>
@@ -592,18 +608,18 @@ if (count($slides) === 0) {
 	</nav>
 
 	<header class="hero" id="home">
-		<div class="hero-copy">
-			<span class="kicker">Public Front-End</span>
-			<h1><?php echo htmlspecialchars($schoolName); ?></h1>
-			<p><strong><?php echo htmlspecialchars($schoolMotto); ?></strong></p>
-			<p><?php echo htmlspecialchars($schoolTagline); ?></p>
-			<p><i class="bi bi-geo-alt-fill"></i> <?php echo htmlspecialchars($schoolLocation); ?></p>
-			<div class="hero-actions">
-				<a class="btn btn-primary" href="#contact"><i class="bi bi-person-plus"></i> Apply Now</a>
-				<a class="btn btn-secondary" href="#contact"><i class="bi bi-telephone"></i> Contact Us</a>
-			</div>
-		</div>
 		<div class="slider-shell" id="mainSlider" aria-label="School showcase slider">
+			<div class="hero-copy">
+				<span class="kicker">Public Front-End</span>
+				<h1><?php echo htmlspecialchars($schoolName); ?></h1>
+				<p><strong><?php echo htmlspecialchars($schoolMotto); ?></strong></p>
+				<p><?php echo htmlspecialchars($schoolTagline); ?></p>
+				<p><i class="bi bi-geo-alt-fill"></i> <?php echo htmlspecialchars($schoolLocation); ?></p>
+				<div class="hero-actions">
+					<a class="btn btn-primary" href="#contact"><i class="bi bi-person-plus"></i> Apply Now</a>
+					<a class="btn btn-secondary" href="#contact"><i class="bi bi-telephone"></i> Contact Us</a>
+				</div>
+			</div>
 			<?php foreach ($slides as $i => $slide): ?>
 				<figure class="slide<?php echo $i === 0 ? ' active' : ''; ?>">
 					<img src="<?php echo htmlspecialchars($slide['src']); ?>" alt="Showcase image <?php echo $i + 1; ?>">
