@@ -25,6 +25,8 @@ if ($res !== '1' || (int)$level !== 3) {
   .guide-hero { background: linear-gradient(135deg, #1f7a54 0%, #176243 100%); color: #fff; border-radius: 12px; padding: 24px; margin-bottom: 16px; }
   .guide-step { border-left: 4px solid #1f7a54; background: #fff; border-radius: 10px; padding: 18px; margin-bottom: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
   .guide-step h5 { margin-bottom: 10px; color: #176243; }
+  .video-card { background: #0f172a; color: #fff; border-radius: 12px; padding: 18px; margin-bottom: 16px; }
+  .video-frame { width: 100%; aspect-ratio: 16 / 9; border: 0; border-radius: 10px; background: #000; }
 </style>
 </head>
 <body class="app sidebar-mini">
@@ -37,6 +39,15 @@ if ($res !== '1' || (int)$level !== 3) {
   <div class="guide-hero">
     <h2 class="mb-2">How Student Portal Works</h2>
     <p class="mb-0">A simple student guide to use your portal correctly from start to finish.</p>
+  </div>
+
+  <div class="video-card">
+    <h4 class="mb-2"><i class="bi bi-play-circle me-2"></i>Student Portal Video</h4>
+    <p class="mb-3">Upload a short student-only walkthrough video here to show how to log in, check attendance, view results, and submit work.</p>
+    <video class="video-frame" controls poster="images/icon.ico">
+      <source src="uploads/student_portal_works.mp4" type="video/mp4">
+      Your browser does not support the video tag.
+    </video>
   </div>
 
   <div class="guide-step">
@@ -97,6 +108,15 @@ if ($res !== '1' || (int)$level !== 3) {
       <li>Assignments completed.</li>
       <li>Results checked.</li>
       <li>Any issues reported to teacher on time.</li>
+    </ul>
+  </div>
+
+  <div class="guide-step">
+    <h5>Student-Only Rules</h5>
+    <ul>
+      <li>Use only your own account.</li>
+      <li>Do not attempt to view other learners' records.</li>
+      <li>Report portal issues through your class teacher or school office.</li>
     </ul>
   </div>
 </main>

@@ -260,16 +260,18 @@
 	}
 
 	function appEnsureSidebarFooter(portal) {
-		if (portal === 'student' || document.querySelector('.app-sidebar__footer')) {
+		if (document.querySelector('.app-sidebar__footer')) {
 			return;
 		}
 		var sidebar = document.querySelector('.app-sidebar');
 		if (!sidebar) return;
+		var privacyHref = portal === 'student' ? 'student/privacy' : 'privacy';
+		var termsHref = portal === 'student' ? 'student/terms' : 'terms';
 
 		var footer = document.createElement('div');
 		footer.className = 'app-sidebar__footer';
-		footer.innerHTML = '<a class="app-sidebar__footer-link" href="privacy" target="_blank"><i class="bi bi-shield-lock me-2"></i>Privacy Policy</a>' +
-			'<a class="app-sidebar__footer-link" href="terms" target="_blank"><i class="bi bi-file-text me-2"></i>Terms & Conditions</a>';
+		footer.innerHTML = '<a class="app-sidebar__footer-link" href="' + privacyHref + '" target="_blank"><i class="bi bi-shield-lock me-2"></i>Privacy Policy</a>' +
+			'<a class="app-sidebar__footer-link" href="' + termsHref + '" target="_blank"><i class="bi bi-file-text me-2"></i>Terms & Conditions</a>';
 		sidebar.appendChild(footer);
 	}
 
