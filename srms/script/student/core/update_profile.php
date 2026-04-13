@@ -3,18 +3,29 @@ chdir('../../');
 session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
+require_once('const/rbac.php');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 	header('location:../');
 	exit;
 }
 
-$fname = ucfirst(trim((string)($_POST['fname'] ?? '')));
-$mname = ucfirst(trim((string)($_POST['mname'] ?? '')));
-$lname = ucfirst(trim((string)($_POST['lname'] ?? '')));
-$email = trim((string)($_POST['email'] ?? ''));
-$gender = trim((string)($_POST['gender'] ?? ''));
-$schoolId = trim((string)($_POST['school_id'] ?? ''));
+// Verify student session
+if ($res !== '1' || $level !== '3') {
+	header('location:../../');
+	exit;
+}
+
+// STUDENTS CAN ONLY CHANGE THEIR PASSWORD
+// All profile details (name, email, gender, school_id, photo) are READ-ONLY
+// and managed by the school administration.
+// 
+// This endpoint rejects ALL profile update attempts.
+// Only password changes are allowed via the password change handler.
+
+$_SESSION['reply'] = array(array('danger', 'Profile modifications are not allowed. Your profile information is managed by the school. Contact an administrator for any changes. You can only change your password.'));
+header('location:../profile');
+exit;
 $oldPhoto = trim((string)($_POST['old_photo'] ?? 'DEFAULT'));
 
 if ($fname === '' || $lname === '' || $email === '' || $gender === '') {

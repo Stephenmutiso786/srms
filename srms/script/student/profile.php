@@ -109,20 +109,25 @@ try {
 <div class="tile h-100">
 <h3 class="tile-title">Profile Information</h3>
 <div class="tile-body">
-<form class="app_frm" action="student/core/update_profile" method="POST" enctype="multipart/form-data" autocomplete="off">
-<input type="hidden" name="old_photo" value="<?php echo htmlspecialchars((string)($img ?? 'DEFAULT')); ?>">
+<div class="alert alert-info mb-3 d-flex align-items-center" role="alert">
+	<i class="bi bi-info-circle me-2"></i>
+	<div>
+		<strong>Profile Locked</strong><br>
+		Your profile information is managed by the school. You can only change your password.
+	</div>
+</div>
 <div class="row g-2">
 <div class="col-md-4 mb-2">
 <label class="form-label">First Name</label>
-<input value="<?php echo htmlspecialchars($fname); ?>" required name="fname" onkeypress="return lettersOnly(event)" class="form-control" type="text" placeholder="Enter first name">
+<input value="<?php echo htmlspecialchars($fname); ?>" disabled class="form-control" type="text" placeholder="Enter first name">
 </div>
 <div class="col-md-4 mb-2">
 <label class="form-label">Middle Name</label>
-<input value="<?php echo htmlspecialchars($mname); ?>" name="mname" onkeypress="return lettersOnly(event)" class="form-control" type="text" placeholder="Enter middle name">
+<input value="<?php echo htmlspecialchars($mname); ?>" disabled class="form-control" type="text" placeholder="Enter middle name">
 </div>
 <div class="col-md-4 mb-2">
 <label class="form-label">Last Name</label>
-<input value="<?php echo htmlspecialchars($lname); ?>" required name="lname" onkeypress="return lettersOnly(event)" class="form-control" type="text" placeholder="Enter last name">
+<input value="<?php echo htmlspecialchars($lname); ?>" disabled class="form-control" type="text" placeholder="Enter last name">
 </div>
 </div>
 
@@ -130,19 +135,17 @@ try {
 <?php if ($schoolId !== '') { ?>
 <div class="col-md-6 mb-2">
 <label class="form-label">School ID</label>
-<input value="<?php echo htmlspecialchars($schoolId); ?>" name="school_id" class="form-control" type="text" placeholder="Enter school ID">
+<input value="<?php echo htmlspecialchars($schoolId); ?>" disabled class="form-control" type="text" placeholder="Enter school ID">
 </div>
 <?php } ?>
 <div class="col-md-6 mb-2">
 <label class="form-label">Email Address</label>
-<input value="<?php echo htmlspecialchars($email); ?>" required name="email" class="form-control" type="email" placeholder="Enter email address">
+<input value="<?php echo htmlspecialchars($email); ?>" disabled class="form-control" type="email" placeholder="Enter email address">
 </div>
 <div class="col-md-6 mb-2">
 <label class="form-label">Gender</label>
-<select class="form-control" name="gender" required>
-<option selected disabled value="">Select gender</option>
-<option <?php if ($gender == "Male") { print ' selected '; } ?> value="Male">Male</option>
-<option <?php if ($gender == "Female") { print ' selected '; } ?> value="Female">Female</option>
+<select class="form-control" disabled>
+<option selected><?php echo htmlspecialchars($gender); ?></option>
 </select>
 </div>
 </div>
@@ -150,17 +153,11 @@ try {
 <div class="row g-2">
 <div class="col-md-6 mb-2">
 <label class="form-label">Class</label>
-<input value="<?php echo htmlspecialchars($act_class ?? ''); ?>" class="form-control" type="text" readonly>
-</div>
-<div class="col-md-6 mb-2">
-<label class="form-label">Profile Photo</label>
-<input type="file" name="image" class="form-control" accept=".jpg,.jpeg,.png">
+<input value="<?php echo htmlspecialchars($act_class ?? ''); ?>" disabled class="form-control" type="text" readonly>
 </div>
 </div>
 
-<button type="submit" name="submit" value="1" class="btn btn-primary">Update Profile</button>
-<a class="btn btn-outline-secondary ms-2" href="student/view">Back to Profile</a>
-</form>
+<a class="btn btn-outline-secondary" href="student/view">Back to Profile</a>
 </div>
 </div>
 </div>

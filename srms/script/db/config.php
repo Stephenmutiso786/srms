@@ -365,14 +365,10 @@ function app_staff_has_permission_code(PDO $conn, int $staffId, string $permissi
 
 function app_staff_login_portal(PDO $conn, int $staffId, string $level): string
 {
+	// Check primary staff level first (not BOM permissions)
 	if (in_array($level, ['0', '9'], true)) {
 		return 'admin';
 	}
-
-	if (app_staff_has_permission_code($conn, $staffId, 'bom.view') || app_staff_has_permission_code($conn, $staffId, 'bom.manage')) {
-		return 'bom';
-	}
-
 	if ($level === '1') {
 		return 'academic';
 	}
@@ -382,7 +378,16 @@ function app_staff_login_portal(PDO $conn, int $staffId, string $level): string
 	if ($level === '5') {
 		return 'accountant';
 	}
+	if ($level === '10') {
+		return 'bom';
+	}
 
+	// Fallback: Check BOM permissions for backward compatibility
+	if (app_staff_has_permission_code($conn, $staffId, 'bom.view') || app_staff_has_permission_code($conn, $staffId, 'bom.manage')) {
+		return 'bom';
+	}
+
+	// All other staff roles managed through admin
 	return 'admin';
 }
 
