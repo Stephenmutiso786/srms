@@ -5,7 +5,7 @@ require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/rbac.php');
 
-if (!isset($res) || $res !== "1" || !isset($level) || $level !== "0") {
+if (!isset($res) || $res !== "1") {
 	header("location:../../");
 	exit;
 }
