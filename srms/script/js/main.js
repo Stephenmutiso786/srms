@@ -395,8 +395,47 @@
 		menu.appendChild(item);
 	}
 
+	function appPublicWebsiteHref() {
+		var path = window.location.pathname || '';
+		var marker = '/script/';
+		var i = path.toLowerCase().indexOf(marker);
+		if (i !== -1) {
+			return path.substring(0, i + marker.length) + 'school_main_website.php';
+		}
+		return 'school_main_website.php';
+	}
+
+	function appEnsurePublicWebsiteButton() {
+		if (document.getElementById('appPublicWebsiteButton')) {
+			return;
+		}
+
+		var link = document.createElement('a');
+		link.id = 'appPublicWebsiteButton';
+		link.href = appPublicWebsiteHref();
+		link.target = '_blank';
+		link.rel = 'noopener';
+		link.textContent = 'visit the  school main website';
+		link.style.position = 'fixed';
+		link.style.top = '12px';
+		link.style.right = '12px';
+		link.style.zIndex = '1300';
+		link.style.background = '#0e6b45';
+		link.style.color = '#ffffff';
+		link.style.padding = '10px 14px';
+		link.style.borderRadius = '999px';
+		link.style.fontWeight = '700';
+		link.style.fontSize = '12px';
+		link.style.textDecoration = 'none';
+		link.style.boxShadow = '0 10px 22px rgba(0, 0, 0, 0.22)';
+		link.style.textTransform = 'none';
+
+		document.body.appendChild(link);
+	}
+
 	var portal = appCurrentPortal();
 	appEnsureSidebarFooter(portal);
 	appEnsurePortalGuideMenu(portal);
+	appEnsurePublicWebsiteButton();
 
 })();

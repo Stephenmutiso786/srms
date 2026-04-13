@@ -51,6 +51,19 @@ $appSettings = [
 	'top_banner_text' => '',
 	'maintenance_mode_enabled' => '0',
 	'maintenance_mode_message' => 'System is under maintenance. Please try again later.',
+	'public_school_motto' => 'Nurturing Excellence Through CBC Education',
+	'public_school_tagline' => 'A trusted learning community shaping future-ready leaders.',
+	'public_school_location' => 'Kiunduani, Kibwezi West',
+	'public_school_location_map_url' => 'https://maps.app.goo.gl/fqhaetnW4G6hBmHs7',
+	'public_school_phone' => '+25417876564',
+	'public_school_email' => '',
+	'public_about_text' => '',
+	'public_vision_text' => 'To develop responsible, skilled, and confident learners for tomorrow.',
+	'public_mission_text' => 'To deliver inclusive, learner-centered education through strong teaching, mentorship, and community partnership.',
+	'public_core_values' => 'Integrity, Discipline, Respect, Teamwork, Excellence',
+	'public_news_items' => "Upcoming Parents Meeting|Term stakeholder engagement and learner progress briefing.\nSports Day Preparations|Inter-class games and athletics training currently underway.\nAcademic Calendar Highlights|Continuous assessment weeks and exam schedules published.",
+	'public_offers_items' => "Academics|Competency-Based Curriculum from PP1 to Grade 9.\nICT Studies|Foundational digital skills and guided computer learning.\nSports & Clubs|Co-curricular activities for fitness, teamwork, and talent growth.\nBoarding / Day|Flexible learning setup based on student and family needs.\nTransport & Meals|Safe school transport and balanced meals for learners.\nQualified Staff|Dedicated teachers and mentorship-focused support team.",
+	'public_facilities_items' => "Science Labs|Practical science exposure in structured learning spaces.\nLibrary|Reading resources that support independent study habits.\nComputer Lab|Guided access to computers and interactive learning tools.\nPlayground|Outdoor spaces for games, sports, and physical development.\nTransport System|Reliable school transport for day learners.\nSafe Environment|Secure and supervised campus for all learners.",
 ];
 $gradingSystems = [];
 $gradingScalesBySystem = [];
@@ -232,6 +245,66 @@ if (count($cbcGrading) < 1) {
 </div>
 
 <button type="submit" class="btn btn-primary app_btn">Save Public Media</button>
+</form>
+
+<hr>
+<h5 class="mb-3">Public Website Content</h5>
+<form class="app_frm" action="admin/core/save_app_settings" method="POST">
+<div class="row">
+<div class="col-md-6 mb-3">
+<label class="form-label">Public Motto</label>
+<input class="form-control" name="settings[public_school_motto]" value="<?php echo htmlspecialchars($appSettings['public_school_motto']); ?>">
+</div>
+<div class="col-md-6 mb-3">
+<label class="form-label">Public Tagline</label>
+<input class="form-control" name="settings[public_school_tagline]" value="<?php echo htmlspecialchars($appSettings['public_school_tagline']); ?>">
+</div>
+<div class="col-md-6 mb-3">
+<label class="form-label">Public Phone</label>
+<input class="form-control" name="settings[public_school_phone]" value="<?php echo htmlspecialchars($appSettings['public_school_phone']); ?>">
+</div>
+<div class="col-md-6 mb-3">
+<label class="form-label">Public Email</label>
+<input class="form-control" name="settings[public_school_email]" value="<?php echo htmlspecialchars($appSettings['public_school_email']); ?>">
+</div>
+<div class="col-md-6 mb-3">
+<label class="form-label">Public Location Label</label>
+<input class="form-control" name="settings[public_school_location]" value="<?php echo htmlspecialchars($appSettings['public_school_location']); ?>">
+</div>
+<div class="col-md-6 mb-3">
+<label class="form-label">Google Maps Link</label>
+<input class="form-control" name="settings[public_school_location_map_url]" value="<?php echo htmlspecialchars($appSettings['public_school_location_map_url']); ?>">
+</div>
+<div class="col-md-12 mb-3">
+<label class="form-label">About the School</label>
+<textarea class="form-control" rows="3" name="settings[public_about_text]"><?php echo htmlspecialchars($appSettings['public_about_text']); ?></textarea>
+</div>
+<div class="col-md-4 mb-3">
+<label class="form-label">Vision</label>
+<textarea class="form-control" rows="3" name="settings[public_vision_text]"><?php echo htmlspecialchars($appSettings['public_vision_text']); ?></textarea>
+</div>
+<div class="col-md-4 mb-3">
+<label class="form-label">Mission</label>
+<textarea class="form-control" rows="3" name="settings[public_mission_text]"><?php echo htmlspecialchars($appSettings['public_mission_text']); ?></textarea>
+</div>
+<div class="col-md-4 mb-3">
+<label class="form-label">Core Values (comma-separated)</label>
+<textarea class="form-control" rows="3" name="settings[public_core_values]"><?php echo htmlspecialchars($appSettings['public_core_values']); ?></textarea>
+</div>
+<div class="col-md-12 mb-3">
+<label class="form-label">What We Offer (one per line as Title|Description)</label>
+<textarea class="form-control" rows="6" name="settings[public_offers_items]"><?php echo htmlspecialchars($appSettings['public_offers_items']); ?></textarea>
+</div>
+<div class="col-md-12 mb-3">
+<label class="form-label">Facilities (one per line as Title|Description)</label>
+<textarea class="form-control" rows="6" name="settings[public_facilities_items]"><?php echo htmlspecialchars($appSettings['public_facilities_items']); ?></textarea>
+</div>
+<div class="col-md-12 mb-3">
+<label class="form-label">News & Events (one per line as Title|Description)</label>
+<textarea class="form-control" rows="5" name="settings[public_news_items]"><?php echo htmlspecialchars($appSettings['public_news_items']); ?></textarea>
+</div>
+</div>
+<button class="btn btn-outline-primary app_btn" type="submit">Save Public Website Content</button>
 </form>
 </div>
 </div>

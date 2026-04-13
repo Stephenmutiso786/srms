@@ -8,8 +8,89 @@ $schoolLogo = (defined('WBLogo') && trim((string)WBLogo) !== '') ? 'images/logo/
 $schoolMotto = 'Nurturing Excellence Through CBC Education';
 $schoolTagline = 'A trusted learning community shaping future-ready leaders.';
 $schoolLocation = 'Kiunduani, Kibwezi West';
+$schoolMapUrl = 'https://maps.app.goo.gl/fqhaetnW4G6hBmHs7';
 $schoolPhone = '+25417876564';
 $schoolEmail = (defined('WBEmail') && trim((string)WBEmail) !== '') ? (string)WBEmail : 'info@kyandulu.school';
+
+$aboutText = $schoolName . ' is a learning institution in ' . $schoolLocation . ' committed to quality CBC education. We nurture every learner through academic excellence, character development, creativity, and practical life skills.';
+$visionText = 'To develop responsible, skilled, and confident learners for tomorrow.';
+$missionText = 'To deliver inclusive, learner-centered education through strong teaching, mentorship, and community partnership.';
+$coreValues = 'Integrity, Discipline, Respect, Teamwork, and Excellence.';
+
+$offers = [
+	['title' => 'Academics', 'description' => 'Competency-Based Curriculum from PP1 to Grade 9.'],
+	['title' => 'ICT Studies', 'description' => 'Foundational digital skills and guided computer learning.'],
+	['title' => 'Sports & Clubs', 'description' => 'Co-curricular activities for fitness, teamwork, and talent growth.'],
+	['title' => 'Boarding / Day', 'description' => 'Flexible learning setup based on student and family needs.'],
+	['title' => 'Transport & Meals', 'description' => 'Safe school transport and balanced meals for learners.'],
+	['title' => 'Qualified Staff', 'description' => 'Dedicated teachers and mentorship-focused support team.'],
+];
+
+$facilities = [
+	['title' => 'Science Labs', 'description' => 'Practical science exposure in structured learning spaces.'],
+	['title' => 'Library', 'description' => 'Reading resources that support independent study habits.'],
+	['title' => 'Computer Lab', 'description' => 'Guided access to computers and interactive learning tools.'],
+	['title' => 'Playground', 'description' => 'Outdoor spaces for games, sports, and physical development.'],
+	['title' => 'Transport System', 'description' => 'Reliable school transport for day learners.'],
+	['title' => 'Safe Environment', 'description' => 'Secure and supervised campus for all learners.'],
+];
+
+$newsItems = [
+	['title' => 'Upcoming Parents Meeting', 'description' => 'Term stakeholder engagement and learner progress briefing.'],
+	['title' => 'Sports Day Preparations', 'description' => 'Inter-class games and athletics training currently underway.'],
+	['title' => 'Academic Calendar Highlights', 'description' => 'Continuous assessment weeks and exam schedules published.'],
+];
+
+$conn = null;
+try {
+	$conn = app_db();
+	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+} catch (Throwable $e) {
+	$conn = null;
+}
+
+if (isset($conn) && $conn instanceof PDO) {
+	$schoolMotto = app_setting_get($conn, 'public_school_motto', $schoolMotto);
+	$schoolTagline = app_setting_get($conn, 'public_school_tagline', $schoolTagline);
+	$schoolLocation = app_setting_get($conn, 'public_school_location', $schoolLocation);
+	$schoolMapUrl = app_setting_get($conn, 'public_school_location_map_url', $schoolMapUrl);
+	$schoolPhone = app_setting_get($conn, 'public_school_phone', $schoolPhone);
+	$schoolEmail = app_setting_get($conn, 'public_school_email', $schoolEmail);
+	$aboutText = app_setting_get($conn, 'public_about_text', $aboutText);
+	$visionText = app_setting_get($conn, 'public_vision_text', $visionText);
+	$missionText = app_setting_get($conn, 'public_mission_text', $missionText);
+	$coreValues = app_setting_get($conn, 'public_core_values', $coreValues);
+
+	$rawOffers = app_setting_get($conn, 'public_offers_items', '');
+	if (trim($rawOffers) !== '') {
+		$offers = [];
+		foreach (preg_split('/\r\n|\r|\n/', $rawOffers) as $line) {
+			$parts = array_map('trim', explode('|', (string)$line, 2));
+			if (empty($parts[0])) { continue; }
+			$offers[] = ['title' => $parts[0], 'description' => $parts[1] ?? ''];
+		}
+	}
+
+	$rawFacilities = app_setting_get($conn, 'public_facilities_items', '');
+	if (trim($rawFacilities) !== '') {
+		$facilities = [];
+		foreach (preg_split('/\r\n|\r|\n/', $rawFacilities) as $line) {
+			$parts = array_map('trim', explode('|', (string)$line, 2));
+			if (empty($parts[0])) { continue; }
+			$facilities[] = ['title' => $parts[0], 'description' => $parts[1] ?? ''];
+		}
+	}
+
+	$rawNews = app_setting_get($conn, 'public_news_items', '');
+	if (trim($rawNews) !== '') {
+		$newsItems = [];
+		foreach (preg_split('/\r\n|\r|\n/', $rawNews) as $line) {
+			$parts = array_map('trim', explode('|', (string)$line, 2));
+			if (empty($parts[0])) { continue; }
+			$newsItems[] = ['title' => $parts[0], 'description' => $parts[1] ?? ''];
+		}
+	}
+}
 
 $captions = array(
 	'A Conducive Learning Environment',
@@ -28,9 +109,7 @@ $slides = array();
 $galleryFiles = array();
 $usesDbShowcase = false;
 
-try {
-	$conn = app_db();
-	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+if ($conn instanceof PDO) {
 	$dbSlides = app_public_showcase_images($conn);
 	if (!empty($dbSlides)) {
 		$usesDbShowcase = true;
@@ -41,8 +120,6 @@ try {
 			);
 		}
 	}
-} catch (Throwable $e) {
-	$slides = array();
 }
 
 if (count($slides) === 0) {
@@ -541,10 +618,10 @@ if (count($slides) === 0) {
 	<section id="about">
 		<div class="block">
 			<h2>About the School</h2>
-			<p><?php echo htmlspecialchars($schoolName); ?> is a learning institution in <?php echo htmlspecialchars($schoolLocation); ?> committed to quality CBC education. We nurture every learner through academic excellence, character development, creativity, and practical life skills.</p>
-			<p><strong>Vision:</strong> To develop responsible, skilled, and confident learners for tomorrow.</p>
-			<p><strong>Mission:</strong> To deliver inclusive, learner-centered education through strong teaching, mentorship, and community partnership.</p>
-			<p><strong>Core Values:</strong> Integrity, Discipline, Respect, Teamwork, and Excellence.</p>
+			<p><?php echo htmlspecialchars($aboutText); ?></p>
+			<p><strong>Vision:</strong> <?php echo htmlspecialchars($visionText); ?></p>
+			<p><strong>Mission:</strong> <?php echo htmlspecialchars($missionText); ?></p>
+			<p><strong>Core Values:</strong> <?php echo htmlspecialchars($coreValues); ?></p>
 		</div>
 	</section>
 
@@ -552,12 +629,9 @@ if (count($slides) === 0) {
 		<div class="block">
 			<h2>What the School Offers</h2>
 			<div class="offer-grid">
-				<div class="offer-card"><i class="bi bi-book"></i><h3>Academics</h3><p>Competency-Based Curriculum from PP1 to Grade 9.</p></div>
-				<div class="offer-card"><i class="bi bi-laptop"></i><h3>ICT Studies</h3><p>Foundational digital skills and guided computer learning.</p></div>
-				<div class="offer-card"><i class="bi bi-dribbble"></i><h3>Sports & Clubs</h3><p>Co-curricular activities for fitness, teamwork, and talent growth.</p></div>
-				<div class="offer-card"><i class="bi bi-building"></i><h3>Boarding / Day</h3><p>Flexible learning setup based on student and family needs.</p></div>
-				<div class="offer-card"><i class="bi bi-bus-front"></i><h3>Transport & Meals</h3><p>Safe school transport and balanced meals for learners.</p></div>
-				<div class="offer-card"><i class="bi bi-people"></i><h3>Qualified Staff</h3><p>Dedicated teachers and mentorship-focused support team.</p></div>
+				<?php foreach ($offers as $offer): ?>
+					<div class="offer-card"><i class="bi bi-book"></i><h3><?php echo htmlspecialchars((string)$offer['title']); ?></h3><p><?php echo htmlspecialchars((string)$offer['description']); ?></p></div>
+				<?php endforeach; ?>
 			</div>
 		</div>
 	</section>
@@ -566,12 +640,9 @@ if (count($slides) === 0) {
 		<div class="block">
 			<h2>Facilities</h2>
 			<div class="facility-grid">
-				<div class="facility-card"><i class="bi bi-flask"></i><h3>Science Labs</h3><p>Practical science exposure in structured learning spaces.</p></div>
-				<div class="facility-card"><i class="bi bi-journal-text"></i><h3>Library</h3><p>Reading resources that support independent study habits.</p></div>
-				<div class="facility-card"><i class="bi bi-pc-display"></i><h3>Computer Lab</h3><p>Guided access to computers and interactive learning tools.</p></div>
-				<div class="facility-card"><i class="bi bi-flag"></i><h3>Playground</h3><p>Outdoor spaces for games, sports, and physical development.</p></div>
-				<div class="facility-card"><i class="bi bi-bus-front-fill"></i><h3>Transport System</h3><p>Reliable school transport for day learners.</p></div>
-				<div class="facility-card"><i class="bi bi-shield-check"></i><h3>Safe Environment</h3><p>Secure and supervised campus for all learners.</p></div>
+				<?php foreach ($facilities as $facility): ?>
+					<div class="facility-card"><i class="bi bi-building"></i><h3><?php echo htmlspecialchars((string)$facility['title']); ?></h3><p><?php echo htmlspecialchars((string)$facility['description']); ?></p></div>
+				<?php endforeach; ?>
 			</div>
 		</div>
 	</section>
@@ -580,9 +651,9 @@ if (count($slides) === 0) {
 		<div class="block">
 			<h2>News & Events</h2>
 			<div class="news-grid">
-				<div class="news-card"><h3>Upcoming Parents Meeting</h3><p>Term stakeholder engagement and learner progress briefing.</p></div>
-				<div class="news-card"><h3>Sports Day Preparations</h3><p>Inter-class games and athletics training currently underway.</p></div>
-				<div class="news-card"><h3>Academic Calendar Highlights</h3><p>Continuous assessment weeks and exam schedules published.</p></div>
+				<?php foreach ($newsItems as $news): ?>
+					<div class="news-card"><h3><?php echo htmlspecialchars((string)$news['title']); ?></h3><p><?php echo htmlspecialchars((string)$news['description']); ?></p></div>
+				<?php endforeach; ?>
 			</div>
 		</div>
 	</section>
@@ -609,6 +680,7 @@ if (count($slides) === 0) {
 			<div class="contact-grid">
 				<div>
 					<p><i class="bi bi-geo-alt"></i> <strong>Location:</strong> <?php echo htmlspecialchars($schoolLocation); ?></p>
+					<p><a class="btn btn-secondary" href="<?php echo htmlspecialchars($schoolMapUrl); ?>" target="_blank" rel="noopener"><i class="bi bi-geo-alt-fill"></i> Open School Location</a></p>
 					<p><i class="bi bi-telephone"></i> <strong>Phone:</strong> <?php echo htmlspecialchars($schoolPhone); ?></p>
 					<p><i class="bi bi-envelope"></i> <strong>Email:</strong> <?php echo htmlspecialchars($schoolEmail); ?></p>
 					<form class="contact-form" id="contactForm">
