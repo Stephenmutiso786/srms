@@ -16,6 +16,21 @@ function report_default_grading_system_id(PDO $conn): ?int
 	if (!app_table_exists($conn, 'tbl_grading_systems')) {
 		return null;
 	}
+	if (app_table_exists($conn, 'tbl_grading_scales')) {
+		$stmt = $conn->prepare("SELECT gs.id
+			FROM tbl_grading_systems gs
+			JOIN tbl_grading_scales sc ON sc.grading_system_id = gs.id AND sc.is_active = 1
+			WHERE gs.is_active = 1
+			GROUP BY gs.id
+			HAVING SUM(CASE WHEN UPPER(TRIM(sc.grade)) IN ('EE','ME','AE','BE') THEN 1 ELSE 0 END) > 0
+			ORDER BY gs.is_default DESC, gs.id ASC
+			LIMIT 1");
+		$stmt->execute();
+		$competencyId = $stmt->fetchColumn();
+		if ($competencyId) {
+			return (int)$competencyId;
+		}
+	}
 	$stmt = $conn->prepare("SELECT id FROM tbl_grading_systems WHERE is_active = 1 ORDER BY is_default DESC, id ASC LIMIT 1");
 	$stmt->execute();
 	$value = $stmt->fetchColumn();
@@ -123,6 +138,9 @@ function report_grade_for_score(PDO $conn, float $score, ?int $gradingSystemId =
 	$grade = 'BE';
 	$remark = 'Needs improvement';
 	$points = 0;
+	if (!$gradingSystemId) {
+		$gradingSystemId = report_default_grading_system_id($conn);
+	}
 	$rows = report_grading_scales($conn, $gradingSystemId);
 	if (!$rows) {
 		return [$grade, $remark, $points];
