@@ -62,12 +62,40 @@
 		document.body.classList.add('has-top-banner');
 	}
 
+	function applyMaintenanceBadge(maintenance) {
+		if (!maintenance || !maintenance.enabled) {
+			return;
+		}
+		if (appCurrentPortal() !== 'admin') {
+			return;
+		}
+		if (document.getElementById('appMaintenanceBadge')) {
+			return;
+		}
+
+		var nav = document.querySelector('.app-header .app-nav');
+		if (!nav) {
+			return;
+		}
+
+		var item = document.createElement('li');
+		item.className = 'app-nav__item app-maintenance-badge';
+		item.id = 'appMaintenanceBadge';
+		item.textContent = 'Maintenance Mode ON';
+		nav.insertBefore(item, nav.firstChild);
+	}
+
 	function loadUiSettings() {
 		return fetch('core/ui_settings.php', { credentials: 'same-origin' })
 			.then(function (r) { return r.json(); })
 			.then(function (data) {
-				if (data && data.ok && data.banner) {
-					applyTopBanner(data.banner);
+				if (data && data.ok) {
+					if (data.banner) {
+						applyTopBanner(data.banner);
+					}
+					if (data.maintenance) {
+						applyMaintenanceBadge(data.maintenance);
+					}
 				}
 			})
 			.catch(function () {

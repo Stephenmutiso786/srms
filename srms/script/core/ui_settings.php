@@ -14,6 +14,7 @@ try {
     }
 
     $bannerText = trim(app_setting_get($conn, 'top_banner_text', ''));
+    $maintenanceEnabled = app_setting_get($conn, 'maintenance_mode_enabled', '0') === '1';
 
     echo json_encode([
         'ok' => true,
@@ -21,6 +22,9 @@ try {
             'enabled' => $bannerEnabled,
             'type' => $bannerType,
             'text' => $bannerText,
+        ],
+        'maintenance' => [
+            'enabled' => $maintenanceEnabled,
         ],
     ]);
 } catch (Throwable $e) {
@@ -30,6 +34,9 @@ try {
             'enabled' => false,
             'type' => 'info',
             'text' => '',
+        ],
+        'maintenance' => [
+            'enabled' => false,
         ],
     ]);
 }

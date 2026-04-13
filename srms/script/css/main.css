@@ -13695,6 +13695,20 @@ body.has-top-banner .app-content {
   color: #f6f6f6;
 }
 
+.app-maintenance-badge {
+  align-self: center;
+  margin: 10px 10px 10px 0;
+  padding: 6px 12px;
+  line-height: 1.1;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
 .app-search {
   position: relative;
   display: -webkit-box;
