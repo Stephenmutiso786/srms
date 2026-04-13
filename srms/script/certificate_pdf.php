@@ -274,7 +274,6 @@ function renderConductCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verify
 function renderLeavingCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verifyUrl) {
     $pdf->SetMargins(12, 12, 12);
     $pdf->SetAutoPageBreak(false, 0);
-    $pdf->AddPage('P', 'A4');
     $pdf->SetFont('helvetica', '', 10);
 
     $studentName = strtoupper(trim((string)$cert['student_name']));
@@ -292,9 +291,10 @@ function renderLeavingCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verify
       <tr>
         <td width="18%" style="text-align:center;">' . $logoHtml . '</td>
         <td width="82%" style="text-align:center;">
-          <div style="font-size:14pt;font-weight:bold;letter-spacing:0.3px;">MINISTRY OF EDUCATION SCIENCE AND TECHNOLOGY</div>
-          <div style="font-size:11pt;font-weight:bold;margin-top:2px;">KENYA PRIMARY SCHOOL EDUCATION ASSESSMENT</div>
+          <div style="font-size:14pt;font-weight:bold;letter-spacing:0.3px;">MINISTRY OF EDUCATION</div>
+          <div style="font-size:10.5pt;font-weight:bold;margin-top:2px;">KENYA PRIMARY SCHOOL EDUCATION ASSESSMENT</div>
           <div style="font-size:13pt;font-weight:bold;margin-top:4px;letter-spacing:0.2px;">TRANSITION LEAVING CERTIFICATE</div>
+          <div style="font-size:8.5pt;margin-top:2px;">Official School Leaving Record</div>
         </td>
       </tr>
     </table>';
@@ -303,22 +303,29 @@ function renderLeavingCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verify
     <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:8px;">
       <tr>
         <td width="74%" style="vertical-align:top;">
-          <table width="100%" cellpadding="0" cellspacing="0">
+          <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #222;">
             <tr>
-              <td width="18%" style="font-size:10pt;font-weight:bold;">ASL NO.</td>
-              <td width="35%"><div style="border-bottom:1px solid #222;height:18px;">' . htmlspecialchars($serialNo) . '</div></td>
+              <td width="18%" style="font-size:10pt;font-weight:bold;padding:6px 4px;">ASL NO.</td>
+              <td width="35%" style="padding:6px 4px;"><div style="border-bottom:1px solid #222;height:18px;">' . htmlspecialchars($serialNo) . '</div></td>
               <td width="12%"></td>
-              <td width="10%" style="font-size:10pt;font-weight:bold;">DATE</td>
-              <td width="25%"><div style="border-bottom:1px solid #222;height:18px;">' . htmlspecialchars($issueDate) . '</div></td>
+              <td width="10%" style="font-size:10pt;font-weight:bold;padding:6px 4px;">DATE</td>
+              <td width="25%" style="padding:6px 4px;"><div style="border-bottom:1px solid #222;height:18px;">' . htmlspecialchars($issueDate) . '</div></td>
             </tr>
           </table>
 
-          <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:10px;">
             <tr>
               <td style="font-size:10pt;font-weight:bold;">NAME OF LEARNER</td>
             </tr>
             <tr>
               <td><div style="border-bottom:1px solid #222;height:20px;font-size:11pt;">' . htmlspecialchars($studentName) . '</div></td>
+            </tr>
+          </table>
+
+          <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:10px;">
+            <tr>
+              <td width="28%" style="font-size:10pt;font-weight:bold;">ADMISSION NO.</td>
+              <td width="72%"><div style="border-bottom:1px solid #222;height:18px;">' . htmlspecialchars($admissionNo) . '</div></td>
             </tr>
           </table>
 
@@ -340,6 +347,8 @@ function renderLeavingCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verify
               <td><div style="border-bottom:1px solid #222;height:20px;">' . htmlspecialchars($schoolName) . '</div></td>
             </tr>
           </table>
+
+          ' . ($schoolMotto !== '' ? '<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:8px;"><tr><td style="font-size:9pt;"><strong>SCHOOL MOTTO:</strong> ' . htmlspecialchars($schoolMotto) . '</td></tr></table>' : '') . '
 
           <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:10px;">
             <tr>
@@ -398,13 +407,13 @@ function renderLeavingCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verify
         </td>
 
         <td width="26%" style="vertical-align:top;padding-left:8px;">
-          <div style="border:1px solid #222;padding:6px;text-align:center;min-height:190px;">
+          <div style="border:1px solid #222;padding:6px;text-align:center;min-height:172px;">
             <div style="font-size:9pt;font-weight:bold;margin-bottom:4px;">PASSPORT PHOTO</div>
             ' . $studentPhoto . '
             <div style="margin-top:8px;font-size:8pt;">' . htmlspecialchars($admissionNo) . '</div>
           </div>
 
-          <div style="margin-top:10px;border:1px solid #222;padding:8px;min-height:235px;">
+          <div style="margin-top:10px;border:1px solid #222;padding:8px;min-height:252px;">
             <div style="font-size:9pt;font-weight:bold;">OFFICIAL CERTIFICATION</div>
             <div style="font-size:8.5pt;margin-top:6px;line-height:1.5;">
               This is to certify that the learner named above has completed the school program and is cleared for transition.
@@ -415,12 +424,13 @@ function renderLeavingCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verify
               <strong>Issue Date:</strong> ' . htmlspecialchars($issueDate) . '
             </div>
             <div style="margin-top:10px;">' . app_pdf_image_html('images/logo/' . WBLogo, 35, 0, WBName) . '</div>
+            <div style="margin-top:8px;font-size:8pt;word-wrap:break-word;">' . htmlspecialchars($verifyUrl) . '</div>
           </div>
         </td>
       </tr>
     </table>
 
-    <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:12px;">
       <tr>
         <td width="50%" style="font-size:9pt;">
           <strong>Headteacher / Principal</strong><br><br>
