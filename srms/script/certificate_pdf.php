@@ -269,76 +269,210 @@ function renderConductCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verify
  * Render Leaving Certificate
  */
 function renderLeavingCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verifyUrl) {
-    $pdf->SetMargins(0, 0, 0);
-    $pdf->SetAutoPageBreak(false, 0);
+  $pdf->SetMargins(0, 0, 0);
+  $pdf->SetAutoPageBreak(false, 0);
 
-    $studentName = strtoupper(trim((string)$cert['student_name']));
-    $admissionNo = (string)($cert['school_id'] ?: $cert['student_id']);
-    $issueDate = (string)($cert['issue_date'] ?? '');
-    $className = (string)($cert['class_name'] ?? '');
-    $serialNo = (string)($cert['serial_no'] ?? '');
-    $notes = trim((string)($cert['notes'] ?? ''));
-    $schoolName = strtoupper(trim((string)WBName));
-    $gender = strtoupper(substr((string)($cert['gender'] ?? ''), 0, 1));
-    $dob = trim((string)($cert['dob'] ?? ''));
+  $studentName = htmlspecialchars(strtoupper(trim((string)$cert['student_name'])), ENT_QUOTES, 'UTF-8');
+  $admissionNo = htmlspecialchars((string)($cert['school_id'] ?: $cert['student_id']), ENT_QUOTES, 'UTF-8');
+  $issueDate = htmlspecialchars((string)($cert['issue_date'] ?? ''), ENT_QUOTES, 'UTF-8');
+  $className = htmlspecialchars(strtoupper(trim((string)($cert['class_name'] ?? ''))), ENT_QUOTES, 'UTF-8');
+  $serialNo = htmlspecialchars((string)($cert['serial_no'] ?? ''), ENT_QUOTES, 'UTF-8');
+  $notes = htmlspecialchars(trim((string)($cert['notes'] ?? '')), ENT_QUOTES, 'UTF-8');
+  $schoolName = htmlspecialchars(strtoupper(trim((string)WBName)), ENT_QUOTES, 'UTF-8');
 
-    $templateCandidates = [
-        __DIR__ . '/images/templates/kcpe_leaving_certificate.jpg',
-        __DIR__ . '/images/templates/kcpe_leaving_certificate.jpeg',
-        __DIR__ . '/images/templates/kcpe_leaving_certificate.png',
-    ];
-    $templatePath = '';
-    foreach ($templateCandidates as $candidate) {
-        if (is_file($candidate)) {
-            $templatePath = $candidate;
-            break;
-        }
-    }
+  $logoPath = 'images/logo/' . WBLogo;
+  $logoTag = is_file($logoPath) ? '<img src="' . htmlspecialchars($logoPath, ENT_QUOTES, 'UTF-8') . '" class="logo">' : '';
 
-    if ($templatePath !== '') {
-        $pdf->Image($templatePath, 8, 8, 194, 281, '', '', '', false, 300, '', false, false, 0);
-    }
+  $html = '<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Kenya Primary School Leaving Certificate</title>
 
-    $photoFile = '';
-    if (preg_match('/src=\"([^\"]+)\"/i', (string)$studentPhoto, $m) === 1) {
-        $photoFile = (string)$m[1];
-    }
-    if ($photoFile !== '' && is_file($photoFile)) {
-        $pdf->Image($photoFile, 18, 73, 32, 36, '', '', '', false, 300, '', false, false, 1);
-    }
+<style>
+body {
+  margin: 0;
+  background: #e5e5e5;
+  font-family: "Times New Roman", serif;
+}
 
-    $pdf->SetTextColor(0, 0, 0);
-    $pdf->SetFont('helvetica', '', 8.5);
+.page {
+  width: 794px;
+  height: 1123px;
+  margin: auto;
+  background: white;
+  padding: 50px 70px;
+  box-sizing: border-box;
+}
 
-    // Overlay values onto fixed form lines.
-    $pdf->SetXY(32, 59); $pdf->Cell(70, 4, $serialNo, 0, 0, 'L');
-    $pdf->SetXY(152, 59); $pdf->Cell(38, 4, $issueDate, 0, 0, 'L');
+.center {
+  text-align: center;
+}
 
-    $pdf->SetXY(152, 74); $pdf->Cell(38, 4, $admissionNo, 0, 0, 'L');
+.logo {
+  width: 120px;
+  margin-bottom: 5px;
+}
 
-    $pdf->SetFont('helvetica', 'B', 9);
-    $pdf->SetXY(58, 83); $pdf->Cell(132, 5, $studentName, 0, 0, 'L');
+.header-small {
+  font-size: 11px;
+  text-align: right;
+}
 
-    $pdf->SetFont('helvetica', '', 8.5);
-    $pdf->SetXY(31, 98); $pdf->Cell(54, 4, $dob, 0, 0, 'L');
-    $pdf->SetXY(91, 98); $pdf->Cell(20, 4, $gender, 0, 0, 'L');
-    $pdf->SetXY(150, 98); $pdf->Cell(40, 4, $admissionNo, 0, 0, 'L');
+.title1 {
+  font-size: 13px;
+  font-weight: bold;
+  margin-top: 5px;
+}
 
-    $pdf->SetXY(31, 113); $pdf->Cell(48, 4, strtoupper($className), 0, 0, 'L');
-    $pdf->SetXY(84, 113); $pdf->Cell(106, 4, $schoolName, 0, 0, 'L');
+.title2 {
+  font-size: 13px;
+  font-weight: bold;
+}
 
-    $pdf->SetXY(52, 128); $pdf->Cell(138, 4, substr($notes, 0, 90), 0, 0, 'L');
-    $pdf->SetXY(58, 143); $pdf->Cell(132, 4, '', 0, 0, 'L');
-    $pdf->SetXY(89, 158); $pdf->Cell(101, 4, '', 0, 0, 'L');
-    $pdf->SetXY(45, 173); $pdf->Cell(145, 4, substr($notes, 0, 120), 0, 0, 'L');
+.title3 {
+  font-size: 13px;
+  font-weight: bold;
+  text-decoration: underline;
+  margin-top: 5px;
+}
 
-    $pdf->SetXY(54, 214); $pdf->Cell(72, 4, '', 0, 0, 'L');
-    $pdf->SetXY(128, 214); $pdf->Cell(24, 4, $issueDate, 0, 0, 'L');
-    $pdf->SetXY(126, 226); $pdf->Cell(62, 4, $serialNo, 0, 0, 'L');
+.row {
+  font-size: 12px;
+  margin-top: 12px;
+}
 
-    // Keep QR-only verification with no printed URL.
-    $pdf->SetXY(160, 247);
-    $pdf->write2DBarcode($verifyUrl, 'QRCODE,H', 160, 247, 28, 28);
+.line {
+  display: inline-block;
+  border-bottom: 1px solid black;
+  width: 250px;
+  height: 12px;
+}
+
+.short {
+  width: 140px;
+}
+
+.long {
+  display: block;
+  border-bottom: 1px solid black;
+  height: 18px;
+  margin-top: 6px;
+}
+
+.section {
+  margin-top: 20px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.footer {
+  margin-top: 50px;
+}
+
+.flex {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 30px;
+}
+
+.box {
+  width: 45%;
+}
+
+.sigline {
+  border-bottom: 1px solid black;
+  height: 20px;
+}
+
+.small {
+  font-size: 11px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="page">
+
+  <div class="header-small">SERIAL NO: ' . $serialNo . '</div>
+
+  <div class="center">
+    ' . $logoTag . '
+
+    <div class="title1">REPUBLIC OF KENYA</div>
+    <div class="title2">MINISTRY OF EDUCATION</div>
+    <div class="title3">KENYA PRIMARY SCHOOL LEAVING CERTIFICATE</div>
+  </div>
+
+  <div class="row">
+    THIS IS TO CERTIFY THAT <span class="line">' . $studentName . '</span> INDEX NO <span class="line short">' . $admissionNo . '</span>
+  </div>
+
+  <div class="row">
+    SCHOOL AND ADMISSION NO <span class="line">' . $schoolName . ' / ' . $admissionNo . '</span>
+  </div>
+
+  <div class="row">
+    SUB-COUNTY <span class="line short">' . $className . '</span>
+    &nbsp;&nbsp;&nbsp;&nbsp;
+    COUNTY <span class="line short"></span>
+  </div>
+
+  <div class="row">
+    HAS SUCCESSFULLY COMPLETED THE APPROVED COURSE OF PRIMARY EDUCATION
+  </div>
+
+  <div class="section">
+    LEARNING AREAS COVERED FOR CORE COMPETENCIES
+  </div>
+  <span class="long">' . $notes . '</span>
+  <span class="long"></span>
+
+  <div class="section">
+    PUPILS PARTICIPATION IN CO-CURRICULAR ACTIVITIES
+  </div>
+  <span class="long"></span>
+  <span class="long"></span>
+
+  <div class="footer">
+
+    <div class="flex">
+      <div class="box">
+        <div class="small">HEADTEACHER\'S NAME</div>
+        <div class="sigline"></div>
+      </div>
+
+      <div class="box">
+        <div class="small">HEADTEACHER\'S SIGNATURE</div>
+        <div class="sigline"></div>
+      </div>
+    </div>
+
+    <div class="flex">
+      <div class="box">
+        <div class="small">DATE OF ISSUE</div>
+        <div class="sigline">' . $issueDate . '</div>
+      </div>
+
+      <div class="box">
+        <div class="small">OFFICIAL SCHOOL STAMP</div>
+        <div class="sigline"></div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+</body>
+</html>';
+
+  $pdf->writeHTML($html, true, false, true, false, '');
+
+  // QR only, no printed URL.
+  $pdf->SetXY(165, 255);
+  $pdf->write2DBarcode($verifyUrl, 'QRCODE,H', 165, 255, 24, 24);
 }
 
 /**
