@@ -210,7 +210,7 @@ if (count($cbcGrading) < 1) {
 <h3 class="tile-title">Public Website Media (Database Storage)</h3>
 <div class="tile-body">
 <p class="text-muted">Upload the school showcase photos and login background image. These files are saved permanently in the database without compression.</p>
-<p class="text-muted mb-2">For clear quality: login background minimum 600x400 (max 12MB), showcase images minimum 600x400 (max 8MB each).</p>
+<p class="text-muted mb-2">Any image dimensions are accepted. Upload higher-resolution files for best quality (login max 12MB, showcase max 8MB each).</p>
 <p class="mb-2"><strong>Current gallery images:</strong> <?php echo (int)$publicShowcaseCount; ?></p>
 <p class="mb-3"><strong>Login background:</strong> <?php echo $hasLoginBackground ? 'Set' : 'Not set'; ?></p>
 <form class="app_frm" method="POST" enctype="multipart/form-data" autocomplete="OFF" action="admin/core/save_public_media">

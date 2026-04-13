@@ -322,11 +322,13 @@ if (count($slides) === 0) {
 			overflow: hidden;
 			border-radius: 0;
 			width: 100%;
-			height: min(62vh, 620px);
-			min-height: 360px;
-			max-height: 620px;
+			aspect-ratio: var(--slide-ratio, 16 / 9);
+			height: auto;
+			min-height: 260px;
+			max-height: 76vh;
 			box-shadow: none;
 			animation: riseUp 0.95s ease both;
+			background: #0b1110;
 		}
 
 		.slide {
@@ -344,7 +346,7 @@ if (count($slides) === 0) {
 		.slide img {
 			width: 100%;
 			height: 100%;
-			object-fit: cover;
+			object-fit: contain;
 			object-position: center center;
 			image-rendering: auto;
 		}
@@ -602,9 +604,8 @@ if (count($slides) === 0) {
 			}
 
 			.slider-shell {
-				height: min(54vh, 440px);
-				min-height: 280px;
-				max-height: 440px;
+				min-height: 220px;
+				max-height: 62vh;
 			}
 
 			.hero-copy {
@@ -780,6 +781,17 @@ if (count($slides) === 0) {
 		var index = 0;
 		var timer = null;
 
+		function setSliderRatio(imageEl) {
+			if (!imageEl) {
+				return;
+			}
+			var w = imageEl.naturalWidth || 0;
+			var h = imageEl.naturalHeight || 0;
+			if (w > 0 && h > 0) {
+				slider.style.setProperty('--slide-ratio', w + ' / ' + h);
+			}
+		}
+
 		function showSlide(newIndex) {
 			if (!slides.length) {
 				return;
@@ -795,6 +807,17 @@ if (count($slides) === 0) {
 				slides[i].classList.remove('active');
 			}
 			slides[index].classList.add('active');
+			var activeImage = slides[index].querySelector('img');
+			if (activeImage) {
+				if (activeImage.complete) {
+					setSliderRatio(activeImage);
+				} else {
+					activeImage.addEventListener('load', function handleLoad() {
+						setSliderRatio(activeImage);
+						activeImage.removeEventListener('load', handleLoad);
+					});
+				}
+			}
 		}
 
 		function restartAuto() {
