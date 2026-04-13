@@ -339,6 +339,45 @@ if (count($cbcGrading) < 1) {
 </form>
 </div>
 </div>
+
+<div class="col-md-6">
+<div class="tile border border-warning">
+<h3 class="tile-title">Maintenance & Scrolling Banner</h3>
+<p class="text-muted mb-3">Quick controls for the top scrolling information banner and maintenance mode.</p>
+<form class="app_frm" action="admin/core/save_app_settings" method="POST">
+<div class="mb-3">
+<label class="form-label">Top Banner Enabled</label>
+<select class="form-control" name="settings[top_banner_enabled]">
+<option value="1" <?php echo $appSettings['top_banner_enabled'] === '1' ? 'selected' : ''; ?>>Yes</option>
+<option value="0" <?php echo $appSettings['top_banner_enabled'] === '0' ? 'selected' : ''; ?>>No</option>
+</select>
+</div>
+<div class="mb-3">
+<label class="form-label">Top Banner Type</label>
+<select class="form-control" name="settings[top_banner_type]">
+<option value="info" <?php echo $appSettings['top_banner_type'] === 'info' ? 'selected' : ''; ?>>Information</option>
+<option value="warning" <?php echo $appSettings['top_banner_type'] === 'warning' ? 'selected' : ''; ?>>Warning</option>
+</select>
+</div>
+<div class="mb-3">
+<label class="form-label">Top Banner Running Text</label>
+<input class="form-control" name="settings[top_banner_text]" value="<?php echo htmlspecialchars($appSettings['top_banner_text']); ?>" placeholder="e.g. Important: Fee deadline Friday 5 PM">
+</div>
+<div class="mb-3">
+<label class="form-label">Maintenance Mode</label>
+<select class="form-control" name="settings[maintenance_mode_enabled]">
+<option value="1" <?php echo $appSettings['maintenance_mode_enabled'] === '1' ? 'selected' : ''; ?>>On</option>
+<option value="0" <?php echo $appSettings['maintenance_mode_enabled'] === '0' ? 'selected' : ''; ?>>Off</option>
+</select>
+</div>
+<div class="mb-3">
+<label class="form-label">Maintenance Message</label>
+<input class="form-control" name="settings[maintenance_mode_message]" value="<?php echo htmlspecialchars($appSettings['maintenance_mode_message']); ?>" placeholder="Shown to non-admin users during maintenance.">
+</div>
+<button class="btn btn-warning app_btn" type="submit">Save Banner & Maintenance</button>
+</form>
+</div>
+</div>
 </div>
 
 <div class="row">
