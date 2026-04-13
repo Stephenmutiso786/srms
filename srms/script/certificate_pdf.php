@@ -269,9 +269,8 @@ function renderConductCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verify
  * Render Leaving Certificate
  */
 function renderLeavingCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verifyUrl) {
-    $pdf->SetMargins(12, 12, 12);
+    $pdf->SetMargins(0, 0, 0);
     $pdf->SetAutoPageBreak(false, 0);
-    $pdf->SetFont('helvetica', '', 10);
 
     $studentName = strtoupper(trim((string)$cert['student_name']));
     $admissionNo = (string)($cert['school_id'] ?: $cert['student_id']);
@@ -280,172 +279,66 @@ function renderLeavingCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verify
     $serialNo = (string)($cert['serial_no'] ?? '');
     $notes = trim((string)($cert['notes'] ?? ''));
     $schoolName = strtoupper(trim((string)WBName));
-    $schoolAddress = trim((string)WBAddress);
-    $schoolMotto = trim((string)(defined('WBMotto') ? WBMotto : ''));
+    $gender = strtoupper(substr((string)($cert['gender'] ?? ''), 0, 1));
+    $dob = trim((string)($cert['dob'] ?? ''));
 
-    $headerHtml = '
-    <table width="100%" cellpadding="0" cellspacing="0">
-      <tr>
-        <td width="18%" style="text-align:center;">' . $logoHtml . '</td>
-        <td width="82%" style="text-align:center;">
-          <div style="font-size:11pt;font-weight:bold;letter-spacing:0.3px;">REPUBLIC OF KENYA</div>
-          <div style="font-size:14pt;font-weight:bold;letter-spacing:0.3px;">MINISTRY OF EDUCATION</div>
-          <div style="font-size:10.5pt;font-weight:bold;margin-top:2px;">KENYA PRIMARY SCHOOL EDUCATION ASSESSMENT</div>
-          <div style="font-size:13pt;font-weight:bold;margin-top:4px;letter-spacing:0.2px;">TRANSITION LEAVING CERTIFICATE</div>
-          <div style="font-size:8.5pt;margin-top:2px;">(Official Primary School Leaving Form)</div>
-        </td>
-      </tr>
-    </table>';
+    $templateCandidates = [
+        __DIR__ . '/images/templates/kcpe_leaving_certificate.jpg',
+        __DIR__ . '/images/templates/kcpe_leaving_certificate.jpeg',
+        __DIR__ . '/images/templates/kcpe_leaving_certificate.png',
+    ];
+    $templatePath = '';
+    foreach ($templateCandidates as $candidate) {
+        if (is_file($candidate)) {
+            $templatePath = $candidate;
+            break;
+        }
+    }
 
-    $bodyHtml = '
-    <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:8px;">
-      <tr>
-        <td width="74%" style="vertical-align:top;">
-          <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #222;">
-            <tr>
-              <td width="18%" style="font-size:10pt;font-weight:bold;padding:6px 4px;">ASL NO.</td>
-              <td width="35%" style="padding:6px 4px;"><div style="border-bottom:1px solid #222;height:18px;">' . htmlspecialchars($serialNo) . '</div></td>
-              <td width="12%"></td>
-              <td width="10%" style="font-size:10pt;font-weight:bold;padding:6px 4px;">DATE</td>
-              <td width="25%" style="padding:6px 4px;"><div style="border-bottom:1px solid #222;height:18px;">' . htmlspecialchars($issueDate) . '</div></td>
-            </tr>
-          </table>
+    if ($templatePath !== '') {
+        $pdf->Image($templatePath, 8, 8, 194, 281, '', '', '', false, 300, '', false, false, 0);
+    }
 
-          <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:10px;">
-            <tr>
-              <td style="font-size:10pt;font-weight:bold;">NAME OF LEARNER</td>
-            </tr>
-            <tr>
-              <td><div style="border-bottom:1px solid #222;height:20px;font-size:11pt;">' . htmlspecialchars($studentName) . '</div></td>
-            </tr>
-          </table>
-
-          <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:10px;">
-            <tr>
-              <td width="28%" style="font-size:10pt;font-weight:bold;">ADMISSION NO.</td>
-              <td width="72%"><div style="border-bottom:1px solid #222;height:18px;">' . htmlspecialchars($admissionNo) . '</div></td>
-            </tr>
-          </table>
-
-          <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:10px;">
-            <tr>
-              <td width="28%" style="font-size:10pt;font-weight:bold;">DATE OF BIRTH</td>
-              <td width="42%"><div style="border-bottom:1px solid #222;height:18px;">' . htmlspecialchars((string)($cert['dob'] ?? '')) . '</div></td>
-              <td width="8%"></td>
-              <td width="12%" style="font-size:10pt;font-weight:bold;">GENDER</td>
-              <td width="10%"><div style="border-bottom:1px solid #222;height:18px;">' . htmlspecialchars((string)($cert['gender'] ?? '')) . '</div></td>
-            </tr>
-          </table>
-
-          <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:10px;">
-            <tr>
-              <td style="font-size:10pt;font-weight:bold;">NAME OF SCHOOL</td>
-            </tr>
-            <tr>
-              <td><div style="border-bottom:1px solid #222;height:20px;">' . htmlspecialchars($schoolName) . '</div></td>
-            </tr>
-          </table>
-
-          ' . ($schoolMotto !== '' ? '<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:8px;"><tr><td style="font-size:9pt;"><strong>SCHOOL MOTTO:</strong> ' . htmlspecialchars($schoolMotto) . '</td></tr></table>' : '') . '
-
-          <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:10px;">
-            <tr>
-              <td style="font-size:10pt;font-weight:bold;">SCHOOL ADDRESS / COUNTY</td>
-            </tr>
-            <tr>
-              <td><div style="border-bottom:1px solid #222;height:20px;">' . htmlspecialchars($schoolAddress) . '</div></td>
-            </tr>
-          </table>
-
-          <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:10px;">
-            <tr>
-              <td width="28%" style="font-size:10pt;font-weight:bold;">COMPLETED IN</td>
-              <td width="24%"><div style="border-bottom:1px solid #222;height:18px;">' . htmlspecialchars($className) . '</div></td>
-              <td width="10%"></td>
-              <td width="18%" style="font-size:10pt;font-weight:bold;">YEAR</td>
-              <td width="20%"><div style="border-bottom:1px solid #222;height:18px;">' . htmlspecialchars(date('Y', strtotime($issueDate ?: 'now'))) . '</div></td>
-            </tr>
-          </table>
-
-          <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:10px;">
-            <tr>
-              <td style="font-size:10pt;font-weight:bold;">REMARKS / LEAVING REASON</td>
-            </tr>
-            <tr>
-              <td><div style="border-bottom:1px solid #222;min-height:40px;padding-top:4px;">' . nl2br(htmlspecialchars($notes)) . '</div></td>
-            </tr>
-          </table>
-
-          <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:12px;">
-            <tr>
-              <td style="font-size:10pt;font-weight:bold;">CORE COMPETENCIES SUMMARY</td>
-            </tr>
-            <tr>
-              <td><div style="border-bottom:1px solid #222;height:20px;"></div></td>
-            </tr>
-          </table>
-
-          <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:10px;">
-            <tr>
-              <td style="font-size:10pt;font-weight:bold;">LEARNER LEADERSHIP / COMMUNITY SERVICE</td>
-            </tr>
-            <tr>
-              <td><div style="border-bottom:1px solid #222;height:20px;"></div></td>
-            </tr>
-          </table>
-
-          <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:10px;">
-            <tr>
-              <td style="font-size:10pt;font-weight:bold;">LEARNER PARTICIPATION IN COMMUNITY SERVICE / LEARNING (CSL)</td>
-            </tr>
-            <tr>
-              <td><div style="border-bottom:1px solid #222;height:20px;"></div></td>
-            </tr>
-          </table>
-        </td>
-
-        <td width="26%" style="vertical-align:top;padding-left:8px;">
-          <div style="border:1px solid #222;padding:6px;text-align:center;min-height:172px;">
-            <div style="font-size:9pt;font-weight:bold;margin-bottom:4px;">PASSPORT PHOTO</div>
-            ' . $studentPhoto . '
-            <div style="margin-top:8px;font-size:8pt;">' . htmlspecialchars($admissionNo) . '</div>
-          </div>
-
-          <div style="margin-top:10px;border:1px solid #222;padding:8px;min-height:252px;">
-            <div style="font-size:9pt;font-weight:bold;">FOR OFFICIAL USE ONLY</div>
-            <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:8px;font-size:8.5pt;">
-              <tr><td width="45%">Institution</td><td width="55%"><div style="border-bottom:1px solid #222;height:14px;">' . htmlspecialchars($schoolName) . '</div></td></tr>
-              <tr><td>Candidate No.</td><td><div style="border-bottom:1px solid #222;height:14px;">' . htmlspecialchars($admissionNo) . '</div></td></tr>
-              <tr><td>Form Ref</td><td><div style="border-bottom:1px solid #222;height:14px;">' . htmlspecialchars($serialNo) . '</div></td></tr>
-              <tr><td>Date Issued</td><td><div style="border-bottom:1px solid #222;height:14px;">' . htmlspecialchars($issueDate) . '</div></td></tr>
-            </table>
-            <div style="margin-top:12px;font-size:8.5pt;font-weight:bold;">VERIFICATION</div>
-            <div style="margin-top:4px;border:1px solid #222;padding:10px;text-align:center;font-size:8pt;">Scan QR at bottom-right corner</div>
-            <div style="margin-top:8px;">' . app_pdf_image_html('images/logo/' . WBLogo, 30, 0, WBName) . '</div>
-          </div>
-        </td>
-      </tr>
-    </table>
-
-    <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:12px;">
-      <tr>
-        <td width="50%" style="font-size:9pt;">
-          <strong>Headteacher / Principal</strong><br><br>
-          <div style="border-top:1px solid #222;width:85%;"></div>
-        </td>
-        <td width="50%" style="font-size:9pt;text-align:right;">
-          <strong>School Stamp / Seal</strong><br><br>
-          <div style="border-top:1px solid #222;width:85%;float:right;"></div>
-        </td>
-      </tr>
-    </table>';
+    $photoFile = '';
+    if (preg_match('/src=\"([^\"]+)\"/i', (string)$studentPhoto, $m) === 1) {
+        $photoFile = (string)$m[1];
+    }
+    if ($photoFile !== '' && is_file($photoFile)) {
+        $pdf->Image($photoFile, 18, 73, 32, 36, '', '', '', false, 300, '', false, false, 1);
+    }
 
     $pdf->SetTextColor(0, 0, 0);
-    $pdf->writeHTML('<div style="border:2px solid #222;padding:10px;min-height:272mm;">' . $headerHtml . $bodyHtml . '</div>', true, false, true, false, '');
+    $pdf->SetFont('helvetica', '', 8.5);
 
-    $pdf->SetXY(168, 274);
-    $pdf->write2DBarcode($verifyUrl, 'QRCODE,H', 168, 274, 24, 24);
-    return;
+    // Overlay values onto fixed form lines.
+    $pdf->SetXY(32, 59); $pdf->Cell(70, 4, $serialNo, 0, 0, 'L');
+    $pdf->SetXY(152, 59); $pdf->Cell(38, 4, $issueDate, 0, 0, 'L');
+
+    $pdf->SetXY(152, 74); $pdf->Cell(38, 4, $admissionNo, 0, 0, 'L');
+
+    $pdf->SetFont('helvetica', 'B', 9);
+    $pdf->SetXY(58, 83); $pdf->Cell(132, 5, $studentName, 0, 0, 'L');
+
+    $pdf->SetFont('helvetica', '', 8.5);
+    $pdf->SetXY(31, 98); $pdf->Cell(54, 4, $dob, 0, 0, 'L');
+    $pdf->SetXY(91, 98); $pdf->Cell(20, 4, $gender, 0, 0, 'L');
+    $pdf->SetXY(150, 98); $pdf->Cell(40, 4, $admissionNo, 0, 0, 'L');
+
+    $pdf->SetXY(31, 113); $pdf->Cell(48, 4, strtoupper($className), 0, 0, 'L');
+    $pdf->SetXY(84, 113); $pdf->Cell(106, 4, $schoolName, 0, 0, 'L');
+
+    $pdf->SetXY(52, 128); $pdf->Cell(138, 4, substr($notes, 0, 90), 0, 0, 'L');
+    $pdf->SetXY(58, 143); $pdf->Cell(132, 4, '', 0, 0, 'L');
+    $pdf->SetXY(89, 158); $pdf->Cell(101, 4, '', 0, 0, 'L');
+    $pdf->SetXY(45, 173); $pdf->Cell(145, 4, substr($notes, 0, 120), 0, 0, 'L');
+
+    $pdf->SetXY(54, 214); $pdf->Cell(72, 4, '', 0, 0, 'L');
+    $pdf->SetXY(128, 214); $pdf->Cell(24, 4, $issueDate, 0, 0, 'L');
+    $pdf->SetXY(126, 226); $pdf->Cell(62, 4, $serialNo, 0, 0, 'L');
+
+    // Keep QR-only verification with no printed URL.
+    $pdf->SetXY(160, 247);
+    $pdf->write2DBarcode($verifyUrl, 'QRCODE,H', 160, 247, 28, 28);
 }
 
 /**
