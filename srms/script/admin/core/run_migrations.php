@@ -76,9 +76,20 @@ try {
 		if ($sql === false) {
 			throw new RuntimeException("Failed to read $name");
 		}
-		$conn->exec($sql);
-		$stmt = $conn->prepare("INSERT INTO tbl_schema_migrations (name) VALUES (?)");
-		$stmt->execute([$name]);
+
+		try {
+			$conn->beginTransaction();
+			$conn->exec($sql);
+			$stmt = $conn->prepare("INSERT INTO tbl_schema_migrations (name) VALUES (?)");
+			$stmt->execute([$name]);
+			$conn->commit();
+		} catch (Throwable $migrationError) {
+			if ($conn->inTransaction()) {
+				$conn->rollBack();
+			}
+			throw new RuntimeException("$name failed: ".$migrationError->getMessage(), 0, $migrationError);
+		}
+
 		$appliedCount++;
 	}
 

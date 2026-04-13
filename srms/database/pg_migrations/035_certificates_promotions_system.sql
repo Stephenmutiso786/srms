@@ -11,7 +11,7 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
                    WHERE table_name='tbl_certificates' AND column_name='mean_score') THEN
         ALTER TABLE tbl_certificates ADD COLUMN mean_score DECIMAL(5,2) DEFAULT NULL;
-        CREATE INDEX idx_certificates_mean_score ON tbl_certificates(mean_score);
+        CREATE INDEX IF NOT EXISTS idx_certificates_mean_score ON tbl_certificates(mean_score);
     END IF;
 
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
@@ -59,7 +59,7 @@ END $$;
 
 CREATE TABLE IF NOT EXISTS tbl_promotion_batches (
     id SERIAL PRIMARY KEY,
-    school_id INT DEFAULT NULL REFERENCES tbl_schools(id) ON DELETE CASCADE,
+    school_id INT DEFAULT NULL REFERENCES tbl_school(id) ON DELETE CASCADE,
     class_id INT NOT NULL REFERENCES tbl_classes(id) ON DELETE CASCADE,
     academic_year VARCHAR(10) NOT NULL,
     promotion_cycle VARCHAR(50) DEFAULT 'year_end',
@@ -76,8 +76,8 @@ CREATE TABLE IF NOT EXISTS tbl_promotion_batches (
     notes TEXT DEFAULT NULL
 );
 
-CREATE INDEX idx_promotion_batches_class ON tbl_promotion_batches(class_id, academic_year, status);
-CREATE INDEX idx_promotion_batches_status ON tbl_promotion_batches(status, approved_at DESC);
+CREATE INDEX IF NOT EXISTS idx_promotion_batches_class ON tbl_promotion_batches(class_id, academic_year, status);
+CREATE INDEX IF NOT EXISTS idx_promotion_batches_status ON tbl_promotion_batches(status, approved_at DESC);
 
 -- ============================================================================
 -- CREATE tbl_student_promotions: Individual student promotion records
@@ -102,9 +102,9 @@ CREATE TABLE IF NOT EXISTS tbl_student_promotions (
     created_by INT REFERENCES tbl_staff(id) ON DELETE SET NULL
 );
 
-CREATE INDEX idx_student_promotions_batch ON tbl_student_promotions(batch_id, status);
-CREATE INDEX idx_student_promotions_student ON tbl_student_promotions(student_id, batch_id);
-CREATE INDEX idx_student_promotions_status ON tbl_student_promotions(status, fees_cleared);
+CREATE INDEX IF NOT EXISTS idx_student_promotions_batch ON tbl_student_promotions(batch_id, status);
+CREATE INDEX IF NOT EXISTS idx_student_promotions_student ON tbl_student_promotions(student_id, batch_id);
+CREATE INDEX IF NOT EXISTS idx_student_promotions_status ON tbl_student_promotions(status, fees_cleared);
 
 -- ============================================================================
 -- CREATE tbl_cbc_competencies: Store CBC competency framework
@@ -112,7 +112,7 @@ CREATE INDEX idx_student_promotions_status ON tbl_student_promotions(status, fee
 
 CREATE TABLE IF NOT EXISTS tbl_cbc_competencies (
     id SERIAL PRIMARY KEY,
-    school_id INT DEFAULT NULL REFERENCES tbl_schools(id) ON DELETE CASCADE,
+    school_id INT DEFAULT NULL REFERENCES tbl_school(id) ON DELETE CASCADE,
     competency_name VARCHAR(100) NOT NULL,
     competency_code VARCHAR(20) UNIQUE NOT NULL,
     description TEXT DEFAULT NULL,
@@ -141,8 +141,8 @@ CREATE TABLE IF NOT EXISTS tbl_student_competencies (
     CONSTRAINT unique_student_competency UNIQUE (student_id, competency_id, exam_id)
 );
 
-CREATE INDEX idx_student_competencies_student ON tbl_student_competencies(student_id);
-CREATE INDEX idx_student_competencies_competency ON tbl_student_competencies(competency_id);
+CREATE INDEX IF NOT EXISTS idx_student_competencies_student ON tbl_student_competencies(student_id);
+CREATE INDEX IF NOT EXISTS idx_student_competencies_competency ON tbl_student_competencies(competency_id);
 
 -- ============================================================================
 -- CREATE tbl_promotion_rules: Define promotion criteria per grade
@@ -150,7 +150,7 @@ CREATE INDEX idx_student_competencies_competency ON tbl_student_competencies(com
 
 CREATE TABLE IF NOT EXISTS tbl_promotion_rules (
     id SERIAL PRIMARY KEY,
-    school_id INT DEFAULT NULL REFERENCES tbl_schools(id) ON DELETE CASCADE,
+    school_id INT DEFAULT NULL REFERENCES tbl_school(id) ON DELETE CASCADE,
     grade_level INT NOT NULL,
     min_score_for_promotion DECIMAL(5,2) DEFAULT 40.0,
     require_fees_clearance BOOLEAN DEFAULT TRUE,
