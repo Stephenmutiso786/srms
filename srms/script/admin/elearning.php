@@ -11,6 +11,14 @@ $courses = [];
 $lessons = [];
 $assignments = [];
 $liveClasses = [];
+$progressStats = [
+	'tracked_learners' => 0,
+	'avg_completion' => 0,
+	'ee' => 0,
+	'me' => 0,
+	'ae' => 0,
+	'be' => 0,
+];
 
 try {
 	$conn = app_db();
@@ -53,6 +61,26 @@ try {
 		$stmt->execute();
 		$liveClasses = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
+
+	if (app_table_exists($conn, 'tbl_elearning_progress')) {
+		$stmt = $conn->prepare("SELECT competency_level, completion_pct, student_id FROM tbl_elearning_progress");
+		$stmt->execute();
+		$rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		if (!empty($rows)) {
+			$students = [];
+			$totalPct = 0;
+			foreach ($rows as $r) {
+				$students[(string)$r['student_id']] = true;
+				$totalPct += (float)$r['completion_pct'];
+				$k = strtolower((string)$r['competency_level']);
+				if (isset($progressStats[$k])) {
+					$progressStats[$k]++;
+				}
+			}
+			$progressStats['tracked_learners'] = count($students);
+			$progressStats['avg_completion'] = round($totalPct / count($rows), 2);
+		}
+	}
 } catch (Throwable $e) {
 	$_SESSION['reply'] = array (array("danger", "Failed to load e-learning data."));
 }
@@ -91,6 +119,13 @@ try {
 <h1>E-Learning Monitor</h1>
 <p>Track courses, lessons, assignments, and live classes.</p>
 </div>
+</div>
+
+<div class="row mb-3">
+<div class="col-md-3"><div class="tile tile-colored bg-primary"><div class="tile-body"><h4><?php echo (int)$progressStats['tracked_learners']; ?></h4><p>Tracked Learners</p></div></div></div>
+<div class="col-md-3"><div class="tile tile-colored bg-info"><div class="tile-body"><h4><?php echo number_format((float)$progressStats['avg_completion'], 1); ?>%</h4><p>Avg Completion</p></div></div></div>
+<div class="col-md-3"><div class="tile tile-colored bg-success"><div class="tile-body"><h4><?php echo (int)$progressStats['ee']; ?></h4><p>EE Mastery Records</p></div></div></div>
+<div class="col-md-3"><div class="tile tile-colored bg-warning"><div class="tile-body"><h4><?php echo (int)$progressStats['be']; ?></h4><p>BE Intervention Areas</p></div></div></div>
 </div>
 
 <div class="tile">

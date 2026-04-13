@@ -9,6 +9,7 @@ if ($res == "1" && $level == "4") {}else{header("location:../"); exit;}
 $children = [];
 $assignments = [];
 $liveClasses = [];
+$progressByChild = [];
 
 try {
 	$conn = app_db();
@@ -23,22 +24,40 @@ try {
 		$children = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
 
+	$childClasses = array_values(array_unique(array_map(function ($c) { return (int)($c['class'] ?? 0); }, $children)));
+
 	if (app_table_exists($conn, 'tbl_assignments')) {
-		$stmt = $conn->prepare("SELECT a.*, c.name AS course_name, c.class_id
-			FROM tbl_assignments a
-			JOIN tbl_courses c ON c.id = a.course_id
-			ORDER BY a.created_at DESC");
-		$stmt->execute();
-		$assignments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		if (!empty($childClasses)) {
+			$placeholders = implode(',', array_fill(0, count($childClasses), '?'));
+			$stmt = $conn->prepare("SELECT a.*, c.name AS course_name, c.class_id
+				FROM tbl_assignments a
+				JOIN tbl_courses c ON c.id = a.course_id
+				WHERE c.class_id IN ($placeholders)
+				ORDER BY a.created_at DESC");
+			$stmt->execute($childClasses);
+			$assignments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		}
 	}
 
 	if (app_table_exists($conn, 'tbl_live_classes')) {
-		$stmt = $conn->prepare("SELECT lc.*, c.name AS course_name, c.class_id
-			FROM tbl_live_classes lc
-			JOIN tbl_courses c ON c.id = lc.course_id
-			ORDER BY lc.start_time DESC");
-		$stmt->execute();
-		$liveClasses = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		if (!empty($childClasses)) {
+			$placeholders = implode(',', array_fill(0, count($childClasses), '?'));
+			$stmt = $conn->prepare("SELECT lc.*, c.name AS course_name, c.class_id
+				FROM tbl_live_classes lc
+				JOIN tbl_courses c ON c.id = lc.course_id
+				WHERE c.class_id IN ($placeholders)
+				ORDER BY lc.start_time DESC");
+			$stmt->execute($childClasses);
+			$liveClasses = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		}
+	}
+
+	if (app_table_exists($conn, 'tbl_elearning_progress') && !empty($children)) {
+		foreach ($children as $child) {
+			$stmt = $conn->prepare("SELECT competency_level, completion_pct, updated_at FROM tbl_elearning_progress WHERE student_id = ? ORDER BY updated_at DESC LIMIT 5");
+			$stmt->execute([(string)$child['id']]);
+			$progressByChild[(string)$child['id']] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		}
 	}
 } catch (Throwable $e) {
 	$_SESSION['reply'] = array (array("danger", "Failed to load e-learning data."));
@@ -99,7 +118,17 @@ try {
 <h3 class="tile-title">Children</h3>
 <ul>
 <?php foreach ($children as $child): ?>
-<li><?php echo htmlspecialchars($child['name']); ?></li>
+<li>
+<?php echo htmlspecialchars($child['name']); ?>
+<?php $childProgress = $progressByChild[(string)$child['id']] ?? []; ?>
+<?php if (!empty($childProgress)): ?>
+<div class="small text-muted">Recent progress:
+<?php foreach ($childProgress as $p): ?>
+<span class="badge bg-<?php echo ($p['competency_level'] === 'EE' || $p['competency_level'] === 'ME') ? 'success' : (($p['competency_level'] === 'AE') ? 'warning text-dark' : 'danger'); ?> ms-1"><?php echo htmlspecialchars((string)$p['competency_level']); ?> · <?php echo number_format((float)$p['completion_pct'], 0); ?>%</span>
+<?php endforeach; ?>
+</div>
+<?php endif; ?>
+</li>
 <?php endforeach; ?>
 </ul>
 </div>

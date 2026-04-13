@@ -14,7 +14,10 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $courseId = (int)($_POST['course_id'] ?? 0);
 $title = trim($_POST['title'] ?? '');
 $strand = trim($_POST['strand'] ?? '');
+$subStrand = trim($_POST['sub_strand'] ?? '');
 $competency = trim($_POST['competency'] ?? '');
+$learningOutcome = trim($_POST['learning_outcome'] ?? '');
+$gradeBand = trim($_POST['grade_band'] ?? '');
 $description = trim($_POST['description'] ?? '');
 
 if ($courseId < 1 || $title === '') {
@@ -33,8 +36,33 @@ try {
     throw new RuntimeException("Not allowed to add lesson to this course.");
   }
 
-  $stmt = $conn->prepare("INSERT INTO tbl_lessons (course_id, title, strand, competency, description) VALUES (?,?,?,?,?)");
-  $stmt->execute([$courseId, $title, $strand, $competency, $description]);
+  $fields = ['course_id', 'title', 'strand'];
+  $values = [$courseId, $title, $strand];
+
+  if (app_column_exists($conn, 'tbl_lessons', 'sub_strand')) {
+    $fields[] = 'sub_strand';
+    $values[] = $subStrand;
+  }
+
+  $fields[] = 'competency';
+  $values[] = $competency;
+
+  if (app_column_exists($conn, 'tbl_lessons', 'learning_outcome')) {
+    $fields[] = 'learning_outcome';
+    $values[] = $learningOutcome;
+  }
+
+  if (app_column_exists($conn, 'tbl_lessons', 'grade_band')) {
+    $fields[] = 'grade_band';
+    $values[] = $gradeBand;
+  }
+
+  $fields[] = 'description';
+  $values[] = $description;
+
+  $placeholders = implode(',', array_fill(0, count($fields), '?'));
+  $stmt = $conn->prepare("INSERT INTO tbl_lessons (" . implode(',', $fields) . ") VALUES (" . $placeholders . ")");
+  $stmt->execute($values);
   app_audit_log($conn, 'staff', (string)$account_id, 'elearning.lesson.create', 'lesson', (string)$conn->lastInsertId());
 
   $_SESSION['reply'] = array (array("success", "Lesson created."));

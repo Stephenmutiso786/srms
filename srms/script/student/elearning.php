@@ -14,6 +14,15 @@ $liveClasses = [];
 $quizzes = [];
 $lessonContent = [];
 $studentClassId = 0;
+$progressRows = [];
+$progressSummary = [
+	'tracked_courses' => 0,
+	'avg_completion' => 0,
+	'ee' => 0,
+	'me' => 0,
+	'ae' => 0,
+	'be' => 0,
+];
 
 try {
 	$conn = app_db();
@@ -88,6 +97,27 @@ try {
 		$stmt->execute([$studentClassId]);
 		$quizzes = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
+
+	if (app_table_exists($conn, 'tbl_elearning_progress')) {
+		$stmt = $conn->prepare("SELECT * FROM tbl_elearning_progress WHERE student_id = ? ORDER BY updated_at DESC");
+		$stmt->execute([$account_id]);
+		$progressRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+		if (!empty($progressRows)) {
+			$courseSeen = [];
+			$totalPct = 0.0;
+			foreach ($progressRows as $p) {
+				$courseSeen[(int)$p['course_id']] = true;
+				$totalPct += (float)$p['completion_pct'];
+				$level = (string)($p['competency_level'] ?? 'AE');
+				if (isset($progressSummary[strtolower($level)])) {
+					$progressSummary[strtolower($level)]++;
+				}
+			}
+			$progressSummary['tracked_courses'] = count($courseSeen);
+			$progressSummary['avg_completion'] = round($totalPct / count($progressRows), 2);
+		}
+	}
 } catch (Throwable $e) {
 	$_SESSION['reply'] = array (array("danger", "Failed to load e-learning data."));
 }
@@ -144,6 +174,13 @@ try {
 </div>
 </div>
 
+<div class="row mb-3">
+<div class="col-md-3"><div class="tile tile-colored bg-primary"><div class="tile-body"><h4><?php echo (int)count($courses); ?></h4><p>Active Courses</p></div></div></div>
+<div class="col-md-3"><div class="tile tile-colored bg-info"><div class="tile-body"><h4><?php echo number_format((float)$progressSummary['avg_completion'], 1); ?>%</h4><p>Avg CBC Progress</p></div></div></div>
+<div class="col-md-3"><div class="tile tile-colored bg-success"><div class="tile-body"><h4><?php echo (int)$progressSummary['ee']; ?></h4><p>EE Competencies</p></div></div></div>
+<div class="col-md-3"><div class="tile tile-colored bg-warning"><div class="tile-body"><h4><?php echo (int)$progressSummary['be']; ?></h4><p>BE Areas (Need Help)</p></div></div></div>
+</div>
+
 <div class="tile">
 <h3 class="tile-title">Courses</h3>
 <div class="table-responsive">
@@ -165,20 +202,27 @@ try {
 <h3 class="tile-title">Lessons</h3>
 <div class="table-responsive">
 <table class="table table-hover">
-<thead><tr><th>Course</th><th>Lesson</th><th>Strand</th><th>Competency</th><th>Content</th></tr></thead>
+<thead><tr><th>Course</th><th>Lesson</th><th>CBC Path</th><th>Competency/Outcome</th><th>Content</th></tr></thead>
 <tbody>
 <?php foreach ($lessons as $lesson): ?>
 <tr>
 <td><?php echo htmlspecialchars($lesson['course_name']); ?></td>
 <td><?php echo htmlspecialchars($lesson['title']); ?></td>
-<td><?php echo htmlspecialchars($lesson['strand']); ?></td>
-<td><?php echo htmlspecialchars($lesson['competency']); ?></td>
+<td>
+<?php echo htmlspecialchars((string)($lesson['strand'] ?? '')); ?>
+<?php if (!empty($lesson['sub_strand'])): ?> / <?php echo htmlspecialchars((string)$lesson['sub_strand']); ?><?php endif; ?>
+<?php if (!empty($lesson['grade_band'])): ?><br><small class="text-muted"><?php echo htmlspecialchars((string)$lesson['grade_band']); ?></small><?php endif; ?>
+</td>
+<td><?php echo htmlspecialchars((string)($lesson['learning_outcome'] ?? $lesson['competency'] ?? '')); ?></td>
 <td>
   <?php foreach (($lessonContent[(int)$lesson['id']] ?? []) as $content): ?>
+		<?php $isOffline = !empty($content['is_offline_available']); ?>
     <?php if (($content['file_path'] ?? '') !== '') { ?>
-      <a class="btn btn-sm btn-outline-secondary mb-1" href="<?php echo htmlspecialchars($content['file_path']); ?>" target="_blank">Download</a>
+			<a class="btn btn-sm btn-outline-secondary mb-1" href="<?php echo htmlspecialchars($content['file_path']); ?>" target="_blank">Download</a>
+			<?php if ($isOffline): ?><span class="badge bg-success ms-1">Offline</span><?php endif; ?>
     <?php } elseif (($content['url'] ?? '') !== '') { ?>
       <a class="btn btn-sm btn-outline-primary mb-1" href="<?php echo htmlspecialchars($content['url']); ?>" target="_blank">Open Link</a>
+			<?php if ($isOffline): ?><span class="badge bg-success ms-1">Offline</span><?php endif; ?>
     <?php } ?>
   <?php endforeach; ?>
 </td>

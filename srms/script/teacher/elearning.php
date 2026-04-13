@@ -257,8 +257,30 @@ try {
 <input class="form-control" name="strand">
 </div>
 <div class="mb-3">
+<label class="form-label">Sub-Strand</label>
+<input class="form-control" name="sub_strand" placeholder="e.g. Numbers up to 1000">
+</div>
+<div class="mb-3">
 <label class="form-label">Competency</label>
 <input class="form-control" name="competency">
+</div>
+<div class="mb-3">
+<label class="form-label">Learning Outcome</label>
+<input class="form-control" name="learning_outcome" placeholder="What learner should achieve by end of lesson">
+</div>
+<div class="mb-3">
+<label class="form-label">Grade Band</label>
+<select class="form-control" name="grade_band">
+<option value="">Select grade band</option>
+<option value="PP1">PP1</option>
+<option value="PP2">PP2</option>
+<option value="G1">Grade 1</option>
+<option value="G2">Grade 2</option>
+<option value="G3">Grade 3</option>
+<option value="G4">Grade 4</option>
+<option value="G5">Grade 5</option>
+<option value="G6">Grade 6</option>
+</select>
 </div>
 <div class="mb-3">
 <label class="form-label">Description</label>
@@ -288,7 +310,12 @@ try {
 <option value="file">File</option>
 <option value="link">Link</option>
 <option value="video">Video</option>
+<option value="audio">Audio</option>
 </select>
+</div>
+<div class="mb-3">
+<label class="form-label">Content Title (optional)</label>
+<input class="form-control" name="content_title" placeholder="e.g. Audio phonics practice">
 </div>
 <div class="mb-3">
 <label class="form-label">Link (optional)</label>
@@ -297,6 +324,10 @@ try {
 <div class="mb-3">
 <label class="form-label">Upload File (optional)</label>
 <input class="form-control" type="file" name="file">
+</div>
+<div class="mb-3 form-check">
+<input class="form-check-input" type="checkbox" value="1" id="offlineAvail" name="is_offline_available">
+<label class="form-check-label" for="offlineAvail">Available offline for learners</label>
 </div>
 <button class="btn btn-outline-primary">Add Content</button>
 </form>

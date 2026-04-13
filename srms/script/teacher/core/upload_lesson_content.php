@@ -14,6 +14,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $lessonId = (int)($_POST['lesson_id'] ?? 0);
 $contentType = trim($_POST['content_type'] ?? 'file');
 $url = trim($_POST['url'] ?? '');
+$contentTitle = trim($_POST['content_title'] ?? '');
+$offlineAvailable = isset($_POST['is_offline_available']) ? 1 : 0;
 $filePath = '';
 
 if ($lessonId < 1) {
@@ -53,8 +55,21 @@ try {
     throw new RuntimeException("Provide a file or link.");
   }
 
-  $stmt = $conn->prepare("INSERT INTO tbl_lesson_content (lesson_id, content_type, file_path, url) VALUES (?,?,?,?)");
-  $stmt->execute([$lessonId, $contentType, $filePath, $url]);
+  $fields = ['lesson_id', 'content_type', 'file_path', 'url'];
+  $values = [$lessonId, $contentType, $filePath, $url];
+
+  if (app_column_exists($conn, 'tbl_lesson_content', 'title')) {
+    $fields[] = 'title';
+    $values[] = $contentTitle;
+  }
+
+  if (app_column_exists($conn, 'tbl_lesson_content', 'is_offline_available')) {
+    $fields[] = 'is_offline_available';
+    $values[] = $offlineAvailable;
+  }
+
+  $stmt = $conn->prepare("INSERT INTO tbl_lesson_content (" . implode(',', $fields) . ") VALUES (" . implode(',', array_fill(0, count($fields), '?')) . ")");
+  $stmt->execute($values);
 
   app_audit_log($conn, 'staff', (string)$account_id, 'elearning.content.upload', 'lesson', (string)$lessonId);
   $_SESSION['reply'] = array (array("success", "Content added."));

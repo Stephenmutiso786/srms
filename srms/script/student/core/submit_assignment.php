@@ -25,12 +25,15 @@ try {
   $conn = app_db();
   $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-  $stmt = $conn->prepare("SELECT c.class_id
+  $stmt = $conn->prepare("SELECT c.id AS course_id, c.class_id, a.lesson_id
     FROM tbl_assignments a
     JOIN tbl_courses c ON c.id = a.course_id
     WHERE a.id = ? LIMIT 1");
   $stmt->execute([$assignmentId]);
-  $classId = (int)$stmt->fetchColumn();
+  $assignmentMeta = $stmt->fetch(PDO::FETCH_ASSOC);
+  $classId = (int)($assignmentMeta['class_id'] ?? 0);
+  $courseId = (int)($assignmentMeta['course_id'] ?? 0);
+  $lessonId = isset($assignmentMeta['lesson_id']) ? (int)$assignmentMeta['lesson_id'] : 0;
   if ($classId < 1) {
     throw new RuntimeException("Assignment not found.");
   }
@@ -68,6 +71,27 @@ try {
   } else {
     $stmt = $conn->prepare("INSERT INTO tbl_assignment_submissions (assignment_id, student_id, submission_text, file_path) VALUES (?,?,?,?)");
     $stmt->execute([$assignmentId, $account_id, $text, $filePath]);
+  }
+
+  if ($courseId > 0 && app_table_exists($conn, 'tbl_elearning_progress')) {
+    $targetLessonId = $lessonId > 0 ? $lessonId : null;
+    if ($targetLessonId === null) {
+      $stmt = $conn->prepare("SELECT id, completion_pct FROM tbl_elearning_progress WHERE student_id = ? AND course_id = ? AND lesson_id IS NULL LIMIT 1");
+      $stmt->execute([$account_id, $courseId]);
+    } else {
+      $stmt = $conn->prepare("SELECT id, completion_pct FROM tbl_elearning_progress WHERE student_id = ? AND course_id = ? AND lesson_id = ? LIMIT 1");
+      $stmt->execute([$account_id, $courseId, $targetLessonId]);
+    }
+    $progress = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if ($progress) {
+      $nextPct = min(100, max((float)$progress['completion_pct'], 60));
+      $stmt = $conn->prepare("UPDATE tbl_elearning_progress SET completion_pct = ?, last_activity_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+      $stmt->execute([$nextPct, (int)$progress['id']]);
+    } else {
+      $stmt = $conn->prepare("INSERT INTO tbl_elearning_progress (student_id, course_id, lesson_id, competency_level, completion_pct, score) VALUES (?,?,?,?,?,?)");
+      $stmt->execute([$account_id, $courseId, $targetLessonId, 'AE', 60, 0]);
+    }
   }
 
   app_audit_log($conn, 'student', (string)$account_id, 'elearning.assignment.submit', 'assignment', (string)$assignmentId);

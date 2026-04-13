@@ -23,9 +23,11 @@ try {
   $conn = app_db();
   $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-  $stmt = $conn->prepare("SELECT c.class_id FROM tbl_quizzes q JOIN tbl_courses c ON c.id = q.course_id WHERE q.id = ? LIMIT 1");
+  $stmt = $conn->prepare("SELECT c.id AS course_id, c.class_id FROM tbl_quizzes q JOIN tbl_courses c ON c.id = q.course_id WHERE q.id = ? LIMIT 1");
   $stmt->execute([$quizId]);
-  $classId = (int)$stmt->fetchColumn();
+  $quizMeta = $stmt->fetch(PDO::FETCH_ASSOC);
+  $classId = (int)($quizMeta['class_id'] ?? 0);
+  $courseId = (int)($quizMeta['course_id'] ?? 0);
   if ($classId < 1) {
     throw new RuntimeException("Quiz not found.");
   }
@@ -59,6 +61,29 @@ try {
   } else {
     $stmt = $conn->prepare("INSERT INTO tbl_quiz_results (quiz_id, student_id, score) VALUES (?,?,?)");
     $stmt->execute([$quizId, $account_id, $score]);
+  }
+
+  if ($courseId > 0 && app_table_exists($conn, 'tbl_elearning_progress')) {
+    $level = 'BE';
+    if ($score >= 80) {
+      $level = 'EE';
+    } elseif ($score >= 60) {
+      $level = 'ME';
+    } elseif ($score >= 40) {
+      $level = 'AE';
+    }
+
+    $stmt = $conn->prepare("SELECT id, completion_pct FROM tbl_elearning_progress WHERE student_id = ? AND course_id = ? AND lesson_id IS NULL LIMIT 1");
+    $stmt->execute([$account_id, $courseId]);
+    $progress = $stmt->fetch(PDO::FETCH_ASSOC);
+    if ($progress) {
+      $nextPct = min(100, max((float)$progress['completion_pct'], 35));
+      $stmt = $conn->prepare("UPDATE tbl_elearning_progress SET score = ?, completion_pct = ?, competency_level = ?, last_activity_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+      $stmt->execute([$score, $nextPct, $level, (int)$progress['id']]);
+    } else {
+      $stmt = $conn->prepare("INSERT INTO tbl_elearning_progress (student_id, course_id, lesson_id, competency_level, completion_pct, score) VALUES (?,?,?,?,?,?)");
+      $stmt->execute([$account_id, $courseId, null, $level, 35, $score]);
+    }
   }
 
   app_audit_log($conn, 'student', (string)$account_id, 'elearning.quiz.submit', 'quiz', (string)$quizId);
