@@ -59,6 +59,17 @@ function app_diagnostics_writable(string $label, string $path): array
 	return app_diagnostics_item($label, 'fail', 'Not writable', ['path' => $path]);
 }
 
+function app_diagnostics_first_existing_path(array $candidates): ?string
+{
+	foreach ($candidates as $candidate) {
+		if (is_dir($candidate)) {
+			return $candidate;
+		}
+	}
+
+	return null;
+}
+
 function app_diagnostics_check_table(PDO $conn, string $table): array
 {
 	if (app_table_exists($conn, $table)) {
@@ -163,14 +174,40 @@ try {
 		}
 
 		$writablePaths = [
-			'dir_uploads' => dirname(__DIR__, 2).'/uploads',
-			'dir_uploads_elearning' => dirname(__DIR__, 2).'/uploads/elearning',
-			'dir_images_logo' => dirname(__DIR__).'/images/logo',
-			'dir_images_signatures' => dirname(__DIR__).'/images/signatures',
+			'Dir Uploads' => app_diagnostics_first_existing_path([
+				dirname(__DIR__, 2).'/uploads',
+				dirname(__DIR__, 3).'/uploads',
+				getcwd().'/uploads',
+				getcwd().'/srms/uploads',
+			]),
+			'Dir Uploads Elearning' => app_diagnostics_first_existing_path([
+				dirname(__DIR__, 2).'/uploads/elearning',
+				dirname(__DIR__, 3).'/uploads/elearning',
+				getcwd().'/uploads/elearning',
+				getcwd().'/srms/uploads/elearning',
+			]),
+			'Dir Images Logo' => app_diagnostics_first_existing_path([
+				dirname(__DIR__).'/images/logo',
+				dirname(__DIR__, 2).'/script/images/logo',
+				dirname(__DIR__, 3).'/script/images/logo',
+				getcwd().'/script/images/logo',
+				getcwd().'/srms/script/images/logo',
+			]),
+			'Dir Images Signatures' => app_diagnostics_first_existing_path([
+				dirname(__DIR__).'/images/signatures',
+				dirname(__DIR__, 2).'/script/images/signatures',
+				dirname(__DIR__, 3).'/script/images/signatures',
+				getcwd().'/script/images/signatures',
+				getcwd().'/srms/script/images/signatures',
+			]),
 		];
 
 		foreach ($writablePaths as $label => $path) {
-			$results[] = app_diagnostics_writable(ucwords(str_replace('_', ' ', $label)), $path);
+			if ($path === null) {
+				$results[] = app_diagnostics_item($label, 'warning', 'No matching directory was found');
+				continue;
+			}
+			$results[] = app_diagnostics_writable($label, $path);
 		}
 
 		$freeSpace = @disk_free_space(dirname(__DIR__, 2));

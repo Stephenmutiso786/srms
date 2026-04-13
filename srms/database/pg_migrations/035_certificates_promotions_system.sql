@@ -6,8 +6,8 @@
 -- ALTER tbl_certificates: Add new columns for enhanced certificate data
 -- ============================================================================
 
-DO $$
-BEGIN
+INSERT INTO tbl_audit_logs (actor_type, actor_id, action, entity, entity_id, ip, user_agent)
+VALUES ('system', 'migration-035', 'MIGRATION', 'schema', '035_certificates_promotions_system.sql', '', 'Applied migration 035: Enhanced certificates and promotion system')
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
                    WHERE table_name='tbl_certificates' AND column_name='mean_score') THEN
         ALTER TABLE tbl_certificates ADD COLUMN mean_score DECIMAL(5,2) DEFAULT NULL;
