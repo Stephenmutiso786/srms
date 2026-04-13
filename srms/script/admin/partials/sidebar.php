@@ -90,6 +90,7 @@ function app_tree_active($page)
     <li><a class="app-menu__item<?php echo app_menu_active('migrations'); ?>" href="admin/migrations"><i class="app-menu__icon feather icon-database"></i><span class="app-menu__label">Migrations</span></a></li>
     <li><a class="app-menu__item<?php echo app_menu_active('module_locks'); ?>" href="admin/module_locks"><i class="app-menu__icon feather icon-lock"></i><span class="app-menu__label">Module Locks</span></a></li>
     <li><a class="app-menu__item<?php echo app_menu_active('system'); ?>" href="admin/system"><i class="app-menu__icon feather icon-settings"></i><span class="app-menu__label">System Settings</span></a></li>
+    <li><a class="app-menu__item<?php echo app_menu_active('system_diagnostics'); ?>" href="admin/system_diagnostics"><i class="app-menu__icon feather icon-activity"></i><span class="app-menu__label">System Diagnostics</span></a></li>
     <li><a class="app-menu__item" href="how_system_works"><i class="app-menu__icon feather icon-help-circle"></i><span class="app-menu__label">How The System Works</span></a></li>
   </ul>
   <div class="app-sidebar__footer">
