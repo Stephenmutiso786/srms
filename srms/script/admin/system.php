@@ -3,6 +3,7 @@ chdir('../');
 session_start();
 require_once('db/config.php');
 require_once('const/school.php');
+require_once('const/public_media.php');
 require_once('const/check_session.php');
 require_once('const/report_engine.php');
 
@@ -54,6 +55,8 @@ $appSettings = [
 $gradingSystems = [];
 $gradingScalesBySystem = [];
 $terms = [];
+$publicShowcaseCount = 0;
+$hasLoginBackground = false;
 
 try {
 	$conn = app_db();
@@ -96,6 +99,9 @@ try {
 	foreach ($appSettings as $key => $defaultValue) {
 		$appSettings[$key] = app_setting_get($conn, $key, (string)$defaultValue);
 	}
+
+	$publicShowcaseCount = count(app_public_showcase_images($conn));
+	$hasLoginBackground = app_public_login_background($conn) !== '';
 
 	if (app_table_exists($conn, 'tbl_grading_systems')) {
 		$stmt = $conn->prepare("SELECT * FROM tbl_grading_systems ORDER BY is_default DESC, name");
@@ -183,6 +189,51 @@ if (count($cbcGrading) < 1) {
 <button type="submit" name="submit" value="1" class="btn btn-primary app_btn">Update</button>
 </div>
 </form>
+</div>
+</div>
+
+<div class="col-md-6">
+<div class="tile">
+<h3 class="tile-title">Public Website Media (Database Storage)</h3>
+<div class="tile-body">
+<p class="text-muted">Upload the school showcase photos and login background image. These files are saved permanently in the database.</p>
+<p class="mb-2"><strong>Current gallery images:</strong> <?php echo (int)$publicShowcaseCount; ?></p>
+<p class="mb-3"><strong>Login background:</strong> <?php echo $hasLoginBackground ? 'Set' : 'Not set'; ?></p>
+<form class="app_frm" method="POST" enctype="multipart/form-data" autocomplete="OFF" action="admin/core/save_public_media">
+<div class="form-group mb-3">
+<label class="control-label">Login Background Image</label>
+<input type="file" name="login_background" class="form-control" accept=".jpg,.jpeg,.png,.webp">
+</div>
+
+<div class="form-group mb-3">
+<label class="control-label">Showcase Gallery Images</label>
+<input type="file" name="showcase_images[]" class="form-control" accept=".jpg,.jpeg,.png,.webp" multiple>
+<small class="text-muted">You can select multiple photos at once.</small>
+</div>
+
+<div class="form-group mb-3">
+<label class="control-label">Captions (optional, one caption per line)</label>
+<textarea class="form-control" name="showcase_captions" rows="4" placeholder="Modern Classrooms&#10;CBC Learning in Action&#10;Co-curricular Activities"></textarea>
+</div>
+
+<div class="form-check mb-2">
+<input class="form-check-input" type="checkbox" name="replace_gallery" value="1" id="replaceGallery" checked>
+<label class="form-check-label" for="replaceGallery">Replace existing gallery with new upload</label>
+</div>
+
+<div class="form-check mb-2">
+<input class="form-check-input" type="checkbox" name="use_first_showcase_as_login" value="1" id="useFirstAsBg">
+<label class="form-check-label" for="useFirstAsBg">Use first gallery image as login background</label>
+</div>
+
+<div class="form-check mb-3">
+<input class="form-check-input" type="checkbox" name="clear_gallery" value="1" id="clearGallery">
+<label class="form-check-label" for="clearGallery">Clear existing gallery images from database</label>
+</div>
+
+<button type="submit" class="btn btn-primary app_btn">Save Public Media</button>
+</form>
+</div>
 </div>
 </div>
 </div>

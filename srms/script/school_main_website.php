@@ -1,5 +1,7 @@
 <?php
+require_once('db/config.php');
 require_once('const/school.php');
+require_once('const/public_media.php');
 
 $schoolName = (defined('WBName') && trim((string)WBName) !== '') ? (string)WBName : 'Kyandulu Primary School';
 $schoolLogo = (defined('WBLogo') && trim((string)WBLogo) !== '') ? 'images/logo/' . trim((string)WBLogo) : 'images/logo/school_logo1711003619.png';
@@ -22,16 +24,46 @@ $captions = array(
 	'Community Service and Discipline'
 );
 
-$galleryFiles = glob(__DIR__ . '/images/showcase/*.{jpg,jpeg,png,webp,JPG,JPEG,PNG,WEBP}', GLOB_BRACE);
 $slides = array();
-if (is_array($galleryFiles)) {
-	foreach ($galleryFiles as $file) {
-		$slides[] = 'images/showcase/' . basename($file);
+$galleryFiles = array();
+$usesDbShowcase = false;
+
+try {
+	$conn = app_db();
+	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	$dbSlides = app_public_showcase_images($conn);
+	if (!empty($dbSlides)) {
+		$usesDbShowcase = true;
+		foreach ($dbSlides as $i => $row) {
+			$slides[] = array(
+				'src' => (string)$row['src'],
+				'caption' => trim((string)($row['caption'] ?? ''))
+			);
+		}
+	}
+} catch (Throwable $e) {
+	$slides = array();
+}
+
+if (count($slides) === 0) {
+	$galleryFiles = glob(__DIR__ . '/images/showcase/*.{jpg,jpeg,png,webp,JPG,JPEG,PNG,WEBP}', GLOB_BRACE);
+	if (is_array($galleryFiles)) {
+		foreach ($galleryFiles as $i => $file) {
+			$slides[] = array(
+				'src' => 'images/showcase/' . basename($file),
+				'caption' => $captions[$i % count($captions)]
+			);
+		}
 	}
 }
 
 if (count($slides) === 0) {
-	$slides = array($schoolLogo, $schoolLogo, $schoolLogo, $schoolLogo);
+	for ($i = 0; $i < 4; $i++) {
+		$slides[] = array(
+			'src' => $schoolLogo,
+			'caption' => $captions[$i % count($captions)]
+		);
+	}
 }
 ?>
 <!DOCTYPE html>
@@ -495,10 +527,10 @@ if (count($slides) === 0) {
 			</div>
 		</div>
 		<div class="slider-shell" id="mainSlider" aria-label="School showcase slider">
-			<?php foreach ($slides as $i => $slideSrc): ?>
+			<?php foreach ($slides as $i => $slide): ?>
 				<figure class="slide<?php echo $i === 0 ? ' active' : ''; ?>">
-					<img src="<?php echo htmlspecialchars($slideSrc); ?>" alt="Showcase image <?php echo $i + 1; ?>">
-					<figcaption class="slide-caption"><?php echo htmlspecialchars($captions[$i % count($captions)]); ?></figcaption>
+					<img src="<?php echo htmlspecialchars($slide['src']); ?>" alt="Showcase image <?php echo $i + 1; ?>">
+					<figcaption class="slide-caption"><?php echo htmlspecialchars(trim((string)$slide['caption']) !== '' ? (string)$slide['caption'] : $captions[$i % count($captions)]); ?></figcaption>
 				</figure>
 			<?php endforeach; ?>
 			<button type="button" class="slide-control prev" aria-label="Previous slide">&#10094;</button>
@@ -559,14 +591,14 @@ if (count($slides) === 0) {
 		<div class="block">
 			<h2>Gallery</h2>
 			<div class="gallery-grid">
-				<?php foreach ($slides as $i => $slideSrc): ?>
-					<button type="button" class="gallery-item" data-full-src="<?php echo htmlspecialchars($slideSrc); ?>" aria-label="Open gallery image <?php echo $i + 1; ?>">
-						<img src="<?php echo htmlspecialchars($slideSrc); ?>" alt="Gallery image <?php echo $i + 1; ?>">
+				<?php foreach ($slides as $i => $slide): ?>
+					<button type="button" class="gallery-item" data-full-src="<?php echo htmlspecialchars($slide['src']); ?>" aria-label="Open gallery image <?php echo $i + 1; ?>">
+						<img src="<?php echo htmlspecialchars($slide['src']); ?>" alt="Gallery image <?php echo $i + 1; ?>">
 					</button>
 				<?php endforeach; ?>
 			</div>
-			<?php if (count($galleryFiles) === 0): ?>
-				<p class="notice">Add your attached photos into <strong>script/images/showcase</strong> to replace the temporary slider images.</p>
+			<?php if (!$usesDbShowcase && count($galleryFiles) === 0): ?>
+				<p class="notice">No database gallery images found yet. Upload photos in Admin &gt; System Settings &gt; Public Website Media.</p>
 			<?php endif; ?>
 		</div>
 	</section>

@@ -2,7 +2,16 @@
 session_start();
 require_once('db/config.php');
 require_once('const/school.php');
+require_once('const/public_media.php');
 $schoolTitle = (defined('WBName') && WBName !== '') ? WBName : APP_NAME;
+$loginBackgroundSrc = '';
+try {
+  $conn = app_db();
+  $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+  $loginBackgroundSrc = app_public_login_background($conn);
+} catch (Throwable $e) {
+  $loginBackgroundSrc = '';
+}
 ?>
 <!DOCTYPE html>
 <html>
@@ -16,6 +25,25 @@ $schoolTitle = (defined('WBName') && WBName !== '') ? WBName : APP_NAME;
 <link rel="stylesheet" type="text/css" href="cdn.jsdelivr.net/npm/bootstrap-icons%401.10.5/font/bootstrap-icons.css">
 <link type="text/css" rel="stylesheet" href="loader/waitMe.css">
 <title><?php echo $schoolTitle; ?> - Login</title>
+<style>
+.login-content {
+  background-image: linear-gradient(rgba(14, 43, 31, 0.56), rgba(14, 43, 31, 0.62));
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+<?php if ($loginBackgroundSrc !== ''): ?>
+.login-content {
+  background-image: linear-gradient(rgba(14, 43, 31, 0.48), rgba(14, 43, 31, 0.58)), url('<?php echo htmlspecialchars($loginBackgroundSrc, ENT_QUOTES, 'UTF-8'); ?>');
+}
+<?php endif; ?>
+
+.login-content .login-box {
+  background-color: rgba(255, 255, 255, 0.96);
+  border-radius: 12px;
+}
+</style>
 </head>
 <body>
 
