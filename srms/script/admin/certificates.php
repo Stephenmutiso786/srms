@@ -179,9 +179,13 @@ foreach ($competencies as $key => $comp):
 <?php if ($row['locked']): ?><br><small class="text-muted">🔒 Locked</small><?php endif; ?>
 </td>
 <td class="text-end">
-<a class="btn btn-sm btn-primary" target="_blank" href="certificate_pdf?id=<?php echo (int)$row['id']; ?>" title="Download PDF"><i class="bi bi-download"></i></a>
+<a class="btn btn-sm btn-primary" target="_blank" href="certificate_pdf?id=<?php echo (int)$row['id']; ?>&download=1" title="Download PDF"><i class="bi bi-download"></i></a>
 <button class="btn btn-sm btn-info" onclick="openEmailModal('certificate', <?php echo (int)$row['id']; ?>, '<?php echo htmlspecialchars(addslashes($row['student_name'])); ?>')" title="Send via Email"><i class="bi bi-envelope"></i></button>
 <a class="btn btn-sm btn-outline-secondary" target="_blank" href="verify_certificate?code=<?php echo urlencode((string)$row['verification_code']); ?>" title="Verify"><i class="bi bi-check-circle"></i></a>
+<form method="POST" action="admin/core/delete_certificate" class="d-inline" onsubmit="return confirmDeleteCertificate('<?php echo htmlspecialchars(addslashes((string)$row['student_name'])); ?>', '<?php echo htmlspecialchars(addslashes((string)$row['serial_no'])); ?>');">
+<input type="hidden" name="certificate_id" value="<?php echo (int)$row['id']; ?>">
+<button class="btn btn-sm btn-danger" type="submit" title="Delete Certificate"><i class="bi bi-trash"></i></button>
+</form>
 </td>
 </tr>
 <?php endforeach; ?>
@@ -210,8 +214,12 @@ $catCerts = array_filter($certificates, function($c) use ($cat) { return ($c['ce
 <td><?php if ($row['merit_grade']): ?><strong><?php echo htmlspecialchars($row['merit_grade']); ?></strong><?php else: ?>—<?php endif; ?></td>
 <td><?php echo htmlspecialchars((string)$row['issue_date']); ?></td>
 <td class="text-end">
-<a class="btn btn-sm btn-primary" target="_blank" href="certificate_pdf?id=<?php echo (int)$row['id']; ?>"><i class="bi bi-download"></i></a>
+<a class="btn btn-sm btn-primary" target="_blank" href="certificate_pdf?id=<?php echo (int)$row['id']; ?>&download=1"><i class="bi bi-download"></i></a>
 <button class="btn btn-sm btn-info" onclick="openEmailModal('certificate', <?php echo (int)$row['id']; ?>, '<?php echo htmlspecialchars(addslashes($row['student_name'])); ?>')"><i class="bi bi-envelope"></i></button>
+<form method="POST" action="admin/core/delete_certificate" class="d-inline" onsubmit="return confirmDeleteCertificate('<?php echo htmlspecialchars(addslashes((string)$row['student_name'])); ?>', '<?php echo htmlspecialchars(addslashes((string)$row['serial_no'])); ?>');">
+<input type="hidden" name="certificate_id" value="<?php echo (int)$row['id']; ?>">
+<button class="btn btn-sm btn-danger" type="submit" title="Delete Certificate"><i class="bi bi-trash"></i></button>
+</form>
 </td>
 </tr>
 <?php endforeach; ?>
@@ -282,6 +290,10 @@ function loadStudentData() {
     const classLevel = selectedOption.getAttribute('data-class');
     
     console.log('Student from class level:', classLevel);
+}
+
+function confirmDeleteCertificate(studentName, serialNo) {
+  return window.confirm('Delete certificate ' + serialNo + ' for ' + studentName + '? This cannot be undone.');
 }
 
 function openEmailModal(resultType, resultId, studentName) {

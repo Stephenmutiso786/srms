@@ -13,6 +13,7 @@ if ($res !== '1' || $level !== '1' || !isset($_GET['term'], $_GET['std'])) { hea
 $termId = (int)$_GET['term'];
 $studentId = trim((string)$_GET['std']);
 if ($termId < 1 || $studentId === '') { header('location:report'); exit; }
+$forceDownload = isset($_GET['download']) && (string)$_GET['download'] !== '0';
 
 try {
     $conn = app_db();
@@ -64,7 +65,8 @@ try {
         $stmt->execute([$reportId]);
     }
 
-    $pdf->Output('report-card.pdf', 'I');
+    $outputMode = (isset($_GET['print']) && (string)$_GET['print'] !== '0') ? 'I' : ($forceDownload ? 'D' : 'I');
+    $pdf->Output('report-card.pdf', $outputMode);
 } catch (Throwable $e) {
     error_log('[academic/save_pdf] ' . $e->getMessage());
     $_SESSION['reply'] = array(array('danger', 'Failed to generate PDF: ' . $e->getMessage()));

@@ -30,7 +30,7 @@ try {
 <main class="app-content"><div class="app-title"><div><h1>My Certificates</h1></div></div>
 <div class="tile"><div class="table-responsive"><table class="table table-hover"><thead><tr><th>Type</th><th>Serial</th><th>Issue Date</th><th>Status</th><th>Action</th></tr></thead><tbody>
 <?php foreach($rows as $row): ?>
-<tr><td><?php echo htmlspecialchars((string)$row['title']); ?></td><td><?php echo htmlspecialchars((string)$row['serial_no']); ?></td><td><?php echo htmlspecialchars((string)$row['issue_date']); ?></td><td><?php echo htmlspecialchars((string)$row['status']); ?></td><td><a class="btn btn-sm btn-primary" target="_blank" href="certificate_pdf?id=<?php echo (int)$row['id']; ?>">Download</a> <a class="btn btn-sm btn-outline-secondary" target="_blank" href="verify_certificate?code=<?php echo urlencode((string)$row['verification_code']); ?>">Verify</a></td></tr>
+<tr><td><?php echo htmlspecialchars((string)$row['title']); ?></td><td><?php echo htmlspecialchars((string)$row['serial_no']); ?></td><td><?php echo htmlspecialchars((string)$row['issue_date']); ?></td><td><?php echo htmlspecialchars((string)$row['status']); ?></td><td><a class="btn btn-sm btn-primary" target="_blank" href="certificate_pdf?id=<?php echo (int)$row['id']; ?>&download=1">Download</a> <a class="btn btn-sm btn-outline-secondary" target="_blank" href="verify_certificate?code=<?php echo urlencode((string)$row['verification_code']); ?>">Verify</a></td></tr>
 <?php endforeach; ?>
 <?php if(!$rows): ?><tr><td colspan="5" class="text-center text-muted">No certificates issued yet.</td></tr><?php endif; ?>
 </tbody></table></div></div></main>

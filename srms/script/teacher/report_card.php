@@ -98,7 +98,7 @@ try {
 </div>
 <div class="report-actions">
 <a class="btn btn-outline-secondary" href="teacher/report_card_pdf?term=<?php echo $termId; ?>&student=<?php echo urlencode($studentId); ?>&print=1" target="_blank"><i class="bi bi-printer me-2"></i>Print</a>
-<a class="btn btn-primary" href="teacher/report_card_pdf?term=<?php echo $termId; ?>&student=<?php echo urlencode($studentId); ?>" target="_blank"><i class="bi bi-download me-2"></i>Download PDF</a>
+<a class="btn btn-primary" href="teacher/report_card_pdf?term=<?php echo $termId; ?>&student=<?php echo urlencode($studentId); ?>&download=1" target="_blank"><i class="bi bi-download me-2"></i>Download PDF</a>
 </div>
 </div>
 <?php endif; ?>

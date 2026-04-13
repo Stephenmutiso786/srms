@@ -12,6 +12,7 @@ if ($res !== '1' || $level !== '3') { header('location:../'); exit; }
 
 $termId = isset($_GET['term']) ? (int)$_GET['term'] : 0;
 if ($termId < 1) { header('location:report_card'); exit; }
+$forceDownload = isset($_GET['download']) && (string)$_GET['download'] !== '0';
 
 try {
     $conn = app_db();
@@ -74,7 +75,8 @@ try {
         $pdf->IncludeJS('print(true);');
     }
 
-    $pdf->Output('report-card.pdf', 'I');
+    $outputMode = (isset($_GET['print']) && (string)$_GET['print'] !== '0') ? 'I' : ($forceDownload ? 'D' : 'I');
+    $pdf->Output('report-card.pdf', $outputMode);
 } catch (Throwable $e) {
     error_log('[student/report_card_pdf] ' . $e->getMessage());
     $_SESSION['reply'] = array(array('danger', 'Failed to generate PDF: ' . $e->getMessage()));

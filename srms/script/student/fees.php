@@ -141,7 +141,7 @@ try {
 		  <td><b><?php echo number_format($bal, 2); ?></b></td>
 		  <td>
 			<?php if ($hasReceipts && (int)($inv['latest_receipt_id'] ?? 0) > 0): ?>
-			  <a class="btn btn-sm btn-outline-secondary" target="_blank" href="receipt?id=<?php echo (int)$inv['latest_receipt_id']; ?>"><?php echo htmlspecialchars((string)$inv['latest_receipt_no']); ?></a>
+			  <a class="btn btn-sm btn-outline-secondary" target="_blank" href="receipt?id=<?php echo (int)$inv['latest_receipt_id']; ?>&download=1"><?php echo htmlspecialchars((string)$inv['latest_receipt_no']); ?></a>
 			<?php else: ?>
 			  <span class="text-muted">-</span>
 			<?php endif; ?>

@@ -13,6 +13,7 @@ if ($res !== '1' || $level !== '2') { header('location:../'); exit; }
 $termId = isset($_GET['term']) ? (int)$_GET['term'] : 0;
 $studentId = isset($_GET['student']) ? (string)$_GET['student'] : '';
 if ($termId < 1 || $studentId === '') { header('location:manage_results'); exit; }
+$forceDownload = isset($_GET['download']) && (string)$_GET['download'] !== '0';
 
 try {
     $conn = app_db();
@@ -64,7 +65,8 @@ try {
         $pdf->IncludeJS('print(true);');
     }
 
-    $pdf->Output('teacher-student-report.pdf', 'I');
+    $outputMode = (isset($_GET['print']) && (string)$_GET['print'] !== '0') ? 'I' : ($forceDownload ? 'D' : 'I');
+    $pdf->Output('teacher-student-report.pdf', $outputMode);
 } catch (Throwable $e) {
     error_log('[teacher/report_card_pdf] ' . $e->getMessage());
     $_SESSION['reply'] = array(array('danger', 'Failed to generate PDF: ' . $e->getMessage()));

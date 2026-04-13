@@ -67,7 +67,7 @@ try {
 		'history' => $history,
 		'report_card' => $reportCard ? [
 			'id' => (int)$reportCard['id'],
-			'download_url' => api_backend_url('/student/report_card_pdf?term=' . $termId),
+			'download_url' => api_backend_url('/student/report_card_pdf?term=' . $termId . '&download=1'),
 		] : null,
 	]);
 } catch (Throwable $e) {

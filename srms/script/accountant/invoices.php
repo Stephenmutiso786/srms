@@ -205,7 +205,7 @@ try {
 			  </div>
 			</form>
 			<?php if ($latestReceiptId > 0): ?>
-			  <div class="col-12"><a class="btn btn-sm btn-secondary" target="_blank" href="receipt?id=<?php echo $latestReceiptId; ?>">Latest Receipt: <?php echo htmlspecialchars($latestReceiptNo); ?></a></div>
+			  <div class="col-12"><a class="btn btn-sm btn-secondary" target="_blank" href="receipt?id=<?php echo $latestReceiptId; ?>&download=1">Latest Receipt: <?php echo htmlspecialchars($latestReceiptNo); ?></a></div>
 			<?php endif; ?>
 			</div>
 		  </td>

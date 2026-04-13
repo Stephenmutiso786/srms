@@ -11,6 +11,7 @@ if ($res !== '1') { header('location:./'); exit; }
 
 $certificateId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 if ($certificateId < 1) { header('location:./'); exit; }
+$forceDownload = isset($_GET['download']) && (string)$_GET['download'] !== '0';
 
 try {
     $conn = app_db();
@@ -115,7 +116,7 @@ try {
     $stmt = $conn->prepare('UPDATE tbl_certificates SET downloads = downloads + 1 WHERE id = ?');
     $stmt->execute([$certificateId]);
 
-    $pdf->Output('certificate-' . $cert['serial_no'] . '.pdf', 'I');
+    $pdf->Output('certificate-' . $cert['serial_no'] . '.pdf', $forceDownload ? 'D' : 'I');
 } catch (Throwable $e) {
     error_log('Certificate PDF Error: ' . $e->getMessage());
     header('location:./');

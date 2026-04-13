@@ -15,6 +15,7 @@ if ($receiptId < 1) {
     header('location:./');
     exit;
 }
+$forceDownload = isset($_GET['download']) && (string)$_GET['download'] !== '0';
 
 try {
     $conn = app_db();
@@ -95,7 +96,7 @@ try {
       . '<br><p style="font-size:9pt;">Thank you.</p>';
 
     $pdf->writeHTML($html, true, false, true, false, '');
-    $pdf->Output('receipt-' . (int)$row['id'] . '.pdf', 'I');
+    $pdf->Output('receipt-' . (int)$row['id'] . '.pdf', $forceDownload ? 'D' : 'I');
 } catch (Throwable $e) {
     header('location:./');
 }

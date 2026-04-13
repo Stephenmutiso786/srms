@@ -51,7 +51,7 @@ try {
 		'student' => report_get_student_identity($conn, $studentId),
 		'term_id' => $termId,
 		'report_card' => $card,
-		'download_url' => api_backend_url('/parent/report_card_pdf?student=' . urlencode($studentId) . '&term=' . $termId),
+		'download_url' => api_backend_url('/parent/report_card_pdf?student=' . urlencode($studentId) . '&term=' . $termId . '&download=1'),
 	]);
 } catch (Throwable $e) {
 	api_internal_error($e, 'api.parent.report_card');

@@ -193,7 +193,7 @@ if ($row2[9] == "DEFAULT") {
 
 <td align="center" width="120">
 <a href="admin/core/edit_result?std=<?php echo $row2[0]; ?>&term=<?php echo $term;?>" class="btn btn-primary btn-sm" href="javascript:void(0);">Edit</a>
-<a href="admin/save_pdf?std=<?php echo $row2[0]; ?>&term=<?php echo $term;?>" class="btn btn-primary btn-sm" href="javascript:void(0);">Report</a>
+<a href="admin/save_pdf?std=<?php echo $row2[0]; ?>&term=<?php echo $term;?>&download=1" class="btn btn-primary btn-sm" href="javascript:void(0);">Report</a>
 </td>
 
 </tr>
