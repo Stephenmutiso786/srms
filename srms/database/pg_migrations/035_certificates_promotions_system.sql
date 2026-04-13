@@ -8,6 +8,7 @@
 
 INSERT INTO tbl_audit_logs (actor_type, actor_id, action, entity, entity_id, ip, user_agent)
 VALUES ('system', 'migration-035', 'MIGRATION', 'schema', '035_certificates_promotions_system.sql', '', 'Applied migration 035: Enhanced certificates and promotion system')
+;
 
 ALTER TABLE IF EXISTS tbl_certificates ADD COLUMN IF NOT EXISTS merit_grade VARCHAR(1) DEFAULT NULL CHECK (merit_grade IN ('A', 'B', 'C', 'D', 'E'));
 
@@ -194,10 +195,3 @@ INSERT INTO tbl_promotion_rules (school_id, grade_level, min_score_for_promotion
 SELECT NULL, 9, 40.0, TRUE, TRUE, TRUE, TRUE, 'junior_completion'
 WHERE NOT EXISTS (SELECT 1 FROM tbl_promotion_rules WHERE school_id IS NULL AND grade_level = 9);
 
--- ============================================================================
--- Add audit log for this migration
--- ============================================================================
-
-INSERT INTO tbl_audit_logs (user_id, action, description, affected_table, created_at)
-VALUES (NULL, 'MIGRATION', 'Applied migration 035: Enhanced certificates and promotion system', 'tbl_certificates, tbl_promotion_batches, tbl_student_promotions, tbl_cbc_competencies', CURRENT_TIMESTAMP)
-ON CONFLICT DO NOTHING;
