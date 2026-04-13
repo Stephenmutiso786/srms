@@ -140,6 +140,28 @@ try {
 		<div class="d-flex gap-2">
 		  <a class="btn btn-outline-primary btn-sm" href="admin/fee_structure">Set Fee Structure</a>
 		  <a class="btn btn-primary btn-sm" href="admin/invoices">Generate Invoices</a>
+				</div>
+			  </div>
+			</div>
+
+			<!-- Financial Features Toolbar -->
+			<div class="tile mt-3">
+			  <div class="d-flex flex-wrap gap-2">
+				<a class="btn btn-sm btn-success" href="admin/financial_reports"><i class="bi bi-graph-up me-2"></i>Financial Reports</a>
+				<a class="btn btn-sm btn-info" href="admin/installment_plans"><i class="bi bi-calendar-check me-2"></i>Installment Plans</a>
+				<div class="btn-group" role="group">
+				  <button type="button" class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+					<i class="bi bi-download me-2"></i>Export Reports
+				  </button>
+				  <ul class="dropdown-menu">
+					<li><a class="dropdown-item" href="admin/core/export_financial?export_type=classwise&format=csv"><i class="bi bi-file-csv me-2"></i>Class-wise (CSV)</a></li>
+					<li><a class="dropdown-item" href="admin/core/export_financial?export_type=termwise&format=csv"><i class="bi bi-file-csv me-2"></i>Term-wise (CSV)</a></li>
+					<li><a class="dropdown-item" href="admin/core/export_financial?export_type=paymentmethods&format=csv"><i class="bi bi-file-csv me-2"></i>Payment Methods (CSV)</a></li>
+					<li><a class="dropdown-item" href="admin/core/export_financial?export_type=aging&format=csv"><i class="bi bi-file-csv me-2"></i>Aging Analysis (CSV)</a></li>
+					<li><a class="dropdown-item" href="admin/core/export_financial?export_type=defaulters&format=csv"><i class="bi bi-file-csv me-2"></i>Defaulters (CSV)</a></li>
+				  </ul>
+				</div>
+			  </div>
 		</div>
 	  </div>
 	  <div class="table-responsive mt-3">

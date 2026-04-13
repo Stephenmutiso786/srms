@@ -15445,5 +15445,49 @@ margin: auto !important;
   .ai-chat {
     max-height: 36vh;
     min-height: 170px;
+
+  /* Sidebar Footer - Privacy & Terms Links */
+  .app-sidebar__footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 230px;
+    padding: 10px 8px;
+    background-color: #1a1f22;
+    border-top: 1px solid #333;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    z-index: 11;
+  }
+
+  .app-sidebar__footer-link {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    font-size: 0.9em;
+    color: #b0bec5;
+    text-decoration: none;
+    border-radius: 4px;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .app-sidebar__footer-link:hover {
+    background-color: #0d1214;
+    color: #00695C;
+    text-decoration: none;
+  }
+
+  .app-sidebar__footer-link i {
+    flex-shrink: 0;
+  }
+
+  /* Adjust app-menu padding to prevent overlap with footer */
+  .app-menu {
+    padding-bottom: 140px;
+  }
   }
 }

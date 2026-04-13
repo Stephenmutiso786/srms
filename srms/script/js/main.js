@@ -243,6 +243,18 @@
 		document.addEventListener('keydown', function (e) {
 			if (panel.classList.contains('is-open') && e.key === 'Enter' && !e.shiftKey && document.activeElement === messageBox) {
 				e.preventDefault();
+
+					// Sidebar footer with Privacy & Terms links
+					if (!document.querySelector('.app-sidebar__footer')) {
+						var sidebar = document.querySelector('.app-sidebar');
+						if (sidebar) {
+							var footer = document.createElement('div');
+							footer.className = 'app-sidebar__footer';
+							footer.innerHTML = '<a class="app-sidebar__footer-link" href="privacy" target="_blank"><i class="bi bi-shield-lock me-2"></i>Privacy Policy</a>' +
+								'<a class="app-sidebar__footer-link" href="terms" target="_blank"><i class="bi bi-file-text me-2"></i>Terms & Conditions</a>';
+							sidebar.appendChild(footer);
+						}
+					}
 				sendMessage();
 			}
 		});

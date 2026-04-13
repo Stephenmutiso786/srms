@@ -90,4 +90,8 @@ function app_tree_active($page)
     <li><a class="app-menu__item<?php echo app_menu_active('module_locks'); ?>" href="admin/module_locks"><i class="app-menu__icon feather icon-lock"></i><span class="app-menu__label">Module Locks</span></a></li>
     <li><a class="app-menu__item<?php echo app_menu_active('system'); ?>" href="admin/system"><i class="app-menu__icon feather icon-settings"></i><span class="app-menu__label">System Settings</span></a></li>
   </ul>
+  <div class="app-sidebar__footer">
+    <a class="app-sidebar__footer-link" href="privacy" target="_blank"><i class="bi bi-shield-lock me-2"></i>Privacy Policy</a>
+    <a class="app-sidebar__footer-link" href="terms" target="_blank"><i class="bi bi-file-text me-2"></i>Terms & Conditions</a>
+  </div>
 </aside>
