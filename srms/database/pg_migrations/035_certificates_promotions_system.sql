@@ -8,50 +8,20 @@
 
 INSERT INTO tbl_audit_logs (actor_type, actor_id, action, entity, entity_id, ip, user_agent)
 VALUES ('system', 'migration-035', 'MIGRATION', 'schema', '035_certificates_promotions_system.sql', '', 'Applied migration 035: Enhanced certificates and promotion system')
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
-                   WHERE table_name='tbl_certificates' AND column_name='mean_score') THEN
-        ALTER TABLE tbl_certificates ADD COLUMN mean_score DECIMAL(5,2) DEFAULT NULL;
-        CREATE INDEX IF NOT EXISTS idx_certificates_mean_score ON tbl_certificates(mean_score);
-    END IF;
 
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
-                   WHERE table_name='tbl_certificates' AND column_name='merit_grade') THEN
-        ALTER TABLE tbl_certificates ADD COLUMN merit_grade VARCHAR(1) DEFAULT NULL 
-            CHECK (merit_grade IN ('A', 'B', 'C', 'D', 'E'));
-    END IF;
+ALTER TABLE IF EXISTS tbl_certificates ADD COLUMN IF NOT EXISTS merit_grade VARCHAR(1) DEFAULT NULL CHECK (merit_grade IN ('A', 'B', 'C', 'D', 'E'));
 
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
-                   WHERE table_name='tbl_certificates' AND column_name='competencies_json') THEN
-        ALTER TABLE tbl_certificates ADD COLUMN competencies_json TEXT DEFAULT NULL;
-    END IF;
+ALTER TABLE IF EXISTS tbl_certificates ADD COLUMN IF NOT EXISTS competencies_json TEXT DEFAULT NULL;
 
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
-                   WHERE table_name='tbl_certificates' AND column_name='certificate_category') THEN
-        ALTER TABLE tbl_certificates ADD COLUMN certificate_category VARCHAR(50) DEFAULT 'general'
-            CHECK (certificate_category IN ('primary_completion', 'junior_completion', 'leaving', 'transfer', 'conduct', 'merit', 'general'));
-    END IF;
+ALTER TABLE IF EXISTS tbl_certificates ADD COLUMN IF NOT EXISTS certificate_category VARCHAR(50) DEFAULT 'general' CHECK (certificate_category IN ('primary_completion', 'junior_completion', 'leaving', 'transfer', 'conduct', 'merit', 'general'));
 
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
-                   WHERE table_name='tbl_certificates' AND column_name='position_in_class') THEN
-        ALTER TABLE tbl_certificates ADD COLUMN position_in_class INT DEFAULT NULL;
-    END IF;
+ALTER TABLE IF EXISTS tbl_certificates ADD COLUMN IF NOT EXISTS position_in_class INT DEFAULT NULL;
 
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
-                   WHERE table_name='tbl_certificates' AND column_name='approved_by') THEN
-        ALTER TABLE tbl_certificates ADD COLUMN approved_by INT DEFAULT NULL 
-            REFERENCES tbl_staff(id) ON DELETE SET NULL;
-    END IF;
+ALTER TABLE IF EXISTS tbl_certificates ADD COLUMN IF NOT EXISTS approved_by INT DEFAULT NULL REFERENCES tbl_staff(id) ON DELETE SET NULL;
 
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
-                   WHERE table_name='tbl_certificates' AND column_name='approved_at') THEN
-        ALTER TABLE tbl_certificates ADD COLUMN approved_at TIMESTAMP DEFAULT NULL;
-    END IF;
+ALTER TABLE IF EXISTS tbl_certificates ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP DEFAULT NULL;
 
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
-                   WHERE table_name='tbl_certificates' AND column_name='locked') THEN
-        ALTER TABLE tbl_certificates ADD COLUMN locked BOOLEAN DEFAULT FALSE;
-    END IF;
-END $$;
+ALTER TABLE IF EXISTS tbl_certificates ADD COLUMN IF NOT EXISTS locked BOOLEAN DEFAULT FALSE;
 
 -- ============================================================================
 -- CREATE tbl_promotion_batches: Manage promotion cycles by class/year
