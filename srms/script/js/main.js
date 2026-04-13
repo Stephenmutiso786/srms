@@ -273,21 +273,25 @@
 		sidebar.appendChild(footer);
 	}
 
-	function appEnsureTeacherGuideMenu(portal) {
-		if (portal !== 'teacher') return;
-		if (document.querySelector('[data-system-guide="1"]') || document.querySelector('.app-sidebar a[href="teacher/how_system_works"]')) return;
+	function appEnsurePortalGuideMenu(portal) {
+		if (portal === 'other') return;
+		if (document.querySelector('[data-system-guide="1"]')) return;
 
 		var menu = document.querySelector('.app-sidebar .app-menu');
 		if (!menu) return;
+		if (portal !== 'student' && document.querySelector('.app-sidebar a[href="how_system_works"]')) return;
+		if (portal === 'student' && document.querySelector('.app-sidebar a[href="student/how_portal_works"]')) return;
 
-		var isActive = (window.location.pathname || '').toLowerCase().indexOf('/teacher/how_system_works') !== -1;
+		var guideHref = portal === 'student' ? 'student/how_portal_works' : 'how_system_works';
+		var guideLabel = portal === 'student' ? 'How Student Portal Works' : 'How The System Works';
+		var isActive = (window.location.pathname || '').toLowerCase().indexOf('/' + guideHref.toLowerCase()) !== -1;
 		var item = document.createElement('li');
-		item.innerHTML = '<a class="app-menu__item' + (isActive ? ' active' : '') + '" data-system-guide="1" href="teacher/how_system_works"><i class="app-menu__icon feather icon-help-circle"></i><span class="app-menu__label">How The System Works</span></a>';
+		item.innerHTML = '<a class="app-menu__item' + (isActive ? ' active' : '') + '" data-system-guide="1" href="' + guideHref + '"><i class="app-menu__icon feather icon-help-circle"></i><span class="app-menu__label">' + guideLabel + '</span></a>';
 		menu.appendChild(item);
 	}
 
 	var portal = appCurrentPortal();
 	appEnsureSidebarFooter(portal);
-	appEnsureTeacherGuideMenu(portal);
+	appEnsurePortalGuideMenu(portal);
 
 })();
