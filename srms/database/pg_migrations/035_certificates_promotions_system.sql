@@ -86,7 +86,7 @@ CREATE INDEX IF NOT EXISTS idx_promotion_batches_status ON tbl_promotion_batches
 CREATE TABLE IF NOT EXISTS tbl_student_promotions (
     id SERIAL PRIMARY KEY,
     batch_id INT NOT NULL REFERENCES tbl_promotion_batches(id) ON DELETE CASCADE,
-    student_id INT NOT NULL REFERENCES tbl_students(id) ON DELETE CASCADE,
+    student_id VARCHAR(20) NOT NULL REFERENCES tbl_students(id) ON DELETE CASCADE,
     from_class INT NOT NULL REFERENCES tbl_classes(id) ON DELETE CASCADE,
     to_class INT DEFAULT NULL REFERENCES tbl_classes(id) ON DELETE SET NULL,
     status VARCHAR(20) DEFAULT 'promoted' CHECK (status IN ('promoted', 'repeated', 'exited', 'suspended')),
@@ -129,7 +129,7 @@ CREATE TABLE IF NOT EXISTS tbl_cbc_competencies (
 
 CREATE TABLE IF NOT EXISTS tbl_student_competencies (
     id SERIAL PRIMARY KEY,
-    student_id INT NOT NULL REFERENCES tbl_students(id) ON DELETE CASCADE,
+    student_id VARCHAR(20) NOT NULL REFERENCES tbl_students(id) ON DELETE CASCADE,
     competency_id INT NOT NULL REFERENCES tbl_cbc_competencies(id) ON DELETE CASCADE,
     exam_id INT DEFAULT NULL REFERENCES tbl_exams(id) ON DELETE SET NULL,
     achievement_level VARCHAR(20) DEFAULT 'developing' 
