@@ -154,6 +154,9 @@ if (count($slides) === 0) {
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title><?php echo htmlspecialchars($schoolName); ?> | Main Website</title>
+	<link rel="manifest" href="manifest.webmanifest">
+	<meta name="theme-color" content="#006400">
+	<link rel="apple-touch-icon" href="images/pwa/icon-192.png">
 	<link rel="stylesheet" href="cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
 	<style>
 		:root {
@@ -543,6 +546,22 @@ if (count($slides) === 0) {
 			color: #5a6a5f;
 		}
 
+		.pwa-actions {
+			position: fixed;
+			right: 14px;
+			bottom: 14px;
+			z-index: 80;
+			display: flex;
+			gap: 0.55rem;
+			flex-wrap: wrap;
+			justify-content: flex-end;
+		}
+
+		.pwa-actions .btn {
+			padding: 0.62rem 0.9rem;
+			font-size: 0.82rem;
+		}
+
 		@keyframes riseUp {
 			from {
 				opacity: 0;
@@ -727,6 +746,11 @@ if (count($slides) === 0) {
 		<img src="" alt="Full gallery view" id="lightboxImage">
 	</div>
 
+	<div class="pwa-actions">
+		<button id="installBtn" type="button" class="btn btn-primary" style="display:none;"><i class="bi bi-download"></i> Install App</button>
+		<button id="notifyBtn" type="button" class="btn btn-secondary"><i class="bi bi-bell"></i> Enable Notifications</button>
+	</div>
+
 	<footer>
 		<div class="footer-wrap">
 			<div>
@@ -853,6 +877,57 @@ if (count($slides) === 0) {
 			alert('Thank you for contacting us. We will reach out to you soon.');
 			form.reset();
 		});
+	})();
+
+	(function () {
+		if (!('serviceWorker' in navigator)) {
+			return;
+		}
+		navigator.serviceWorker.register('service-worker.js').catch(function () {
+			return null;
+		});
+
+		var deferredPrompt = null;
+		var installBtn = document.getElementById('installBtn');
+		window.addEventListener('beforeinstallprompt', function (e) {
+			e.preventDefault();
+			deferredPrompt = e;
+			if (installBtn) {
+				installBtn.style.display = 'inline-flex';
+			}
+		});
+
+		if (installBtn) {
+			installBtn.addEventListener('click', function () {
+				if (!deferredPrompt) {
+					return;
+				}
+				deferredPrompt.prompt();
+				deferredPrompt = null;
+				installBtn.style.display = 'none';
+			});
+		}
+
+		var notifyBtn = document.getElementById('notifyBtn');
+		if (notifyBtn) {
+			notifyBtn.addEventListener('click', function () {
+				if (!('Notification' in window)) {
+					alert('Notifications are not supported in this browser.');
+					return;
+				}
+				Notification.requestPermission().then(function (permission) {
+					if (permission !== 'granted') {
+						return;
+					}
+					navigator.serviceWorker.ready.then(function (registration) {
+						registration.showNotification('Kyandulu Primary School', {
+							body: 'Welcome! Stay updated with school news and events.',
+							icon: 'images/pwa/icon-192.png'
+						});
+					});
+				});
+			});
+		}
 	})();
 	</script>
 </body>

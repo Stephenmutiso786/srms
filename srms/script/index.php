@@ -22,6 +22,9 @@ try {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" type="text/css" href="css/main.css">
 <link rel="icon" href="images/icon.ico">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#006400">
+<link rel="apple-touch-icon" href="images/pwa/icon-192.png">
 <link rel="stylesheet" type="text/css" href="cdn.jsdelivr.net/npm/bootstrap-icons%401.10.5/font/bootstrap-icons.css">
 <link type="text/css" rel="stylesheet" href="loader/waitMe.css">
 <title><?php echo $schoolTitle; ?> - Login</title>
@@ -115,6 +118,10 @@ $('#toggleLoginPassword').on('click', function () {
   input.setAttribute('type', isPassword ? 'text' : 'password');
   this.innerHTML = isPassword ? '<i class="bi bi-eye-slash"></i>' : '<i class="bi bi-eye"></i>';
 });
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('service-worker.js').catch(function () { return null; });
+}
 </script>
 <?php require_once('const/check-reply.php'); ?>
 </body>

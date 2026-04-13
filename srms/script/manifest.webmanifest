@@ -1,0 +1,22 @@
+{
+  "name": "Kyandulu Primary School",
+  "short_name": "Kyandulu School",
+  "id": "/script/",
+  "start_url": "./school_main_website.php",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#006400",
+  "icons": [
+    {
+      "src": "images/pwa/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "images/pwa/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
