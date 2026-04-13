@@ -86,6 +86,7 @@ function app_tree_active($page)
     <li><a class="app-menu__item<?php echo app_menu_active('bom'); ?>" href="admin/bom"><i class="app-menu__icon feather icon-briefcase"></i><span class="app-menu__label">BOM Management</span></a></li>
     <li><a class="app-menu__item<?php echo app_menu_active('mpesa'); ?>" href="admin/mpesa"><i class="app-menu__icon feather icon-smartphone"></i><span class="app-menu__label">M-Pesa</span></a></li>
     <li><a class="app-menu__item<?php echo app_menu_active('smtp'); ?>" href="admin/smtp"><i class="app-menu__icon feather icon-mail"></i><span class="app-menu__label">SMTP Settings</span></a></li>
+    <li><a class="app-menu__item<?php echo app_menu_active('system_diagnostics'); ?>" href="admin/system_diagnostics"><i class="app-menu__icon feather icon-activity"></i><span class="app-menu__label">System Diagnostics</span></a></li>
     <li><a class="app-menu__item<?php echo app_menu_active('migrations'); ?>" href="admin/migrations"><i class="app-menu__icon feather icon-database"></i><span class="app-menu__label">Migrations</span></a></li>
     <li><a class="app-menu__item<?php echo app_menu_active('module_locks'); ?>" href="admin/module_locks"><i class="app-menu__icon feather icon-lock"></i><span class="app-menu__label">Module Locks</span></a></li>
     <li><a class="app-menu__item<?php echo app_menu_active('system'); ?>" href="admin/system"><i class="app-menu__icon feather icon-settings"></i><span class="app-menu__label">System Settings</span></a></li>

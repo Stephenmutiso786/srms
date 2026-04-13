@@ -158,6 +158,15 @@ if (count($cbcGrading) < 1) {
 </div>
 
 </div>
+<div class="tile mb-4 border border-info">
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+<div>
+<h3 class="tile-title mb-1">System Diagnostics</h3>
+<div class="text-muted">Run a live check of the server, database, migrations, and writable paths.</div>
+</div>
+<a class="btn btn-outline-info" href="admin/system_diagnostics"><i class="bi bi-activity me-2"></i>Open Diagnostics</a>
+</div>
+</div>
 <div class="row">
 <div class="col-md-6">
 <div class="tile">
