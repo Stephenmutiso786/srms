@@ -115,9 +115,9 @@ try {
 <link rel="stylesheet" type="text/css" href="cdn.jsdelivr.net/npm/bootstrap-icons%401.10.5/font/bootstrap-icons.css">
 <script src="cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
 <style>
-body.app{background:#f4f7f6}
-.parent-shell{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
-.parent-side{background:#fff;color:#263238;padding:18px 14px;position:sticky;top:0;height:100vh;border-right:1px solid #e3ebe8}
+body.app{background:linear-gradient(180deg,#eef5f3 0%,#f4f7f6 40%,#eef3f1 100%)}
+.parent-shell{display:grid;grid-template-columns:minmax(220px,240px) 1fr;min-height:100vh}
+.parent-side{background:#fff;color:#263238;padding:18px 14px;position:sticky;top:0;height:100vh;border-right:1px solid #e3ebe8;box-shadow:6px 0 24px rgba(16,41,38,.04)}
 .parent-brand{display:flex;gap:10px;align-items:center;padding:8px 10px 18px;border-bottom:1px solid #e7efec;margin-bottom:14px}
 .parent-mark{width:38px;height:38px;border-radius:12px;background:#e7f1ef;color:#00695C;display:flex;align-items:center;justify-content:center;font-weight:800}
 .parent-menu{display:grid;gap:5px}
@@ -125,24 +125,25 @@ body.app{background:#f4f7f6}
 .parent-menu a.active,.parent-menu a:hover{background:#e7f1ef;color:#00695C;font-weight:700}
 .parent-main{padding-bottom:28px}
 .parent-top{background:#fff;border-bottom:1px solid #e8eef5;padding:12px 24px;display:flex;justify-content:space-between;align-items:center}
-.parent-content{padding:20px 24px}
-.hero{background:linear-gradient(135deg,#00695C,#0b7d6d);border-radius:20px;color:#fff;padding:24px;box-shadow:0 18px 50px rgba(0,105,92,.16);margin-bottom:18px}
-.hero-grid{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:12px;margin-top:14px}
+.parent-content{padding:20px clamp(16px,2vw,28px);max-width:1520px;margin:0 auto}
+.hero{background:linear-gradient(135deg,#00695C,#0b7d6d);border-radius:22px;color:#fff;padding:24px 26px;box-shadow:0 20px 45px rgba(0,105,92,.18);margin-bottom:18px}
+.hero-grid{display:grid;grid-template-columns:1.1fr 1fr 1fr auto;gap:12px;margin-top:14px}
 .glass-input{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.2);border-radius:12px;color:#fff;padding:10px 12px}
-.stats-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;margin-bottom:18px}
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:18px}
 .card-panel,.stat-card{background:#fff;border:1px solid #e8edf3;border-radius:18px;box-shadow:0 14px 42px rgba(54,165,72,.08)}
 .stat-card{padding:16px}
 .stat-card .label{font-size:.72rem;text-transform:uppercase;color:#718096}
 .stat-card .value{font-size:1.4rem;font-weight:800;color:#243447}
-.grid-two{display:grid;grid-template-columns:1.05fr .95fr;gap:18px}
+.grid-two{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr);gap:18px}
 .panel-body{padding:18px}
 .subject-table{width:100%;border-collapse:collapse}
 .subject-table th,.subject-table td{padding:12px 10px;border-bottom:1px solid #edf2f7}
 .subject-table th{font-size:.76rem;text-transform:uppercase;color:#718096}
 .grade-badge{padding:4px 10px;border-radius:999px;background:#e7f1ef;color:#00695C;font-weight:700;font-size:.82rem}
 .note-list{display:grid;gap:10px}
-.note-item{background:#fff;border:1px solid #e9eef5;border-radius:14px;padding:12px 14px}
-@media (max-width:1100px){.parent-shell{grid-template-columns:1fr}.parent-side{position:relative;height:auto}.hero-grid,.stats-grid,.grid-two{grid-template-columns:1fr 1fr}}
+.note-item{background:#fff;border:1px solid #e9eef5;border-radius:16px;padding:12px 14px;box-shadow:0 8px 18px rgba(16,41,38,.04)}
+@media (max-width:1100px){.parent-shell{grid-template-columns:1fr}.parent-side{position:relative;height:auto}.hero-grid,.grid-two{grid-template-columns:1fr 1fr}}
+@media (max-width:768px){.parent-content{padding:16px}.hero-grid,.grid-two{grid-template-columns:1fr}.parent-top{padding:12px 16px}.hero{padding:20px}}
 	</style>
 	</head>
 	<body class="app sidebar-mini">

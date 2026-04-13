@@ -164,23 +164,23 @@ try {
 <link rel="stylesheet" type="text/css" href="cdn.jsdelivr.net/npm/bootstrap-icons%401.10.5/font/bootstrap-icons.css">
 <script src="cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
 <style>
-:root{--student-primary:#00695C;--student-primary-deep:#00544a;--student-primary-soft:#e7f1ef;--student-bg:#f4f7f6;--student-card:#ffffff;--student-text:#263238;--student-muted:#6b7c93}
+:root{--student-primary:#00695C;--student-primary-deep:#00544a;--student-primary-soft:#e7f1ef;--student-bg:linear-gradient(180deg,#eef5f3 0%,#f4f7f6 40%,#eef3f1 100%);--student-card:#ffffff;--student-text:#263238;--student-muted:#6b7c93}
 body.app{background:var(--student-bg)}
-.portal-content{padding:20px 0}
-.hero-banner{background:linear-gradient(135deg,var(--student-primary),#0b7d6d);border-radius:16px;padding:16px 18px;color:#fff;box-shadow:0 16px 40px rgba(0,105,92,.16);margin-bottom:18px}
-.profile-card{background:#fff;border:1px solid #e5edf5;border-radius:18px;padding:16px 18px;margin-bottom:18px}
+.portal-content{padding:20px clamp(16px,2vw,28px);max-width:1520px;margin:0 auto}
+.hero-banner{background:linear-gradient(135deg,var(--student-primary),#0b7d6d);border-radius:22px;padding:22px 24px;color:#fff;box-shadow:0 20px 45px rgba(0,105,92,.18);margin-bottom:18px}
+.profile-card{background:#fff;border:1px solid #e5edf5;border-radius:22px;padding:18px 20px;margin-bottom:18px;box-shadow:0 12px 32px rgba(16,41,38,.06)}
 .profile-head{display:flex;align-items:center;gap:14px}
 .student-avatar{width:52px;height:52px;border-radius:50%;background:var(--student-primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.1rem;overflow:hidden}
 .student-avatar img{width:100%;height:100%;object-fit:cover}
 .section-title{font-size:.8rem;font-weight:800;color:#556270;text-transform:uppercase;margin-bottom:10px}
-.analytics-layout{display:grid;grid-template-columns:1.2fr .88fr;gap:18px}
-.analytics-panel{background:#fff;border:1px solid #e6edf5;border-radius:18px;overflow:hidden}
-.analytics-panel .panel-body{padding:16px}
+.analytics-layout{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,.88fr);gap:18px}
+.analytics-panel{background:#fff;border:1px solid #e6edf5;border-radius:22px;overflow:hidden;box-shadow:0 12px 32px rgba(16,41,38,.06)}
+.analytics-panel .panel-body{padding:18px}
 .mean-ribbon{background:linear-gradient(90deg,var(--student-primary),#0b7d6d);border-radius:8px;padding:10px 14px;color:#fff;font-weight:700;display:flex;justify-content:space-between;align-items:center}
 .insight-switches{display:flex;gap:10px;margin:14px 0;flex-wrap:wrap}
 .insight-switch{border:1px solid #d3e5e0;background:#fff;color:var(--student-primary-deep);border-radius:8px;padding:6px 10px;font-size:.8rem;font-weight:700}
-.metric-boxes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-.metric-box{border:1px solid #e8edf3;border-radius:10px;padding:12px;background:#fff}
+.metric-boxes{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+.metric-box{border:1px solid #e8edf3;border-radius:16px;padding:14px;background:#fff;box-shadow:0 8px 18px rgba(16,41,38,.05)}
 .metric-box .label{font-size:.72rem;color:#7a8796;text-transform:uppercase}
 .metric-box .value{font-size:1.1rem;font-weight:800;color:#1f2d3d}
 .subject-table{width:100%;border-collapse:collapse;margin-top:12px}
@@ -192,8 +192,9 @@ body.app{background:var(--student-bg)}
 .trend-up{color:#27ae60;font-weight:800}.trend-down{color:#f0a120;font-weight:800}.trend-steady{color:#8492a6;font-weight:800}
 .bottom-panel{margin-top:18px}
 .note-list{display:grid;gap:10px}
-.note-item{background:#fff;border:1px solid #e8eef4;border-radius:14px;padding:12px 14px}
+.note-item{background:#fff;border:1px solid #e8eef4;border-radius:16px;padding:12px 14px;box-shadow:0 8px 18px rgba(16,41,38,.04)}
 @media (max-width: 1100px){.analytics-layout{grid-template-columns:1fr}}
+@media (max-width: 768px){.portal-content{padding:16px}.profile-head{align-items:flex-start}.mean-ribbon{flex-direction:column;align-items:flex-start;gap:6px}}
 </style>
 </head>
 <body class="app sidebar-mini">

@@ -98,46 +98,29 @@ try {
 </aside>
 
 <main class="app-content">
-<div class="app-title">
-<div>
-<h1>Accountant Dashboard</h1>
-<p>Manage fee structures, invoices, and payments.</p>
-</div>
+<div class="dashboard-hero">
+	<div class="hero-main">
+		<span class="hero-kicker">Accountant Overview</span>
+		<h1>Manage fees, invoices, and collections</h1>
+		<p>Use the quick actions below to review fee flow, issue invoices, and keep the finance ledger clean.</p>
+	</div>
+	<div class="hero-meta">
+		<div class="meta-card">
+			<span class="meta-label">Today</span>
+			<strong class="meta-value"><?php echo date('l, d M Y'); ?></strong>
+		</div>
+		<div class="meta-card">
+			<span class="meta-label">Month Total</span>
+			<strong class="meta-value"><?php echo number_format((float)$summary['payments_month'], 2); ?></strong>
+		</div>
+	</div>
 </div>
 
-<div class="row mb-3">
-  <div class="col-md-6 col-lg-3">
-	<div class="widget-small primary coloured-icon"><i class="icon feather icon-file-text fs-1"></i>
-	  <div class="info">
-		<h4>Open Invoices</h4>
-		<p><b><?php echo number_format((int)$summary['open_invoices']); ?></b></p>
-	  </div>
-	</div>
-  </div>
-  <div class="col-md-6 col-lg-3">
-	<div class="widget-small primary coloured-icon"><i class="icon feather icon-cash-stack fs-1"></i>
-	  <div class="info">
-		<h4>Paid Today</h4>
-		<p><b><?php echo number_format((float)$summary['paid_today'], 2); ?></b></p>
-	  </div>
-	</div>
-  </div>
-  <div class="col-md-6 col-lg-3">
-	<div class="widget-small primary coloured-icon"><i class="icon feather icon-credit-card fs-1"></i>
-	  <div class="info">
-		<h4>Outstanding</h4>
-		<p><b><?php echo number_format((float)$summary['outstanding'], 2); ?></b></p>
-	  </div>
-	</div>
-  </div>
-  <div class="col-md-6 col-lg-3">
-	<div class="widget-small primary coloured-icon"><i class="icon feather icon-bar-chart-2 fs-1"></i>
-	  <div class="info">
-		<h4>Month Total</h4>
-		<p><b><?php echo number_format((float)$summary['payments_month'], 2); ?></b></p>
-	  </div>
-	</div>
-  </div>
+<div class="dashboard-stats">
+	<div class="stat-card"><div><div class="stat-label">Open Invoices</div><div class="stat-value"><?php echo number_format((int)$summary['open_invoices']); ?></div></div><div class="stat-icon"><i class="bi bi-file-text"></i></div></div>
+	<div class="stat-card"><div><div class="stat-label">Paid Today</div><div class="stat-value"><?php echo number_format((float)$summary['paid_today'], 2); ?></div></div><div class="stat-icon"><i class="bi bi-cash-stack"></i></div></div>
+	<div class="stat-card"><div><div class="stat-label">Outstanding</div><div class="stat-value"><?php echo number_format((float)$summary['outstanding'], 2); ?></div></div><div class="stat-icon"><i class="bi bi-wallet2"></i></div></div>
+	<div class="stat-card"><div><div class="stat-label">Month Total</div><div class="stat-value"><?php echo number_format((float)$summary['payments_month'], 2); ?></div></div><div class="stat-icon"><i class="bi bi-bar-chart-2"></i></div></div>
 </div>
 
 <div class="row">
