@@ -9,7 +9,7 @@ RewriteCond %{REQUEST_FILENAME}.php -f
 RewriteRule ^(.+)$ $1.php [L]
 </IfModule>
 
-DirectoryIndex school_main_website.php index.php
+DirectoryIndex index.php school_main_website.php
 
 <IfModule mod_php.c>
 php_flag output_buffering on

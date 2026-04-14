@@ -30,9 +30,9 @@ function router_path_within_root(string $docRoot, string $path): ?string
     return null;
 }
 
-// Root route lands on public school website first.
+// Root route lands on login page.
 if ($requestPath === '/') {
-    require $docRoot . '/school_main_website.php';
+    require $docRoot . '/index.php';
     exit;
 }
 

@@ -89,6 +89,24 @@ try {
   background-color: rgba(255, 255, 255, 0.96);
   border-radius: 12px;
 }
+
+.elearning-login-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  font-weight: 900;
+  letter-spacing: 0.03em;
+  background: linear-gradient(125deg, #b86b17, #e2a130);
+  color: #1f1a10;
+  border: none;
+  box-shadow: 0 10px 20px rgba(108, 70, 11, 0.24);
+}
+
+.elearning-login-btn:hover {
+  color: #1f1a10;
+  transform: translateY(-1px);
+}
 </style>
 </head>
 <body>
@@ -130,7 +148,7 @@ try {
 <input type="hidden" name="redirect_to" value="<?php echo htmlspecialchars($redirectTo, ENT_QUOTES, 'UTF-8'); ?>">
 <?php endif; ?>
 <div class="mb-3 btn-container d-grid">
-<a href="index.php?redirect_to=student/elearning" class="btn btn-warning btn-block" style="font-weight:800;"><i class="bi bi-mortarboard-fill me-2 fs-5"></i>E-LEARNING LOGIN</a>
+<a href="index.php?redirect_to=student/elearning" class="btn btn-block elearning-login-btn"><i class="bi bi-mortarboard-fill me-2 fs-5"></i>LEARNER E-LEARNING LOGIN</a>
 </div>
 <div class="mb-3 btn-container d-grid">
 <a href="school_main_website.php" class="btn btn-primary btn-block app_btn" style="font-weight:700;"><i class="bi bi-globe2 me-2 fs-5"></i>visit the  school main website</a>

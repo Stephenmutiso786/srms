@@ -1,4 +1,4 @@
-const CACHE_NAME = "kyandulu-school-v2";
+const CACHE_NAME = "kyandulu-school-v3";
 const urlsToCache = [
   "./",
   "./school_main_website.php",
@@ -35,6 +35,20 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // Always prefer fresh HTML so UI updates are visible without hard refresh.
+  if (event.request.mode === "navigate") {
+    event.respondWith(
+      fetch(event.request).then((response) => {
+        if (response && response.status === 200 && response.type === "basic") {
+          const cloned = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, cloned));
+        }
+        return response;
+      }).catch(() => caches.match(event.request).then((cached) => cached || caches.match("./index.php")))
+    );
+    return;
+  }
+
   event.respondWith(
     caches.match(event.request).then((cached) => {
       if (cached) {
@@ -47,7 +61,7 @@ self.addEventListener("fetch", (event) => {
         const cloned = response.clone();
         caches.open(CACHE_NAME).then((cache) => cache.put(event.request, cloned));
         return response;
-      }).catch(() => caches.match("./school_main_website.php"));
+      }).catch(() => caches.match("./index.php"));
     })
   );
 });
