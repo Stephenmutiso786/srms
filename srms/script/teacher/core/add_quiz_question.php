@@ -12,15 +12,20 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 $quizId = (int)($_POST['quiz_id'] ?? 0);
+$entryMode = strtolower(trim((string)($_POST['entry_mode'] ?? 'single')));
 $question = trim($_POST['question'] ?? '');
 $qtypeRaw = strtolower(trim((string)($_POST['qtype'] ?? 'mcq')));
 $options = trim($_POST['options'] ?? '');
 $correct = trim($_POST['correct_answer'] ?? '');
 $marks = (float)($_POST['marks'] ?? 1);
 $bulkRaw = trim((string)($_POST['bulk_questions'] ?? ''));
+$bulkQuestions = isset($_POST['bulk_question']) && is_array($_POST['bulk_question']) ? $_POST['bulk_question'] : [];
+$bulkTypes = isset($_POST['bulk_qtype']) && is_array($_POST['bulk_qtype']) ? $_POST['bulk_qtype'] : [];
+$bulkOptions = isset($_POST['bulk_options']) && is_array($_POST['bulk_options']) ? $_POST['bulk_options'] : [];
+$bulkCorrect = isset($_POST['bulk_correct_answer']) && is_array($_POST['bulk_correct_answer']) ? $_POST['bulk_correct_answer'] : [];
+$bulkMarks = isset($_POST['bulk_marks']) && is_array($_POST['bulk_marks']) ? $_POST['bulk_marks'] : [];
 
 $allowedTypes = ['mcq', 'true_false', 'fill_blank', 'short_answer'];
-$qtype = in_array($qtypeRaw, $allowedTypes, true) ? $qtypeRaw : 'mcq';
 if ($marks <= 0) {
   $marks = 1;
 }
@@ -90,33 +95,54 @@ try {
   }
 
   $toInsert = [];
-  if ($bulkRaw !== '') {
-    $lines = preg_split('/\r\n|\r|\n/', $bulkRaw);
-    foreach ($lines as $i => $line) {
-      $line = trim((string)$line);
-      if ($line === '') {
-        continue;
-      }
-      $parts = array_map('trim', explode('|', $line));
-      if (count($parts) < 2) {
-        throw new InvalidArgumentException('Invalid bulk format at line '.($i + 1).'. Use: Question | qtype | options | correct_answer | marks');
-      }
+  if ($entryMode === 'bulk') {
+    if (!empty($bulkQuestions)) {
+      foreach ($bulkQuestions as $i => $rawQuestion) {
+        $lineQuestion = trim((string)$rawQuestion);
+        if ($lineQuestion === '') {
+          continue;
+        }
+        $lineType = strtolower(trim((string)($bulkTypes[$i] ?? 'mcq')));
+        $lineOptions = trim((string)($bulkOptions[$i] ?? ''));
+        $lineCorrect = trim((string)($bulkCorrect[$i] ?? ''));
+        $lineMarks = (float)($bulkMarks[$i] ?? 1);
 
-      $lineQuestion = (string)($parts[0] ?? '');
-      $lineType = strtolower((string)($parts[1] ?? 'mcq'));
-      $lineOptions = (string)($parts[2] ?? '');
-      $lineCorrect = (string)($parts[3] ?? '');
-      $lineMarks = (float)($parts[4] ?? 1);
+        try {
+          $toInsert[] = normalize_question_payload($lineQuestion, $lineType, $lineOptions, $lineCorrect, $lineMarks, $allowedTypes);
+        } catch (InvalidArgumentException $e) {
+          throw new InvalidArgumentException('Row '.($i + 1).': '.$e->getMessage());
+        }
+      }
+    }
 
-      try {
-        $toInsert[] = normalize_question_payload($lineQuestion, $lineType, $lineOptions, $lineCorrect, $lineMarks, $allowedTypes);
-      } catch (InvalidArgumentException $e) {
-        throw new InvalidArgumentException('Line '.($i + 1).': '.$e->getMessage());
+    if (empty($toInsert) && $bulkRaw !== '') {
+      $lines = preg_split('/\r\n|\r|\n/', $bulkRaw);
+      foreach ($lines as $i => $line) {
+        $line = trim((string)$line);
+        if ($line === '') {
+          continue;
+        }
+        $parts = array_map('trim', explode('|', $line));
+        if (count($parts) < 2) {
+          throw new InvalidArgumentException('Invalid bulk format at line '.($i + 1).'. Use: Question | qtype | options | correct_answer | marks');
+        }
+
+        $lineQuestion = (string)($parts[0] ?? '');
+        $lineType = strtolower((string)($parts[1] ?? 'mcq'));
+        $lineOptions = (string)($parts[2] ?? '');
+        $lineCorrect = (string)($parts[3] ?? '');
+        $lineMarks = (float)($parts[4] ?? 1);
+
+        try {
+          $toInsert[] = normalize_question_payload($lineQuestion, $lineType, $lineOptions, $lineCorrect, $lineMarks, $allowedTypes);
+        } catch (InvalidArgumentException $e) {
+          throw new InvalidArgumentException('Line '.($i + 1).': '.$e->getMessage());
+        }
       }
     }
 
     if (empty($toInsert)) {
-      throw new InvalidArgumentException('Bulk mode has no valid question lines.');
+      throw new InvalidArgumentException('Bulk mode has no valid question rows.');
     }
   } else {
     $toInsert[] = normalize_question_payload($question, $qtypeRaw, $options, $correct, $marks, $allowedTypes);

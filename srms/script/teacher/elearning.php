@@ -614,9 +614,28 @@ try {
 </div>
 </div>
 <div class="mb-3" id="bulkQuestionFields" style="display:none;">
-<label class="form-label">Bulk Questions</label>
-<textarea class="form-control" name="bulk_questions" id="bulkQuestionsInput" rows="8" placeholder="Question | qtype | options | correct_answer | marks\n2 + 2 = ? | mcq | 3,4,5 | 4 | 1\nThe earth is round. | true_false |  | True | 1\nWrite one use of water. | short_answer |  |  | 2"></textarea>
-<small class="form-text text-muted">One question per line. Format: Question | qtype | options | correct_answer | marks. qtype: mcq, true_false, fill_blank, short_answer.</small>
+<label class="form-label">Bulk Questions (Row by Row)</label>
+<div class="table-responsive">
+<table class="table table-sm table-bordered align-middle">
+<thead>
+<tr>
+<th style="min-width:220px;">Question</th>
+<th style="min-width:130px;">Type</th>
+<th style="min-width:170px;">Options</th>
+<th style="min-width:170px;">Correct Answer</th>
+<th style="min-width:95px;">Marks</th>
+<th style="width:70px;">Action</th>
+</tr>
+</thead>
+<tbody id="bulkRowsContainer"></tbody>
+</table>
+</div>
+<div class="d-flex gap-2 mt-2">
+<button type="button" class="btn btn-outline-primary btn-sm" id="bulkAddRowBtn">Add Row</button>
+<button type="button" class="btn btn-outline-secondary btn-sm" id="bulkAddFiveBtn">Add 5 Rows</button>
+</div>
+<textarea class="form-control mt-3" name="bulk_questions" id="bulkQuestionsInput" rows="4" placeholder="Optional old format fallback:\nQuestion | qtype | options | correct_answer | marks"></textarea>
+<small class="form-text text-muted">Preferred: fill rows above. Questions and answers stay aligned by row.</small>
 </div>
 <button class="btn btn-primary">Add Question</button>
 </form>
@@ -742,13 +761,48 @@ try {
 	var singleFields = document.getElementById('singleQuestionFields');
 	var bulkFields = document.getElementById('bulkQuestionFields');
 	var bulkInput = document.getElementById('bulkQuestionsInput');
+	var bulkRowsContainer = document.getElementById('bulkRowsContainer');
+	var bulkAddRowBtn = document.getElementById('bulkAddRowBtn');
+	var bulkAddFiveBtn = document.getElementById('bulkAddFiveBtn');
   var typeEl = document.getElementById('quizQuestionType');
   var optionsGroup = document.getElementById('quizOptionsGroup');
   var optionsInput = document.getElementById('quizOptionsInput');
   var correctInput = document.getElementById('quizCorrectInput');
-	if (!entryModeEl || !singleFields || !bulkFields || !bulkInput || !typeEl || !optionsGroup || !optionsInput || !correctInput) {
+	if (!entryModeEl || !singleFields || !bulkFields || !bulkInput || !bulkRowsContainer || !bulkAddRowBtn || !bulkAddFiveBtn || !typeEl || !optionsGroup || !optionsInput || !correctInput) {
     return;
   }
+
+	function buildBulkRow() {
+		var row = document.createElement('tr');
+		row.innerHTML = '' +
+			'<td><textarea class="form-control form-control-sm" name="bulk_question[]" rows="2" placeholder="Question"></textarea></td>' +
+			'<td><select class="form-control form-control-sm" name="bulk_qtype[]">' +
+				'<option value="mcq">MCQ</option>' +
+				'<option value="true_false">True / False</option>' +
+				'<option value="fill_blank">Fill Blank</option>' +
+				'<option value="short_answer">Short Answer</option>' +
+			'</select></td>' +
+			'<td><input class="form-control form-control-sm" name="bulk_options[]" placeholder="A, B, C"></td>' +
+			'<td><input class="form-control form-control-sm" name="bulk_correct_answer[]" placeholder="Correct answer"></td>' +
+			'<td><input class="form-control form-control-sm" name="bulk_marks[]" type="number" value="1" min="0.5" step="0.5"></td>' +
+			'<td><button type="button" class="btn btn-sm btn-outline-danger bulk-remove-row">Remove</button></td>';
+		return row;
+	}
+
+	function ensureBulkRows(minRows) {
+		while (bulkRowsContainer.children.length < minRows) {
+			bulkRowsContainer.appendChild(buildBulkRow());
+		}
+	}
+
+	function setBulkRequired(isRequired) {
+		var fields = bulkRowsContainer.querySelectorAll('textarea, input, select');
+		fields.forEach(function (el) {
+			if (el.name === 'bulk_question[]') {
+				el.required = isRequired;
+			}
+		});
+	}
 
 	function updateEntryMode() {
 		var mode = String(entryModeEl.value || 'single');
@@ -756,7 +810,9 @@ try {
 		if (mode === 'bulk') {
 			singleFields.style.display = 'none';
 			bulkFields.style.display = '';
-			bulkInput.required = true;
+			bulkInput.required = false;
+			ensureBulkRows(3);
+			setBulkRequired(true);
 			singleInputs.forEach(function (el) {
 				if (el.name === 'marks') {
 					return;
@@ -768,6 +824,7 @@ try {
 		singleFields.style.display = '';
 		bulkFields.style.display = 'none';
 		bulkInput.required = false;
+		setBulkRequired(false);
 		singleInputs.forEach(function (el) {
 			if (el.name === 'question' || el.name === 'qtype' || el.name === 'correct_answer') {
 				el.required = true;
@@ -805,8 +862,40 @@ try {
     correctInput.required = false;
   }
 
+	bulkAddRowBtn.addEventListener('click', function () {
+		bulkRowsContainer.appendChild(buildBulkRow());
+	});
+
+	bulkAddFiveBtn.addEventListener('click', function () {
+		for (var i = 0; i < 5; i++) {
+			bulkRowsContainer.appendChild(buildBulkRow());
+		}
+	});
+
+	bulkRowsContainer.addEventListener('click', function (e) {
+		if (e.target && e.target.classList.contains('bulk-remove-row')) {
+			var row = e.target.closest('tr');
+			if (!row) {
+				return;
+			}
+			if (bulkRowsContainer.children.length <= 1) {
+				var firstQuestion = row.querySelector('textarea[name="bulk_question[]"]');
+				var firstOptions = row.querySelector('input[name="bulk_options[]"]');
+				var firstCorrect = row.querySelector('input[name="bulk_correct_answer[]"]');
+				var firstMarks = row.querySelector('input[name="bulk_marks[]"]');
+				if (firstQuestion) firstQuestion.value = '';
+				if (firstOptions) firstOptions.value = '';
+				if (firstCorrect) firstCorrect.value = '';
+				if (firstMarks) firstMarks.value = '1';
+				return;
+			}
+			row.remove();
+		}
+	});
+
 	entryModeEl.addEventListener('change', updateEntryMode);
   typeEl.addEventListener('change', updateQuizQuestionForm);
+	ensureBulkRows(3);
 	updateEntryMode();
   updateQuizQuestionForm();
 })();
