@@ -8,6 +8,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $_username = $_POST['username'];
 $_password = $_POST['password'];
+$redirectTo = isset($_POST['redirect_to']) ? trim((string)$_POST['redirect_to']) : '';
+$redirectTo = preg_replace('/[^a-zA-Z0-9_\/-]/', '', $redirectTo);
+$redirectTo = ltrim($redirectTo, '/');
 $cookie_length = "4320";
 
 try {
@@ -114,6 +117,22 @@ if ($loginLevel === 3) {
 	$portal = 'parent';
 } else {
 	$portal = app_staff_login_portal($conn, (int)$account_id, (string)$row[3]);
+}
+
+if ($redirectTo !== '') {
+	$allowRedirect = false;
+	if ($loginLevel === 3 && strpos($redirectTo, 'student/') === 0) {
+		$allowRedirect = true;
+	}
+	if ($loginLevel === 4 && strpos($redirectTo, 'parent/') === 0) {
+		$allowRedirect = true;
+	}
+	if ($loginLevel !== 3 && $loginLevel !== 4 && strpos($redirectTo, $portal . '/') === 0) {
+		$allowRedirect = true;
+	}
+	if ($allowRedirect) {
+		$portal = $redirectTo;
+	}
 }
 
 header("location:../".$portal);

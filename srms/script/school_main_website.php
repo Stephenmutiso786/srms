@@ -11,6 +11,8 @@ $schoolLocation = 'Kiunduani, Kibwezi West';
 $schoolMapUrl = 'https://maps.app.goo.gl/fqhaetnW4G6hBmHs7';
 $schoolPhone = '+25417876564';
 $schoolEmail = (defined('WBEmail') && trim((string)WBEmail) !== '') ? (string)WBEmail : 'info@kyandulu.school';
+$portalLoginHref = 'index.php';
+$learnerElearningLoginHref = 'index.php?redirect_to=' . rawurlencode('student/elearning');
 
 $aboutText = $schoolName . ' is a learning institution in ' . $schoolLocation . ' committed to quality CBC education. We nurture every learner through academic excellence, character development, creativity, and practical life skills.';
 $visionText = 'To develop responsible, skilled, and confident learners for tomorrow.';
@@ -573,6 +575,46 @@ if (count($slides) === 0) {
 			font-size: 0.82rem;
 		}
 
+		.entry-overlay {
+			position: fixed;
+			inset: 0;
+			z-index: 110;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			padding: 1rem;
+			background: linear-gradient(140deg, rgba(10, 28, 20, 0.72), rgba(25, 59, 41, 0.6));
+			backdrop-filter: blur(4px);
+		}
+
+		.entry-overlay.is-hidden {
+			display: none;
+		}
+
+		.entry-card {
+			width: min(560px, 94vw);
+			background: #ffffff;
+			border-radius: 18px;
+			padding: 1.1rem;
+			box-shadow: 0 22px 45px rgba(0, 0, 0, 0.25);
+		}
+
+		.entry-card h2 {
+			margin: 0;
+			font-size: 1.35rem;
+		}
+
+		.entry-card p {
+			margin: 0.65rem 0 1rem;
+			line-height: 1.6;
+		}
+
+		.entry-actions {
+			display: flex;
+			gap: 0.6rem;
+			flex-wrap: wrap;
+		}
+
 		@keyframes riseUp {
 			from {
 				opacity: 0;
@@ -630,10 +672,30 @@ if (count($slides) === 0) {
 			.slide-caption {
 				width: calc(100% - 1.3rem);
 			}
+
+			.entry-actions {
+				flex-direction: column;
+			}
+
+			.entry-actions .btn {
+				width: 100%;
+			}
 		}
 	</style>
 </head>
 <body>
+	<div class="entry-overlay" id="entryOverlay" role="dialog" aria-modal="true" aria-label="Choose where to go">
+		<div class="entry-card">
+			<h2>Welcome to <?php echo htmlspecialchars($schoolName); ?></h2>
+			<p>Start by exploring the school website, or continue to portal login. Learners can also go directly to E-learning login.</p>
+			<div class="entry-actions">
+				<a class="btn btn-primary" href="<?php echo htmlspecialchars($portalLoginHref); ?>"><i class="bi bi-box-arrow-in-right"></i> Portal Login</a>
+				<a class="btn btn-secondary" href="<?php echo htmlspecialchars($learnerElearningLoginHref); ?>"><i class="bi bi-mortarboard"></i> Learner E-learning Login</a>
+				<button type="button" class="btn" id="continueBrowsingBtn" style="background:#eef6f1;color:#1f5f3f;"><i class="bi bi-globe2"></i> Continue Browsing</button>
+			</div>
+		</div>
+	</div>
+
 	<nav class="top-nav">
 		<div class="brand">
 			<img src="<?php echo htmlspecialchars($schoolLogo); ?>" alt="School logo">
@@ -644,7 +706,8 @@ if (count($slides) === 0) {
 			<a href="#offers">What We Offer</a>
 			<a href="#gallery">Gallery</a>
 			<a href="#contact">Contact</a>
-			<a href="index.php">Login</a>
+			<a href="<?php echo htmlspecialchars($learnerElearningLoginHref); ?>">Learner E-learning</a>
+			<a href="<?php echo htmlspecialchars($portalLoginHref); ?>">Portal Login</a>
 		</div>
 	</nav>
 
@@ -656,7 +719,8 @@ if (count($slides) === 0) {
 				<p><?php echo htmlspecialchars($schoolTagline); ?></p>
 				<p><i class="bi bi-geo-alt-fill"></i> <?php echo htmlspecialchars($schoolLocation); ?></p>
 				<div class="hero-actions">
-					<a class="btn btn-primary" href="#contact"><i class="bi bi-person-plus"></i> Apply Now</a>
+					<a class="btn btn-primary" href="<?php echo htmlspecialchars($portalLoginHref); ?>"><i class="bi bi-box-arrow-in-right"></i> Portal Login</a>
+					<a class="btn btn-secondary" href="<?php echo htmlspecialchars($learnerElearningLoginHref); ?>"><i class="bi bi-mortarboard"></i> Learner E-learning</a>
 					<a class="btn btn-secondary" href="#contact"><i class="bi bi-telephone"></i> Contact Us</a>
 				</div>
 			</div>
@@ -780,6 +844,16 @@ if (count($slides) === 0) {
 	</footer>
 
 	<script>
+	(function () {
+		var entryOverlay = document.getElementById('entryOverlay');
+		var continueBtn = document.getElementById('continueBrowsingBtn');
+		if (entryOverlay && continueBtn) {
+			continueBtn.addEventListener('click', function () {
+				entryOverlay.classList.add('is-hidden');
+			});
+		}
+	})();
+
 	(function () {
 		var slider = document.getElementById('mainSlider');
 		if (!slider) {

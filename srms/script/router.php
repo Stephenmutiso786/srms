@@ -30,6 +30,12 @@ function router_path_within_root(string $docRoot, string $path): ?string
     return null;
 }
 
+// Root route lands on public school website first.
+if ($requestPath === '/') {
+    require $docRoot . '/school_main_website.php';
+    exit;
+}
+
 // Serve existing files directly.
 $resolvedRequest = ($requestPath !== '/') ? router_path_within_root($docRoot, $requestPath) : null;
 if ($resolvedRequest !== null && is_file($resolvedRequest)) {

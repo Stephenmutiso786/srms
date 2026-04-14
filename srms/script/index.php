@@ -4,6 +4,20 @@ require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/public_media.php');
 $schoolTitle = (defined('WBName') && WBName !== '') ? WBName : APP_NAME;
+$redirectTo = isset($_GET['redirect_to']) ? trim((string)$_GET['redirect_to']) : '';
+$redirectTo = preg_replace('/[^a-zA-Z0-9_\/-]/', '', $redirectTo);
+$redirectTo = ltrim($redirectTo, '/');
+$allowedRedirectPrefixes = ['student/', 'parent/', 'teacher/', 'admin/', 'accountant/', 'bom/'];
+$isAllowedRedirect = false;
+foreach ($allowedRedirectPrefixes as $prefix) {
+  if ($redirectTo !== '' && strpos($redirectTo, $prefix) === 0) {
+    $isAllowedRedirect = true;
+    break;
+  }
+}
+if (!$isAllowedRedirect) {
+  $redirectTo = '';
+}
 $loginBackgroundSrc = '';
 $loginBackgroundMeta = ['src' => '', 'width' => 0, 'height' => 0];
 try {
@@ -112,6 +126,9 @@ try {
 <div class="mb-3 btn-container d-grid">
 <button type="submit" class="btn btn-primary btn-block app_btn"><i class="bi bi-box-arrow-in-right me-2 fs-5"></i>SIGN IN</button>
 </div>
+<?php if ($redirectTo !== ''): ?>
+<input type="hidden" name="redirect_to" value="<?php echo htmlspecialchars($redirectTo, ENT_QUOTES, 'UTF-8'); ?>">
+<?php endif; ?>
 <div class="mb-3 btn-container d-grid">
 <a href="school_main_website.php" class="btn btn-primary btn-block app_btn" style="font-weight:700;"><i class="bi bi-globe2 me-2 fs-5"></i>visit the  school main website</a>
 </div>
