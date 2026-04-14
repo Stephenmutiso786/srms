@@ -5,6 +5,41 @@ require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/school.php');
 
+function app_normalize_live_meeting_link(string $meetingLink): string
+{
+	$meetingLink = trim($meetingLink);
+	if ($meetingLink === '') {
+		return '';
+	}
+	if (!preg_match('/^https?:\/\//i', $meetingLink)) {
+		$meetingLink = 'https://' . $meetingLink;
+	}
+	if (!filter_var($meetingLink, FILTER_VALIDATE_URL)) {
+		return '';
+	}
+	$host = strtolower((string)(parse_url($meetingLink, PHP_URL_HOST) ?? ''));
+	if ($host === '') {
+		return '';
+	}
+	return $meetingLink;
+}
+
+function app_live_platform_matches(string $meetingLink, string $platform): bool
+{
+	$host = strtolower((string)(parse_url($meetingLink, PHP_URL_HOST) ?? ''));
+	$platform = strtolower(trim($platform));
+	if ($platform === '') {
+		return true;
+	}
+	if (strpos($platform, 'zoom') !== false) {
+		return strpos($host, 'zoom.') !== false;
+	}
+	if (strpos($platform, 'meet') !== false || strpos($platform, 'google') !== false) {
+		return strpos($host, 'meet.google.') !== false;
+	}
+	return true;
+}
+
 if ($res != "1" || $level != "2") {
 	header("location:../");
 	exit;
@@ -49,9 +84,16 @@ try {
 	$hasEndTimeColumn = app_column_exists($conn, 'tbl_live_classes', 'end_time');
 
 	if ($action === 'start') {
+		$meetingLink = app_normalize_live_meeting_link((string)($live['meeting_link'] ?? ''));
+		if ($meetingLink === '') {
+			throw new RuntimeException('Live class link is invalid. Update the class meeting link before starting.');
+		}
+		if (!app_live_platform_matches($meetingLink, (string)($live['platform'] ?? ''))) {
+			throw new RuntimeException('Live class link does not match the selected platform. Update and try again.');
+		}
+
 		if ($currentStatus === 'active') {
-			$_SESSION['reply'] = array(array('success', 'Live class is already running.'));
-			header("location:../elearning");
+			header("location:" . $meetingLink);
 			exit;
 		}
 		if ($currentStatus === 'ended') {
@@ -92,8 +134,7 @@ try {
 		}
 
 		app_audit_log($conn, 'staff', (string)$account_id, 'elearning.live.start', 'live_class', (string)$liveId);
-		$_SESSION['reply'] = array(array('success', 'Live class started.'));
-		header("location:../elearning");
+		header("location:" . $meetingLink);
 		exit;
 	}
 

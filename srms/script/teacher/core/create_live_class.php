@@ -6,6 +6,41 @@ require_once('const/check_session.php');
 require_once('const/school.php');
 if ($res == "1" && $level == "2") {}else{header("location:../");}
 
+function app_normalize_live_meeting_link(string $meetingLink): string
+{
+  $meetingLink = trim($meetingLink);
+  if ($meetingLink === '') {
+    return '';
+  }
+  if (!preg_match('/^https?:\/\//i', $meetingLink)) {
+    $meetingLink = 'https://' . $meetingLink;
+  }
+  if (!filter_var($meetingLink, FILTER_VALIDATE_URL)) {
+    return '';
+  }
+  $host = strtolower((string)(parse_url($meetingLink, PHP_URL_HOST) ?? ''));
+  if ($host === '') {
+    return '';
+  }
+  return $meetingLink;
+}
+
+function app_live_platform_matches(string $meetingLink, string $platform): bool
+{
+  $host = strtolower((string)(parse_url($meetingLink, PHP_URL_HOST) ?? ''));
+  $platform = strtolower(trim($platform));
+  if ($platform === '') {
+    return true;
+  }
+  if (strpos($platform, 'zoom') !== false) {
+    return strpos($host, 'zoom.') !== false;
+  }
+  if (strpos($platform, 'meet') !== false || strpos($platform, 'google') !== false) {
+    return strpos($host, 'meet.google.') !== false;
+  }
+  return true;
+}
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
   header("location:../elearning");
   exit;
@@ -13,7 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $courseId = (int)($_POST['course_id'] ?? 0);
 $title = trim($_POST['title'] ?? '');
-$meetingLink = trim($_POST['meeting_link'] ?? '');
+$meetingLink = app_normalize_live_meeting_link((string)($_POST['meeting_link'] ?? ''));
 $platform = trim($_POST['platform'] ?? 'Google Meet');
 $startTime = $_POST['start_time'] ?? '';
 $endTime = $_POST['end_time'] ?? null;
@@ -26,6 +61,12 @@ if (is_string($endTime)) {
 
 if ($courseId < 1 || $title === '' || $meetingLink === '' || $startTime === '') {
   $_SESSION['reply'] = array (array("danger", "Missing live class details."));
+  header("location:../elearning");
+  exit;
+}
+
+if (!app_live_platform_matches($meetingLink, $platform)) {
+  $_SESSION['reply'] = array (array("danger", "Meeting link does not match selected platform."));
   header("location:../elearning");
   exit;
 }
