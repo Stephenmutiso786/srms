@@ -17,6 +17,7 @@ try {
   $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
   $stmt = $conn->prepare("SELECT lc.meeting_link, lc.start_time, c.id AS course_id, c.class_id
+    , lc.status
     FROM tbl_live_classes lc
     JOIN tbl_courses c ON c.id = lc.course_id
     WHERE lc.id = ? LIMIT 1");
@@ -34,8 +35,12 @@ try {
 
   $now = new DateTime('now');
   $start = new DateTime($live['start_time']);
-  if ($now < $start) {
+  $status = strtolower(trim((string)($live['status'] ?? 'scheduled')));
+  if ($status !== 'active' && $now < $start) {
     throw new RuntimeException("Class not started yet.");
+  }
+  if ($status === 'ended') {
+    throw new RuntimeException("This live class has already ended.");
   }
 
   if (app_table_exists($conn, 'tbl_attendance_elearning')) {

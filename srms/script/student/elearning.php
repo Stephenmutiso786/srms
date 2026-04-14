@@ -318,17 +318,20 @@ try {
 <tbody>
 <?php foreach ($liveClasses as $live): ?>
 <?php
+	$status = strtolower(trim((string)($live['status'] ?? 'scheduled')));
   $canJoin = false;
   try {
     $now = new DateTime('now');
     $start = new DateTime($live['start_time']);
-    $canJoin = $now >= $start;
+		$canJoin = $status === 'active' || ($status !== 'ended' && $now >= $start);
   } catch (Throwable $e) {}
+	$badge = $status === 'active' ? 'success' : ($status === 'ended' ? 'secondary' : 'warning text-dark');
 ?>
 <tr>
 <td><?php echo htmlspecialchars($live['title']); ?></td>
 <td><?php echo htmlspecialchars($live['course_name']); ?></td>
 <td><?php echo htmlspecialchars($live['start_time']); ?></td>
+<td><span class="badge bg-<?php echo $badge; ?>"><?php echo htmlspecialchars(ucfirst($status)); ?></span></td>
 <td>
   <?php if ($canJoin) { ?>
     <a class="btn btn-sm btn-success" href="student/core/join_live_class?id=<?php echo (int)$live['id']; ?>">Join</a>

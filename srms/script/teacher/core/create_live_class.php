@@ -41,8 +41,24 @@ try {
     throw new RuntimeException("Not allowed to schedule class for this course.");
   }
 
-  $stmt = $conn->prepare("INSERT INTO tbl_live_classes (course_id, title, meeting_link, platform, start_time, end_time, created_by) VALUES (?,?,?,?,?,?,?)");
-  $stmt->execute([$courseId, $title, $meetingLink, $platform, $startTime, $endTime ?: null, (int)$account_id]);
+  $columns = ['course_id', 'title', 'meeting_link', 'platform', 'start_time', 'end_time', 'created_by'];
+  $values = [$courseId, $title, $meetingLink, $platform, $startTime, $endTime ?: null, (int)$account_id];
+  if (app_column_exists($conn, 'tbl_live_classes', 'status')) {
+    $columns[] = 'status';
+    $values[] = 'scheduled';
+  }
+  if (app_column_exists($conn, 'tbl_live_classes', 'started_at')) {
+    $columns[] = 'started_at';
+    $values[] = null;
+  }
+  if (app_column_exists($conn, 'tbl_live_classes', 'ended_at')) {
+    $columns[] = 'ended_at';
+    $values[] = null;
+  }
+
+  $placeholders = implode(',', array_fill(0, count($columns), '?'));
+  $stmt = $conn->prepare("INSERT INTO tbl_live_classes (" . implode(',', $columns) . ") VALUES (" . $placeholders . ")");
+  $stmt->execute($values);
   $liveId = $conn->lastInsertId();
   app_audit_log($conn, 'staff', (string)$account_id, 'elearning.live.create', 'live_class', (string)$liveId);
 

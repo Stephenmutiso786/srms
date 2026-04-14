@@ -463,6 +463,53 @@ try {
 </div>
 </div>
 
+	<div class="tile elearn-panel" id="teacherLiveClasses">
+		<h3 class="tile-title"><i class="bi bi-broadcast me-2"></i>Live Classes</h3>
+		<div class="table-responsive">
+			<table class="table table-hover elearn-table">
+				<thead><tr><th>Title</th><th>Course</th><th>Start</th><th>Status</th><th>Actions</th></tr></thead>
+				<tbody>
+				<?php foreach ($liveClasses as $live): ?>
+				<?php
+					$status = strtolower(trim((string)($live['status'] ?? 'scheduled')));
+					$startTimeValue = (string)($live['start_time'] ?? '');
+					$canStart = false;
+					$canEnd = false;
+					try {
+						$now = new DateTime('now');
+						$start = new DateTime($startTimeValue);
+						$canStart = in_array($status, ['scheduled', 'pending'], true) && $now >= $start;
+						$canEnd = $status === 'active';
+					} catch (Throwable $e) {
+						$canStart = in_array($status, ['scheduled', 'pending'], true);
+						$canEnd = $status === 'active';
+					}
+					$badge = $status === 'active' ? 'success' : ($status === 'ended' ? 'secondary' : 'warning text-dark');
+				?>
+				<tr>
+					<td><?php echo htmlspecialchars((string)$live['title']); ?></td>
+					<td><?php echo htmlspecialchars((string)$live['course_name']); ?></td>
+					<td><?php echo htmlspecialchars($startTimeValue); ?></td>
+					<td><span class="badge bg-<?php echo $badge; ?>"><?php echo htmlspecialchars(ucfirst($status)); ?></span></td>
+					<td class="d-flex flex-wrap gap-2">
+						<form method="POST" action="teacher/core/update_live_class_status" class="d-inline">
+							<input type="hidden" name="live_class_id" value="<?php echo (int)$live['id']; ?>">
+							<input type="hidden" name="action" value="start">
+							<button class="btn btn-sm btn-success" type="submit" <?php echo $canStart ? '' : 'disabled'; ?>>Start the Class</button>
+						</form>
+						<form method="POST" action="teacher/core/update_live_class_status" class="d-inline">
+							<input type="hidden" name="live_class_id" value="<?php echo (int)$live['id']; ?>">
+							<input type="hidden" name="action" value="end">
+							<button class="btn btn-sm btn-danger" type="submit" <?php echo $canEnd ? '' : 'disabled'; ?>>End the Class</button>
+						</form>
+					</td>
+				</tr>
+				<?php endforeach; ?>
+				</tbody>
+			</table>
+		</div>
+	</div>
+
 <div class="row">
 <div class="col-md-6">
 <div class="tile elearn-panel">
