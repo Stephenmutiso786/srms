@@ -437,9 +437,98 @@
 		document.body.appendChild(link);
 	}
 
+	function appEnsureOnlineWidgetStyles() {
+		if (document.getElementById('appOnlineWidgetStyles')) {
+			return;
+		}
+		var style = document.createElement('style');
+		style.id = 'appOnlineWidgetStyles';
+		style.textContent = '' +
+			'.app-online-indicator{display:inline-flex;align-items:center;gap:6px;font-weight:700;}' +
+			'.app-online-dot{width:9px;height:9px;border-radius:999px;background:#2bb24c;box-shadow:0 0 0 0 rgba(43,178,76,.5);animation:appOnlinePulse 1.6s infinite;}' +
+			'.app-online-menu{min-width:290px;max-height:340px;overflow:auto;padding:6px 0;}' +
+			'.app-online-row{padding:8px 12px;border-bottom:1px solid #eef2f1;display:flex;justify-content:space-between;gap:8px;}' +
+			'.app-online-row:last-child{border-bottom:none;}' +
+			'.app-online-name{font-weight:700;}' +
+			'.app-online-meta{font-size:12px;color:#63736a;}' +
+			'@keyframes appOnlinePulse{0%{box-shadow:0 0 0 0 rgba(43,178,76,.5);}70%{box-shadow:0 0 0 7px rgba(43,178,76,0);}100%{box-shadow:0 0 0 0 rgba(43,178,76,0);}}';
+		document.head.appendChild(style);
+	}
+
+	function appInitOnlineWidget(portal) {
+		if (portal === 'other') {
+			return;
+		}
+
+		var nav = document.querySelector('.app-header .app-nav');
+		if (!nav || document.getElementById('appOnlineNavItem')) {
+			return;
+		}
+
+		appEnsureOnlineWidgetStyles();
+
+		var item = document.createElement('li');
+		item.className = 'dropdown';
+		item.id = 'appOnlineNavItem';
+		item.innerHTML = '' +
+			'<a class="app-nav__item" href="#" data-bs-toggle="dropdown" aria-label="Online users">' +
+				'<span class="app-online-indicator"><span class="app-online-dot"></span><span id="appOnlineLabel">Online</span></span>' +
+			'</a>' +
+			'<div class="dropdown-menu dropdown-menu-right app-online-menu" id="appOnlineMenu">' +
+				'<div class="px-3 py-2 text-muted small">Loading online users...</div>' +
+			'</div>';
+		nav.insertBefore(item, nav.firstChild);
+
+		var menu = document.getElementById('appOnlineMenu');
+		var label = document.getElementById('appOnlineLabel');
+
+		function renderOnline(data) {
+			if (!menu || !label) return;
+			if (!data || !data.ok) {
+				menu.innerHTML = '<div class="px-3 py-2 text-muted small">Online users unavailable.</div>';
+				return;
+			}
+
+			var users = Array.isArray(data.users) ? data.users : [];
+			var count = Number(data.count || users.length || 0);
+			label.textContent = 'Online (' + count + ')';
+
+			if (!users.length) {
+				menu.innerHTML = '<div class="px-3 py-2 text-muted small">No other users online.</div>';
+				return;
+			}
+
+			menu.innerHTML = users.map(function (u) {
+				var name = (u && u.name) ? String(u.name) : 'User';
+				var role = (u && u.role) ? String(u.role) : '';
+				return '' +
+					'<div class="app-online-row">' +
+						'<div>' +
+							'<div class="app-online-name">' + name + '</div>' +
+							'<div class="app-online-meta">' + role + '</div>' +
+						'</div>' +
+						'<span class="badge bg-success">Online</span>' +
+					'</div>';
+			}).join('');
+		}
+
+		function refreshOnline() {
+			fetch('core/online_users.php', { credentials: 'same-origin' })
+				.then(function (r) { return r.json(); })
+				.then(renderOnline)
+				.catch(function () {
+					renderOnline(null);
+				});
+		}
+
+		refreshOnline();
+		window.setInterval(refreshOnline, 30000);
+	}
+
 	var portal = appCurrentPortal();
 	appEnsureSidebarFooter(portal);
 	appEnsurePortalGuideMenu(portal);
 	appEnsurePublicWebsiteButton();
+	appInitOnlineWidget(portal);
 
 })();

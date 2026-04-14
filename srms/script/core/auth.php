@@ -120,6 +120,18 @@ if ($loginLevel === 3) {
 }
 
 if ($redirectTo !== '') {
+	if ($redirectTo === 'elearning') {
+		if ($loginLevel === 3) {
+			$portal = 'student/elearning';
+		} elseif ($loginLevel === 4) {
+			$portal = 'parent/elearning';
+		} elseif ($portal === 'teacher') {
+			$portal = 'teacher/elearning';
+		} elseif ($portal === 'admin') {
+			$portal = 'admin/elearning';
+		}
+	}
+
 	$allowRedirect = false;
 	if ($loginLevel === 3 && strpos($redirectTo, 'student/') === 0) {
 		$allowRedirect = true;

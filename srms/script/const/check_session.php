@@ -16,6 +16,7 @@ $levelInt = (int)$level;
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	require_once('const/online_presence.php');
 
 	// Staff roles: admin(0), academic(1), teacher(2), accountant(5), etc.
 	if ($levelInt !== 3 && $levelInt !== 4) {
@@ -55,6 +56,7 @@ try {
 			$super_admin = true;
 			$level = "0";
 		}
+		app_online_touch($conn, $session_key);
 		$res = "1";
 		return;
 	}
@@ -100,6 +102,7 @@ try {
 		$stmt->execute([$class]);
 		$act_class = (string)($stmt->fetchColumn() ?: '');
 
+		app_online_touch($conn, $session_key);
 		$res = "1";
 		return;
 	}
@@ -138,6 +141,7 @@ try {
 		$login = (string)$row['password'];
 		$level = "4";
 		$designation = 'Parent';
+		app_online_touch($conn, $session_key);
 		$res = "1";
 		return;
 	}

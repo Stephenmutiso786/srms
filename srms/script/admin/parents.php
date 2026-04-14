@@ -4,11 +4,13 @@ session_start();
 require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
+require_once('const/online_presence.php');
 if ($res == "1" && $level == "0") {}else{header("location:../"); exit;}
 
 $parents = [];
 $links = [];
 $students = [];
+$onlineParents = [];
 $error = '';
 
 try {
@@ -22,6 +24,8 @@ try {
 	$stmt = $conn->prepare("SELECT id, fname, lname, phone, email, status FROM tbl_parents ORDER BY id DESC LIMIT 100");
 	$stmt->execute();
 	$parents = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	$onlineMaps = app_online_fetch_maps($conn, 180);
+	$onlineParents = isset($onlineMaps['parents']) && is_array($onlineMaps['parents']) ? $onlineMaps['parents'] : [];
 
 	$stmt = $conn->prepare("SELECT ps.parent_id, ps.student_id, concat_ws(' ', st.fname, st.mname, st.lname) AS student_name
 		FROM tbl_parent_students ps
@@ -54,6 +58,10 @@ try {
 <link rel="stylesheet" type="text/css" href="css/main.css">
 <link rel="icon" href="images/icon.ico">
 <link rel="stylesheet" type="text/css" href="cdn.jsdelivr.net/npm/bootstrap-icons%401.10.5/font/bootstrap-icons.css">
+<style>
+.online-pill { display:inline-flex; align-items:center; gap:6px; font-weight:700; }
+.online-dot { width:9px; height:9px; border-radius:999px; background:#20b65d; }
+</style>
 </head>
 <body class="app sidebar-mini">
 
@@ -138,6 +146,7 @@ try {
 		  <th>Email</th>
 		  <th>Phone</th>
 		  <th>Status</th>
+		  <th>Presence</th>
 		  <th>Linked Students</th>
 		  <th>Link Student</th>
 		</tr>
@@ -156,6 +165,13 @@ try {
 		  <td><?php echo htmlspecialchars((string)$p['email']); ?></td>
 		  <td><?php echo htmlspecialchars((string)($p['phone'] ?? '')); ?></td>
 		  <td><?php echo ((int)$p['status'] === 1) ? '<span class="badge bg-success">ACTIVE</span>' : '<span class="badge bg-danger">BLOCKED</span>'; ?></td>
+		  <td>
+			<?php if (isset($onlineParents[(string)$pid])) { ?>
+			<span class="online-pill"><span class="online-dot"></span>Online</span>
+			<?php } else { ?>
+			<span class="text-muted">Offline</span>
+			<?php } ?>
+		  </td>
 		  <td>
 			<?php if (count($linked) < 1) { ?>
 			  <span class="text-muted">None</span>

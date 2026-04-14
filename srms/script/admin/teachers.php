@@ -4,6 +4,7 @@ session_start();
 require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
+require_once('const/online_presence.php');
 if ($res == "1" && $level == "0") {}else{header("location:../");}
 ?>
 <!DOCTYPE html>
@@ -20,6 +21,10 @@ if ($res == "1" && $level == "0") {}else{header("location:../");}
 <link rel="stylesheet" type="text/css" href="cdn.jsdelivr.net/npm/bootstrap-icons%401.10.5/font/bootstrap-icons.css">
 <link rel="stylesheet" href="cdn.datatables.net/v/bs5/dt-1.13.4/datatables.min.css">
 <link type="text/css" rel="stylesheet" href="loader/waitMe.css">
+<style>
+.online-pill { display:inline-flex; align-items:center; gap:6px; font-weight:700; }
+.online-dot { width:9px; height:9px; border-radius:999px; background:#20b65d; }
+</style>
 </head>
 <body class="app sidebar-mini">
 
@@ -224,6 +229,7 @@ Download excel template from <a download href="templates/import_teachers.xlsx" c
 <th>Email</th>
 <th>Gender</th>
 <th>Role</th>
+<th>Presence</th>
 <th width="120" align="center">Status</th>
 <th width="120" align="center"></th>
 </tr>
@@ -238,6 +244,8 @@ $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 $stmt = $conn->prepare("SELECT * FROM tbl_staff WHERE level IN (2,5)");
 $stmt->execute();
 $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$onlineMaps = app_online_fetch_maps($conn, 180);
+$onlineStaff = isset($onlineMaps['staff']) && is_array($onlineMaps['staff']) ? $onlineMaps['staff'] : [];
 
 foreach($result as $row)
 {
@@ -258,6 +266,13 @@ $st = '<span class="me-1 badge badge-pill bg-danger">Blocked</span>';
 <td><?php echo htmlspecialchars($row['email']);?></td>
 <td><?php echo htmlspecialchars($row['gender']);?></td>
 <td><?php echo ((int)$row['level'] === 5) ? 'Accountant' : 'Teacher'; ?></td>
+<td>
+<?php if (isset($onlineStaff[(string)$row['id']])) { ?>
+<span class="online-pill"><span class="online-dot"></span>Online</span>
+<?php } else { ?>
+<span class="text-muted">Offline</span>
+<?php } ?>
+</td>
 <td width="100" align="center"><?php echo $st;?></td>
 <td width="120" align="center">
 <textarea style="display:none;" id="fname_<?php echo $row[0]; ?>"><?php echo $row[1]; ?></textarea>

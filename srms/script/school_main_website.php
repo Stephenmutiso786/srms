@@ -12,7 +12,7 @@ $schoolMapUrl = 'https://maps.app.goo.gl/fqhaetnW4G6hBmHs7';
 $schoolPhone = '+25417876564';
 $schoolEmail = (defined('WBEmail') && trim((string)WBEmail) !== '') ? (string)WBEmail : 'info@kyandulu.school';
 $portalLoginHref = 'index.php';
-$learnerElearningLoginHref = 'index.php?redirect_to=' . rawurlencode('student/elearning');
+$learnerElearningLoginHref = 'index.php?redirect_to=elearning';
 
 $aboutText = $schoolName . ' is a learning institution in ' . $schoolLocation . ' committed to quality CBC education. We nurture every learner through academic excellence, character development, creativity, and practical life skills.';
 $visionText = 'To develop responsible, skilled, and confident learners for tomorrow.';

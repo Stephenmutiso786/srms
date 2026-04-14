@@ -4,6 +4,7 @@ session_start();
 require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
+require_once('const/online_presence.php');
 if ($res == "1" && $level == "0") {}else{header("location:../");}
 if (!isset($_SESSION['student_list'])) {
 header("location:./");
@@ -31,6 +32,10 @@ $matches = implode(',', $matches);
 <link rel="stylesheet" href="cdn.datatables.net/v/bs5/dt-1.13.4/datatables.min.css">
 <link type="text/css" rel="stylesheet" href="loader/waitMe.css">
 <link rel="stylesheet" href="select2/dist/css/select2.min.css">
+<style>
+.online-pill { display:inline-flex; align-items:center; gap:6px; font-weight:700; }
+.online-dot { width:9px; height:9px; border-radius:999px; background:#20b65d; }
+</style>
 </head>
 <body class="app sidebar-mini">
 
@@ -90,6 +95,7 @@ $matches = implode(',', $matches);
 <th>Gender</th>
 <th>Email</th>
 <th>Class</th>
+<th>Presence</th>
 <th></th>
 </tr>
 </thead>
@@ -115,6 +121,8 @@ $empty_classes[$value[0]] = $value[1];
 $stmt = $conn->prepare("SELECT * FROM tbl_students WHERE class IN ($matches)");
 $stmt->execute($students);
 $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$onlineMaps = app_online_fetch_maps($conn, 180);
+$onlineStudents = isset($onlineMaps['students']) && is_array($onlineMaps['students']) ? $onlineMaps['students'] : [];
 
 foreach($result as $row)
 {
@@ -142,6 +150,13 @@ if (($row['display_image'] ?? '') == "DEFAULT") {
 <td><?php echo $row['gender']; ?></td>
 <td><?php echo $row['email']; ?></td>
 <td><?php echo $empty_classes[$row['class']]; ?></td>
+<td>
+<?php if (isset($onlineStudents[(string)$row['id']])) { ?>
+<span class="online-pill"><span class="online-dot"></span>Online</span>
+<?php } else { ?>
+<span class="text-muted">Offline</span>
+<?php } ?>
+</td>
 
 <td align="center" width="130">
 
