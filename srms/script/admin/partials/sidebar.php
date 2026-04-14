@@ -81,6 +81,7 @@ function app_tree_active($page)
     <li><a class="app-menu__item<?php echo app_menu_active('analytics_engine'); ?>" href="admin/analytics_engine"><i class="app-menu__icon feather icon-activity"></i><span class="app-menu__label">Analytics Engine</span></a></li>
     <li><a class="app-menu__item<?php echo app_menu_active('benchmarking'); ?>" href="admin/benchmarking"><i class="app-menu__icon feather icon-trending-up"></i><span class="app-menu__label">Benchmarking</span></a></li>
     <li><a class="app-menu__item<?php echo app_menu_active('notifications'); ?>" href="admin/notifications"><i class="app-menu__icon feather icon-bell"></i><span class="app-menu__label">Notifications</span></a></li>
+    <li><a class="app-menu__item<?php echo app_menu_active('online_users'); ?>" href="admin/online_users"><i class="app-menu__icon feather icon-wifi"></i><span class="app-menu__label">Online Users</span></a></li>
     <li><a class="app-menu__item<?php echo app_menu_active('audit_logs'); ?>" href="admin/audit_logs"><i class="app-menu__icon feather icon-shield"></i><span class="app-menu__label">Audit Logs</span></a></li>
     <li><a class="app-menu__item<?php echo app_menu_active('roles'); ?>" href="admin/roles"><i class="app-menu__icon feather icon-shield"></i><span class="app-menu__label">Roles & Permissions</span></a></li>
     <li><a class="app-menu__item<?php echo app_menu_active('bom'); ?>" href="admin/bom"><i class="app-menu__icon feather icon-briefcase"></i><span class="app-menu__label">BOM Management</span></a></li>

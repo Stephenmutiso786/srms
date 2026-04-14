@@ -147,9 +147,10 @@ function app_online_fetch_users(PDO $conn, string $level, string $accountId, int
     }
 
     try {
-        $studentSql = "SELECT ls.student AS user_id, st.fname, st.mname, st.lname
+        $studentSql = "SELECT ls.student AS user_id, st.fname, st.mname, st.lname, st.class AS class_id, cl.name AS class_name
             FROM tbl_login_sessions ls
             JOIN tbl_students st ON " . ($isPgsql ? "st.id::text = ls.student::text" : "st.id = ls.student") . "
+            LEFT JOIN tbl_classes cl ON cl.id = st.class
             WHERE ls.student IS NOT NULL AND ls.last_seen >= ? AND st.status = 1";
         $stmt = $conn->prepare($studentSql);
         $stmt->execute([$since]);
@@ -166,6 +167,8 @@ function app_online_fetch_users(PDO $conn, string $level, string $accountId, int
                 'name' => trim((string)$row['fname'] . ' ' . (string)$row['mname'] . ' ' . (string)$row['lname']),
                 'role' => 'Student',
                 'scope' => 'student',
+                'class_id' => (string)($row['class_id'] ?? ''),
+                'class_name' => trim((string)($row['class_name'] ?? '')),
                 'status' => 'Online'
             ];
         }
