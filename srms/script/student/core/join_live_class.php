@@ -6,6 +6,25 @@ require_once('const/check_session.php');
 require_once('const/school.php');
 if ($res == "1" && $level == "3") {}else{header("location:../");}
 
+function app_normalize_live_meeting_link(string $meetingLink): string
+{
+  $meetingLink = trim($meetingLink);
+  if ($meetingLink === '') {
+    return '';
+  }
+  if (!preg_match('/^https?:\/\//i', $meetingLink)) {
+    $meetingLink = 'https://' . $meetingLink;
+  }
+  if (!filter_var($meetingLink, FILTER_VALIDATE_URL)) {
+    return '';
+  }
+  $host = strtolower((string)(parse_url($meetingLink, PHP_URL_HOST) ?? ''));
+  if ($host === '') {
+    return '';
+  }
+  return $meetingLink;
+}
+
 $liveId = (int)($_GET['id'] ?? 0);
 if ($liveId < 1) {
   header("location:../elearning");
@@ -16,8 +35,13 @@ try {
   $conn = app_db();
   $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-  $stmt = $conn->prepare("SELECT lc.meeting_link, lc.start_time, c.id AS course_id, c.class_id
-    , lc.status
+  $hasStatusColumn = app_column_exists($conn, 'tbl_live_classes', 'status');
+  $hasEndedAtColumn = app_column_exists($conn, 'tbl_live_classes', 'ended_at');
+
+  $statusSelect = $hasStatusColumn ? 'lc.status' : "'scheduled' AS status";
+  $endedAtSelect = $hasEndedAtColumn ? 'lc.ended_at' : 'NULL AS ended_at';
+  $stmt = $conn->prepare("SELECT lc.meeting_link, lc.start_time, lc.end_time, c.id AS course_id, c.class_id
+    , " . $statusSelect . ", " . $endedAtSelect . "
     FROM tbl_live_classes lc
     JOIN tbl_courses c ON c.id = lc.course_id
     WHERE lc.id = ? LIMIT 1");
@@ -36,11 +60,28 @@ try {
   $now = new DateTime('now');
   $start = new DateTime($live['start_time']);
   $status = strtolower(trim((string)($live['status'] ?? 'scheduled')));
+  $endTimeRaw = trim((string)($live['end_time'] ?? ''));
+  $endedAtRaw = trim((string)($live['ended_at'] ?? ''));
+  $isEnded = ($status === 'ended' || $endedAtRaw !== '');
+  if (!$isEnded && $endTimeRaw !== '') {
+    try {
+      $end = new DateTime($endTimeRaw);
+      $isEnded = $now >= $end;
+    } catch (Throwable $e) {
+      $isEnded = false;
+    }
+  }
+
+  if ($isEnded) {
+    throw new RuntimeException("This class has ended.");
+  }
   if ($status !== 'active' && $now < $start) {
     throw new RuntimeException("Class not started yet.");
   }
-  if ($status === 'ended') {
-    throw new RuntimeException("This live class has already ended.");
+
+  $meetingLink = app_normalize_live_meeting_link((string)($live['meeting_link'] ?? ''));
+  if ($meetingLink === '') {
+    throw new RuntimeException("Live class link is unavailable. Contact your teacher.");
   }
 
   if (app_table_exists($conn, 'tbl_attendance_elearning')) {
@@ -70,11 +111,12 @@ try {
   }
 
   app_audit_log($conn, 'student', (string)$account_id, 'elearning.live.join', 'live_class', (string)$liveId);
-  header("location:".$live['meeting_link']);
+  header("location:".$meetingLink);
   exit;
 } catch (Throwable $e) {
 	error_log("[".__FILE__.":".__LINE__." Throwable] " . $e->getMessage());
-	$_SESSION['reply'] = array(array("danger", "Operation failed. Please try again."));
+	$message = trim((string)$e->getMessage());
+	$_SESSION['reply'] = array(array("danger", $message !== '' ? $message : "Operation failed. Please try again."));
   header("location:../elearning");
   exit;
 }

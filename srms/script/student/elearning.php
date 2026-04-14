@@ -319,12 +319,33 @@ try {
 <?php foreach ($liveClasses as $live): ?>
 <?php
 	$status = strtolower(trim((string)($live['status'] ?? 'scheduled')));
-  $canJoin = false;
-  try {
-    $now = new DateTime('now');
-    $start = new DateTime($live['start_time']);
-		$canJoin = $status === 'active' || ($status !== 'ended' && $now >= $start);
-  } catch (Throwable $e) {}
+	$canJoin = false;
+	$buttonText = 'Not yet';
+	$endTimeRaw = trim((string)($live['end_time'] ?? ''));
+	$endedAtRaw = trim((string)($live['ended_at'] ?? ''));
+	$isEnded = ($status === 'ended' || $endedAtRaw !== '');
+	try {
+		$now = new DateTime('now');
+		$start = new DateTime((string)$live['start_time']);
+		if (!$isEnded && $endTimeRaw !== '') {
+			$end = new DateTime($endTimeRaw);
+			if ($now >= $end) {
+				$isEnded = true;
+			}
+		}
+		if ($isEnded) {
+			$status = 'ended';
+			$buttonText = 'Class ended';
+		} else {
+			$canJoin = ($status === 'active') || ($status !== 'ended' && $now >= $start);
+			$buttonText = $canJoin ? 'Join' : 'Not yet';
+		}
+	} catch (Throwable $e) {
+		if ($isEnded) {
+			$status = 'ended';
+			$buttonText = 'Class ended';
+		}
+	}
 	$badge = $status === 'active' ? 'success' : ($status === 'ended' ? 'secondary' : 'warning text-dark');
 ?>
 <tr>
@@ -334,9 +355,9 @@ try {
 <td><span class="badge bg-<?php echo $badge; ?>"><?php echo htmlspecialchars(ucfirst($status)); ?></span></td>
 <td>
   <?php if ($canJoin) { ?>
-    <a class="btn btn-sm btn-success" href="student/core/join_live_class?id=<?php echo (int)$live['id']; ?>">Join</a>
+    <a class="btn btn-sm btn-success" href="student/core/join_live_class?id=<?php echo (int)$live['id']; ?>"><?php echo htmlspecialchars($buttonText); ?></a>
   <?php } else { ?>
-    <button class="btn btn-sm btn-secondary" disabled>Not yet</button>
+    <button class="btn btn-sm btn-secondary" disabled><?php echo htmlspecialchars($buttonText); ?></button>
   <?php } ?>
 </td>
 </tr>

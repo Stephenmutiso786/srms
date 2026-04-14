@@ -82,6 +82,18 @@ try {
 	$hasEndedAtColumn = app_column_exists($conn, 'tbl_live_classes', 'ended_at');
 	$hasUpdatedAtColumn = app_column_exists($conn, 'tbl_live_classes', 'updated_at');
 	$hasEndTimeColumn = app_column_exists($conn, 'tbl_live_classes', 'end_time');
+	$endTimeRaw = trim((string)($live['end_time'] ?? ''));
+	$endedAtRaw = trim((string)($live['ended_at'] ?? ''));
+	$isEndedByTime = false;
+	if ($endTimeRaw !== '') {
+		try {
+			$endTime = new DateTime($endTimeRaw);
+			$isEndedByTime = $now >= $endTime;
+		} catch (Throwable $e) {
+			$isEndedByTime = false;
+		}
+	}
+	$isEnded = ($currentStatus === 'ended' || $endedAtRaw !== '' || $isEndedByTime);
 
 	if ($action === 'start') {
 		$meetingLink = app_normalize_live_meeting_link((string)($live['meeting_link'] ?? ''));
@@ -92,11 +104,11 @@ try {
 			throw new RuntimeException('Live class link does not match the selected platform. Update and try again.');
 		}
 
-		if ($currentStatus === 'active') {
+		if ($hasStatusColumn && $currentStatus === 'active') {
 			header("location:" . $meetingLink);
 			exit;
 		}
-		if ($currentStatus === 'ended') {
+		if ($isEnded) {
 			throw new RuntimeException('Ended live classes cannot be restarted.');
 		}
 		if ($now < $start) {
@@ -138,7 +150,8 @@ try {
 		exit;
 	}
 
-	if ($currentStatus !== 'active') {
+	$canEnd = $hasStatusColumn ? ($currentStatus === 'active') : (!$isEnded && $now >= $start);
+	if (!$canEnd) {
 		throw new RuntimeException('Only a running live class can be ended.');
 	}
 
@@ -180,7 +193,8 @@ try {
 	header("location:../elearning");
 } catch (Throwable $e) {
 	error_log("[".__FILE__.":".__LINE__." Throwable] " . $e->getMessage());
-	$_SESSION['reply'] = array(array('danger', 'Operation failed. Please try again.'));
+	$message = trim((string)$e->getMessage());
+	$_SESSION['reply'] = array(array('danger', $message !== '' ? $message : 'Operation failed. Please try again.'));
 	header("location:../elearning");
 }
 exit;
