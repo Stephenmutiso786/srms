@@ -15,6 +15,8 @@ $quizzes = [];
 $lessonContent = [];
 $studentClassId = 0;
 $progressRows = [];
+$pendingAssignments = 0;
+$upcomingLiveClasses = 0;
 $progressSummary = [
 	'tracked_courses' => 0,
 	'avg_completion' => 0,
@@ -87,6 +89,13 @@ try {
 			ORDER BY lc.start_time DESC");
 		$stmt->execute([$studentClassId]);
 		$liveClasses = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		$nowRef = time();
+		foreach ($liveClasses as $liveRow) {
+			$startTs = strtotime((string)($liveRow['start_time'] ?? ''));
+			if ($startTs !== false && $startTs > $nowRef) {
+				$upcomingLiveClasses++;
+			}
+		}
 	}
 	if (app_table_exists($conn, 'tbl_quizzes')) {
 		$stmt = $conn->prepare("SELECT q.*, c.name AS course_name
@@ -96,6 +105,14 @@ try {
 			ORDER BY q.created_at DESC");
 		$stmt->execute([$studentClassId]);
 		$quizzes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	}
+
+	if (!empty($assignments)) {
+		foreach ($assignments as $assignmentRow) {
+			if (!isset($submissions[(int)$assignmentRow['id']])) {
+				$pendingAssignments++;
+			}
+		}
 	}
 
 	if (app_table_exists($conn, 'tbl_elearning_progress')) {
@@ -132,10 +149,11 @@ try {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <base href="../">
 <link rel="stylesheet" type="text/css" href="css/main.css">
+<link rel="stylesheet" type="text/css" href="css/elearning-ui.css">
 <link rel="icon" href="images/icon.ico">
 <link rel="stylesheet" type="text/css" href="cdn.jsdelivr.net/npm/bootstrap-icons%401.10.5/font/bootstrap-icons.css">
 </head>
-<body class="app sidebar-mini">
+<body class="app sidebar-mini elearn-page elearn-student">
 <header class="app-header"><a class="app-header__logo" href="javascript:void(0);"><?php echo APP_NAME; ?></a>
 <a class="app-sidebar__toggle" href="#" data-toggle="sidebar" aria-label="Hide Sidebar"></a>
 <ul class="app-nav">
@@ -174,17 +192,30 @@ try {
 </div>
 </div>
 
+<section class="elearn-hero mb-3">
+<div>
+<p class="elearn-kicker">Learner Hub</p>
+<h2>Stay on track with lessons, quizzes, and live sessions</h2>
+<p class="mb-0">Everything you need for today's learning is in one place.</p>
+</div>
+<div class="elearn-hero-actions">
+<a class="btn btn-light btn-sm" href="#studentAssignments"><i class="bi bi-journal-check me-1"></i>Assignments</a>
+<a class="btn btn-warning btn-sm" href="#studentLive"><i class="bi bi-camera-video me-1"></i>Live Classes</a>
+<a class="btn btn-success btn-sm" href="#studentQuizzes"><i class="bi bi-patch-question me-1"></i>Quizzes</a>
+</div>
+</section>
+
 <div class="row mb-3">
-<div class="col-md-3"><div class="tile tile-colored bg-primary"><div class="tile-body"><h4><?php echo (int)count($courses); ?></h4><p>Active Courses</p></div></div></div>
-<div class="col-md-3"><div class="tile tile-colored bg-info"><div class="tile-body"><h4><?php echo number_format((float)$progressSummary['avg_completion'], 1); ?>%</h4><p>Avg CBC Progress</p></div></div></div>
-<div class="col-md-3"><div class="tile tile-colored bg-success"><div class="tile-body"><h4><?php echo (int)$progressSummary['ee']; ?></h4><p>EE Competencies</p></div></div></div>
-<div class="col-md-3"><div class="tile tile-colored bg-warning"><div class="tile-body"><h4><?php echo (int)$progressSummary['be']; ?></h4><p>BE Areas (Need Help)</p></div></div></div>
+<div class="col-md-3 col-sm-6 mb-3"><div class="tile elearn-stat-card tone-primary"><div class="tile-body"><h4><?php echo (int)count($courses); ?></h4><p>Active Courses</p></div></div></div>
+<div class="col-md-3 col-sm-6 mb-3"><div class="tile elearn-stat-card tone-sky"><div class="tile-body"><h4><?php echo number_format((float)$progressSummary['avg_completion'], 1); ?>%</h4><p>Avg CBC Progress</p></div></div></div>
+<div class="col-md-3 col-sm-6 mb-3"><div class="tile elearn-stat-card tone-leaf"><div class="tile-body"><h4><?php echo (int)$pendingAssignments; ?></h4><p>Pending Assignments</p></div></div></div>
+<div class="col-md-3 col-sm-6 mb-3"><div class="tile elearn-stat-card tone-sun"><div class="tile-body"><h4><?php echo (int)$upcomingLiveClasses; ?></h4><p>Upcoming Live Classes</p></div></div></div>
 </div>
 
-<div class="tile">
-<h3 class="tile-title">Courses</h3>
+<div class="tile elearn-panel" id="studentCourses">
+<h3 class="tile-title"><i class="bi bi-mortarboard me-2"></i>Courses</h3>
 <div class="table-responsive">
-<table class="table table-hover">
+<table class="table table-hover elearn-table">
 <thead><tr><th>Course</th><th>Subject</th></tr></thead>
 <tbody>
 <?php foreach ($courses as $course): ?>
@@ -198,10 +229,10 @@ try {
 </div>
 </div>
 
-<div class="tile">
-<h3 class="tile-title">Lessons</h3>
+<div class="tile elearn-panel" id="studentLessons">
+<h3 class="tile-title"><i class="bi bi-journal-text me-2"></i>Lessons</h3>
 <div class="table-responsive">
-<table class="table table-hover">
+<table class="table table-hover elearn-table">
 <thead><tr><th>Course</th><th>Lesson</th><th>CBC Path</th><th>Competency/Outcome</th><th>Content</th></tr></thead>
 <tbody>
 <?php foreach ($lessons as $lesson): ?>
@@ -233,10 +264,10 @@ try {
 </div>
 </div>
 
-<div class="tile">
-<h3 class="tile-title">Assignments</h3>
+<div class="tile elearn-panel" id="studentAssignments">
+<h3 class="tile-title"><i class="bi bi-journal-check me-2"></i>Assignments</h3>
 <div class="table-responsive">
-<table class="table table-hover">
+<table class="table table-hover elearn-table">
 <thead><tr><th>Assignment</th><th>Course</th><th>Due</th><th>Status</th><th>Submit</th></tr></thead>
 <tbody>
 <?php foreach ($assignments as $assignment): ?>
@@ -247,7 +278,7 @@ try {
 <td><?php echo htmlspecialchars($assignment['due_date']); ?></td>
 <td><?php echo $sub ? 'Submitted' : 'Pending'; ?></td>
 <td>
-  <form class="app_frm" method="POST" action="student/core/submit_assignment" enctype="multipart/form-data">
+	<form class="app_frm elearn-inline-form" method="POST" action="student/core/submit_assignment" enctype="multipart/form-data">
     <input type="hidden" name="assignment_id" value="<?php echo (int)$assignment['id']; ?>">
     <input class="form-control form-control-sm mb-2" name="submission_text" placeholder="Text answer">
     <input class="form-control form-control-sm mb-2" type="file" name="file">
@@ -261,10 +292,10 @@ try {
 </div>
 </div>
 
-<div class="tile">
-<h3 class="tile-title">Quizzes</h3>
+<div class="tile elearn-panel" id="studentQuizzes">
+<h3 class="tile-title"><i class="bi bi-patch-question me-2"></i>Quizzes</h3>
 <div class="table-responsive">
-<table class="table table-hover">
+<table class="table table-hover elearn-table">
 <thead><tr><th>Quiz</th><th>Course</th><th>Action</th></tr></thead>
 <tbody>
 <?php foreach ($quizzes as $quiz): ?>
@@ -279,10 +310,10 @@ try {
 </div>
 </div>
 
-<div class="tile">
-<h3 class="tile-title">Live Classes</h3>
+<div class="tile elearn-panel" id="studentLive">
+<h3 class="tile-title"><i class="bi bi-camera-video me-2"></i>Live Classes</h3>
 <div class="table-responsive">
-<table class="table table-hover">
+<table class="table table-hover elearn-table">
 <thead><tr><th>Class</th><th>Course</th><th>Start</th><th>Link</th></tr></thead>
 <tbody>
 <?php foreach ($liveClasses as $live): ?>

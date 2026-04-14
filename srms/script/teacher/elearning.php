@@ -15,6 +15,9 @@ $submissions = [];
 $liveClasses = [];
 $quizzes = [];
 $quizQuestions = [];
+$activeCoursesCount = 0;
+$pendingGradingCount = 0;
+$scheduledLiveCount = 0;
 
 try {
 	$conn = app_db();
@@ -119,6 +122,33 @@ try {
 		$stmt->execute([$account_id]);
 		$quizQuestions = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
+
+	if (!empty($courses)) {
+		foreach ($courses as $courseRow) {
+			if ((int)($courseRow['status'] ?? 0) === 1) {
+				$activeCoursesCount++;
+			}
+		}
+	}
+
+	if (!empty($submissions)) {
+		foreach ($submissions as $submissionRow) {
+			$scoreRaw = isset($submissionRow['score']) ? trim((string)$submissionRow['score']) : '';
+			if ($scoreRaw === '') {
+				$pendingGradingCount++;
+			}
+		}
+	}
+
+	if (!empty($liveClasses)) {
+		$nowRef = time();
+		foreach ($liveClasses as $liveRow) {
+			$startTs = strtotime((string)($liveRow['start_time'] ?? ''));
+			if ($startTs !== false && $startTs > $nowRef) {
+				$scheduledLiveCount++;
+			}
+		}
+	}
 } catch (Throwable $e) {
 	$_SESSION['reply'] = array (array("danger", "Failed to load e-learning data."));
 }
@@ -133,10 +163,11 @@ try {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <base href="../">
 <link rel="stylesheet" type="text/css" href="css/main.css">
+<link rel="stylesheet" type="text/css" href="css/elearning-ui.css">
 <link rel="icon" href="images/icon.ico">
 <link rel="stylesheet" type="text/css" href="cdn.jsdelivr.net/npm/bootstrap-icons%401.10.5/font/bootstrap-icons.css">
 </head>
-<body class="app sidebar-mini">
+<body class="app sidebar-mini elearn-page elearn-teacher">
 <header class="app-header"><a class="app-header__logo" href="javascript:void(0);"><?php echo APP_NAME; ?></a>
 <a class="app-sidebar__toggle" href="#" data-toggle="sidebar" aria-label="Hide Sidebar"></a>
 <ul class="app-nav">
@@ -180,10 +211,30 @@ try {
 </div>
 </div>
 
+<section class="elearn-hero mb-3">
+<div>
+<p class="elearn-kicker">Teacher Studio</p>
+<h2>Create engaging learning experiences faster</h2>
+<p class="mb-0">Build courses, publish lesson content, and track submissions from one workspace.</p>
+</div>
+<div class="elearn-hero-actions">
+<a class="btn btn-light btn-sm" href="#teacherCourseForm"><i class="bi bi-journal-plus me-1"></i>New Course</a>
+<a class="btn btn-warning btn-sm" href="#teacherAssignmentForm"><i class="bi bi-journal-check me-1"></i>Assignment</a>
+<a class="btn btn-success btn-sm" href="#teacherSubmissions"><i class="bi bi-clipboard-check me-1"></i>Submissions</a>
+</div>
+</section>
+
+<div class="row mb-3">
+<div class="col-md-3 col-sm-6 mb-3"><div class="tile elearn-stat-card tone-primary"><div class="tile-body"><h4><?php echo (int)$activeCoursesCount; ?></h4><p>Active Courses</p></div></div></div>
+<div class="col-md-3 col-sm-6 mb-3"><div class="tile elearn-stat-card tone-sky"><div class="tile-body"><h4><?php echo (int)count($lessons); ?></h4><p>Total Lessons</p></div></div></div>
+<div class="col-md-3 col-sm-6 mb-3"><div class="tile elearn-stat-card tone-leaf"><div class="tile-body"><h4><?php echo (int)$pendingGradingCount; ?></h4><p>Need Grading</p></div></div></div>
+<div class="col-md-3 col-sm-6 mb-3"><div class="tile elearn-stat-card tone-sun"><div class="tile-body"><h4><?php echo (int)$scheduledLiveCount; ?></h4><p>Scheduled Live</p></div></div></div>
+</div>
+
 <div class="row">
 <div class="col-md-5">
-<div class="tile">
-<h3 class="tile-title">Create Course</h3>
+<div class="tile elearn-panel" id="teacherCourseForm">
+<h3 class="tile-title"><i class="bi bi-journal-plus me-2"></i>Create Course</h3>
 <form class="app_frm" action="teacher/core/create_course" method="POST">
 <div class="mb-3">
 <label class="form-label">Course Name</label>
@@ -213,10 +264,10 @@ try {
 </div>
 
 <div class="col-md-7">
-<div class="tile">
-<h3 class="tile-title">My Courses</h3>
+<div class="tile elearn-panel">
+<h3 class="tile-title"><i class="bi bi-collection-play me-2"></i>My Courses</h3>
 <div class="table-responsive">
-<table class="table table-hover">
+<table class="table table-hover elearn-table">
 <thead><tr><th>Name</th><th>Class</th><th>Subject</th><th>Status</th></tr></thead>
 <tbody>
 <?php foreach ($courses as $course): ?>
@@ -236,8 +287,8 @@ try {
 
 <div class="row">
 <div class="col-md-6">
-<div class="tile">
-<h3 class="tile-title">Create Lesson</h3>
+<div class="tile elearn-panel" id="teacherLessonForm">
+<h3 class="tile-title"><i class="bi bi-journal-text me-2"></i>Create Lesson</h3>
 <form class="app_frm" action="teacher/core/create_lesson" method="POST">
 <div class="mb-3">
 <label class="form-label">Course</label>
@@ -292,8 +343,8 @@ try {
 </div>
 
 <div class="col-md-6">
-<div class="tile">
-<h3 class="tile-title">Upload Lesson Content</h3>
+<div class="tile elearn-panel">
+<h3 class="tile-title"><i class="bi bi-cloud-upload me-2"></i>Upload Lesson Content</h3>
 <form class="app_frm" action="teacher/core/upload_lesson_content" method="POST" enctype="multipart/form-data">
 <div class="mb-3">
 <label class="form-label">Lesson</label>
@@ -337,8 +388,8 @@ try {
 
 <div class="row">
 <div class="col-md-6">
-<div class="tile">
-<h3 class="tile-title">Create Assignment</h3>
+<div class="tile elearn-panel" id="teacherAssignmentForm">
+<h3 class="tile-title"><i class="bi bi-journal-check me-2"></i>Create Assignment</h3>
 <form class="app_frm" action="teacher/core/create_assignment" method="POST" enctype="multipart/form-data">
 <div class="mb-3">
 <label class="form-label">Course</label>
@@ -371,8 +422,8 @@ try {
 </div>
 
 <div class="col-md-6">
-<div class="tile">
-<h3 class="tile-title">Create Live Class</h3>
+<div class="tile elearn-panel">
+<h3 class="tile-title"><i class="bi bi-camera-video me-2"></i>Create Live Class</h3>
 <form class="app_frm" action="teacher/core/create_live_class" method="POST">
 <div class="mb-3">
 <label class="form-label">Course</label>
@@ -414,8 +465,8 @@ try {
 
 <div class="row">
 <div class="col-md-6">
-<div class="tile">
-<h3 class="tile-title">Create Quiz</h3>
+<div class="tile elearn-panel">
+<h3 class="tile-title"><i class="bi bi-patch-question me-2"></i>Create Quiz</h3>
 <form class="app_frm" action="teacher/core/create_quiz" method="POST">
 <div class="mb-3">
 <label class="form-label">Course</label>
@@ -436,8 +487,8 @@ try {
 </div>
 
 <div class="col-md-6">
-<div class="tile">
-<h3 class="tile-title">Add Quiz Question</h3>
+<div class="tile elearn-panel">
+<h3 class="tile-title"><i class="bi bi-pencil-square me-2"></i>Add Quiz Question</h3>
 <form class="app_frm" action="teacher/core/add_quiz_question" method="POST">
 <div class="mb-3">
 <label class="form-label">Quiz</label>
@@ -470,10 +521,10 @@ try {
 </div>
 </div>
 
-<div class="tile">
-<h3 class="tile-title">Assignment Submissions</h3>
+<div class="tile elearn-panel" id="teacherSubmissions">
+<h3 class="tile-title"><i class="bi bi-clipboard-check me-2"></i>Assignment Submissions</h3>
 <div class="table-responsive">
-<table class="table table-hover">
+<table class="table table-hover elearn-table">
 <thead><tr><th>Assignment</th><th>Student</th><th>Submitted</th><th>Score</th><th>Feedback</th></tr></thead>
 <tbody>
 <?php foreach ($submissions as $row): ?>

@@ -1,0 +1,154 @@
+/* Shared enhanced UI for student and teacher e-learning pages */
+.elearn-page .app-content {
+  background:
+    radial-gradient(circle at 10% 2%, rgba(245, 189, 73, 0.18), transparent 26%),
+    radial-gradient(circle at 92% 4%, rgba(14, 107, 69, 0.12), transparent 27%),
+    linear-gradient(180deg, #f7fbf8 0%, #ffffff 28%);
+}
+
+.elearn-hero {
+  background: linear-gradient(125deg, #0f5e3c, #1f7f57 55%, #2d9d6d);
+  color: #fff;
+  border-radius: 16px;
+  box-shadow: 0 14px 34px rgba(12, 63, 40, 0.26);
+  padding: 1rem 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.elearn-hero h2 {
+  margin: 0 0 0.35rem;
+  font-size: clamp(1.15rem, 2.4vw, 1.55rem);
+  font-weight: 800;
+}
+
+.elearn-hero p {
+  margin: 0;
+  opacity: 0.96;
+}
+
+.elearn-kicker {
+  margin: 0 0 0.38rem;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-weight: 800;
+  opacity: 0.92;
+}
+
+.elearn-hero-actions {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.elearn-hero-actions .btn {
+  font-weight: 700;
+  border-radius: 999px;
+  border: none;
+}
+
+.elearn-stat-card {
+  border-radius: 14px;
+  overflow: hidden;
+  color: #fff;
+  border: none;
+  box-shadow: 0 10px 24px rgba(27, 39, 31, 0.16);
+}
+
+.elearn-stat-card .tile-body {
+  padding: 1rem;
+}
+
+.elearn-stat-card h4 {
+  margin-bottom: 0.2rem;
+  font-size: 1.6rem;
+  font-weight: 900;
+}
+
+.elearn-stat-card p {
+  margin-bottom: 0;
+  font-weight: 700;
+  opacity: 0.95;
+}
+
+.elearn-stat-card.tone-primary {
+  background: linear-gradient(130deg, #1f5f3f, #2d8f5d);
+}
+
+.elearn-stat-card.tone-sky {
+  background: linear-gradient(130deg, #0f5b87, #2c95c6);
+}
+
+.elearn-stat-card.tone-leaf {
+  background: linear-gradient(130deg, #2e7d32, #5ab95f);
+}
+
+.elearn-stat-card.tone-sun {
+  background: linear-gradient(130deg, #b56a18, #e59c33);
+}
+
+.elearn-panel {
+  border-radius: 14px;
+  border: 1px solid rgba(25, 74, 50, 0.09);
+  box-shadow: 0 8px 24px rgba(24, 39, 30, 0.09);
+}
+
+.elearn-panel .tile-title {
+  font-weight: 800;
+  color: #1d5f40;
+  display: flex;
+  align-items: center;
+}
+
+.elearn-page .form-control,
+.elearn-page .form-select,
+.elearn-page .btn {
+  border-radius: 10px;
+}
+
+.elearn-page .btn-primary {
+  background: linear-gradient(130deg, #0e6b45, #20925e);
+  border-color: #0e6b45;
+}
+
+.elearn-page .btn-outline-primary {
+  border-color: #17774d;
+  color: #17774d;
+}
+
+.elearn-page .btn-outline-primary:hover {
+  background: #17774d;
+  color: #fff;
+}
+
+.elearn-table thead th {
+  border-top: none;
+  border-bottom: 2px solid rgba(20, 77, 50, 0.18);
+  color: #1f5f3f;
+  font-size: 0.81rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.elearn-table tbody tr:hover {
+  background: rgba(14, 107, 69, 0.06);
+}
+
+.elearn-inline-form .form-control {
+  margin-bottom: 0.4rem;
+}
+
+@media (max-width: 991px) {
+  .elearn-hero {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .elearn-hero-actions {
+    justify-content: flex-start;
+  }
+}
