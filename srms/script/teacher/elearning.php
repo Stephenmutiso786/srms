@@ -18,6 +18,7 @@ $quizQuestions = [];
 $activeCoursesCount = 0;
 $pendingGradingCount = 0;
 $scheduledLiveCount = 0;
+$quizQuestionCountByQuiz = [];
 
 try {
 	$conn = app_db();
@@ -147,6 +148,19 @@ try {
 			if ($startTs !== false && $startTs > $nowRef) {
 				$scheduledLiveCount++;
 			}
+		}
+	}
+
+	if (!empty($quizQuestions)) {
+		foreach ($quizQuestions as $qRow) {
+			$qid = (int)($qRow['quiz_id'] ?? 0);
+			if ($qid < 1) {
+				continue;
+			}
+			if (!isset($quizQuestionCountByQuiz[$qid])) {
+				$quizQuestionCountByQuiz[$qid] = 0;
+			}
+			$quizQuestionCountByQuiz[$qid]++;
 		}
 	}
 } catch (Throwable $e) {
@@ -607,6 +621,87 @@ try {
 <button class="btn btn-primary">Add Question</button>
 </form>
 </div>
+</div>
+</div>
+
+<div class="row">
+<div class="col-md-6">
+<div class="tile elearn-panel">
+<h3 class="tile-title"><i class="bi bi-journal-check me-2"></i>My Assignments</h3>
+<div class="table-responsive">
+<table class="table table-hover elearn-table">
+<thead><tr><th>Title</th><th>Course</th><th>Due Date</th><th>Attachment</th></tr></thead>
+<tbody>
+<?php if (empty($assignments)): ?>
+<tr><td colspan="4" class="text-muted">No assignments created yet.</td></tr>
+<?php else: ?>
+<?php foreach ($assignments as $assignment): ?>
+<tr>
+<td><?php echo htmlspecialchars((string)($assignment['title'] ?? '')); ?></td>
+<td><?php echo htmlspecialchars((string)($assignment['course_name'] ?? '')); ?></td>
+<td><?php echo htmlspecialchars((string)($assignment['due_date'] ?? '')); ?></td>
+<td>
+<?php if (!empty($assignment['attachment'])): ?>
+<a href="<?php echo htmlspecialchars((string)$assignment['attachment']); ?>" target="_blank" rel="noopener">View</a>
+<?php else: ?>
+<span class="text-muted">None</span>
+<?php endif; ?>
+</td>
+</tr>
+<?php endforeach; ?>
+<?php endif; ?>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+
+<div class="col-md-6">
+<div class="tile elearn-panel">
+<h3 class="tile-title"><i class="bi bi-patch-question me-2"></i>My Quizzes</h3>
+<div class="table-responsive">
+<table class="table table-hover elearn-table">
+<thead><tr><th>Quiz Title</th><th>Course</th><th>Questions</th><th>Created</th></tr></thead>
+<tbody>
+<?php if (empty($quizzes)): ?>
+<tr><td colspan="4" class="text-muted">No quizzes created yet.</td></tr>
+<?php else: ?>
+<?php foreach ($quizzes as $quiz): ?>
+<tr>
+<td><?php echo htmlspecialchars((string)($quiz['title'] ?? '')); ?></td>
+<td><?php echo htmlspecialchars((string)($quiz['course_name'] ?? '')); ?></td>
+<td><?php echo (int)($quizQuestionCountByQuiz[(int)($quiz['id'] ?? 0)] ?? 0); ?></td>
+<td><?php echo htmlspecialchars((string)($quiz['created_at'] ?? '')); ?></td>
+</tr>
+<?php endforeach; ?>
+<?php endif; ?>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</div>
+
+<div class="tile elearn-panel">
+<h3 class="tile-title"><i class="bi bi-card-list me-2"></i>My Quiz Questions</h3>
+<div class="table-responsive">
+<table class="table table-hover elearn-table">
+<thead><tr><th>Quiz</th><th>Type</th><th>Question</th><th>Marks</th></tr></thead>
+<tbody>
+<?php if (empty($quizQuestions)): ?>
+<tr><td colspan="4" class="text-muted">No quiz questions added yet.</td></tr>
+<?php else: ?>
+<?php foreach ($quizQuestions as $qq): ?>
+<tr>
+<td><?php echo htmlspecialchars((string)($qq['quiz_title'] ?? '')); ?></td>
+<td><?php echo htmlspecialchars(strtoupper((string)($qq['qtype'] ?? 'mcq'))); ?></td>
+<td><?php echo htmlspecialchars((string)($qq['question'] ?? '')); ?></td>
+<td><?php echo htmlspecialchars((string)($qq['marks'] ?? '1')); ?></td>
+</tr>
+<?php endforeach; ?>
+<?php endif; ?>
+</tbody>
+</table>
 </div>
 </div>
 
