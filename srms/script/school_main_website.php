@@ -575,6 +575,28 @@ if (count($slides) === 0) {
 			font-size: 0.82rem;
 		}
 
+		.elearning-quick-link {
+			position: fixed;
+			left: 14px;
+			bottom: 14px;
+			z-index: 90;
+			display: inline-flex;
+			align-items: center;
+			gap: 0.45rem;
+			padding: 0.72rem 0.96rem;
+			border-radius: 999px;
+			font-weight: 900;
+			letter-spacing: 0.02em;
+			background: linear-gradient(130deg, #b86b17, #e8a233);
+			color: #1e1a10;
+			box-shadow: 0 12px 24px rgba(84, 55, 8, 0.28);
+		}
+
+		.elearning-quick-link:hover {
+			color: #1e1a10;
+			transform: translateY(-2px);
+		}
+
 		.entry-overlay {
 			position: fixed;
 			inset: 0;
@@ -826,6 +848,11 @@ if (count($slides) === 0) {
 		<button id="installBtn" type="button" class="btn btn-primary" style="display:none;"><i class="bi bi-download"></i> Install App</button>
 		<button id="notifyBtn" type="button" class="btn btn-secondary"><i class="bi bi-bell"></i> Enable Notifications</button>
 	</div>
+
+	<a class="elearning-quick-link" href="<?php echo htmlspecialchars($learnerElearningLoginHref); ?>" aria-label="Open learner e-learning login">
+		<i class="bi bi-mortarboard-fill"></i>
+		<span>E-Learning Login</span>
+	</a>
 
 	<footer>
 		<div class="footer-wrap">
