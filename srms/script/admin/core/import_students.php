@@ -34,7 +34,11 @@ $email = $r[5];
 $gender = $r[4];
 $class = $_POST['class'];
 $role = '3';
-$pass = password_hash($r[6], PASSWORD_DEFAULT);
+$plainPassword = trim((string)($r[6] ?? ''));
+if ($plainPassword === '') {
+	$plainPassword = '12345678';
+}
+$pass = password_hash($plainPassword, PASSWORD_DEFAULT);
 $status = '1';
 $img = 'DEFAULT';
 

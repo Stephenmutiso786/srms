@@ -97,7 +97,10 @@ try {
 			continue;
 		}
 
-		$pwd = getenv('DEFAULT_STUDENT_PASSWORD') ?: 'Password123';
+		$pwd = trim((string)(getenv('DEFAULT_STUDENT_PASSWORD') ?: ''));
+		if ($pwd === '') {
+			$pwd = '12345678';
+		}
 		$hash = password_hash($pwd, PASSWORD_DEFAULT);
 
 		try {

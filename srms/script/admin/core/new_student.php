@@ -13,7 +13,11 @@ $email = $_POST['email'];
 $gender = $_POST['gender'];
 $class = $_POST['class'];
 $role = '3';
-$pass = password_hash($_POST['password'], PASSWORD_DEFAULT);
+$plainPassword = trim((string)($_POST['password'] ?? ''));
+if ($plainPassword === '') {
+	$plainPassword = '12345678';
+}
+$pass = password_hash($plainPassword, PASSWORD_DEFAULT);
 $status = '1';
 $photo = serialize($_FILES["image"]);
 

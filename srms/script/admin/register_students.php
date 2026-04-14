@@ -72,7 +72,7 @@ try {
 <div class="mb-2">
 <label class="form-label">Registration Number</label>
 <input name="regno" required class="form-control" type="text" placeholder="Enter registration number" value="<?php echo htmlspecialchars($nextAdmissionNumber); ?>">
-<div class="small text-muted mt-1">Starts from the value set in Admin Settings and increments automatically. You can still change it if needed.</div>
+<div class="small text-muted mt-1">This becomes the student username. It starts from the value set in Admin Settings and increments automatically. You can still change it if needed.</div>
 </div>
 <div class="mb-2">
 <label class="form-label">First Name</label>
@@ -141,7 +141,8 @@ try {
 </div>
 <div class="mb-2">
 <label class="form-label">Password</label>
-<input type="password" class="form-control" id="npass" name="password" placeholder="***************">
+<input type="password" class="form-control" id="npass" name="password" placeholder="***************" value="12345678">
+<div class="small text-muted mt-1">Default password is 12345678 unless you change it.</div>
 </div>
 <div class="mb-2">
 <label class="form-label">Confirm Password</label>
