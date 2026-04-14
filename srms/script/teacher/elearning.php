@@ -473,18 +473,36 @@ try {
 				<?php
 					$status = strtolower(trim((string)($live['status'] ?? 'scheduled')));
 					$startTimeValue = (string)($live['start_time'] ?? '');
+					$endTimeValue = trim((string)($live['end_time'] ?? ''));
+					$endedAtValue = trim((string)($live['ended_at'] ?? ''));
 					$canStart = false;
 					$canEnd = false;
+					$isEnded = ($status === 'ended' || $endedAtValue !== '');
+					$isActive = ($status === 'active');
 					try {
 						$now = new DateTime('now');
 						$start = new DateTime($startTimeValue);
-						$canStart = in_array($status, ['scheduled', 'pending'], true) && $now >= $start;
-						$canEnd = $status === 'active';
+						if (!$isEnded && $endTimeValue !== '') {
+							$end = new DateTime($endTimeValue);
+							if ($now >= $end) {
+								$isEnded = true;
+							}
+						}
+						if (!$isEnded) {
+							$canStart = !$isActive && $now >= $start;
+							$canEnd = $now >= $start;
+						}
 					} catch (Throwable $e) {
-						$canStart = in_array($status, ['scheduled', 'pending'], true);
-						$canEnd = $status === 'active';
+						$canStart = !$isEnded && !$isActive;
+						$canEnd = !$isEnded;
 					}
-					$badge = $status === 'active' ? 'success' : ($status === 'ended' ? 'secondary' : 'warning text-dark');
+					if ($isEnded) {
+						$status = 'ended';
+						$isActive = false;
+						$canStart = false;
+						$canEnd = false;
+					}
+					$badge = $isActive ? 'success' : ($status === 'ended' ? 'secondary' : 'warning text-dark');
 				?>
 				<tr>
 					<td><?php echo htmlspecialchars((string)$live['title']); ?></td>
