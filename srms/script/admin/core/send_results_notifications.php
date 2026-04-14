@@ -5,6 +5,7 @@ require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/rbac.php');
 require_once('const/results_notifications.php');
+require_once('const/system_notifications.php');
 
 if ($res != '1' || $level != '0') { header('location:../'); exit; }
 app_require_permission('results.approve', '../publish_results');
@@ -27,6 +28,20 @@ try {
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
     $stats = app_results_send_notifications($conn, $examId, $channel);
+
+    try {
+        $dispatchMessage = 'Results notifications dispatched via ' . strtoupper($channel)
+            . '. SMS sent: ' . (int)$stats['sent_sms']
+            . ', Email sent: ' . (int)$stats['sent_email']
+            . ', Missing contacts: ' . (int)$stats['missing_contacts'] . '.';
+        app_system_notify($conn, 'Results Notification Dispatch', $dispatchMessage, [
+            'audience' => 'staff',
+            'link' => 'publish_results',
+            'created_by' => (int)$account_id,
+        ]);
+    } catch (Throwable $notificationError) {
+        error_log('['.__FILE__.':'.__LINE__.'] Results dispatch notification failed: ' . $notificationError->getMessage());
+    }
 
     app_audit_log($conn, 'staff', (string)$account_id, 'results.notify.' . $channel, 'exam', (string)$examId, $stats);
 

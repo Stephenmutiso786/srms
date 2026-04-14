@@ -4,6 +4,7 @@ session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/rbac.php');
+require_once('const/system_notifications.php');
 
 if (!isset($res) || $res !== "1") {
 	header("location:../../");
@@ -67,6 +68,7 @@ try {
 	$appliedMap = array_fill_keys($applied, true);
 
 	$appliedCount = 0;
+	$appliedNames = [];
 	foreach ($files as $file) {
 		$name = basename($file);
 		if (isset($appliedMap[$name])) {
@@ -91,6 +93,20 @@ try {
 		}
 
 		$appliedCount++;
+		$appliedNames[] = $name;
+	}
+
+	if ($appliedCount > 0) {
+		try {
+			$message = 'Database/system update applied: ' . $appliedCount . ' migration(s). Latest: ' . $appliedNames[count($appliedNames) - 1] . '.';
+			app_system_notify($conn, 'System Update Applied', $message, [
+				'audience' => 'staff',
+				'link' => 'migrations',
+				'created_by' => isset($account_id) ? (int)$account_id : null,
+			]);
+		} catch (Throwable $notificationError) {
+			error_log('['.__FILE__.':'.__LINE__.'] Migration notification failed: ' . $notificationError->getMessage());
+		}
 	}
 
 	$_SESSION['reply'] = array(array("success", "Applied $appliedCount migrations."));

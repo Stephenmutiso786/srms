@@ -5,6 +5,7 @@ require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/rbac.php');
 require_once('const/results_notifications.php');
+require_once('const/system_notifications.php');
 
 if ($res != "1" || $level != "0") { header("location:../"); }
 app_require_permission('exams.manage', '../exams');
@@ -136,8 +137,35 @@ try {
 	$stmt = $conn->prepare("UPDATE tbl_exams SET status = ? WHERE id = ?");
 	$stmt->execute([$status, $examId]);
 
+	$examLabel = trim((string)($exam['name'] ?? $exam['title'] ?? 'Exam #' . $examId));
+	$statusMessage = $examLabel . ' moved from ' . strtoupper($currentStatus) . ' to ' . strtoupper($status) . '.';
+	try {
+		app_system_notify($conn, 'Exam Workflow Update', $statusMessage, [
+			'audience' => 'staff',
+			'class_id' => (int)($exam['class_id'] ?? 0) ?: null,
+			'term_id' => (int)($exam['term_id'] ?? 0) ?: null,
+			'link' => 'exams',
+			'created_by' => (int)$account_id,
+		]);
+	} catch (Throwable $notificationError) {
+		error_log('['.__FILE__.':'.__LINE__.'] Exam workflow notification failed: ' . $notificationError->getMessage());
+	}
+
 	$autoNotifySummary = '';
 	if ($status === 'published') {
+		try {
+			$publishMessage = $examLabel . ' has been published. Results are now available to relevant users.';
+			app_system_notify($conn, 'Results Release', $publishMessage, [
+				'audience' => 'all',
+				'class_id' => (int)($exam['class_id'] ?? 0) ?: null,
+				'term_id' => (int)($exam['term_id'] ?? 0) ?: null,
+				'link' => 'publish_results',
+				'created_by' => (int)$account_id,
+			]);
+		} catch (Throwable $notificationError) {
+			error_log('['.__FILE__.':'.__LINE__.'] Results release notification failed: ' . $notificationError->getMessage());
+		}
+
 		if (app_table_exists($conn, 'tbl_results_locks')) {
 			$lockStmt = $conn->prepare("SELECT id FROM tbl_results_locks WHERE class_id = ? AND term_id = ? LIMIT 1");
 			$lockStmt->execute([(int)$exam['class_id'], (int)$exam['term_id']]);

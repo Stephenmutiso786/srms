@@ -69,7 +69,7 @@ try {
 <div class="app-title">
 <div>
 <h1>Notifications</h1>
-<p>Send announcements and results release alerts.</p>
+<p>Send announcements and view all system notifications (results release, workflow updates, migrations, and more).</p>
 </div>
 </div>
 

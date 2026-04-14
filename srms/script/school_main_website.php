@@ -489,6 +489,29 @@ if (count($slides) === 0) {
 			resize: vertical;
 		}
 
+		.contact-form-status {
+			display: none;
+			margin-top: 0.2rem;
+			padding: 0.7rem 0.8rem;
+			border-radius: 10px;
+			font-weight: 700;
+			font-size: 0.92rem;
+		}
+
+		.contact-form-status.is-success {
+			display: block;
+			background: #e8f7ef;
+			color: #1f5f3f;
+			border: 1px solid #bfe8cd;
+		}
+
+		.contact-form-status.is-error {
+			display: block;
+			background: #fff1f1;
+			color: #8d2020;
+			border: 1px solid #f0c5c5;
+		}
+
 		.map-wrap iframe {
 			width: 100%;
 			height: 100%;
@@ -828,8 +851,10 @@ if (count($slides) === 0) {
 					<form class="contact-form" id="contactForm">
 						<input type="text" name="name" placeholder="Your Name" required>
 						<input type="email" name="email" placeholder="Your Email" required>
+						<input type="tel" name="phone" placeholder="Your Phone Number" required>
 						<textarea name="message" placeholder="Write your message" required></textarea>
 						<button type="submit" class="btn btn-primary">Send Message</button>
+						<div class="contact-form-status" id="contactFormStatus" aria-live="polite"></div>
 					</form>
 				</div>
 				<div class="map-wrap">
@@ -1007,10 +1032,60 @@ if (count($slides) === 0) {
 		if (!form) {
 			return;
 		}
+		var statusBox = document.getElementById('contactFormStatus');
+
+		function setStatus(text, kind) {
+			if (!statusBox) {
+				return;
+			}
+			statusBox.classList.remove('is-success', 'is-error');
+			if (!text) {
+				statusBox.textContent = '';
+				return;
+			}
+			statusBox.textContent = text;
+			statusBox.classList.add(kind === 'success' ? 'is-success' : 'is-error');
+		}
+
 		form.addEventListener('submit', function (event) {
 			event.preventDefault();
-			alert('Thank you for contacting us. We will reach out to you soon.');
-			form.reset();
+
+			var submitBtn = form.querySelector('button[type="submit"]');
+			if (submitBtn) {
+				submitBtn.disabled = true;
+				submitBtn.textContent = 'Sending...';
+			}
+			setStatus('', '');
+
+			var data = new FormData(form);
+			var payload = {
+				name: String(data.get('name') || '').trim(),
+				email: String(data.get('email') || '').trim(),
+				phone: String(data.get('phone') || '').trim(),
+				message: String(data.get('message') || '').trim()
+			};
+
+			fetch('core/public_contact.php', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(payload)
+			}).then(function (response) {
+				return response.json();
+			}).then(function (res) {
+				if (!res || !res.ok) {
+					setStatus((res && res.message) ? res.message : 'Failed to send your message. Please try again.', 'error');
+					return;
+				}
+				setStatus((res.response || 'Thank you for contacting us. We will reach out to you soon.'), 'success');
+				form.reset();
+			}).catch(function () {
+				setStatus('Failed to send your message. Please check your internet and try again.', 'error');
+			}).finally(function () {
+				if (submitBtn) {
+					submitBtn.disabled = false;
+					submitBtn.textContent = 'Send Message';
+				}
+			});
 		});
 	})();
 
