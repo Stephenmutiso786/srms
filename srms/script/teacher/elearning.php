@@ -565,6 +565,15 @@ try {
 </select>
 </div>
 <div class="mb-3">
+<label class="form-label">Entry Mode</label>
+<select class="form-control" id="quizEntryMode" name="entry_mode">
+<option value="single">Single Question</option>
+<option value="bulk">Bulk Add Questions</option>
+</select>
+<small class="form-text text-muted">Use bulk mode to add many questions in one submit.</small>
+</div>
+<div id="singleQuestionFields">
+<div class="mb-3">
 <label class="form-label">Question</label>
 <textarea class="form-control" name="question" rows="2" required></textarea>
 </div>
@@ -588,6 +597,12 @@ try {
 <div class="mb-3">
 <label class="form-label">Marks</label>
 <input class="form-control" type="number" name="marks" value="1" min="0.5" step="0.5">
+</div>
+</div>
+<div class="mb-3" id="bulkQuestionFields" style="display:none;">
+<label class="form-label">Bulk Questions</label>
+<textarea class="form-control" name="bulk_questions" id="bulkQuestionsInput" rows="8" placeholder="Question | qtype | options | correct_answer | marks\n2 + 2 = ? | mcq | 3,4,5 | 4 | 1\nThe earth is round. | true_false |  | True | 1\nWrite one use of water. | short_answer |  |  | 2"></textarea>
+<small class="form-text text-muted">One question per line. Format: Question | qtype | options | correct_answer | marks. qtype: mcq, true_false, fill_blank, short_answer.</small>
 </div>
 <button class="btn btn-primary">Add Question</button>
 </form>
@@ -628,13 +643,43 @@ try {
 <script src="js/main.js"></script>
 <script>
 (function () {
+	var entryModeEl = document.getElementById('quizEntryMode');
+	var singleFields = document.getElementById('singleQuestionFields');
+	var bulkFields = document.getElementById('bulkQuestionFields');
+	var bulkInput = document.getElementById('bulkQuestionsInput');
   var typeEl = document.getElementById('quizQuestionType');
   var optionsGroup = document.getElementById('quizOptionsGroup');
   var optionsInput = document.getElementById('quizOptionsInput');
   var correctInput = document.getElementById('quizCorrectInput');
-  if (!typeEl || !optionsGroup || !optionsInput || !correctInput) {
+	if (!entryModeEl || !singleFields || !bulkFields || !bulkInput || !typeEl || !optionsGroup || !optionsInput || !correctInput) {
     return;
   }
+
+	function updateEntryMode() {
+		var mode = String(entryModeEl.value || 'single');
+		var singleInputs = singleFields.querySelectorAll('input, textarea, select');
+		if (mode === 'bulk') {
+			singleFields.style.display = 'none';
+			bulkFields.style.display = '';
+			bulkInput.required = true;
+			singleInputs.forEach(function (el) {
+				if (el.name === 'marks') {
+					return;
+				}
+				el.required = false;
+			});
+			return;
+		}
+		singleFields.style.display = '';
+		bulkFields.style.display = 'none';
+		bulkInput.required = false;
+		singleInputs.forEach(function (el) {
+			if (el.name === 'question' || el.name === 'qtype' || el.name === 'correct_answer') {
+				el.required = true;
+			}
+		});
+		updateQuizQuestionForm();
+	}
 
   function updateQuizQuestionForm() {
     var type = String(typeEl.value || 'mcq');
@@ -665,7 +710,9 @@ try {
     correctInput.required = false;
   }
 
+	entryModeEl.addEventListener('change', updateEntryMode);
   typeEl.addEventListener('change', updateQuizQuestionForm);
+	updateEntryMode();
   updateQuizQuestionForm();
 })();
 </script>

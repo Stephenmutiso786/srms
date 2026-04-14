@@ -17,6 +17,7 @@ $qtypeRaw = strtolower(trim((string)($_POST['qtype'] ?? 'mcq')));
 $options = trim($_POST['options'] ?? '');
 $correct = trim($_POST['correct_answer'] ?? '');
 $marks = (float)($_POST['marks'] ?? 1);
+$bulkRaw = trim((string)($_POST['bulk_questions'] ?? ''));
 
 $allowedTypes = ['mcq', 'true_false', 'fill_blank', 'short_answer'];
 $qtype = in_array($qtypeRaw, $allowedTypes, true) ? $qtypeRaw : 'mcq';
@@ -24,42 +25,59 @@ if ($marks <= 0) {
   $marks = 1;
 }
 
-if ($quizId < 1 || $question === '') {
+function normalize_question_payload($question, $qtypeRaw, $options, $correct, $marks, $allowedTypes) {
+  $qtype = in_array($qtypeRaw, $allowedTypes, true) ? $qtypeRaw : 'mcq';
+  if ($marks <= 0) {
+    $marks = 1;
+  }
+
+  if ($question === '') {
+    throw new InvalidArgumentException('Question is required.');
+  }
+
+  if (in_array($qtype, ['mcq', 'true_false', 'fill_blank'], true) && $correct === '') {
+    throw new InvalidArgumentException('Correct answer is required for this question type.');
+  }
+
+  if ($qtype === 'true_false') {
+    $options = 'True,False';
+    $normalized = strtolower($correct);
+    if ($normalized === 'true' || $normalized === 't') {
+      $correct = 'True';
+    } elseif ($normalized === 'false' || $normalized === 'f') {
+      $correct = 'False';
+    } else {
+      throw new InvalidArgumentException('Correct answer for True/False must be True or False.');
+    }
+  }
+
+  if ($qtype === 'mcq') {
+    $opts = array_values(array_filter(array_map('trim', explode(',', $options)), function ($v) {
+      return $v !== '';
+    }));
+    if (count($opts) < 2) {
+      throw new InvalidArgumentException('MCQ requires at least two options.');
+    }
+    $options = implode(',', $opts);
+  }
+
+  if ($qtype !== 'mcq' && $qtype !== 'true_false') {
+    $options = '';
+  }
+
+  return [
+    'question' => $question,
+    'qtype' => $qtype,
+    'options' => $options,
+    'correct_answer' => $correct,
+    'marks' => $marks
+  ];
+}
+
+if ($quizId < 1) {
   $_SESSION['reply'] = array (array("danger", "Missing question details."));
   header("location:../elearning");
   exit;
-}
-
-if (in_array($qtype, ['mcq', 'true_false', 'fill_blank'], true) && $correct === '') {
-  $_SESSION['reply'] = array (array("danger", "Correct answer is required for this question type."));
-  header("location:../elearning");
-  exit;
-}
-
-if ($qtype === 'true_false') {
-  $options = 'True,False';
-  $normalized = strtolower($correct);
-  if ($normalized === 'true' || $normalized === 't') {
-    $correct = 'True';
-  } elseif ($normalized === 'false' || $normalized === 'f') {
-    $correct = 'False';
-  } else {
-    $_SESSION['reply'] = array (array("danger", "Correct answer for True/False must be True or False."));
-    header("location:../elearning");
-    exit;
-  }
-}
-
-if ($qtype === 'mcq') {
-  $opts = array_values(array_filter(array_map('trim', explode(',', $options)), function ($v) {
-    return $v !== '';
-  }));
-  if (count($opts) < 2) {
-    $_SESSION['reply'] = array (array("danger", "MCQ requires at least two options."));
-    header("location:../elearning");
-    exit;
-  }
-  $options = implode(',', $opts);
 }
 
 try {
@@ -70,13 +88,56 @@ try {
   if ((int)$stmt->fetchColumn() !== (int)$account_id) {
     throw new RuntimeException("Not allowed to edit this quiz.");
   }
+
+  $toInsert = [];
+  if ($bulkRaw !== '') {
+    $lines = preg_split('/\r\n|\r|\n/', $bulkRaw);
+    foreach ($lines as $i => $line) {
+      $line = trim((string)$line);
+      if ($line === '') {
+        continue;
+      }
+      $parts = array_map('trim', explode('|', $line));
+      if (count($parts) < 2) {
+        throw new InvalidArgumentException('Invalid bulk format at line '.($i + 1).'. Use: Question | qtype | options | correct_answer | marks');
+      }
+
+      $lineQuestion = (string)($parts[0] ?? '');
+      $lineType = strtolower((string)($parts[1] ?? 'mcq'));
+      $lineOptions = (string)($parts[2] ?? '');
+      $lineCorrect = (string)($parts[3] ?? '');
+      $lineMarks = (float)($parts[4] ?? 1);
+
+      try {
+        $toInsert[] = normalize_question_payload($lineQuestion, $lineType, $lineOptions, $lineCorrect, $lineMarks, $allowedTypes);
+      } catch (InvalidArgumentException $e) {
+        throw new InvalidArgumentException('Line '.($i + 1).': '.$e->getMessage());
+      }
+    }
+
+    if (empty($toInsert)) {
+      throw new InvalidArgumentException('Bulk mode has no valid question lines.');
+    }
+  } else {
+    $toInsert[] = normalize_question_payload($question, $qtypeRaw, $options, $correct, $marks, $allowedTypes);
+  }
+
+  $conn->beginTransaction();
   $stmt = $conn->prepare("INSERT INTO tbl_quiz_questions (quiz_id, question, qtype, options, correct_answer, marks) VALUES (?,?,?,?,?,?)");
-  $stmt->execute([$quizId, $question, $qtype, $options, $correct, $marks]);
+  foreach ($toInsert as $item) {
+    $stmt->execute([$quizId, $item['question'], $item['qtype'], $item['options'], $item['correct_answer'], $item['marks']]);
+  }
+  $conn->commit();
+
   app_audit_log($conn, 'staff', (string)$account_id, 'elearning.quiz.question', 'quiz', (string)$quizId);
-  $_SESSION['reply'] = array (array("success", "Question added."));
+  $countAdded = count($toInsert);
+  $_SESSION['reply'] = array (array("success", $countAdded > 1 ? ($countAdded." questions added.") : "Question added."));
 } catch (Throwable $e) {
+	if (isset($conn) && $conn instanceof PDO && $conn->inTransaction()) {
+		$conn->rollBack();
+	}
 	error_log("[".__FILE__.":".__LINE__." Throwable] " . $e->getMessage());
-	$_SESSION['reply'] = array(array("danger", "Operation failed. Please try again."));
+	$_SESSION['reply'] = array(array("danger", $e instanceof InvalidArgumentException ? $e->getMessage() : "Operation failed. Please try again."));
 }
 header("location:../elearning");
 exit;
