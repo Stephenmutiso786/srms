@@ -446,11 +446,16 @@
 		style.textContent = '' +
 			'.app-online-indicator{display:inline-flex;align-items:center;gap:6px;font-weight:700;}' +
 			'.app-online-dot{width:9px;height:9px;border-radius:999px;background:#2bb24c;box-shadow:0 0 0 0 rgba(43,178,76,.5);animation:appOnlinePulse 1.6s infinite;}' +
+			'.app-online-quick{display:flex;align-items:center;padding:0 10px;}' +
+			'.app-online-quick.is-offline .app-online-dot{background:#95a59c;box-shadow:none;animation:none;}' +
+			'.app-online-quick.is-offline .app-online-indicator{opacity:.8;}' +
 			'.app-online-menu{min-width:290px;max-height:340px;overflow:auto;padding:6px 0;}' +
 			'.app-online-row{padding:8px 12px;border-bottom:1px solid #eef2f1;display:flex;justify-content:space-between;gap:8px;}' +
 			'.app-online-row:last-child{border-bottom:none;}' +
 			'.app-online-name{font-weight:700;}' +
 			'.app-online-meta{font-size:12px;color:#63736a;}' +
+			'.app-profile-online{position:relative;}' +
+			'.app-profile-online-dot{position:absolute;right:1px;bottom:3px;width:11px;height:11px;border-radius:999px;background:#2bb24c;border:2px solid #fff;box-shadow:0 0 0 0 rgba(43,178,76,.45);animation:appOnlinePulse 1.6s infinite;}' +
 			'@keyframes appOnlinePulse{0%{box-shadow:0 0 0 0 rgba(43,178,76,.5);}70%{box-shadow:0 0 0 7px rgba(43,178,76,0);}100%{box-shadow:0 0 0 0 rgba(43,178,76,0);}}';
 		document.head.appendChild(style);
 	}
@@ -467,6 +472,26 @@
 
 		appEnsureOnlineWidgetStyles();
 
+		var profileLink = nav.querySelector('[aria-label="Open Profile Menu"]');
+		if (profileLink) {
+			profileLink.classList.add('app-profile-online');
+			if (!document.getElementById('appProfileOnlineDot')) {
+				var profileDot = document.createElement('span');
+				profileDot.id = 'appProfileOnlineDot';
+				profileDot.className = 'app-profile-online-dot';
+				profileDot.setAttribute('aria-hidden', 'true');
+				profileLink.appendChild(profileDot);
+			}
+		}
+
+		if (!document.getElementById('appOnlineQuickStatus')) {
+			var quickItem = document.createElement('li');
+			quickItem.className = 'app-online-quick';
+			quickItem.id = 'appOnlineQuickStatus';
+			quickItem.innerHTML = '<span class="app-online-indicator"><span class="app-online-dot"></span><span id="appOnlineQuickLabel">Online</span></span>';
+			nav.insertBefore(quickItem, nav.firstChild);
+		}
+
 		var item = document.createElement('li');
 		item.className = 'dropdown';
 		item.id = 'appOnlineNavItem';
@@ -481,11 +506,15 @@
 
 		var menu = document.getElementById('appOnlineMenu');
 		var label = document.getElementById('appOnlineLabel');
+		var quickStatus = document.getElementById('appOnlineQuickStatus');
+		var quickLabel = document.getElementById('appOnlineQuickLabel');
 
 		function renderOnline(data) {
 			if (!menu || !label) return;
 			if (!data || !data.ok) {
 				menu.innerHTML = '<div class="px-3 py-2 text-muted small">Online users unavailable.</div>';
+				if (quickStatus) quickStatus.classList.add('is-offline');
+				if (quickLabel) quickLabel.textContent = 'Offline';
 				return;
 			}
 
@@ -501,6 +530,8 @@
 			var users = Array.isArray(data.users) ? data.users : [];
 			var count = Number(data.count || users.length || 0);
 			label.textContent = 'Online (' + count + ')';
+			if (quickStatus) quickStatus.classList.toggle('is-offline', count < 1);
+			if (quickLabel) quickLabel.textContent = count > 0 ? ('Online (' + count + ')') : 'Offline';
 
 			if (!users.length) {
 				menu.innerHTML = '<div class="px-3 py-2 text-muted small">No other users online.</div>';
