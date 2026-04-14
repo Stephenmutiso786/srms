@@ -569,16 +569,25 @@ try {
 <textarea class="form-control" name="question" rows="2" required></textarea>
 </div>
 <div class="mb-3">
+<label class="form-label">Question Type</label>
+<select class="form-control" name="qtype" id="quizQuestionType" required>
+<option value="mcq">Multiple Choice</option>
+<option value="true_false">True / False</option>
+<option value="fill_blank">Fill in the Blank</option>
+<option value="short_answer">Short Answer</option>
+</select>
+</div>
+<div class="mb-3" id="quizOptionsGroup">
 <label class="form-label">Options (comma separated)</label>
-<input class="form-control" name="options">
+<input class="form-control" name="options" id="quizOptionsInput" placeholder="A, B, C, D">
 </div>
 <div class="mb-3">
 <label class="form-label">Correct Answer</label>
-<input class="form-control" name="correct_answer" required>
+<input class="form-control" name="correct_answer" id="quizCorrectInput" placeholder="For short answer, you can leave blank for manual review">
 </div>
 <div class="mb-3">
 <label class="form-label">Marks</label>
-<input class="form-control" type="number" name="marks" value="1" step="0.5">
+<input class="form-control" type="number" name="marks" value="1" min="0.5" step="0.5">
 </div>
 <button class="btn btn-primary">Add Question</button>
 </form>
@@ -617,6 +626,49 @@ try {
 <script src="js/jquery-3.7.0.min.js"></script>
 <script src="js/bootstrap.min.js"></script>
 <script src="js/main.js"></script>
+<script>
+(function () {
+  var typeEl = document.getElementById('quizQuestionType');
+  var optionsGroup = document.getElementById('quizOptionsGroup');
+  var optionsInput = document.getElementById('quizOptionsInput');
+  var correctInput = document.getElementById('quizCorrectInput');
+  if (!typeEl || !optionsGroup || !optionsInput || !correctInput) {
+    return;
+  }
+
+  function updateQuizQuestionForm() {
+    var type = String(typeEl.value || 'mcq');
+    if (type === 'mcq') {
+      optionsGroup.style.display = '';
+      optionsInput.placeholder = 'A, B, C, D';
+      correctInput.placeholder = 'Type one option exactly as listed';
+      correctInput.required = true;
+      return;
+    }
+    if (type === 'true_false') {
+      optionsGroup.style.display = 'none';
+      optionsInput.value = 'True,False';
+      correctInput.placeholder = 'True or False';
+      correctInput.required = true;
+      return;
+    }
+    if (type === 'fill_blank') {
+      optionsGroup.style.display = 'none';
+      optionsInput.value = '';
+      correctInput.placeholder = 'Expected word or phrase';
+      correctInput.required = true;
+      return;
+    }
+    optionsGroup.style.display = 'none';
+    optionsInput.value = '';
+    correctInput.placeholder = 'Optional: leave blank for manual review';
+    correctInput.required = false;
+  }
+
+  typeEl.addEventListener('change', updateQuizQuestionForm);
+  updateQuizQuestionForm();
+})();
+</script>
 <?php require_once('const/check-reply.php'); ?>
 </body>
 </html>
