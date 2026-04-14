@@ -84,11 +84,12 @@ if ($res == "1" && $level == "0") {}else{header("location:../");}
 <th>Name</th>
 <th>Role</th>
 <th>Class</th>
+<th>Last Seen</th>
 <th>ID</th>
 </tr>
 </thead>
 <tbody id="onlineUsersBody">
-<tr><td colspan="5" class="text-muted">Loading online users...</td></tr>
+<tr><td colspan="6" class="text-muted">Loading online users...</td></tr>
 </tbody>
 </table>
 </div>
@@ -117,6 +118,16 @@ if ($res == "1" && $level == "0") {}else{header("location:../");}
       .replace(/'/g, '&#39;');
   }
 
+  function formatTimestamp(value) {
+    if (!value) return '-';
+    var normalized = String(value).replace(' ', 'T');
+    var d = new Date(normalized);
+    if (isNaN(d.getTime())) {
+      return escapeHtml(value);
+    }
+    return escapeHtml(d.toLocaleString());
+  }
+
   function buildClassOptions(users) {
     var seen = {};
     var options = ['<option value="">All Classes</option>'];
@@ -143,18 +154,20 @@ if ($res == "1" && $level == "0") {}else{header("location:../");}
     });
 
     if (!filtered.length) {
-      body.innerHTML = '<tr><td colspan="5" class="text-muted">No online users match the current filters.</td></tr>';
+      body.innerHTML = '<tr><td colspan="6" class="text-muted">No online users match the current filters.</td></tr>';
       return;
     }
 
     body.innerHTML = filtered.map(function (u) {
       var className = u.class_name ? escapeHtml(u.class_name) : '-';
+      var lastSeen = formatTimestamp(u.last_seen || '');
       return '' +
         '<tr>' +
           '<td><span class="online-pill"><span class="online-dot"></span>Online</span></td>' +
           '<td>' + escapeHtml(u.name) + '</td>' +
           '<td>' + escapeHtml(u.role) + '</td>' +
           '<td>' + className + '</td>' +
+          '<td>' + lastSeen + '</td>' +
           '<td>' + escapeHtml(u.id) + '</td>' +
         '</tr>';
     }).join('');
@@ -165,7 +178,7 @@ if ($res == "1" && $level == "0") {}else{header("location:../");}
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (!data || !data.ok) {
-          body.innerHTML = '<tr><td colspan="5" class="text-danger">Failed to load online users.</td></tr>';
+          body.innerHTML = '<tr><td colspan="6" class="text-danger">Failed to load online users.</td></tr>';
           meta.textContent = 'Refresh failed';
           return;
         }
@@ -178,7 +191,7 @@ if ($res == "1" && $level == "0") {}else{header("location:../");}
         meta.textContent = 'Online now: ' + (data.count || allUsers.length || 0) + ' | Last updated: ' + now.toLocaleTimeString();
       })
       .catch(function () {
-        body.innerHTML = '<tr><td colspan="5" class="text-danger">Failed to load online users.</td></tr>';
+        body.innerHTML = '<tr><td colspan="6" class="text-danger">Failed to load online users.</td></tr>';
         meta.textContent = 'Refresh failed';
       });
   }

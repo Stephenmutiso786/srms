@@ -489,6 +489,15 @@
 				return;
 			}
 
+			function renderSeen(value) {
+				if (!value) return '';
+				var d = new Date(String(value).replace(' ', 'T'));
+				if (isNaN(d.getTime())) {
+					return String(value);
+				}
+				return d.toLocaleTimeString();
+			}
+
 			var users = Array.isArray(data.users) ? data.users : [];
 			var count = Number(data.count || users.length || 0);
 			label.textContent = 'Online (' + count + ')';
@@ -501,11 +510,13 @@
 			menu.innerHTML = users.map(function (u) {
 				var name = (u && u.name) ? String(u.name) : 'User';
 				var role = (u && u.role) ? String(u.role) : '';
+				var seen = renderSeen(u && u.last_seen ? u.last_seen : '');
+				var meta = seen ? (role + ' | Last seen: ' + seen) : role;
 				return '' +
 					'<div class="app-online-row">' +
 						'<div>' +
 							'<div class="app-online-name">' + name + '</div>' +
-							'<div class="app-online-meta">' + role + '</div>' +
+							'<div class="app-online-meta">' + meta + '</div>' +
 						'</div>' +
 						'<span class="badge bg-success">Online</span>' +
 					'</div>';

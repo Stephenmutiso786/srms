@@ -9,8 +9,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $_username = $_POST['username'];
 $_password = $_POST['password'];
 $redirectTo = isset($_POST['redirect_to']) ? trim((string)$_POST['redirect_to']) : '';
+$loginMode = isset($_POST['login_mode']) ? trim((string)$_POST['login_mode']) : '';
+$loginMode = preg_replace('/[^a-zA-Z0-9_-]/', '', $loginMode);
 $redirectTo = preg_replace('/[^a-zA-Z0-9_\/-]/', '', $redirectTo);
 $redirectTo = ltrim($redirectTo, '/');
+if ($redirectTo === '' && $loginMode === 'elearning') {
+	$redirectTo = 'elearning';
+}
 $cookie_length = "4320";
 
 try {

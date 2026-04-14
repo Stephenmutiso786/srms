@@ -146,14 +146,12 @@ try {
 <p class="semibold-text mb-2"><a href="javascript:void(0);" data-toggle="flip">Forgot Password ?</a></p>
 </div>
 </div>
+<input type="hidden" name="redirect_to" id="redirectToInput" value="<?php echo htmlspecialchars($redirectTo, ENT_QUOTES, 'UTF-8'); ?>">
 <div class="mb-3 btn-container d-grid">
-<button type="submit" class="btn btn-primary btn-block app_btn"><i class="bi bi-box-arrow-in-right me-2 fs-5"></i>SIGN IN</button>
+<button type="submit" class="btn btn-primary btn-block app_btn" id="portalLoginBtn"><i class="bi bi-box-arrow-in-right me-2 fs-5"></i>SIGN IN</button>
 </div>
-<?php if ($redirectTo !== ''): ?>
-<input type="hidden" name="redirect_to" value="<?php echo htmlspecialchars($redirectTo, ENT_QUOTES, 'UTF-8'); ?>">
-<?php endif; ?>
 <div class="mb-3 btn-container d-grid">
-<a href="index.php?redirect_to=elearning" class="btn btn-block elearning-login-btn"><i class="bi bi-mortarboard-fill me-2 fs-5"></i>E-LEARNING LOGIN</a>
+<button type="submit" class="btn btn-block elearning-login-btn" id="elearningLoginBtn" name="login_mode" value="elearning"><i class="bi bi-mortarboard-fill me-2 fs-5"></i>E-LEARNING LOGIN</button>
 </div>
 <div class="mb-3 btn-container d-grid">
 <a href="school_main_website.php" class="btn btn-primary btn-block app_btn" style="font-weight:700;"><i class="bi bi-globe2 me-2 fs-5"></i>visit the  school main website</a>
@@ -195,6 +193,20 @@ $('#toggleLoginPassword').on('click', function () {
   var isPassword = input.getAttribute('type') === 'password';
   input.setAttribute('type', isPassword ? 'text' : 'password');
   this.innerHTML = isPassword ? '<i class="bi bi-eye-slash"></i>' : '<i class="bi bi-eye"></i>';
+});
+
+$('#portalLoginBtn').on('click', function () {
+  var redirectInput = document.getElementById('redirectToInput');
+  if (!redirectInput) return;
+  if (redirectInput.value === 'elearning') {
+    redirectInput.value = '';
+  }
+});
+
+$('#elearningLoginBtn').on('click', function () {
+  var redirectInput = document.getElementById('redirectToInput');
+  if (!redirectInput) return;
+  redirectInput.value = 'elearning';
 });
 
 if ('serviceWorker' in navigator) {

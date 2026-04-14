@@ -121,7 +121,7 @@ function app_online_fetch_users(PDO $conn, string $level, string $accountId, int
     $isPgsql = defined('DBDriver') && DBDriver === 'pgsql';
 
     try {
-        $staffSql = "SELECT ls.staff AS user_id, st.fname, st.lname, st.level
+        $staffSql = "SELECT ls.staff AS user_id, st.fname, st.lname, st.level, ls.last_seen
             FROM tbl_login_sessions ls
             JOIN tbl_staff st ON st.id = ls.staff
             WHERE ls.staff IS NOT NULL AND ls.last_seen >= ? AND st.status = 1";
@@ -140,6 +140,7 @@ function app_online_fetch_users(PDO $conn, string $level, string $accountId, int
                 'name' => trim((string)$row['fname'] . ' ' . (string)$row['lname']),
                 'role' => app_level_title_label((int)$row['level']),
                 'scope' => 'staff',
+                'last_seen' => (string)($row['last_seen'] ?? ''),
                 'status' => 'Online'
             ];
         }
@@ -147,7 +148,7 @@ function app_online_fetch_users(PDO $conn, string $level, string $accountId, int
     }
 
     try {
-        $studentSql = "SELECT ls.student AS user_id, st.fname, st.mname, st.lname, st.class AS class_id, cl.name AS class_name
+        $studentSql = "SELECT ls.student AS user_id, st.fname, st.mname, st.lname, st.class AS class_id, cl.name AS class_name, ls.last_seen
             FROM tbl_login_sessions ls
             JOIN tbl_students st ON " . ($isPgsql ? "st.id::text = ls.student::text" : "st.id = ls.student") . "
             LEFT JOIN tbl_classes cl ON cl.id = st.class
@@ -169,6 +170,7 @@ function app_online_fetch_users(PDO $conn, string $level, string $accountId, int
                 'scope' => 'student',
                 'class_id' => (string)($row['class_id'] ?? ''),
                 'class_name' => trim((string)($row['class_name'] ?? '')),
+                'last_seen' => (string)($row['last_seen'] ?? ''),
                 'status' => 'Online'
             ];
         }
@@ -177,7 +179,7 @@ function app_online_fetch_users(PDO $conn, string $level, string $accountId, int
 
     if (app_online_column_exists_raw($conn, 'tbl_login_sessions', 'parent') && app_table_exists($conn, 'tbl_parents')) {
         try {
-            $parentSql = "SELECT ls.parent AS user_id, p.fname, p.lname
+            $parentSql = "SELECT ls.parent AS user_id, p.fname, p.lname, ls.last_seen
                 FROM tbl_login_sessions ls
                 JOIN tbl_parents p ON " . ($isPgsql ? "p.id::text = ls.parent::text" : "p.id = ls.parent") . "
                 WHERE ls.parent IS NOT NULL AND ls.last_seen >= ? AND p.status = 1";
@@ -196,6 +198,7 @@ function app_online_fetch_users(PDO $conn, string $level, string $accountId, int
                     'name' => trim((string)$row['fname'] . ' ' . (string)$row['lname']),
                     'role' => 'Parent',
                     'scope' => 'parent',
+                    'last_seen' => (string)($row['last_seen'] ?? ''),
                     'status' => 'Online'
                 ];
             }
