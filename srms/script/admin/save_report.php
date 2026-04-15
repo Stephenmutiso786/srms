@@ -4,211 +4,135 @@ session_start();
 require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
+require_once('const/report_engine.php');
 require_once('tcpdf/tcpdf.php');
-require_once('const/calculations.php');
-if ($res == "1" && $level == "0") {}else{header("location:../");}
 
+if ($res !== "1" || $level !== "0") {
+	header("location:../");
+	exit;
+}
+
+$classId = 0;
+$termId = 0;
 if (isset($_SESSION['bulk_result_2'])) {
-$class = $_SESSION['bulk_result_2']['student'];
-$term = $_SESSION['bulk_result_2']['term'];
+	$classId = (int)($_SESSION['bulk_result_2']['student'] ?? 0);
+	$termId = (int)($_SESSION['bulk_result_2']['term'] ?? 0);
+} else {
+	$classId = (int)($_GET['class'] ?? 0);
+	$termId = (int)($_GET['term'] ?? 0);
+}
 
-try {
-$conn = app_db();
-$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-$stmt = $conn->prepare("SELECT * FROM tbl_grade_system");
-$stmt->execute();
-$grading = $stmt->fetchAll();
-
-foreach ($divisions as $key => $value) {
-
-$_MATOKEO[$value[0]]['BOYS'] = 0;
-$_MATOKEO[$value[0]]['GIRLS'] = 0;
+if ($classId < 1 || $termId < 1) {
+	header("location:./");
+	exit;
 }
 
 try {
-$conn = app_db();
-$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	$conn = app_db();
+	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-$stmt = $conn->prepare("SELECT * FROM tbl_students WHERE class = ?");
-$stmt->execute([$class]);
-$std_data = $stmt->fetchAll();
+	$stmt = $conn->prepare("SELECT name FROM tbl_classes WHERE id = ? LIMIT 1");
+	$stmt->execute([$classId]);
+	$className = (string)$stmt->fetchColumn();
+	if ($className === '') {
+		throw new RuntimeException('Class not found.');
+	}
 
-$stmt = $conn->prepare("SELECT * FROM tbl_terms WHERE id = ?");
-$stmt->execute([$term]);
-$term_data = $stmt->fetchAll();
+	$stmt = $conn->prepare("SELECT name FROM tbl_terms WHERE id = ? LIMIT 1");
+	$stmt->execute([$termId]);
+	$termName = (string)$stmt->fetchColumn();
+	if ($termName === '') {
+		throw new RuntimeException('Term not found.');
+	}
 
-$stmt = $conn->prepare("SELECT * FROM tbl_classes WHERE id = ?");
-$stmt->execute([$std_data[0][6]]);
-$class_data = $stmt->fetchAll();
+	$merit = report_class_merit_list($conn, $classId, $termId, isset($account_id) ? (int)$account_id : null);
+	if (empty($merit['rows'])) {
+		throw new RuntimeException('No report-ready learners were found for this class and term.');
+	}
 
-$title = ''.$class_data[0][1].' ('.$term_data[0][1].' Perfomance Report)';
-}catch(PDOException $e)
-{
-error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
-echo "Connection failed.";
+	$gradeDistribution = [];
+	$meanSum = 0.0;
+	foreach ($merit['rows'] as $row) {
+		$grade = strtoupper(trim((string)($row['grade'] ?? 'N/A')));
+		$gradeDistribution[$grade] = (int)($gradeDistribution[$grade] ?? 0) + 1;
+		$meanSum += (float)($row['mean'] ?? 0);
+	}
+	$classMean = round($meanSum / max(1, count($merit['rows'])), 2);
+
+	$pdf = new TCPDF(PDF_PAGE_ORIENTATION, PDF_UNIT, PDF_PAGE_FORMAT, true, 'UTF-8', false);
+	$pdf->SetCreator(PDF_CREATOR);
+	$pdf->SetAuthor(WBName);
+	$pdf->SetTitle($className . ' - ' . $termName . ' Performance Summary');
+	$pdf->SetSubject('Class performance summary');
+	$pdf->setPrintHeader(false);
+	$pdf->setPrintFooter(false);
+	$pdf->SetMargins(12, 12, 12);
+	$pdf->SetAutoPageBreak(true, 15);
+	$pdf->AddPage();
+
+	$logoHtml = app_pdf_image_html('images/logo/' . WBLogo, 54, 0, WBName);
+	$headerHtml = '
+	<table width="100%" cellpadding="3">
+		<tr>
+			<td width="15%">' . $logoHtml . '</td>
+			<td width="85%">
+				<div style="font-size:18px;font-weight:bold;">' . htmlspecialchars(WBName) . '</div>
+				<div style="font-size:13px;">Class Performance Summary</div>
+				<div style="font-size:11px;">' . htmlspecialchars($className) . ' · ' . htmlspecialchars($termName) . '</div>
+			</td>
+		</tr>
+	</table>';
+	$pdf->writeHTML($headerHtml, true, false, true, false, '');
+
+	$distHtml = '<table border="1" cellpadding="5" cellspacing="0">
+		<tr style="background-color:#f3f7fb;">
+			<td width="40%"><b>Total Learners</b></td>
+			<td width="60%">' . (int)$merit['total_students'] . '</td>
+		</tr>
+		<tr>
+			<td><b>Class Mean</b></td>
+			<td>' . number_format($classMean, 2) . '%</td>
+		</tr>
+	</table><br>';
+	$pdf->writeHTML($distHtml, true, false, true, false, '');
+
+	if (!empty($gradeDistribution)) {
+		$rows = '';
+		ksort($gradeDistribution);
+		foreach ($gradeDistribution as $grade => $count) {
+			$rows .= '<tr><td>' . htmlspecialchars($grade) . '</td><td>' . (int)$count . '</td></tr>';
+		}
+		$pdf->writeHTML('<h4>Grade Distribution</h4><table border="1" cellpadding="4"><tr style="background-color:#f3f7fb;"><td><b>Grade</b></td><td><b>Learners</b></td></tr>' . $rows . '</table><br>', true, false, true, false, '');
+	}
+
+	$tableRows = '';
+	foreach ($merit['rows'] as $row) {
+		$tableRows .= '<tr>
+			<td>' . htmlspecialchars((string)$row['school_id']) . '</td>
+			<td>' . htmlspecialchars((string)$row['student_name']) . '</td>
+			<td>' . (int)($row['position'] ?? 0) . '/' . (int)($row['total_students'] ?? 0) . '</td>
+			<td>' . number_format((float)($row['total'] ?? 0), 2) . '</td>
+			<td>' . number_format((float)($row['mean'] ?? 0), 2) . '</td>
+			<td>' . htmlspecialchars((string)($row['grade'] ?? '')) . '</td>
+			<td>' . htmlspecialchars((string)($row['trend'] ?? '')) . '</td>
+		</tr>';
+	}
+
+	$pdf->writeHTML('<h4>Learner Summary</h4><table border="1" cellpadding="4" cellspacing="0">
+		<tr style="background-color:#f3f7fb;">
+			<td width="14%"><b>Adm/ID</b></td>
+			<td width="28%"><b>Learner</b></td>
+			<td width="12%"><b>Position</b></td>
+			<td width="14%"><b>Total</b></td>
+			<td width="12%"><b>Mean</b></td>
+			<td width="8%"><b>Grade</b></td>
+			<td width="12%"><b>Trend</b></td>
+		</tr>' . $tableRows . '</table>', true, false, true, false, '');
+
+	$pdf->Output($className . '-' . $termName . '-performance-summary.pdf', 'I');
+} catch (Throwable $e) {
+	error_log('[admin/save_report] ' . $e->getMessage());
+	$_SESSION['reply'] = array(array('danger', 'Failed to generate summary report: ' . $e->getMessage()));
+	header('location:report');
+	exit;
 }
-
-$stmt = $conn->prepare("SELECT * FROM tbl_subject_combinations LEFT JOIN tbl_subjects ON tbl_subject_combinations.subject = tbl_subjects.id");
-$stmt->execute();
-$result = $stmt->fetchAll();
-
-$stmt = $conn->prepare("SELECT * FROM tbl_students WHERE class = ?");
-$stmt->execute([$class]);
-$result2 = $stmt->fetchAll();
-
-foreach($result2 as $row2)
-{
-$tscore = 0;
-$t_subjects = 0;
-$subssss = array();
-
-
-foreach ($result as $key => $row) {
-$class_list = app_unserialize($row[1]);
-
-if (in_array($class, $class_list))
-{
-$t_subjects++;
-$score = 0;
-$gnd = $row2[4];
-$stmt = $conn->prepare("SELECT * FROM tbl_exam_results WHERE class = ? AND subject_combination = ? AND term = ? AND student = ?");
-$stmt->execute([$class, $row[0], $term, $row2[0]]);
-$ex_result = $stmt->fetchAll();
-
-if (!empty($ex_result[0][5])) {
-$score = $ex_result[0][5];
-$tscore = $tscore + $score;
-}
-array_push($subssss, $score);
-
-}
-
-
-}
-
-if ($t_subjects == "0") {
-$av = '0';
-}else{
-$av = round($tscore/$t_subjects);
-}
-
-foreach($grading as $grade)
-{
-
-if ($av >= $grade[2] && $av <= $grade[3]) {
-
-$grd = $grade[1];
-$rm = $grade[4];
-
-}
-
-}
-
-$div = get_division($subssss);
-
-if ($gnd == "Male") {
-
-$_MATOKEO[$div]['BOYS'] = $_MATOKEO[$div]['BOYS'] +1;
-
-
-}else{
-$_MATOKEO[$div]['GIRLS'] = $_MATOKEO[$div]['GIRLS'] +1;
-
-}
-}
-
-
-$pdf = new TCPDF(PDF_PAGE_ORIENTATION, PDF_UNIT, PDF_PAGE_FORMAT, true, 'UTF-8', false);
-
-$pdf->SetCreator(PDF_CREATOR);
-$pdf->SetAuthor(WBName);
-$pdf->SetTitle($title);
-$pdf->SetSubject($title);
-$pdf->SetKeywords(APP_NAME, WBName);
-
-$pdf->setPrintHeader(false);
-$pdf->setPrintFooter(false);
-
-$pdf->SetDefaultMonospacedFont(PDF_FONT_MONOSPACED);
-
-
-$pdf->SetAutoPageBreak(TRUE, PDF_MARGIN_BOTTOM);
-
-$pdf->setImageScale(PDF_IMAGE_SCALE_RATIO);
-
-if (@file_exists(dirname(__FILE__).'/lang/eng.php')) {
-require_once(dirname(__FILE__).'/lang/eng.php');
-$pdf->setLanguageArray($l);
-}
-
-$pdf->setFontSubsetting(true);
-$pdf->SetFont('helvetica', '', 14, '', true);
-
-$pdf->AddPage();
-$pdf->setTextShadow(array('enabled'=>true, 'depth_w'=>0.2, 'depth_h'=>0.2, 'color'=>array(196,196,196), 'opacity'=>1, 'blend_mode'=>'Normal'));
-
-
-$logoHtml = app_pdf_image_html('images/logo/'.WBLogo, 60, 0, WBName);
-$html = '<table width="100%">
-<tr>
-<td width="15%">'.$logoHtml.'</td>
-<td width="85%">
-<h5><b style="font-size:18px;">'.WBName.'</b>
-<br>Student Perfomance Report<br>
-'.$class_data[0][1].'<br>
-'.$term_data[0][1].'</h5>
-</td>
-
-</tr>
-</table>';
-
-$pdf->writeHTMLCell(0, 0, '', '', $html, 0, 1, 0, true, '', true);
-
-$pdf->SetFont('helvetica', '', 10, '', true);
-
-$pdf->cell(0, 0, '', 0, 1, 'C');
-
-$htmls = '<table border="1" cellpadding="5">
-<tr>
-<td>DIVISION</td>
-<td>BOYS</td>
-<td>GIRLS</td>
-<td>Total</td>
-</tr>
-';
-
-foreach ($divisions as $key => $value) {
-
-$htmls = $htmls.'
-<tr>
-<td>'.$value[0].'</td>
-<td>'.$_MATOKEO[$value[0]]['BOYS'].'</td>
-<td>'.$_MATOKEO[$value[0]]['GIRLS'].'</td>
-<td>'.$_MATOKEO[$value[0]]['BOYS']+$_MATOKEO[$value[0]]['GIRLS'].'</td>
-</tr>
-';
-
-
-}
-
-$htmls = $htmls.'</table>';
-
-$pdf->writeHTMLCell(0, 0, '', '', $htmls, 0, 1, 0, true, '', true);
-
-$html2 = '<br><br><b>Date : '.date('F d, Y G:i:s A').'</b>';
-$pdf->writeHTMLCell(0, 0, '', '', $html2, 0, 1, 0, true, '', true);
-
-ob_end_clean();
-$pdf->Output(''.$title.'.pdf', 'I');
-
-}catch(PDOException $e)
-{
-error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
-echo "Connection failed.";
-}
-}else{
-header("location:./");
-}
-
-?>

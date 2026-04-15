@@ -1243,14 +1243,30 @@ function report_class_merit_list(PDO $conn, int $classId, int $termId, ?int $gen
 		];
 	}
 
-	$stmt = $conn->prepare("SELECT id FROM tbl_students WHERE class = ? ORDER BY fname, lname, id");
+	$stmt = $conn->prepare("SELECT id, school_id, fname, mname, lname FROM tbl_students WHERE class = ? ORDER BY fname, lname, id");
 	$stmt->execute([$classId]);
-	$studentIds = array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN));
-	if (!$studentIds) {
+	$studentRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	if (!$studentRows) {
 		return [
 			'rows' => [],
 			'total_students' => 0,
 			'positions' => [],
+		];
+	}
+	$studentIds = array_map(static function ($row) {
+		return (string)$row['id'];
+	}, $studentRows);
+	$className = '';
+	$stmt = $conn->prepare("SELECT name FROM tbl_classes WHERE id = ? LIMIT 1");
+	$stmt->execute([$classId]);
+	$className = (string)$stmt->fetchColumn();
+	$identityMap = [];
+	foreach ($studentRows as $studentRow) {
+		$studentId = (string)$studentRow['id'];
+		$identityMap[$studentId] = [
+			'school_id' => (string)($studentRow['school_id'] ?? ''),
+			'name' => trim((string)($studentRow['fname'] ?? '') . ' ' . (string)($studentRow['mname'] ?? '') . ' ' . (string)($studentRow['lname'] ?? '')),
+			'class_name' => $className,
 		];
 	}
 
@@ -1259,25 +1275,24 @@ function report_class_merit_list(PDO $conn, int $classId, int $termId, ?int $gen
 	foreach ($studentIds as $studentId) {
 		$report = report_compute_for_student($conn, $studentId, $classId, $termId);
 		$reportId = report_store_card($conn, $studentId, $classId, $termId, $report, $rankData['positions'], (int)$rankData['total_students'], $generatedBy);
-		$card = report_load_card($conn, $reportId);
-		$identity = report_get_student_identity($conn, $studentId) ?: [];
-		if (!$card) {
-			continue;
-		}
+		$stmt = $conn->prepare("SELECT verification_code FROM tbl_report_cards WHERE id = ? LIMIT 1");
+		$stmt->execute([$reportId]);
+		$verificationCode = (string)$stmt->fetchColumn();
+		$identity = $identityMap[$studentId] ?? ['school_id' => '', 'name' => '', 'class_name' => $className];
 		$rows[] = [
 			'report_id' => $reportId,
 			'student_id' => $studentId,
 			'school_id' => (string)($identity['school_id'] ?? ''),
 			'student_name' => (string)($identity['name'] ?? ''),
 			'class_name' => (string)($identity['class_name'] ?? ''),
-			'position' => (int)($card['position'] ?? 0),
-			'total_students' => (int)($card['total_students'] ?? 0),
-			'total' => (float)($card['total'] ?? 0),
-			'mean' => (float)($card['mean'] ?? 0),
-			'grade' => (string)($card['grade'] ?? ''),
-			'remark' => (string)($card['remark'] ?? ''),
-			'trend' => (string)($card['trend'] ?? ''),
-			'verification_code' => (string)($card['verification_code'] ?? ''),
+			'position' => (int)($rankData['positions'][$studentId] ?? 0),
+			'total_students' => (int)$rankData['total_students'],
+			'total' => (float)($report['total'] ?? 0),
+			'mean' => (float)($report['mean'] ?? 0),
+			'grade' => (string)($report['grade'] ?? ''),
+			'remark' => (string)($report['remark'] ?? ''),
+			'trend' => (string)($report['trend'] ?? ''),
+			'verification_code' => $verificationCode,
 		];
 	}
 
