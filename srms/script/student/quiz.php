@@ -10,6 +10,7 @@ $quizId = (int)($_GET['id'] ?? 0);
 $quiz = null;
 $questions = [];
 $error = '';
+$quizDurationMinutes = 0;
 
 try {
 	$conn = app_db();
@@ -34,6 +35,11 @@ try {
 	$stmt = $conn->prepare("SELECT * FROM tbl_quiz_questions WHERE quiz_id = ? ORDER BY id");
 	$stmt->execute([$quizId]);
 	$questions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+  $quizDurationMinutes = isset($quiz['duration_minutes']) ? max(0, (int)$quiz['duration_minutes']) : 0;
+
+  if (!empty($quiz['randomize_questions']) && count($questions) > 1) {
+    shuffle($questions);
+  }
 } catch (Throwable $e) {
 	error_log("[".__FILE__.":".__LINE__." Throwable] " . $e->getMessage());
 	$error = "An internal error occurred.";
@@ -51,6 +57,62 @@ try {
 <link rel="stylesheet" type="text/css" href="css/main.css">
 <link rel="icon" href="images/icon.ico">
 <link rel="stylesheet" type="text/css" href="cdn.jsdelivr.net/npm/bootstrap-icons%401.10.5/font/bootstrap-icons.css">
+<style>
+.quiz-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 240px;
+  gap: 1rem;
+}
+
+.quiz-palette {
+  position: sticky;
+  top: 88px;
+}
+
+.quiz-palette-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+.quiz-palette-btn {
+  border: 1px solid #cfd8d4;
+  border-radius: 8px;
+  background: #fff;
+  font-weight: 700;
+  color: #3a4b43;
+  padding: 0.35rem 0;
+}
+
+.quiz-palette-btn.is-answered {
+  background: #198754;
+  border-color: #198754;
+  color: #fff;
+}
+
+.quiz-palette-btn.is-current {
+  box-shadow: 0 0 0 2px rgba(13, 110, 253, 0.18);
+  border-color: #0d6efd;
+}
+
+.quiz-timer {
+  font-weight: 800;
+}
+
+.quiz-timer.is-danger {
+  color: #b02a37;
+}
+
+@media (max-width: 991px) {
+  .quiz-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .quiz-palette {
+    position: static;
+  }
+}
+</style>
 </head>
 <body class="app sidebar-mini">
 <header class="app-header"><a class="app-header__logo" href="javascript:void(0);"><?php echo APP_NAME; ?></a>
@@ -80,15 +142,23 @@ try {
 <?php else: ?>
 <form class="app_frm" method="POST" action="student/core/submit_quiz" id="quizForm">
 <input type="hidden" name="quiz_id" value="<?php echo (int)$quizId; ?>">
+<input type="hidden" name="auto_submit" id="quizAutoSubmit" value="0">
 <div class="tile mb-3">
   <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
     <strong id="quizProgressLabel">Question 1 of <?php echo (int)count($questions); ?></strong>
-    <span class="badge bg-info text-dark" id="quizQuestionTypeBadge">MCQ</span>
+    <div class="d-flex align-items-center gap-2">
+      <?php if ($quizDurationMinutes > 0): ?>
+      <span class="badge bg-danger-subtle text-danger-emphasis quiz-timer" id="quizTimer">Time: --:--</span>
+      <?php endif; ?>
+      <span class="badge bg-info text-dark" id="quizQuestionTypeBadge">MCQ</span>
+    </div>
   </div>
   <div class="progress mt-2" role="progressbar" aria-label="Quiz progress" aria-valuemin="0" aria-valuemax="100">
     <div class="progress-bar" id="quizProgressBar" style="width: 0%;"></div>
   </div>
 </div>
+<div class="quiz-layout">
+<div>
 <?php foreach ($questions as $index => $q): ?>
   <?php
     $qType = strtolower(trim((string)($q['qtype'] ?? 'mcq')));
@@ -121,6 +191,13 @@ try {
     </div>
   </div>
 </div>
+</div>
+<aside class="tile quiz-palette">
+  <h3 class="tile-title mb-3"><i class="bi bi-grid-3x3-gap me-2"></i>Question Palette</h3>
+  <div class="quiz-palette-grid" id="quizPalette" aria-label="Question palette"></div>
+  <div class="small text-muted mt-3">Green: answered. Blue ring: current question.</div>
+</aside>
+</div>
 </form>
 <?php endif; ?>
 <?php } ?>
@@ -143,9 +220,16 @@ try {
   var progressLabel = document.getElementById('quizProgressLabel');
   var progressBar = document.getElementById('quizProgressBar');
   var typeBadge = document.getElementById('quizQuestionTypeBadge');
+  var timerEl = document.getElementById('quizTimer');
+  var paletteEl = document.getElementById('quizPalette');
+  var autoSubmitEl = document.getElementById('quizAutoSubmit');
   var total = steps.length;
   var current = 0;
+  var hasSubmitted = false;
   var storageKey = 'quiz_answers_<?php echo (int)$quizId; ?>';
+  var durationSeconds = <?php echo (int)$quizDurationMinutes; ?> * 60;
+  var timerStorageKey = storageKey + ':timer';
+  var timerInterval = null;
 
   function friendlyType(type) {
     if (type === 'true_false') return 'True/False';
@@ -173,6 +257,17 @@ try {
       }
     });
     return all;
+  }
+
+  function answeredMap() {
+    var map = {};
+    var all = readAnswers();
+    Object.keys(all).forEach(function (id) {
+      if (String(all[id] || '').trim() !== '') {
+        map[id] = true;
+      }
+    });
+    return map;
   }
 
   function persistAnswers() {
@@ -220,6 +315,114 @@ try {
     });
   }
 
+  function renderPalette() {
+    if (!paletteEl) {
+      return;
+    }
+
+    var answerState = answeredMap();
+    paletteEl.innerHTML = '';
+    steps.forEach(function (step, idx) {
+      var questionInput = step.querySelector('.quiz-answer');
+      var qidMatch = questionInput && String(questionInput.name || '').match(/answers\[(\d+)\]/);
+      var qid = qidMatch ? qidMatch[1] : String(idx + 1);
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'quiz-palette-btn';
+      if (answerState[qid]) {
+        btn.classList.add('is-answered');
+      }
+      if (idx === current) {
+        btn.classList.add('is-current');
+      }
+      btn.textContent = String(idx + 1);
+      btn.addEventListener('click', function () {
+        persistAnswers();
+        current = idx;
+        render();
+      });
+      paletteEl.appendChild(btn);
+    });
+  }
+
+  function formatDuration(totalSeconds) {
+    var safe = totalSeconds < 0 ? 0 : totalSeconds;
+    var m = Math.floor(safe / 60);
+    var s = safe % 60;
+    return m + ':' + (s < 10 ? '0' + s : s);
+  }
+
+  function readRemainingSeconds() {
+    if (durationSeconds < 1) {
+      return 0;
+    }
+    var remaining = durationSeconds;
+    try {
+      var saved = parseInt(localStorage.getItem(timerStorageKey) || '', 10);
+      if (!isNaN(saved) && saved >= 0 && saved <= durationSeconds) {
+        remaining = saved;
+      }
+    } catch (e) {
+      remaining = durationSeconds;
+    }
+    return remaining;
+  }
+
+  function writeRemainingSeconds(remaining) {
+    if (durationSeconds < 1) {
+      return;
+    }
+    try {
+      localStorage.setItem(timerStorageKey, String(remaining));
+    } catch (e) {
+      // Ignore storage errors.
+    }
+  }
+
+  function clearRemainingSeconds() {
+    try {
+      localStorage.removeItem(timerStorageKey);
+    } catch (e) {
+      // Ignore storage errors.
+    }
+  }
+
+  function submitDueToTimeout() {
+    if (hasSubmitted) {
+      return;
+    }
+    hasSubmitted = true;
+    if (autoSubmitEl) {
+      autoSubmitEl.value = '1';
+    }
+    form.submit();
+  }
+
+  function initTimer() {
+    if (!timerEl || durationSeconds < 1) {
+      return;
+    }
+
+    var remaining = readRemainingSeconds();
+    timerEl.textContent = 'Time: ' + formatDuration(remaining);
+    timerEl.classList.toggle('is-danger', remaining <= 60);
+
+    timerInterval = window.setInterval(function () {
+      remaining -= 1;
+      if (remaining < 0) {
+        remaining = 0;
+      }
+      writeRemainingSeconds(remaining);
+      timerEl.textContent = 'Time: ' + formatDuration(remaining);
+      timerEl.classList.toggle('is-danger', remaining <= 60);
+
+      if (remaining <= 0) {
+        window.clearInterval(timerInterval);
+        submitDueToTimeout();
+      }
+    }, 1000);
+  }
+
   function render() {
     steps.forEach(function (step, idx) {
       step.style.display = (idx === current) ? '' : 'none';
@@ -238,6 +441,7 @@ try {
     prevBtn.disabled = current <= 0;
     nextBtn.style.display = current >= total - 1 ? 'none' : '';
     submitBtn.style.display = current >= total - 1 ? '' : 'none';
+    renderPalette();
   }
 
   prevBtn.addEventListener('click', function () {
@@ -257,20 +461,35 @@ try {
   });
 
   form.querySelectorAll('.quiz-answer').forEach(function (el) {
-    el.addEventListener('change', persistAnswers);
-    el.addEventListener('input', persistAnswers);
+    el.addEventListener('change', function () {
+      persistAnswers();
+      renderPalette();
+    });
+    el.addEventListener('input', function () {
+      persistAnswers();
+      renderPalette();
+    });
   });
 
   form.addEventListener('submit', function () {
+    if (hasSubmitted) {
+      return;
+    }
+    hasSubmitted = true;
+    if (timerInterval) {
+      window.clearInterval(timerInterval);
+    }
     try {
       localStorage.removeItem(storageKey);
     } catch (e) {
       // Ignore.
     }
+    clearRemainingSeconds();
   });
 
   restoreAnswers();
   render();
+  initTimer();
 })();
 </script>
 <?php require_once('const/check-reply.php'); ?>

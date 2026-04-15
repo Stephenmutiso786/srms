@@ -560,6 +560,19 @@ try {
 <label class="form-label">Quiz Title</label>
 <input class="form-control" name="title" required>
 </div>
+<div class="mb-3">
+<label class="form-label">Duration (minutes)</label>
+<input class="form-control" type="number" name="duration_minutes" min="0" value="30" placeholder="0 = untimed">
+<small class="form-text text-muted">Set to 0 for no timer.</small>
+</div>
+<div class="mb-3">
+<label class="form-label">Max Attempts</label>
+<input class="form-control" type="number" name="max_attempts" min="1" value="1">
+</div>
+<div class="form-check mb-3">
+<input class="form-check-input" type="checkbox" name="randomize_questions" id="randomizeQuestions" value="1">
+<label class="form-check-label" for="randomizeQuestions">Randomize question order for students</label>
+</div>
 <button class="btn btn-outline-primary">Create Quiz</button>
 </form>
 </div>
@@ -680,16 +693,26 @@ try {
 <h3 class="tile-title"><i class="bi bi-patch-question me-2"></i>My Quizzes</h3>
 <div class="table-responsive">
 <table class="table table-hover elearn-table">
-<thead><tr><th>Quiz Title</th><th>Course</th><th>Questions</th><th>Created</th></tr></thead>
+<thead><tr><th>Quiz Title</th><th>Course</th><th>Questions</th><th>Config</th><th>Created</th></tr></thead>
 <tbody>
 <?php if (empty($quizzes)): ?>
-<tr><td colspan="4" class="text-muted">No quizzes created yet.</td></tr>
+<tr><td colspan="5" class="text-muted">No quizzes created yet.</td></tr>
 <?php else: ?>
 <?php foreach ($quizzes as $quiz): ?>
 <tr>
 <td><?php echo htmlspecialchars((string)($quiz['title'] ?? '')); ?></td>
 <td><?php echo htmlspecialchars((string)($quiz['course_name'] ?? '')); ?></td>
 <td><?php echo (int)($quizQuestionCountByQuiz[(int)($quiz['id'] ?? 0)] ?? 0); ?></td>
+<td>
+<?php
+	$duration = isset($quiz['duration_minutes']) ? (int)$quiz['duration_minutes'] : 0;
+	$maxAttempts = isset($quiz['max_attempts']) ? (int)$quiz['max_attempts'] : 1;
+	$randomized = !empty($quiz['randomize_questions']);
+?>
+<span class="badge bg-<?php echo $duration > 0 ? 'info' : 'secondary'; ?> me-1"><?php echo $duration > 0 ? ($duration.' min') : 'Untimed'; ?></span>
+<span class="badge bg-primary me-1"><?php echo $maxAttempts; ?> attempt<?php echo $maxAttempts > 1 ? 's' : ''; ?></span>
+<?php if ($randomized): ?><span class="badge bg-success">Randomized</span><?php endif; ?>
+</td>
 <td><?php echo htmlspecialchars((string)($quiz['created_at'] ?? '')); ?></td>
 </tr>
 <?php endforeach; ?>

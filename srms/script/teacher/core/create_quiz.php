@@ -13,6 +13,16 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $courseId = (int)($_POST['course_id'] ?? 0);
 $title = trim($_POST['title'] ?? '');
+$durationMinutes = (int)($_POST['duration_minutes'] ?? 0);
+$maxAttempts = (int)($_POST['max_attempts'] ?? 1);
+$randomizeQuestions = isset($_POST['randomize_questions']) ? 1 : 0;
+
+if ($durationMinutes < 0) {
+  $durationMinutes = 0;
+}
+if ($maxAttempts < 1) {
+  $maxAttempts = 1;
+}
 
 if ($courseId < 1 || $title === '') {
   $_SESSION['reply'] = array (array("danger", "Missing quiz details."));
@@ -30,8 +40,17 @@ try {
     throw new RuntimeException("Not allowed to create quiz for this course.");
   }
 
-  $stmt = $conn->prepare("INSERT INTO tbl_quizzes (course_id, title, created_by) VALUES (?,?,?)");
-  $stmt->execute([$courseId, $title, (int)$account_id]);
+  $hasDuration = app_column_exists($conn, 'tbl_quizzes', 'duration_minutes');
+  $hasRandomize = app_column_exists($conn, 'tbl_quizzes', 'randomize_questions');
+  $hasMaxAttempts = app_column_exists($conn, 'tbl_quizzes', 'max_attempts');
+
+  if ($hasDuration && $hasRandomize && $hasMaxAttempts) {
+    $stmt = $conn->prepare("INSERT INTO tbl_quizzes (course_id, title, duration_minutes, randomize_questions, max_attempts, created_by) VALUES (?,?,?,?,?,?)");
+    $stmt->execute([$courseId, $title, $durationMinutes, $randomizeQuestions, $maxAttempts, (int)$account_id]);
+  } else {
+    $stmt = $conn->prepare("INSERT INTO tbl_quizzes (course_id, title, created_by) VALUES (?,?,?)");
+    $stmt->execute([$courseId, $title, (int)$account_id]);
+  }
   app_audit_log($conn, 'staff', (string)$account_id, 'elearning.quiz.create', 'quiz', (string)$conn->lastInsertId());
 
   $_SESSION['reply'] = array (array("success", "Quiz created."));

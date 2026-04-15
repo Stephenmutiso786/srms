@@ -13,6 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $quizId = (int)($_POST['quiz_id'] ?? 0);
 $answers = $_POST['answers'] ?? [];
+$autoSubmit = ((string)($_POST['auto_submit'] ?? '0') === '1');
 if ($quizId < 1) {
   $_SESSION['reply'] = array (array("danger", "Missing quiz."));
   header("location:../elearning");
@@ -125,7 +126,8 @@ try {
   }
 
   app_audit_log($conn, 'student', (string)$account_id, 'elearning.quiz.submit', 'quiz', (string)$quizId);
-  $summary = "Quiz submitted. Score: " . number_format($score, 2) . " / " . number_format($totalMarks, 2) . " (" . number_format($scorePct, 1) . "%).";
+  $summaryPrefix = $autoSubmit ? "Quiz auto-submitted when time ended." : "Quiz submitted.";
+  $summary = $summaryPrefix . " Score: " . number_format($score, 2) . " / " . number_format($totalMarks, 2) . " (" . number_format($scorePct, 1) . "%).";
   if ($pendingManual > 0) {
     $summary .= " " . $pendingManual . " short answer response(s) need manual review.";
   }
