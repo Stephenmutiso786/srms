@@ -3,6 +3,10 @@
 
 	"use strict";
 
+	function appMainPortal() {
+		return 'teacher';
+	}
+
 	function initSiteLoader() {
 		if (document.getElementById('siteLoader')) {
 			return;
@@ -66,7 +70,8 @@
 		if (!maintenance || !maintenance.enabled) {
 			return;
 		}
-		if (appCurrentPortal() !== 'admin') {
+		var currentPortal = appCurrentPortal();
+		if (currentPortal !== 'admin' && currentPortal !== appMainPortal()) {
 			return;
 		}
 		if (document.getElementById('appMaintenanceBadge')) {
