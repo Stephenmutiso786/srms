@@ -1599,11 +1599,18 @@ function app_reset_school_people_data(PDO $conn): array
 	];
 
 	$studentIds = [];
+	$studentImages = [];
 	if (app_table_exists($conn, 'tbl_students')) {
 		if (app_column_exists($conn, 'tbl_students', 'id')) {
 			try {
-				$stmt = $conn->query("SELECT id FROM tbl_students");
-				$studentIds = array_map('strval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+				$stmt = $conn->query("SELECT id, display_image FROM tbl_students");
+				foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+					$studentIds[] = (string)$row['id'];
+					$image = (string)($row['display_image'] ?? '');
+					if ($image !== '' && $image !== 'DEFAULT' && $image !== 'Blank') {
+						$studentImages[] = $image;
+					}
+				}
 			} catch (Throwable $e) {
 				$summary['warnings'][] = 'student precheck failed: ' . $e->getMessage();
 				error_log('[app_reset_school_people_data] student precheck failed: ' . $e->getMessage());
@@ -1747,7 +1754,9 @@ function app_reset_school_people_data(PDO $conn): array
 		if (!empty($studentIds)) {
 			$sp = app_tx_savepoint_begin($conn, 'reset_students');
 			try {
-				app_delete_students($conn, $studentIds);
+				$placeholders = implode(',', array_fill(0, count($studentIds), '?'));
+				$stmt = $conn->prepare("DELETE FROM tbl_students WHERE id IN ($placeholders)");
+				$stmt->execute($studentIds);
 				app_tx_savepoint_release($conn, $sp);
 			} catch (Throwable $e) {
 				app_tx_savepoint_rollback($conn, $sp);
@@ -1773,7 +1782,9 @@ function app_reset_school_people_data(PDO $conn): array
 		if (!empty($staffIds)) {
 			$sp = app_tx_savepoint_begin($conn, 'reset_staff');
 			try {
-				app_delete_staff($conn, $staffIds);
+				$placeholders = implode(',', array_fill(0, count($staffIds), '?'));
+				$stmt = $conn->prepare("DELETE FROM tbl_staff WHERE id IN ($placeholders)");
+				$stmt->execute($staffIds);
 				app_tx_savepoint_release($conn, $sp);
 			} catch (Throwable $e) {
 				app_tx_savepoint_rollback($conn, $sp);
@@ -1820,6 +1831,9 @@ function app_reset_school_people_data(PDO $conn): array
 		}
 
 		$conn->commit();
+		foreach ($studentImages as $image) {
+			@unlink('images/students/' . $image);
+		}
 		return $summary;
 	} catch (Throwable $e) {
 		if ($conn->inTransaction()) {
