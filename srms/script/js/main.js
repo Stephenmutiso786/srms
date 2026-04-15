@@ -7,6 +7,11 @@
 		return 'teacher';
 	}
 
+	function appIsElearningPage() {
+		var path = (window.location.pathname || '').toLowerCase();
+		return path.indexOf('/elearning') !== -1;
+	}
+
 	function initSiteLoader() {
 		if (document.getElementById('siteLoader')) {
 			return;
@@ -68,6 +73,9 @@
 
 	function applyMaintenanceBadge(maintenance) {
 		if (!maintenance || !maintenance.enabled) {
+			return;
+		}
+		if (appIsElearningPage()) {
 			return;
 		}
 		var currentPortal = appCurrentPortal();
@@ -515,9 +523,6 @@
 
 	function appInitOnlineWidget(portal) {
 		if (portal === 'other') {
-			return;
-		}
-		if (portal !== appMainPortal() && portal !== 'admin') {
 			return;
 		}
 
