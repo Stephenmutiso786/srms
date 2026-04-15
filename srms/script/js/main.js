@@ -364,6 +364,26 @@
 		if (path.indexOf('/accountant') !== -1) return 'accountant';
 		if (path.indexOf('/bom') !== -1) return 'bom';
 		if (path.indexOf('/admin') !== -1) return 'admin';
+
+		var roleNode = document.querySelector('.app-sidebar__user-designation');
+		var roleText = roleNode ? String(roleNode.textContent || '').toLowerCase() : '';
+		if (roleText.indexOf('teacher') !== -1) return 'teacher';
+		if (roleText.indexOf('student') !== -1) return 'student';
+		if (roleText.indexOf('parent') !== -1) return 'parent';
+		if (roleText.indexOf('accountant') !== -1) return 'accountant';
+		if (roleText.indexOf('board member') !== -1 || roleText.indexOf('bom') !== -1) return 'bom';
+		if (roleText.indexOf('admin') !== -1 || roleText.indexOf('administrator') !== -1) return 'admin';
+
+		var body = document.body;
+		if (body) {
+			if (body.classList.contains('teacher-page') || body.classList.contains('teacher')) return 'teacher';
+			if (body.classList.contains('student-page') || body.classList.contains('student')) return 'student';
+		}
+
+		if (document.querySelector('.app-sidebar .app-menu a[href^="teacher/"]')) {
+			return 'teacher';
+		}
+
 		return 'other';
 	}
 
