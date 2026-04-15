@@ -91,10 +91,38 @@
 	}
 
 	function loadUiSettings() {
+		var cacheKey = 'srms-ui-settings-v1';
+		var cacheTtlMs = 5 * 60 * 1000;
+		try {
+			var cachedRaw = window.sessionStorage.getItem(cacheKey);
+			if (cachedRaw) {
+				var cached = JSON.parse(cachedRaw);
+				if (cached && cached.saved_at && (Date.now() - Number(cached.saved_at) < cacheTtlMs) && cached.data) {
+					if (cached.data.banner) {
+						applyTopBanner(cached.data.banner);
+					}
+					if (cached.data.maintenance) {
+						applyMaintenanceBadge(cached.data.maintenance);
+					}
+					return Promise.resolve(cached.data);
+				}
+			}
+		} catch (e) {
+			// Ignore cache failures and continue with network fetch.
+		}
+
 		return fetch('core/ui_settings.php', { credentials: 'same-origin' })
 			.then(function (r) { return r.json(); })
 			.then(function (data) {
 				if (data && data.ok) {
+					try {
+						window.sessionStorage.setItem(cacheKey, JSON.stringify({
+							saved_at: Date.now(),
+							data: data
+						}));
+					} catch (e) {
+						// Ignore cache failures.
+					}
 					if (data.banner) {
 						applyTopBanner(data.banner);
 					}
@@ -489,6 +517,9 @@
 		if (portal === 'other') {
 			return;
 		}
+		if (portal !== appMainPortal() && portal !== 'admin') {
+			return;
+		}
 
 		var nav = document.querySelector('.app-header .app-nav');
 		if (!nav || document.getElementById('appOnlineNavItem')) {
@@ -580,6 +611,9 @@
 		}
 
 		function refreshOnline() {
+			if (document.visibilityState && document.visibilityState !== 'visible') {
+				return;
+			}
 			fetch('core/online_users.php', { credentials: 'same-origin' })
 				.then(function (r) { return r.json(); })
 				.then(renderOnline)
@@ -588,8 +622,21 @@
 				});
 		}
 
+		var onlineRefreshMs = 90000;
 		refreshOnline();
-		window.setInterval(refreshOnline, 30000);
+		var onlineTimer = window.setInterval(refreshOnline, onlineRefreshMs);
+
+		document.addEventListener('visibilitychange', function () {
+			if (document.visibilityState === 'visible') {
+				refreshOnline();
+			}
+		});
+
+		window.addEventListener('beforeunload', function () {
+			if (onlineTimer) {
+				window.clearInterval(onlineTimer);
+			}
+		});
 	}
 
 	var portal = appCurrentPortal();
