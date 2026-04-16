@@ -44,11 +44,11 @@ try {
 
     if (!empty($classIds)) {
       $placeholders = implode(',', array_fill(0, count($classIds), '?'));
-      $stmt = $conn->prepare("SELECT e.id, e.name, e.class_id, e.term_id, COALESCE(e.assessment_mode, 'normal') AS assessment_mode, c.name AS class_name, t.name AS term_name
+  		$stmt = $conn->prepare("SELECT e.id, e.name, e.class_id, e.term_id, COALESCE(e.assessment_mode, 'normal') AS assessment_mode, c.name AS class_name, t.name AS term_name
         FROM tbl_exams e
         LEFT JOIN tbl_classes c ON c.id = e.class_id
         LEFT JOIN tbl_terms t ON t.id = e.term_id
-        WHERE e.status = 'active' AND e.class_id IN ($placeholders)
+  		WHERE e.status = 'active' AND e.class_id IN ($placeholders) AND COALESCE(e.assessment_mode, 'normal') <> 'consolidated'
         ORDER BY e.created_at DESC");
       $stmt->execute($classIds);
       $exams = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -90,11 +90,11 @@ try {
 
     if (!empty($classIds)) {
       $placeholders = implode(',', array_fill(0, count($classIds), '?'));
-      $stmt = $conn->prepare("SELECT e.id, e.name, e.class_id, e.term_id, COALESCE(e.assessment_mode, 'normal') AS assessment_mode, c.name AS class_name, t.name AS term_name
+  		$stmt = $conn->prepare("SELECT e.id, e.name, e.class_id, e.term_id, COALESCE(e.assessment_mode, 'normal') AS assessment_mode, c.name AS class_name, t.name AS term_name
         FROM tbl_exams e
         LEFT JOIN tbl_classes c ON c.id = e.class_id
         LEFT JOIN tbl_terms t ON t.id = e.term_id
-        WHERE e.status = 'active' AND e.class_id IN ($placeholders)
+  		WHERE e.status = 'active' AND e.class_id IN ($placeholders) AND COALESCE(e.assessment_mode, 'normal') <> 'consolidated'
         ORDER BY e.created_at DESC");
       $stmt->execute($classIds);
       $exams = $stmt->fetchAll(PDO::FETCH_ASSOC);

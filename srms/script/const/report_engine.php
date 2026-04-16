@@ -176,8 +176,10 @@ function report_exam_result_matrix(PDO $conn, int $classId, int $termId, ?string
 	if ($classId < 1 || $termId < 1 || !app_table_exists($conn, 'tbl_exam_results')) {
 		return [];
 	}
+	app_ensure_exam_components_table($conn);
 
 	$sql = "SELECT er.id, er.student, er.subject_combination, er.score, er.exam_id,
+		COALESCE(e.assessment_mode, 'normal') AS assessment_mode,
 		COALESCE(et.name, '') AS exam_type_name,
 		COALESCE(ew.weight_percentage, 100) AS weight_percentage
 		FROM tbl_exam_results er
@@ -195,8 +197,11 @@ function report_exam_result_matrix(PDO $conn, int $classId, int $termId, ?string
 	$stmt = $conn->prepare($sql);
 	$stmt->execute($args);
 
-	$groups = [];
-	foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+	$rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+	$latestByExam = [];
+	$scoreByExam = [];
+	foreach ($rows as $row) {
 		$rowStudentId = (string)($row['student'] ?? '');
 		if ($rowStudentId === '') {
 			continue;
@@ -205,42 +210,59 @@ function report_exam_result_matrix(PDO $conn, int $classId, int $termId, ?string
 		if ($subjectCombination < 1) {
 			continue;
 		}
-		$groups[$rowStudentId][$subjectCombination]['all'][] = $row;
-		if (report_exam_type_is_consolidated_name((string)($row['exam_type_name'] ?? ''))) {
-			$groups[$rowStudentId][$subjectCombination]['consolidated'][] = $row;
+		$examId = isset($row['exam_id']) ? (int)$row['exam_id'] : 0;
+		$latestByExam[$rowStudentId][$subjectCombination][$examId] = $row;
+		$scoreByExam[$rowStudentId][$subjectCombination][$examId] = (float)($row['score'] ?? 0);
+	}
+
+	$consolidatedExams = [];
+	if (app_table_exists($conn, 'tbl_exams') && app_column_exists($conn, 'tbl_exams', 'assessment_mode') && app_table_exists($conn, 'tbl_exam_components')) {
+		$stmt = $conn->prepare("SELECT id FROM tbl_exams WHERE class_id = ? AND term_id = ? AND COALESCE(assessment_mode, 'normal') = 'consolidated' AND status IN ('finalized', 'published') ORDER BY id DESC");
+		$stmt->execute([$classId, $termId]);
+		foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $consolidatedExamId) {
+			$cid = (int)$consolidatedExamId;
+			$stmtComp = $conn->prepare("SELECT component_exam_id FROM tbl_exam_components WHERE exam_id = ? ORDER BY component_exam_id");
+			$stmtComp->execute([$cid]);
+			$componentIds = array_values(array_unique(array_map('intval', $stmtComp->fetchAll(PDO::FETCH_COLUMN))));
+			if (count($componentIds) >= 2) {
+				$consolidatedExams[$cid] = $componentIds;
+			}
 		}
 	}
 
 	$matrix = [];
-	foreach ($groups as $rowStudentId => $subjectRows) {
-		foreach ($subjectRows as $subjectCombination => $data) {
-			$selectedRows = !empty($data['consolidated']) ? $data['consolidated'] : ($data['all'] ?? []);
-			if (empty($selectedRows)) {
+	foreach ($latestByExam as $rowStudentId => $subjectRows) {
+		foreach ($subjectRows as $subjectCombination => $examRows) {
+			$computed = null;
+			foreach ($consolidatedExams as $consolidatedExamId => $componentExamIds) {
+				$componentScores = [];
+				foreach ($componentExamIds as $componentExamId) {
+					if (isset($scoreByExam[$rowStudentId][$subjectCombination][$componentExamId])) {
+						$componentScores[] = (float)$scoreByExam[$rowStudentId][$subjectCombination][$componentExamId];
+					}
+				}
+				if (count($componentScores) >= 2) {
+					$computed = [
+						'score' => round(array_sum($componentScores) / count($componentScores), 2),
+						'exam_id' => $consolidatedExamId,
+						'is_consolidated' => true,
+						'row_count' => count($componentScores),
+					];
+					break;
+				}
+			}
+
+			if ($computed !== null) {
+				$matrix[$rowStudentId][$subjectCombination] = $computed;
 				continue;
 			}
 
-			$latestRow = end($selectedRows);
-			if (!empty($data['consolidated'])) {
-				$totalWeight = 0.0;
-				$weightedScore = 0.0;
-				foreach ($selectedRows as $selectedRow) {
-					$weight = (float)($selectedRow['weight_percentage'] ?? 100);
-					if ($weight <= 0) {
-						$weight = 100.0;
-					}
-					$weightedScore += ((float)($selectedRow['score'] ?? 0)) * $weight;
-					$totalWeight += $weight;
-				}
-				$score = $totalWeight > 0 ? round($weightedScore / $totalWeight, 2) : 0.0;
-			} else {
-				$score = (float)($latestRow['score'] ?? 0);
-			}
-
+			$latestRow = end($examRows);
 			$matrix[$rowStudentId][$subjectCombination] = [
-				'score' => $score,
+				'score' => (float)($latestRow['score'] ?? 0),
 				'exam_id' => isset($latestRow['exam_id']) ? (int)$latestRow['exam_id'] : null,
-				'is_consolidated' => !empty($data['consolidated']),
-				'row_count' => count($selectedRows),
+				'is_consolidated' => false,
+				'row_count' => 1,
 			];
 		}
 	}

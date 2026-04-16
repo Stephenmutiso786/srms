@@ -19,12 +19,18 @@ $name = trim($_POST['name'] ?? '');
 $classId = (int)($_POST['class_id'] ?? 0);
 $termId = (int)($_POST['term_id'] ?? 0);
 $gradingSystemId = (int)($_POST['grading_system_id'] ?? 0);
-$assessmentMode = strtolower(trim((string)($_POST['assessment_mode'] ?? 'normal'))) === 'cbc' ? 'cbc' : 'normal';
 $examTypeId = $_POST['exam_type_id'] ?? null;
 $examTypeId = $examTypeId === '' ? null : (int)$examTypeId;
 $weightPercentage = (float)($_POST['weight_percentage'] ?? 100);
 $subjectIds = $_POST['subject_ids'] ?? [];
+$componentExamIds = $_POST['component_exam_ids'] ?? [];
 $subjectIds = is_array($subjectIds) ? array_values(array_unique(array_filter(array_map('intval', $subjectIds)))) : [];
+$componentExamIds = is_array($componentExamIds) ? array_values(array_unique(array_filter(array_map('intval', $componentExamIds)))) : [];
+
+$assessmentMode = strtolower(trim((string)($_POST['assessment_mode'] ?? 'normal')));
+if (!in_array($assessmentMode, ['normal', 'cbc', 'consolidated'], true)) {
+	$assessmentMode = 'normal';
+}
 
 try {
 	$conn = app_db();
@@ -32,6 +38,7 @@ try {
 	app_ensure_overall_grading_defaults($conn);
 	app_ensure_exam_assessment_mode_column($conn);
 	app_ensure_exam_subjects_table($conn);
+	app_ensure_exam_components_table($conn);
 	app_ensure_exam_type($conn);
 	app_ensure_exam_weights_table($conn);
 
@@ -40,10 +47,16 @@ try {
 		$stmt->execute();
 		$gradingSystemId = (int)$stmt->fetchColumn();
 	}
-	if ($examId < 1 || $name === '' || $classId < 1 || $termId < 1 || $gradingSystemId < 1 || empty($subjectIds)) {
+	if ($examId < 1 || $name === '' || $classId < 1 || $termId < 1 || $gradingSystemId < 1) {
 		$_SESSION['reply'] = array(array("danger", "Fill all required fields."));
 		header("location:../exams");
 		exit;
+	}
+	if ($assessmentMode !== 'consolidated' && empty($subjectIds)) {
+		throw new RuntimeException("Select at least one subject.");
+	}
+	if ($assessmentMode === 'consolidated' && count($componentExamIds) < 2) {
+		throw new RuntimeException("Choose at least two component exams for consolidated mode.");
 	}
 	if (!app_column_exists($conn, 'tbl_exams', 'grading_system_id')) {
 		throw new RuntimeException("Exam grading support is not installed. Run migration 030.");
@@ -87,9 +100,27 @@ try {
 	}
 
 	$validSubjectIds = $subjectIds;
-	if (app_table_exists($conn, 'tbl_subject_class_assignments')) {
-		$placeholders = implode(',', array_fill(0, count($subjectIds), '?'));
-		$params = array_merge([$classId], $subjectIds);
+	$validComponentExamIds = [];
+	if ($assessmentMode === 'consolidated') {
+		$componentSubjects = [];
+		$placeholders = implode(',', array_fill(0, count($componentExamIds), '?'));
+		$params = array_merge([$classId, $termId, $examId], $componentExamIds);
+		$stmt = $conn->prepare("SELECT id FROM tbl_exams WHERE class_id = ? AND term_id = ? AND id <> ? AND id IN ($placeholders) AND COALESCE(assessment_mode, 'normal') <> 'cbc' AND COALESCE(assessment_mode, 'normal') <> 'consolidated' AND status IN ('finalized', 'published')");
+		$stmt->execute($params);
+		$validComponentExamIds = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+		if (count($validComponentExamIds) < 2) {
+			throw new RuntimeException("Selected component exams must belong to the same class/term and be at least two.");
+		}
+		foreach ($validComponentExamIds as $componentExamId) {
+			foreach (app_exam_subject_ids($conn, $componentExamId) as $sid) {
+				$componentSubjects[(int)$sid] = (int)$sid;
+			}
+		}
+		$validSubjectIds = array_values($componentSubjects);
+	}
+	if (app_table_exists($conn, 'tbl_subject_class_assignments') && !empty($validSubjectIds)) {
+		$placeholders = implode(',', array_fill(0, count($validSubjectIds), '?'));
+		$params = array_merge([$classId], $validSubjectIds);
 		$stmt = $conn->prepare("SELECT subject_id FROM tbl_subject_class_assignments WHERE class_id = ? AND subject_id IN ($placeholders)");
 		$stmt->execute($params);
 		$validSubjectIds = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
@@ -120,10 +151,18 @@ try {
 
 	$stmt = $conn->prepare("DELETE FROM tbl_exam_subjects WHERE exam_id = ?");
 	$stmt->execute([$examId]);
+	$stmt = $conn->prepare("DELETE FROM tbl_exam_components WHERE exam_id = ?");
+	$stmt->execute([$examId]);
 
 	$stmt = $conn->prepare("INSERT INTO tbl_exam_subjects (exam_id, subject_id) VALUES (?, ?)");
 	foreach ($validSubjectIds as $subjectId) {
 		$stmt->execute([$examId, $subjectId]);
+	}
+	if ($assessmentMode === 'consolidated') {
+		$stmt = $conn->prepare("INSERT INTO tbl_exam_components (exam_id, component_exam_id) VALUES (?, ?)");
+		foreach ($validComponentExamIds as $componentExamId) {
+			$stmt->execute([$examId, $componentExamId]);
+		}
 	}
 
 	$_SESSION['reply'] = array(array("success", "Exam updated successfully."));

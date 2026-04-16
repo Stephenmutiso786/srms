@@ -16,6 +16,7 @@ $terms = [];
 $subjects = [];
 $subjectClassMap = [];
 $examSubjectsMap = [];
+$componentCandidates = [];
 $gradingSystems = [];
 $defaultGradingSystemId = 0;
 
@@ -89,6 +90,16 @@ try {
 		foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
 			$examSubjectsMap[(int)$row['exam_id']][] = (string)$row['name'];
 		}
+
+		$stmt = $conn->prepare("SELECT e.id, e.name, e.class_id, e.term_id, e.status,
+			COALESCE(e.assessment_mode, 'normal') AS assessment_mode,
+			c.name AS class_name, t.name AS term_name
+			FROM tbl_exams e
+			LEFT JOIN tbl_classes c ON c.id = e.class_id
+			LEFT JOIN tbl_terms t ON t.id = e.term_id
+			ORDER BY e.created_at DESC");
+		$stmt->execute();
+		$componentCandidates = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
 } catch (Throwable $e) {
 	$_SESSION['reply'] = array (array("danger", "Failed to load exam data."));
@@ -234,11 +245,27 @@ try {
 </div>
 <div class="col-md-6 mb-3">
 <label class="form-label">Assessment Mode</label>
-<select class="form-control" name="assessment_mode" required>
+<select class="form-control" name="assessment_mode" id="assessmentModeSelect" required>
 <option value="normal" selected>Normal Exam</option>
 <option value="cbc">CBC Assessment</option>
+<option value="consolidated">Consolidated (Average Multiple Exams)</option>
 </select>
 <div class="small text-muted mt-1">Use one exam module for both normal and CBC workflows.</div>
+</div>
+<div class="col-md-12 mb-3" id="componentExamWrap" style="display:none;">
+<label class="form-label">Source Exams To Combine</label>
+<select class="form-control" name="component_exam_ids[]" id="componentExamIds" multiple size="8">
+<?php foreach ($componentCandidates as $candidate): ?>
+<option value="<?php echo (int)$candidate['id']; ?>"
+	data-class="<?php echo (int)$candidate['class_id']; ?>"
+	data-term="<?php echo (int)$candidate['term_id']; ?>"
+	data-mode="<?php echo htmlspecialchars((string)($candidate['assessment_mode'] ?? 'normal')); ?>"
+	data-status="<?php echo htmlspecialchars((string)($candidate['status'] ?? 'draft')); ?>">
+	<?php echo htmlspecialchars((string)$candidate['name'] . ' - ' . (string)($candidate['class_name'] ?? '') . ' (' . (string)($candidate['term_name'] ?? '') . ') [' . strtoupper((string)($candidate['status'] ?? 'draft')) . ']'); ?>
+</option>
+<?php endforeach; ?>
+</select>
+<div class="small text-muted mt-1">When consolidated mode is selected, choose at least two finalized or published exams in the same class and term.</div>
 </div>
 <div class="col-md-6 mb-3">
 <label class="form-label">Weight Percentage</label>
@@ -247,7 +274,7 @@ try {
 </div>
 <div class="col-md-12 mb-3">
 <label class="form-label">Subjects</label>
-<select class="form-control" name="subject_ids[]" id="examSubjectIds" required multiple size="10">
+<select class="form-control" name="subject_ids[]" id="examSubjectIds" multiple size="10">
 <?php foreach ($subjects as $subject): $classesMap = $subjectClassMap[(int)$subject['id']] ?? []; ?>
 <option value="<?php echo (int)$subject['id']; ?>" data-classes="<?php echo htmlspecialchars(json_encode($classesMap)); ?>">
 	<?php echo htmlspecialchars($subject['name']); ?>
@@ -366,7 +393,45 @@ function filterExamSubjects() {
   });
 }
 document.getElementById('examClassIds').addEventListener('change', filterExamSubjects);
+const assessmentModeSelect = document.getElementById('assessmentModeSelect');
+const componentExamWrap = document.getElementById('componentExamWrap');
+const componentExamIds = document.getElementById('componentExamIds');
+const termSelect = document.querySelector('select[name="term_id"]');
+
+function filterComponentExams() {
+	const selectedClasses = Array.from(document.getElementById('examClassIds').selectedOptions).map(option => parseInt(option.value || '0', 10)).filter(Boolean);
+	const selectedTerm = parseInt(termSelect.value || '0', 10);
+	Array.from(componentExamIds.options).forEach(function(option) {
+		const classId = parseInt(option.getAttribute('data-class') || '0', 10);
+		const termId = parseInt(option.getAttribute('data-term') || '0', 10);
+		const mode = (option.getAttribute('data-mode') || 'normal').toLowerCase();
+		const status = (option.getAttribute('data-status') || 'draft').toLowerCase();
+		const classMatches = selectedClasses.length === 0 || selectedClasses.includes(classId);
+		const termMatches = !selectedTerm || termId === selectedTerm;
+		const modeAllowed = mode !== 'cbc' && mode !== 'consolidated';
+		const statusAllowed = status === 'finalized' || status === 'published';
+		option.hidden = !(classMatches && termMatches && modeAllowed && statusAllowed);
+		if (option.hidden) {
+			option.selected = false;
+		}
+	});
+}
+
+function toggleAssessmentModeFields() {
+	const mode = (assessmentModeSelect.value || 'normal').toLowerCase();
+	const consolidated = mode === 'consolidated';
+	componentExamWrap.style.display = consolidated ? '' : 'none';
+	componentExamIds.required = consolidated;
+	if (consolidated) {
+		filterComponentExams();
+	}
+}
+
+assessmentModeSelect.addEventListener('change', toggleAssessmentModeFields);
+document.getElementById('examClassIds').addEventListener('change', filterComponentExams);
+termSelect.addEventListener('change', filterComponentExams);
 filterExamSubjects();
+toggleAssessmentModeFields();
 </script>
 </body>
 </html>

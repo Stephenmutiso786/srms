@@ -59,6 +59,9 @@ try {
   }
 
   $examMode = app_exam_assessment_mode($conn, (int)$exam['id']);
+  if ($examMode === 'consolidated') {
+    throw new RuntimeException("Consolidated exams are auto-computed from selected source exams and do not accept direct mark entry.");
+  }
   if ($assessmentMode === 'cbc' || $examMode === 'cbc') {
     $cbcEntryMode = 'cbc';
     if (app_table_exists($conn, 'tbl_cbc_assessments') && app_column_exists($conn, 'tbl_cbc_assessments', 'marks')) {

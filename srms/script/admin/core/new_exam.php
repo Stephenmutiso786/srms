@@ -17,14 +17,19 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $name = trim($_POST['name'] ?? '');
 $classIds = $_POST['class_ids'] ?? [];
 $subjectIds = $_POST['subject_ids'] ?? [];
+$componentExamIds = $_POST['component_exam_ids'] ?? [];
 $termId = (int)($_POST['term_id'] ?? 0);
 $gradingSystemId = (int)($_POST['grading_system_id'] ?? 0);
-$assessmentMode = strtolower(trim((string)($_POST['assessment_mode'] ?? 'normal'))) === 'cbc' ? 'cbc' : 'normal';
+$assessmentMode = strtolower(trim((string)($_POST['assessment_mode'] ?? 'normal')));
+if (!in_array($assessmentMode, ['normal', 'cbc', 'consolidated'], true)) {
+	$assessmentMode = 'normal';
+}
 $examTypeId = $_POST['exam_type_id'] ?? null;
 $examTypeId = $examTypeId === '' ? null : (int)$examTypeId;
 $weightPercentage = (float)($_POST['weight_percentage'] ?? 100);
 $classIds = is_array($classIds) ? array_values(array_unique(array_filter(array_map('intval', $classIds)))) : [];
 $subjectIds = is_array($subjectIds) ? array_values(array_unique(array_filter(array_map('intval', $subjectIds)))) : [];
+$componentExamIds = is_array($componentExamIds) ? array_values(array_unique(array_filter(array_map('intval', $componentExamIds)))) : [];
 
 try {
 	$conn = app_db();
@@ -32,6 +37,7 @@ try {
 	app_ensure_overall_grading_defaults($conn);
 	app_ensure_exam_type($conn);
 	app_ensure_exam_weights_table($conn);
+	app_ensure_exam_components_table($conn);
 	$createdBy = isset($account_id) ? (int)$account_id : null;
 
 	if ($gradingSystemId < 1 && app_table_exists($conn, 'tbl_grading_systems')) {
@@ -40,8 +46,18 @@ try {
 		$gradingSystemId = (int)$stmt->fetchColumn();
 	}
 
-	if ($name === '' || empty($classIds) || empty($subjectIds) || $termId < 1 || $gradingSystemId < 1) {
+	if ($name === '' || empty($classIds) || $termId < 1 || $gradingSystemId < 1) {
 		$_SESSION['reply'] = array (array("danger", "Fill all required fields."));
+		header("location:../exams");
+		exit;
+	}
+	if ($assessmentMode !== 'consolidated' && empty($subjectIds)) {
+		$_SESSION['reply'] = array (array("danger", "Select at least one subject."));
+		header("location:../exams");
+		exit;
+	}
+	if ($assessmentMode === 'consolidated' && count($componentExamIds) < 2) {
+		$_SESSION['reply'] = array (array("danger", "Choose at least two component exams for consolidated mode."));
 		header("location:../exams");
 		exit;
 	}
@@ -78,6 +94,7 @@ try {
 
 	$subjectStmt = $conn->prepare("INSERT INTO tbl_exam_subjects (exam_id, subject_id) VALUES (?, ?)");
 	$weightStmt = $conn->prepare("INSERT INTO tbl_exam_weights (exam_id, weight_percentage) VALUES (?, ?)");
+	$componentStmt = $conn->prepare("INSERT INTO tbl_exam_components (exam_id, component_exam_id) VALUES (?, ?)");
 	$created = 0;
 	$skippedClasses = [];
 	foreach ($classIds as $classId) {
@@ -86,9 +103,34 @@ try {
 		}
 
 		$validSubjects = $subjectIds;
+		$validComponentExamIds = [];
+
+		if ($assessmentMode === 'consolidated') {
+			$componentSubjects = [];
+			if (!empty($componentExamIds)) {
+				$placeholders = implode(',', array_fill(0, count($componentExamIds), '?'));
+				$params = array_merge([$classId, $termId], $componentExamIds);
+				$stmt = $conn->prepare("SELECT id FROM tbl_exams WHERE class_id = ? AND term_id = ? AND id IN ($placeholders) AND id <> 0 AND COALESCE(assessment_mode, 'normal') <> 'cbc' AND COALESCE(assessment_mode, 'normal') <> 'consolidated' AND status IN ('finalized', 'published')");
+				$stmt->execute($params);
+				$validComponentExamIds = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+			}
+
+			if (count($validComponentExamIds) < 2) {
+				$skippedClasses[] = $classId;
+				continue;
+			}
+
+			foreach ($validComponentExamIds as $componentExamId) {
+				foreach (app_exam_subject_ids($conn, $componentExamId) as $sid) {
+					$componentSubjects[(int)$sid] = (int)$sid;
+				}
+			}
+			$validSubjects = array_values($componentSubjects);
+		}
+
 		if (!empty($classSubjectMap)) {
 			$allowed = $classSubjectMap[$classId] ?? [];
-			$validSubjects = array_values(array_intersect($subjectIds, $allowed));
+			$validSubjects = array_values(array_intersect($validSubjects, $allowed));
 		}
 		if (empty($validSubjects)) {
 			$skippedClasses[] = $classId;
@@ -111,6 +153,11 @@ try {
 		}
 		foreach ($validSubjects as $subjectId) {
 			$subjectStmt->execute([$examId, $subjectId]);
+		}
+		if ($assessmentMode === 'consolidated') {
+			foreach ($validComponentExamIds as $componentExamId) {
+				$componentStmt->execute([$examId, $componentExamId]);
+			}
 		}
 		$weightStmt->execute([$examId, $weightPercentage > 0 ? $weightPercentage : 100]);
 		$created++;

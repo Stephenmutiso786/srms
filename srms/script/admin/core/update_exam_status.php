@@ -46,6 +46,9 @@ try {
 
 	$currentStatus = (string)($exam['status'] ?? 'draft');
 	$assessmentMode = (string)($exam['assessment_mode'] ?? 'normal');
+	if ($assessmentMode === 'consolidated') {
+		app_ensure_exam_components_table($conn);
+	}
 	$transitionMap = [
 		'draft' => ['active'],
 		'active' => ['draft', 'reviewed'],
@@ -58,7 +61,25 @@ try {
 	}
 
 	if ($status === 'reviewed') {
-		if ($assessmentMode === 'cbc') {
+		if ($assessmentMode === 'consolidated') {
+			if (!app_table_exists($conn, 'tbl_exam_components')) {
+				throw new RuntimeException("Consolidated exam components table is not installed.");
+			}
+			$stmt = $conn->prepare("SELECT component_exam_id FROM tbl_exam_components WHERE exam_id = ?");
+			$stmt->execute([$examId]);
+			$componentExamIds = array_values(array_unique(array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN))));
+			if (count($componentExamIds) < 2) {
+				throw new RuntimeException("This consolidated exam must include at least two source exams.");
+			}
+			$placeholders = implode(',', array_fill(0, count($componentExamIds), '?'));
+			$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_exams WHERE id IN ($placeholders) AND class_id = ? AND term_id = ? AND status IN ('finalized', 'published')");
+			$params = array_merge($componentExamIds, [(int)$exam['class_id'], (int)$exam['term_id']]);
+			$stmt->execute($params);
+			$readyCount = (int)$stmt->fetchColumn();
+			if ($readyCount < count($componentExamIds)) {
+				throw new RuntimeException("All selected source exams must be finalized or published before reviewing the consolidated exam.");
+			}
+		} elseif ($assessmentMode === 'cbc') {
 			if (!app_table_exists($conn, 'tbl_cbc_mark_submissions')) {
 				throw new RuntimeException("CBC marks submission workflow is not installed.");
 			}
@@ -90,7 +111,25 @@ try {
 	}
 
 	if ($status === 'finalized') {
-		if ($assessmentMode === 'cbc') {
+		if ($assessmentMode === 'consolidated') {
+			if (!app_table_exists($conn, 'tbl_exam_components')) {
+				throw new RuntimeException("Consolidated exam components table is not installed.");
+			}
+			$stmt = $conn->prepare("SELECT component_exam_id FROM tbl_exam_components WHERE exam_id = ?");
+			$stmt->execute([$examId]);
+			$componentExamIds = array_values(array_unique(array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN))));
+			if (count($componentExamIds) < 2) {
+				throw new RuntimeException("This consolidated exam must include at least two source exams.");
+			}
+			$placeholders = implode(',', array_fill(0, count($componentExamIds), '?'));
+			$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_exams WHERE id IN ($placeholders) AND class_id = ? AND term_id = ? AND status IN ('finalized', 'published')");
+			$params = array_merge($componentExamIds, [(int)$exam['class_id'], (int)$exam['term_id']]);
+			$stmt->execute($params);
+			$readyCount = (int)$stmt->fetchColumn();
+			if ($readyCount < count($componentExamIds)) {
+				throw new RuntimeException("All selected source exams must be finalized or published before finalizing the consolidated exam.");
+			}
+		} elseif ($assessmentMode === 'cbc') {
 			if (!app_table_exists($conn, 'tbl_cbc_mark_submissions')) {
 				throw new RuntimeException("CBC marks submission workflow is not installed.");
 			}
