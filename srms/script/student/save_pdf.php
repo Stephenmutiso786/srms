@@ -4,6 +4,7 @@ session_start();
 require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
+require_once('const/pdf_branding.php');
 require_once('tcpdf/tcpdf.php');
 require_once('const/calculations.php');
 
@@ -68,6 +69,21 @@ $pdf->setFontSubsetting(true);
 $pdf->SetFont('helvetica', '', 14, '', true);
 
 $pdf->AddPage();
+$studentFullName = trim((string)$fname . ' ' . (string)$mname . ' ' . (string)$lname);
+$brand = app_pdf_branding_info($conn);
+$brandingHeader = app_pdf_brand_header_html($conn, 'EXAMINATION REPORT CARD', 'Official student examination report card for academic verification and originality', 60);
+$pdf->writeHTML($brandingHeader, true, false, true, false, '');
+$pdf->Ln(1);
+$pdf->SetTextColor(0, 0, 0);
+$pdf->SetFont('helvetica', '', 11);
+$pdf->Text(14, 28, 'Motto: ' . (string)$brand['motto']);
+$pdf->Text(14, 32, 'Contacts: ' . trim((string)$brand['address'] . ' | ' . (string)$brand['phone'] . ' | ' . (string)$brand['email']));
+$pdf->SetAlpha(0.08);
+$pdf->SetFont('helvetica', 'B', 26);
+$pdf->Rotate(32, 105, 150);
+$pdf->Text(22, 145, app_pdf_document_watermark_text($studentFullName, (string)$brand['name']));
+$pdf->Rotate(-32, 105, 150);
+$pdf->SetAlpha(1);
 $pdf->setTextShadow(array('enabled'=>true, 'depth_w'=>0.2, 'depth_h'=>0.2, 'color'=>array(196,196,196), 'opacity'=>1, 'blend_mode'=>'Normal'));
 if ($img == "DEFAULT") {
 $th_img = app_pdf_image_html('images/students/'.$gender.'.png', 90, 90, $gender);
