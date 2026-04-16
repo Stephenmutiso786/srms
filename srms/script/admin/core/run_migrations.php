@@ -78,13 +78,20 @@ try {
 		if ($sql === false) {
 			throw new RuntimeException("Failed to read $name");
 		}
+		$hasInlineTransaction = preg_match('/(^|\n)\s*BEGIN\s*;/i', $sql) && preg_match('/(^|\n)\s*COMMIT\s*;/i', $sql);
 
 		try {
-			$conn->beginTransaction();
-			$conn->exec($sql);
-			$stmt = $conn->prepare("INSERT INTO tbl_schema_migrations (name) VALUES (?)");
-			$stmt->execute([$name]);
-			$conn->commit();
+			if ($hasInlineTransaction) {
+				$conn->exec($sql);
+				$stmt = $conn->prepare("INSERT INTO tbl_schema_migrations (name) VALUES (?)");
+				$stmt->execute([$name]);
+			} else {
+				$conn->beginTransaction();
+				$conn->exec($sql);
+				$stmt = $conn->prepare("INSERT INTO tbl_schema_migrations (name) VALUES (?)");
+				$stmt->execute([$name]);
+				$conn->commit();
+			}
 		} catch (Throwable $migrationError) {
 			if ($conn->inTransaction()) {
 				$conn->rollBack();
