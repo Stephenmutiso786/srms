@@ -4,6 +4,7 @@ session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/rbac.php');
+require_once('const/pdf_branding.php');
 
 if ($res != "1" || $level != "0") { header("location:../"); }
 app_require_permission('students.manage', '../import_export');
@@ -28,7 +29,8 @@ try {
 		$pdf->SetTitle('Students Export');
 		$pdf->AddPage();
 		$pdf->SetFont('helvetica', '', 11);
-		$pdf->Write(0, 'Students List', '', 0, 'L', true, 0, false, false, 0);
+		$brandingHeader = app_pdf_brand_header_html($conn, 'STUDENT EXPORT', 'Official student export listing for administrative and audit use', 52);
+		$pdf->writeHTML($brandingHeader, true, false, true, false, '');
 		$tbl = '<table border="1" cellpadding="4"><thead><tr><th>ID</th><th>Name</th><th>Gender</th><th>Email</th><th>Class</th></tr></thead><tbody>';
 		foreach ($rows as $r) {
 			$tbl .= '<tr><td>'.htmlspecialchars($r['id']).'</td><td>'.htmlspecialchars($r['name']).'</td><td>'.htmlspecialchars($r['gender']).'</td><td>'.htmlspecialchars($r['email']).'</td><td>'.htmlspecialchars($r['class_name'] ?? '').'</td></tr>';

@@ -5,6 +5,7 @@ require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
 require_once('const/id_card_engine.php');
+require_once('const/pdf_branding.php');
 require_once('tcpdf/tcpdf.php');
 
 if ($res !== "1" || $level !== "3") { header("location:../"); }
@@ -25,6 +26,7 @@ try {
 	$pdf->SetMargins(0, 0, 0);
 	$pdf->AddPage();
 	$pdf->SetAutoPageBreak(false, 0);
+	$brand = app_pdf_branding_info($conn);
 
 	$pdf->RoundedRect(1.5, 1.5, 83, 51, 4, '1111', 'FD', ['all' => ['width' => 0, 'color' => [215,225,234]]], [248,251,255]);
 	$pdf->SetFillColor(15, 95, 168);
@@ -40,6 +42,8 @@ try {
 	$pdf->Text(14, 4.2, strtoupper((string)$school['name']));
 	$pdf->SetFont('helvetica', '', 7.5);
 	$pdf->Text(14, 9.1, 'Official Learner Identification');
+	$pdf->SetFont('helvetica', '', 6.4);
+	$pdf->Text(14, 11.7, 'Motto: ' . (string)$brand['motto']);
 	$pdf->SetFont('helvetica', 'B', 12);
 	$pdf->Text(60, 5.2, 'STUDENT ID');
 
@@ -78,6 +82,8 @@ try {
 	$pdf->Text(5, 45.2, 'Issued ' . date('Y'));
 	$pdf->SetFont('helvetica', '', 6.8);
 	$pdf->Text(5, 48.8, 'Verify via school portal');
+	$pdf->SetFont('helvetica', '', 5.9);
+	$pdf->Text(5, 51.1, (string)$brand['phone'] . ' | ' . (string)$brand['email']);
 
 	$pdf->Output('student-id-card.pdf', 'I');
 } catch (Throwable $e) {

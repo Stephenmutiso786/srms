@@ -5,6 +5,7 @@ require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
 require_once('const/report_engine.php');
+require_once('const/pdf_branding.php');
 require_once('tcpdf/tcpdf.php');
 
 if ($res !== "1" || $level !== "0") {
@@ -69,19 +70,10 @@ try {
 	$pdf->SetMargins(12, 12, 12);
 	$pdf->SetAutoPageBreak(true, 15);
 	$pdf->AddPage();
+	app_pdf_draw_document_watermark($pdf, $className . ' ' . $termName, defined('WBName') ? (string)WBName : 'School');
 
-	$logoHtml = app_pdf_image_html('images/logo/' . WBLogo, 54, 0, WBName);
-	$headerHtml = '
-	<table width="100%" cellpadding="3">
-		<tr>
-			<td width="15%">' . $logoHtml . '</td>
-			<td width="85%">
-				<div style="font-size:18px;font-weight:bold;">' . htmlspecialchars(WBName) . '</div>
-				<div style="font-size:13px;">Class Performance Summary</div>
-				<div style="font-size:11px;">' . htmlspecialchars($className) . ' · ' . htmlspecialchars($termName) . '</div>
-			</td>
-		</tr>
-	</table>';
+	$headerHtml = app_pdf_brand_header_html($conn, 'CLASS PERFORMANCE SUMMARY', 'Official class performance summary for school record and review', 54)
+		. '<div style="font-size:11px;margin-top:4px;">' . htmlspecialchars($className) . ' · ' . htmlspecialchars($termName) . '</div>';
 	$pdf->writeHTML($headerHtml, true, false, true, false, '');
 
 	$distHtml = '<table border="1" cellpadding="5" cellspacing="0">
