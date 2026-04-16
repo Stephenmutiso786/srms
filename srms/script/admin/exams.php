@@ -65,7 +65,9 @@ try {
 	app_ensure_exam_subjects_table($conn);
 
 	if (app_table_exists($conn, 'tbl_exams')) {
-	$stmt = $conn->prepare("SELECT e.id, e.name, e.status, e.created_at, t.name AS term_name, c.name AS class_name, et.name AS type_name,
+	$stmt = $conn->prepare("SELECT e.id, e.name,
+			CASE WHEN COALESCE(e.status, 'draft') = 'open' THEN 'active' ELSE COALESCE(e.status, 'draft') END AS status,
+			e.created_at, t.name AS term_name, c.name AS class_name, et.name AS type_name,
 			gs.name AS grading_name, COALESCE(e.assessment_mode, 'normal') AS assessment_mode,
 			CASE
 				WHEN COALESCE(e.assessment_mode, 'normal') = 'cbc' THEN

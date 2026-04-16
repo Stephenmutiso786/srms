@@ -26,11 +26,11 @@ try {
   $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
   app_ensure_exam_subjects_table($conn);
 
-  $stmt = $conn->prepare("SELECT * FROM tbl_exams WHERE id = ? AND status = 'active' LIMIT 1");
+  $stmt = $conn->prepare("SELECT * FROM tbl_exams WHERE id = ? AND status IN ('active', 'open') LIMIT 1");
   $stmt->execute([$examId]);
   $exam = $stmt->fetch(PDO::FETCH_ASSOC);
   if (!$exam) {
-    throw new RuntimeException("Exam not found or not active.");
+    throw new RuntimeException("Exam not found or not open for mark entry.");
   }
 
   $stmt = $conn->prepare("SELECT id, class, teacher, subject FROM tbl_subject_combinations WHERE id = ?");
@@ -49,7 +49,8 @@ try {
 
   if (app_table_exists($conn, 'tbl_teacher_assignments')) {
     $stmt = $conn->prepare("SELECT id FROM tbl_teacher_assignments
-      WHERE teacher_id = ? AND class_id = ? AND subject_id = ? AND term_id = ? AND status = 1
+      WHERE teacher_id = ? AND class_id = ? AND subject_id = ? AND status = 1
+      AND (term_id = ? OR term_id IS NULL OR term_id = 0)
       ORDER BY year DESC, id DESC LIMIT 1");
     $stmt->execute([(int)$account_id, (int)$exam['class_id'], (int)$combo['subject'], (int)$exam['term_id']]);
     if (!$stmt->fetchColumn()) {

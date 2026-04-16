@@ -1032,7 +1032,8 @@ function app_exam_submission_status(PDO $conn, int $examId, int $subjectCombinat
 
 function app_exam_can_enter_marks(string $status): bool
 {
-	return in_array($status, ['active'], true);
+	$normalized = strtolower(trim($status));
+	return in_array($normalized, ['active', 'open'], true);
 }
 
 function app_exam_status_badge(string $status): string
@@ -1041,6 +1042,7 @@ function app_exam_status_badge(string $status): string
 	$map = [
 		'draft' => 'secondary',
 		'active' => 'primary',
+		'open' => 'primary',
 		'reviewed' => 'info',
 		'finalized' => 'success',
 		'published' => 'dark',

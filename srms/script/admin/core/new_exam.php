@@ -144,11 +144,11 @@ try {
 		}
 		if (DBDriver === 'pgsql') {
 			$stmt = $conn->prepare("INSERT INTO tbl_exams (name, term_id, class_id, exam_type_id, grading_system_id, assessment_mode, status, created_by) VALUES (?,?,?,?,?,?,?,?) RETURNING id");
-			$stmt->execute([$name, $termId, $classId, $examTypeId, $gradingSystemId, $assessmentMode, 'draft', $createdBy]);
+			$stmt->execute([$name, $termId, $classId, $examTypeId, $gradingSystemId, $assessmentMode, 'active', $createdBy]);
 			$examId = (int)$stmt->fetchColumn();
 		} else {
 			$stmt = $conn->prepare("INSERT INTO tbl_exams (name, term_id, class_id, exam_type_id, grading_system_id, assessment_mode, status, created_by) VALUES (?,?,?,?,?,?,?,?)");
-			$stmt->execute([$name, $termId, $classId, $examTypeId, $gradingSystemId, $assessmentMode, 'draft', $createdBy]);
+			$stmt->execute([$name, $termId, $classId, $examTypeId, $gradingSystemId, $assessmentMode, 'active', $createdBy]);
 			$examId = (int)$conn->lastInsertId();
 		}
 		foreach ($validSubjects as $subjectId) {
@@ -167,7 +167,7 @@ try {
 		throw new RuntimeException("These exam structures already exist for the selected classes.");
 	}
 
-	$message = "Exam structure created for " . $created . " class(es). Activate it when teachers are ready.";
+	$message = "Exam structure created and activated for " . $created . " class(es).";
 	if (!empty($skippedClasses)) {
 		$message .= " Some classes were skipped because none of the selected subjects are assigned to them.";
 	}

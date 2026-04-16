@@ -44,7 +44,12 @@ try {
 		throw new RuntimeException("Exam not found.");
 	}
 
-	$currentStatus = (string)($exam['status'] ?? 'draft');
+	$currentStatus = strtolower(trim((string)($exam['status'] ?? 'draft')));
+	if ($currentStatus === 'open') {
+		$currentStatus = 'active';
+		$stmt = $conn->prepare("UPDATE tbl_exams SET status = 'active' WHERE id = ?");
+		$stmt->execute([$examId]);
+	}
 	$assessmentMode = (string)($exam['assessment_mode'] ?? 'normal');
 	if ($assessmentMode === 'consolidated') {
 		app_ensure_exam_components_table($conn);

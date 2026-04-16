@@ -48,7 +48,7 @@ try {
         FROM tbl_exams e
         LEFT JOIN tbl_classes c ON c.id = e.class_id
         LEFT JOIN tbl_terms t ON t.id = e.term_id
-  		WHERE e.status = 'active' AND e.class_id IN ($placeholders) AND COALESCE(e.assessment_mode, 'normal') <> 'consolidated'
+  		WHERE e.status IN ('active', 'open') AND e.class_id IN ($placeholders) AND COALESCE(e.assessment_mode, 'normal') <> 'consolidated'
         ORDER BY e.created_at DESC");
       $stmt->execute($classIds);
       $exams = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -60,7 +60,7 @@ try {
         if ((int)$assignment['class_id'] !== (int)$exam['class_id']) {
           continue;
         }
-        if ((int)$assignment['term_id'] !== (int)$exam['term_id']) {
+        if ((int)$assignment['term_id'] > 0 && (int)$assignment['term_id'] !== (int)$exam['term_id']) {
           continue;
         }
         if (!empty($allowedSubjectIds) && !in_array((int)$assignment['subject_id'], $allowedSubjectIds, true)) {
@@ -94,7 +94,7 @@ try {
         FROM tbl_exams e
         LEFT JOIN tbl_classes c ON c.id = e.class_id
         LEFT JOIN tbl_terms t ON t.id = e.term_id
-  		WHERE e.status = 'active' AND e.class_id IN ($placeholders) AND COALESCE(e.assessment_mode, 'normal') <> 'consolidated'
+  		WHERE e.status IN ('active', 'open') AND e.class_id IN ($placeholders) AND COALESCE(e.assessment_mode, 'normal') <> 'consolidated'
         ORDER BY e.created_at DESC");
       $stmt->execute($classIds);
       $exams = $stmt->fetchAll(PDO::FETCH_ASSOC);
