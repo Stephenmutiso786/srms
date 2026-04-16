@@ -5,7 +5,7 @@ require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/rbac.php');
 
-if ($res !== '1' || !in_array((int)$level, [0, 1])) {
+if ($res !== '1' || !in_array((int)$level, [0, 1, 9], true)) {
     app_reply_redirect('danger', 'Unauthorized.', '../promotions');
 }
 app_require_permission('report.generate', '../promotions');
@@ -39,10 +39,10 @@ try {
     // Update batch status to rejected
     $stmt = $conn->prepare('
         UPDATE tbl_promotion_batches 
-        SET status = ?, approved_by = ?, approved_at = CURRENT_TIMESTAMP
+        SET status = ?, review_state = ?, reviewed_by = ?, reviewed_at = CURRENT_TIMESTAMP, approved_by = ?, approved_at = CURRENT_TIMESTAMP
         WHERE id = ?
     ');
-    $stmt->execute(['rejected', (int)$account_id, (int)$batchId]);
+    $stmt->execute(['rejected', 'rejected', (int)$account_id, (int)$account_id, (int)$batchId]);
 
     // Log action
     app_audit_log(

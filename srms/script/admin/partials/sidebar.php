@@ -75,6 +75,7 @@ function app_tree_active($page)
       <a class="app-menu__item" href="javascript:void(0);" data-toggle="treeview"><i class="app-menu__icon feather icon-award"></i><span class="app-menu__label">Certificates</span><i class="treeview-indicator bi bi-chevron-right"></i></a>
       <ul class="treeview-menu">
         <li><a class="treeview-item<?php echo app_tree_active('certificates'); ?>" href="admin/certificates"><i class="icon bi bi-circle-fill"></i> Generate Certificates</a></li>
+        <li><a class="treeview-item<?php echo app_tree_active('promotion_rules'); ?>" href="admin/promotion_rules"><i class="icon bi bi-circle-fill"></i> Promotion Rules</a></li>
         <li><a class="treeview-item<?php echo app_tree_active('promotions'); ?>" href="admin/promotions"><i class="icon bi bi-circle-fill"></i> Student Promotions</a></li>
       </ul>
     </li>

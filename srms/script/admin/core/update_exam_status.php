@@ -35,6 +35,7 @@ try {
 		header("location:../exams");
 		exit;
 	}
+	app_ensure_exam_results_locks_table($conn);
 
 	$stmt = $conn->prepare("SELECT * FROM tbl_exams WHERE id = ? LIMIT 1");
 	$stmt->execute([$examId]);
@@ -166,16 +167,17 @@ try {
 			error_log('['.__FILE__.':'.__LINE__.'] Results release notification failed: ' . $notificationError->getMessage());
 		}
 
-		if (app_table_exists($conn, 'tbl_results_locks')) {
-			$lockStmt = $conn->prepare("SELECT id FROM tbl_results_locks WHERE class_id = ? AND term_id = ? LIMIT 1");
-			$lockStmt->execute([(int)$exam['class_id'], (int)$exam['term_id']]);
-			$lockId = (int)$lockStmt->fetchColumn();
-			if ($lockId > 0) {
-				$lockStmt = $conn->prepare("UPDATE tbl_results_locks SET locked = 1, reason = ?, locked_by = ?, locked_at = CURRENT_TIMESTAMP WHERE id = ?");
-				$lockStmt->execute(['Auto-locked on result publish', (int)$account_id, $lockId]);
+		if (app_table_exists($conn, 'tbl_exam_results_locks')) {
+			if (DBDriver === 'pgsql') {
+				$lockStmt = $conn->prepare("INSERT INTO tbl_exam_results_locks (exam_id, class_id, term_id, locked, reason, locked_by, locked_at)
+					VALUES (?,?,?,?,?,?,CURRENT_TIMESTAMP)
+					ON CONFLICT (exam_id) DO UPDATE SET locked = EXCLUDED.locked, reason = EXCLUDED.reason, locked_by = EXCLUDED.locked_by, locked_at = EXCLUDED.locked_at");
+				$lockStmt->execute([$examId, (int)$exam['class_id'], (int)$exam['term_id'], 1, 'Auto-locked on result publish', (int)$account_id]);
 			} else {
-				$lockStmt = $conn->prepare("INSERT INTO tbl_results_locks (class_id, term_id, locked, reason, locked_by, locked_at) VALUES (?,?,?,?,?,CURRENT_TIMESTAMP)");
-				$lockStmt->execute([(int)$exam['class_id'], (int)$exam['term_id'], 1, 'Auto-locked on result publish', (int)$account_id]);
+				$lockStmt = $conn->prepare("INSERT INTO tbl_exam_results_locks (exam_id, class_id, term_id, locked, reason, locked_by, locked_at)
+					VALUES (?,?,?,?,?,?,CURRENT_TIMESTAMP)
+					ON DUPLICATE KEY UPDATE class_id = VALUES(class_id), term_id = VALUES(term_id), locked = VALUES(locked), reason = VALUES(reason), locked_by = VALUES(locked_by), locked_at = VALUES(locked_at)");
+				$lockStmt->execute([$examId, (int)$exam['class_id'], (int)$exam['term_id'], 1, 'Auto-locked on result publish', (int)$account_id]);
 			}
 		}
 
@@ -188,9 +190,9 @@ try {
 		}
 	}
 
-	if ($currentStatus === 'published' && $status === 'finalized' && app_table_exists($conn, 'tbl_results_locks')) {
-		$lockStmt = $conn->prepare("UPDATE tbl_results_locks SET locked = 0, reason = ?, locked_by = ?, locked_at = CURRENT_TIMESTAMP WHERE class_id = ? AND term_id = ?");
-		$lockStmt->execute(['Unlocked on unpublish', (int)$account_id, (int)$exam['class_id'], (int)$exam['term_id']]);
+	if ($currentStatus === 'published' && $status === 'finalized' && app_table_exists($conn, 'tbl_exam_results_locks')) {
+		$lockStmt = $conn->prepare("UPDATE tbl_exam_results_locks SET locked = 0, reason = ?, locked_by = ?, locked_at = CURRENT_TIMESTAMP WHERE exam_id = ?");
+		$lockStmt->execute(['Unlocked on unpublish', (int)$account_id, $examId]);
 	}
 
 	app_audit_log($conn, 'staff', (string)$account_id, 'exam.status', 'exam', (string)$examId, ['from' => $currentStatus, 'to' => $status]);

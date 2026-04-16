@@ -545,6 +545,22 @@ function report_fetch_scores(PDO $conn, string $studentId, int $classId, int $te
 		} else {
 			list($gradeLabel, $gradeRemark, $gradePoints) = report_grade_for_score($conn, $score, $gradingSystemId);
 		}
+		$storedGrade = $value['grade_label'] ?? null;
+		if (is_string($storedGrade)) {
+			$storedGrade = trim($storedGrade);
+		}
+		if (!is_string($storedGrade) || $storedGrade === '' || strtolower($storedGrade) === 'null') {
+			$storedGrade = $gradeLabel;
+		}
+
+		$storedPoints = $value['grade_points'] ?? null;
+		if (is_string($storedPoints)) {
+			$storedPoints = trim($storedPoints);
+		}
+		if ($storedPoints === null || $storedPoints === '' || (is_string($storedPoints) && strtolower($storedPoints) === 'null')) {
+			$storedPoints = $gradePoints;
+		}
+
 		$scores[] = [
 			'subject_id' => (int)$subject['subject'],
 			'subject_name' => $subject['subject_name'],
@@ -552,8 +568,8 @@ function report_fetch_scores(PDO $conn, string $studentId, int $classId, int $te
 			'teacher_name' => trim(($subject['fname'] ?? '') . ' ' . ($subject['lname'] ?? '')),
 			'score' => $score,
 			'exam_id' => $examId,
-			'grade' => (string)($value['grade_label'] ?? $gradeLabel),
-			'grade_points' => (float)($value['grade_points'] ?? $gradePoints),
+			'grade' => (string)$storedGrade,
+			'grade_points' => (float)$storedPoints,
 			'grade_remark' => $gradeRemark
 		];
 	}

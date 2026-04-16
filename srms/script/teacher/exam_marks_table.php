@@ -87,7 +87,7 @@ try {
     $avgScore = array_sum(array_map('floatval', $scores)) / count($scores);
   }
 
-  $isLocked = app_results_locked($conn, $classId, $termId);
+  $isLocked = app_results_locked($conn, $classId, $termId, $examId);
   $submissionStatus = app_exam_submission_status($conn, $examId, $subjectComb);
 } catch (Throwable $e) {
 	error_log("[".__FILE__.":".__LINE__." Throwable] " . $e->getMessage());

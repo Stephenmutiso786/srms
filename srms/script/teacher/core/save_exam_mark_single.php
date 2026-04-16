@@ -33,7 +33,7 @@ try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-	if (app_results_locked($conn, $classId, $termId)) {
+	if (app_results_locked($conn, $classId, $termId, $examId)) {
 		echo json_encode(['ok' => false, 'message' => 'Results locked']);
 		exit;
 	}

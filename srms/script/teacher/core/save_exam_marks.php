@@ -28,7 +28,7 @@ try {
   $conn = app_db();
   $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-  if (app_results_locked($conn, $classId, $termId)) {
+  if (app_results_locked($conn, $classId, $termId, $examId)) {
     throw new RuntimeException("Results are locked for this class/term.");
   }
 

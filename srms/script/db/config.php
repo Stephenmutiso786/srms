@@ -935,16 +935,74 @@ function app_audit_log(PDO $conn, string $actorType, string $actorId, string $ac
 	}
 }
 
-function app_results_locked(PDO $conn, int $classId, int $termId): bool
+function app_ensure_exam_results_locks_table(PDO $conn): void
+{
+	if (app_table_exists($conn, 'tbl_exam_results_locks')) {
+		return;
+	}
+
+	if (DBDriver === 'pgsql') {
+		$conn->exec("CREATE TABLE IF NOT EXISTS tbl_exam_results_locks (
+			exam_id integer PRIMARY KEY,
+			class_id integer NOT NULL,
+			term_id integer NOT NULL,
+			locked integer NOT NULL DEFAULT 1,
+			reason varchar(255) NOT NULL DEFAULT '',
+			locked_by integer NULL,
+			locked_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			CONSTRAINT tbl_exam_results_locks_exam_fk FOREIGN KEY (exam_id) REFERENCES tbl_exams (id) ON DELETE CASCADE,
+			CONSTRAINT tbl_exam_results_locks_class_fk FOREIGN KEY (class_id) REFERENCES tbl_classes (id) ON DELETE CASCADE,
+			CONSTRAINT tbl_exam_results_locks_term_fk FOREIGN KEY (term_id) REFERENCES tbl_terms (id) ON DELETE CASCADE,
+			CONSTRAINT tbl_exam_results_locks_staff_fk FOREIGN KEY (locked_by) REFERENCES tbl_staff (id) ON DELETE SET NULL
+		)");
+	} else {
+		$conn->exec("CREATE TABLE IF NOT EXISTS tbl_exam_results_locks (
+			exam_id int NOT NULL,
+			class_id int NOT NULL,
+			term_id int NOT NULL,
+			locked tinyint(1) NOT NULL DEFAULT 1,
+			reason varchar(255) NOT NULL DEFAULT '',
+			locked_by int NULL,
+			locked_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (exam_id),
+			KEY idx_exam_results_locks_class_term (class_id, term_id),
+			CONSTRAINT tbl_exam_results_locks_exam_fk FOREIGN KEY (exam_id) REFERENCES tbl_exams (id) ON DELETE CASCADE,
+			CONSTRAINT tbl_exam_results_locks_class_fk FOREIGN KEY (class_id) REFERENCES tbl_classes (id) ON DELETE CASCADE,
+			CONSTRAINT tbl_exam_results_locks_term_fk FOREIGN KEY (term_id) REFERENCES tbl_terms (id) ON DELETE CASCADE,
+			CONSTRAINT tbl_exam_results_locks_staff_fk FOREIGN KEY (locked_by) REFERENCES tbl_staff (id) ON DELETE SET NULL
+		) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+	}
+}
+
+function app_results_locked(PDO $conn, int $classId, int $termId, int $examId = 0): bool
 {
 	if ($classId < 1 || $termId < 1) {
 		return false;
 	}
-	if (!app_table_exists($conn, 'tbl_results_locks')) {
-		return false;
-	}
 
 	try {
+		if ($examId > 0 && app_table_exists($conn, 'tbl_exam_results_locks')) {
+			$stmt = $conn->prepare("SELECT locked FROM tbl_exam_results_locks WHERE exam_id = ? LIMIT 1");
+			$stmt->execute([$examId]);
+			$locked = $stmt->fetchColumn();
+			if ((int)$locked === 1) {
+				return true;
+			}
+		}
+
+		if ($examId < 1 && app_table_exists($conn, 'tbl_exam_results_locks')) {
+			$stmt = $conn->prepare("SELECT locked FROM tbl_exam_results_locks WHERE class_id = ? AND term_id = ? ORDER BY locked_at DESC LIMIT 1");
+			$stmt->execute([$classId, $termId]);
+			$locked = $stmt->fetchColumn();
+			if ((int)$locked === 1) {
+				return true;
+			}
+		}
+
+		if (!app_table_exists($conn, 'tbl_results_locks')) {
+			return false;
+		}
+
 		$stmt = $conn->prepare("SELECT locked FROM tbl_results_locks WHERE class_id = ? AND term_id = ? LIMIT 1");
 		$stmt->execute([$classId, $termId]);
 		$locked = $stmt->fetchColumn();
@@ -1080,6 +1138,147 @@ function app_ensure_exam_type(PDO $conn, string $name = 'Consolidated / Complex 
 	$stmt = $conn->prepare("INSERT INTO tbl_exam_types (name, status) VALUES (?, 1)");
 	$stmt->execute([$name]);
 	return (int)$conn->lastInsertId();
+}
+
+function app_promotion_rule_for_grade(PDO $conn, int $gradeLevel): array
+{
+	$rule = [
+		'grade_level' => $gradeLevel,
+		'min_score_for_promotion' => 40.0,
+		'require_fees_clearance' => true,
+		'require_report_finalization' => true,
+		'require_headteacher_approval' => true,
+		'auto_generate_certificate' => false,
+		'certificate_type' => 'general',
+	];
+
+	if ($gradeLevel < 1 || !app_table_exists($conn, 'tbl_promotion_rules')) {
+		return $rule;
+	}
+
+	$stmt = $conn->prepare('SELECT grade_level, min_score_for_promotion, require_fees_clearance, require_report_finalization, require_headteacher_approval, auto_generate_certificate, certificate_type
+		FROM tbl_promotion_rules
+		WHERE school_id IS NULL AND grade_level = ?
+		LIMIT 1');
+	$stmt->execute([$gradeLevel]);
+	$row = $stmt->fetch(PDO::FETCH_ASSOC);
+	if (!$row) {
+		return $rule;
+	}
+
+	$rule['grade_level'] = (int)($row['grade_level'] ?? $gradeLevel);
+	$rule['min_score_for_promotion'] = (float)($row['min_score_for_promotion'] ?? $rule['min_score_for_promotion']);
+	$rule['require_fees_clearance'] = (bool)($row['require_fees_clearance'] ?? $rule['require_fees_clearance']);
+	$rule['require_report_finalization'] = (bool)($row['require_report_finalization'] ?? $rule['require_report_finalization']);
+	$rule['require_headteacher_approval'] = (bool)($row['require_headteacher_approval'] ?? $rule['require_headteacher_approval']);
+	$rule['auto_generate_certificate'] = (bool)($row['auto_generate_certificate'] ?? $rule['auto_generate_certificate']);
+	$rule['certificate_type'] = trim((string)($row['certificate_type'] ?? $rule['certificate_type'])) ?: $rule['certificate_type'];
+
+	return $rule;
+}
+
+function app_ensure_promotion_workflow_schema(PDO $conn): void
+{
+	$isPgsql = DBDriver === 'pgsql';
+
+	if (app_table_exists($conn, 'tbl_promotion_batches')) {
+		$batchColumns = [
+			'review_state' => "ALTER TABLE tbl_promotion_batches ADD COLUMN review_state varchar(30) NOT NULL DEFAULT 'pending_review'",
+			'reviewed_by' => $isPgsql
+				? 'ALTER TABLE tbl_promotion_batches ADD COLUMN reviewed_by int DEFAULT NULL REFERENCES tbl_staff(id) ON DELETE SET NULL'
+				: 'ALTER TABLE tbl_promotion_batches ADD COLUMN reviewed_by int DEFAULT NULL',
+			'reviewed_at' => 'ALTER TABLE tbl_promotion_batches ADD COLUMN reviewed_at timestamp DEFAULT NULL',
+			'executed_by' => $isPgsql
+				? 'ALTER TABLE tbl_promotion_batches ADD COLUMN executed_by int DEFAULT NULL REFERENCES tbl_staff(id) ON DELETE SET NULL'
+				: 'ALTER TABLE tbl_promotion_batches ADD COLUMN executed_by int DEFAULT NULL',
+			'executed_at' => 'ALTER TABLE tbl_promotion_batches ADD COLUMN executed_at timestamp DEFAULT NULL',
+		];
+		foreach ($batchColumns as $column => $sql) {
+			if (!app_column_exists($conn, 'tbl_promotion_batches', $column)) {
+				$conn->exec($sql);
+			}
+		}
+		try {
+			$conn->exec("UPDATE tbl_promotion_batches SET review_state = CASE WHEN status = 'approved' THEN 'executed' WHEN status = 'rejected' THEN 'rejected' ELSE COALESCE(review_state, 'pending_review') END WHERE review_state IS NULL OR review_state = ''");
+			$conn->exec("UPDATE tbl_promotion_batches SET reviewed_by = COALESCE(reviewed_by, approved_by) WHERE reviewed_by IS NULL AND approved_by IS NOT NULL");
+			$conn->exec("UPDATE tbl_promotion_batches SET executed_by = COALESCE(executed_by, approved_by) WHERE executed_by IS NULL AND approved_by IS NOT NULL AND status = 'approved'");
+		} catch (Throwable $e) {
+			// Best effort backfill only.
+		}
+	}
+
+	if (app_table_exists($conn, 'tbl_student_promotions')) {
+		$studentColumns = [
+			'suggested_status' => "ALTER TABLE tbl_student_promotions ADD COLUMN suggested_status varchar(20) DEFAULT NULL",
+			'final_status' => "ALTER TABLE tbl_student_promotions ADD COLUMN final_status varchar(20) DEFAULT NULL",
+			'review_comment' => 'ALTER TABLE tbl_student_promotions ADD COLUMN review_comment text DEFAULT NULL',
+			'reviewed_by' => $isPgsql
+				? 'ALTER TABLE tbl_student_promotions ADD COLUMN reviewed_by int DEFAULT NULL REFERENCES tbl_staff(id) ON DELETE SET NULL'
+				: 'ALTER TABLE tbl_student_promotions ADD COLUMN reviewed_by int DEFAULT NULL',
+			'reviewed_at' => 'ALTER TABLE tbl_student_promotions ADD COLUMN reviewed_at timestamp DEFAULT NULL',
+			'override_reason' => 'ALTER TABLE tbl_student_promotions ADD COLUMN override_reason text DEFAULT NULL',
+		];
+		foreach ($studentColumns as $column => $sql) {
+			if (!app_column_exists($conn, 'tbl_student_promotions', $column)) {
+				$conn->exec($sql);
+			}
+		}
+		try {
+			$conn->exec("UPDATE tbl_student_promotions SET suggested_status = status WHERE suggested_status IS NULL OR suggested_status = ''");
+			$conn->exec("UPDATE tbl_student_promotions SET final_status = status WHERE final_status IS NULL OR final_status = ''");
+		} catch (Throwable $e) {
+			// Best effort backfill only.
+		}
+	}
+
+	if (!app_table_exists($conn, 'tbl_student_class_history')) {
+		if (DBDriver === 'pgsql') {
+			$conn->exec("
+				CREATE TABLE IF NOT EXISTS tbl_student_class_history (
+					id SERIAL PRIMARY KEY,
+					student_id varchar(64) NOT NULL REFERENCES tbl_students(id) ON DELETE CASCADE,
+					batch_id int NOT NULL REFERENCES tbl_promotion_batches(id) ON DELETE CASCADE,
+					from_class int NOT NULL REFERENCES tbl_classes(id) ON DELETE CASCADE,
+					to_class int DEFAULT NULL REFERENCES tbl_classes(id) ON DELETE SET NULL,
+					academic_year varchar(10) NOT NULL,
+					promotion_cycle varchar(50) DEFAULT NULL,
+					decision_status varchar(20) NOT NULL,
+					mean_score numeric(5,2) DEFAULT NULL,
+					merit_grade varchar(1) DEFAULT NULL,
+					decision_role varchar(30) DEFAULT 'system',
+					decided_by int DEFAULT NULL REFERENCES tbl_staff(id) ON DELETE SET NULL,
+					notes text DEFAULT NULL,
+					created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+				)
+			");
+			$conn->exec("CREATE INDEX IF NOT EXISTS idx_student_class_history_student ON tbl_student_class_history(student_id, batch_id)");
+		} else {
+			$conn->exec("
+				CREATE TABLE IF NOT EXISTS tbl_student_class_history (
+					id int NOT NULL AUTO_INCREMENT PRIMARY KEY,
+					student_id varchar(64) NOT NULL,
+					batch_id int NOT NULL,
+					from_class int NOT NULL,
+					to_class int DEFAULT NULL,
+					academic_year varchar(10) NOT NULL,
+					promotion_cycle varchar(50) DEFAULT NULL,
+					decision_status varchar(20) NOT NULL,
+					mean_score decimal(5,2) DEFAULT NULL,
+					merit_grade varchar(1) DEFAULT NULL,
+					decision_role varchar(30) DEFAULT 'system',
+					decided_by int DEFAULT NULL,
+					notes text DEFAULT NULL,
+					created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+					CONSTRAINT tbl_student_class_history_student_fk FOREIGN KEY (student_id) REFERENCES tbl_students(id) ON DELETE CASCADE,
+					CONSTRAINT tbl_student_class_history_batch_fk FOREIGN KEY (batch_id) REFERENCES tbl_promotion_batches(id) ON DELETE CASCADE,
+					CONSTRAINT tbl_student_class_history_from_fk FOREIGN KEY (from_class) REFERENCES tbl_classes(id) ON DELETE CASCADE,
+					CONSTRAINT tbl_student_class_history_to_fk FOREIGN KEY (to_class) REFERENCES tbl_classes(id) ON DELETE SET NULL,
+					CONSTRAINT tbl_student_class_history_staff_fk FOREIGN KEY (decided_by) REFERENCES tbl_staff(id) ON DELETE SET NULL
+				) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+			");
+			$conn->exec("CREATE INDEX idx_student_class_history_student ON tbl_student_class_history(student_id, batch_id)");
+		}
+	}
 }
 
 function app_exam_subject_ids(PDO $conn, int $examId): array

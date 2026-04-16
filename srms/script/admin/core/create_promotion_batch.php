@@ -6,7 +6,7 @@ require_once('const/check_session.php');
 require_once('const/rbac.php');
 require_once('const/certificate_engine.php');
 
-if ($res !== '1' || !in_array((int)$level, [0, 1])) {
+if ($res !== '1' || !in_array((int)$level, [0, 1, 9], true)) {
     app_reply_redirect('danger', 'Unauthorized.', '../promotions');
 }
 app_require_permission('report.generate', '../promotions');
@@ -31,6 +31,7 @@ if (!preg_match('/^\d{4}(\/\d{4})?$/', $academicYear)) {
 try {
     $conn = app_db();
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    app_ensure_promotion_workflow_schema($conn);
     $conn->beginTransaction();
 
     // Validate source class and get its grade.
@@ -63,26 +64,8 @@ try {
     }
 
     // Get promotion rule for this grade.
-    $rule = [
-        'min_score_for_promotion' => 40.0,
-        'require_fees_clearance' => true,
-        'require_report_finalization' => true,
-    ];
-    if (app_table_exists($conn, 'tbl_promotion_rules')) {
-        $stmt = $conn->prepare('
-            SELECT min_score_for_promotion, require_fees_clearance, require_report_finalization
-            FROM tbl_promotion_rules
-            WHERE school_id IS NULL AND grade_level = ?
-            LIMIT 1
-        ');
-        $stmt->execute([$currentGrade]);
-        $ruleRow = $stmt->fetch(PDO::FETCH_ASSOC);
-        if ($ruleRow) {
-            $rule['min_score_for_promotion'] = (float)$ruleRow['min_score_for_promotion'];
-            $rule['require_fees_clearance'] = (bool)$ruleRow['require_fees_clearance'];
-            $rule['require_report_finalization'] = (bool)$ruleRow['require_report_finalization'];
-        }
-    }
+    $rule = app_promotion_rule_for_grade($conn, $currentGrade);
+    $needsHeadteacherReview = (bool)($rule['require_headteacher_approval'] ?? true);
 
     // Find next class.
     $nextGrade = $currentGrade + 1;
@@ -92,11 +75,14 @@ try {
     $nextClassId = $nextClassRow ? (int)$nextClassRow['id'] : (int)$classId;
 
     // Create promotion batch.
-    $stmt = $conn->prepare('
-        INSERT INTO tbl_promotion_batches (class_id, academic_year, promotion_cycle, status, created_by, notes)
-        VALUES (?, ?, ?, ?, ?, ?)
-    ');
-    $stmt->execute([(int)$classId, $academicYear, $promotionCycle, 'pending', (int)$account_id, $notes]);
+    $batchColumns = ['class_id', 'academic_year', 'promotion_cycle', 'status', 'created_by', 'notes'];
+    $batchValues = [(int)$classId, $academicYear, $promotionCycle, 'pending', (int)$account_id, $notes];
+    if (app_column_exists($conn, 'tbl_promotion_batches', 'review_state')) {
+        $batchColumns[] = 'review_state';
+        $batchValues[] = $needsHeadteacherReview ? 'pending_review' : 'ready_for_execution';
+    }
+    $stmt = $conn->prepare('INSERT INTO tbl_promotion_batches (' . implode(', ', $batchColumns) . ') VALUES (' . implode(', ', array_fill(0, count($batchColumns), '?')) . ')');
+    $stmt->execute($batchValues);
     $batchId = $conn->lastInsertId();
 
     // Generate students promotion records.
@@ -150,6 +136,7 @@ try {
         $meritGrade = $meanScore > 0 ? app_merit_grade_from_score($meanScore) : null;
         $feesCleared = $feesBalance <= 0;
         $totalFeesBalance += max(0, $feesBalance);
+        $notesLine = [];
 
         // Determine promotion status using rule gates.
         $status = 'promoted';
@@ -163,33 +150,57 @@ try {
             $status = 'repeated';
         }
 
-        $notesLine = [];
+        if ($status === 'promoted' && $needsHeadteacherReview) {
+            $status = 'conditional';
+        }
+
         if ($status === 'repeated') {
             if ($meanScore < (float)$rule['min_score_for_promotion']) $notesLine[] = 'Below minimum score';
             if ((bool)$rule['require_fees_clearance'] && !$feesCleared) $notesLine[] = 'Fees not cleared';
             if ((bool)$rule['require_report_finalization'] && !$reportFinalized) $notesLine[] = 'Report not finalized';
+        } elseif ($status === 'conditional') {
+            $notesLine[] = 'Recommended for promotion pending review';
+            if ($needsHeadteacherReview) {
+                $notesLine[] = 'Awaiting headteacher review';
+            }
         }
 
-        $stmt = $conn->prepare('
-            INSERT INTO tbl_student_promotions 
-            (batch_id, student_id, from_class, to_class, status, mean_score, merit_grade, 
-             fees_balance, fees_cleared, report_card_finalized, notes, created_by)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ');
-        $stmt->execute([
+        $suggestedStatus = $status;
+        $finalStatus = $status === 'conditional' ? 'promoted' : $status;
+
+        $promotionColumns = [
+            'batch_id', 'student_id', 'from_class', 'to_class', 'status', 'mean_score', 'merit_grade',
+            'fees_balance', 'fees_cleared', 'report_card_finalized', 'notes', 'created_by'
+        ];
+        $promotionValues = [
             (int)$batchId,
             (string)$student['id'],
             (int)$classId,
-            $status === 'promoted' ? $nextClassId : (int)$classId,
-            $status,
+            $status === 'promoted' || $status === 'conditional' ? $nextClassId : (int)$classId,
+            $suggestedStatus,
             $meanScore,
             $meritGrade,
             $feesBalance,
             $feesCleared,
             $reportFinalized,
             implode('; ', $notesLine),
-            (int)$account_id
-        ]);
+            (int)$account_id,
+        ];
+
+        if (app_column_exists($conn, 'tbl_student_promotions', 'suggested_status')) {
+            $promotionColumns[] = 'suggested_status';
+            $promotionValues[] = $suggestedStatus;
+        }
+        if (app_column_exists($conn, 'tbl_student_promotions', 'final_status')) {
+            $promotionColumns[] = 'final_status';
+            $promotionValues[] = $finalStatus;
+        }
+
+        $stmt = $conn->prepare('
+            INSERT INTO tbl_student_promotions (' . implode(', ', $promotionColumns) . ')
+            VALUES (' . implode(', ', array_fill(0, count($promotionColumns), '?')) . ')
+        ');
+        $stmt->execute($promotionValues);
     }
 
     $stmt = $conn->prepare('UPDATE tbl_promotion_batches SET total_fees_balance = ? WHERE id = ?');

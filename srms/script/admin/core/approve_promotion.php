@@ -7,10 +7,12 @@ require_once('const/rbac.php');
 require_once('const/certificate_engine.php');
 require_once('const/notify.php');
 
-if ($res !== '1' || !in_array((int)$level, [0, 1])) {
+if ($res !== '1' || !in_array((int)$level, [0, 1, 9], true)) {
     app_reply_redirect('danger', 'Unauthorized.', '../promotions');
 }
-app_require_permission('report.generate', '../promotions');
+if (!in_array((int)$level, [0, 9], true)) {
+    app_reply_redirect('danger', 'Only admin can execute the final promotion step.', '../promotions');
+}
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     app_reply_redirect('danger', 'Invalid request method.', '../promotions');
@@ -24,6 +26,7 @@ if ($batchId === '') {
 try {
     $conn = app_db();
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    app_ensure_promotion_workflow_schema($conn);
     app_ensure_certificates_table($conn);
     $conn->beginTransaction();
 
@@ -40,10 +43,15 @@ try {
         throw new RuntimeException('This batch has already been processed.');
     }
 
+    $reviewState = strtolower(trim((string)($batch['review_state'] ?? 'pending_review')));
+    if ($reviewState === 'pending_review') {
+        throw new RuntimeException('This batch must be reviewed before final execution.');
+    }
+
     // Get students in batch.
     $stmt = $conn->prepare('
         SELECT sp.*, st.id, st.fname, st.mname, st.lname,
-               concat_ws(\' \, st.fname, st.mname, st.lname) AS student_name,
+               concat_ws(\' \' , st.fname, st.mname, st.lname) AS student_name,
                c_from.grade AS from_grade,
                c_to.grade AS to_grade
         FROM tbl_student_promotions sp
@@ -65,10 +73,16 @@ try {
     $certificates_generated = 0;
 
     $today = date('Y-m-d');
+    $historyColumns = ['student_id', 'batch_id', 'from_class', 'to_class', 'academic_year', 'promotion_cycle', 'decision_status', 'mean_score', 'merit_grade', 'decision_role', 'decided_by', 'notes'];
 
     // Process each student.
     foreach ($students as $student) {
-        if ($student['status'] === 'promoted') {
+        $decisionStatus = strtolower(trim((string)($student['final_status'] ?? $student['status'])));
+        if (!in_array($decisionStatus, ['promoted', 'repeated', 'exited', 'suspended'], true)) {
+            throw new RuntimeException('Student #'.(string)$student['student_id'].' still has an unresolved promotion decision.');
+        }
+
+        if ($decisionStatus === 'promoted') {
             // Update student's class.
             $stmt = $conn->prepare('UPDATE tbl_students SET class = ? WHERE id = ?');
             $stmt->execute([(int)$student['to_class'], (string)$student['student_id']]);
@@ -134,16 +148,47 @@ try {
                 $stmt->execute([(int)$student['id']]);
             }
 
+            $historyValues = [
+                (string)$student['student_id'],
+                (int)$batchId,
+                (int)$student['from_class'],
+                (int)$student['to_class'],
+                (string)($batch['academic_year'] ?? ''),
+                (string)($batch['promotion_cycle'] ?? ''),
+                'promoted',
+                $student['mean_score'],
+                $student['merit_grade'],
+                'admin_execution',
+                (int)$account_id,
+                $student['review_comment'] ?? $student['notes'] ?? null,
+            ];
+            $stmt = $conn->prepare('INSERT INTO tbl_student_class_history (' . implode(', ', $historyColumns) . ') VALUES (' . implode(', ', array_fill(0, count($historyColumns), '?')) . ')');
+            $stmt->execute($historyValues);
             continue;
         }
 
-        if ($student['status'] === 'repeated') {
-            $repeated++;
-            continue;
-        }
-
-        if ($student['status'] === 'exited') {
-            $exited++;
+        if ($decisionStatus === 'repeated' || $decisionStatus === 'exited' || $decisionStatus === 'suspended') {
+            if ($decisionStatus === 'repeated') {
+                $repeated++;
+            } else {
+                $exited++;
+            }
+            $historyValues = [
+                (string)$student['student_id'],
+                (int)$batchId,
+                (int)$student['from_class'],
+                (int)$student['from_class'],
+                (string)($batch['academic_year'] ?? ''),
+                (string)($batch['promotion_cycle'] ?? ''),
+                $decisionStatus,
+                $student['mean_score'],
+                $student['merit_grade'],
+                'admin_execution',
+                (int)$account_id,
+                $student['review_comment'] ?? $student['notes'] ?? null,
+            ];
+            $stmt = $conn->prepare('INSERT INTO tbl_student_class_history (' . implode(', ', $historyColumns) . ') VALUES (' . implode(', ', array_fill(0, count($historyColumns), '?')) . ')');
+            $stmt->execute($historyValues);
             continue;
         }
     }
@@ -151,15 +196,16 @@ try {
     // Update batch status.
     $stmt = $conn->prepare('
         UPDATE tbl_promotion_batches 
-        SET status = ?, approved_by = ?, approved_at = CURRENT_TIMESTAMP,
+        SET status = ?, review_state = ?, reviewed_by = COALESCE(reviewed_by, ?), reviewed_at = COALESCE(reviewed_at, CURRENT_TIMESTAMP),
+            executed_by = ?, executed_at = CURRENT_TIMESTAMP, approved_by = ?, approved_at = CURRENT_TIMESTAMP,
             students_promoted = ?, students_repeated = ?, students_exited = ?
         WHERE id = ?
     ');
-    $stmt->execute(['approved', (int)$account_id, $promoted, $repeated, $exited, (int)$batchId]);
+    $stmt->execute(['approved', 'executed', (int)$account_id, (int)$account_id, (int)$account_id, $promoted, $repeated, $exited, (int)$batchId]);
 
     // Send SMS to parents about promotion (if SMS wallet exists)
     if (app_table_exists($conn, 'tbl_sms_wallets')) {
-        $promoted_students = array_filter($students, fn($s) => $s['status'] === 'promoted');
+        $promoted_students = array_filter($students, fn($s) => strtolower(trim((string)($s['final_status'] ?? $s['status']))) === 'promoted');
         foreach ($promoted_students as $student) {
             $stmt = $conn->prepare('
                 SELECT phone FROM tbl_parents 
@@ -184,12 +230,12 @@ try {
         'promotion.batch.approve',
         'tbl_promotion_batches',
         (string)$batchId,
-        ['promoted' => $promoted, 'repeated' => $repeated, 'exited' => $exited, 'certificates_generated' => $certificates_generated]
+        ['promoted' => $promoted, 'repeated' => $repeated, 'exited' => $exited, 'certificates_generated' => $certificates_generated, 'review_state' => $reviewState]
     );
 
     $conn->commit();
 
-    $msg = 'Promotion approved successfully! ' . $promoted . ' students promoted, ' . $repeated . ' will repeat. ' . $certificates_generated . ' certificates generated.';
+    $msg = 'Promotion approved successfully! ' . $promoted . ' students promoted, ' . $repeated . ' will repeat, and ' . $exited . ' were marked as exited/suspended. ' . $certificates_generated . ' certificates generated.';
     app_reply_redirect('success', $msg, '../promotions');
 
 } catch (Throwable $e) {

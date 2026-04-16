@@ -8,7 +8,7 @@ require_once('const/rbac.php');
 require_once('const/certificate_engine.php');
 require_once('const/notify.php');
 
-if ($res !== '1' || !in_array((int)$level, [0, 1])) { 
+if ($res !== '1' || !in_array((int)$level, [0, 1, 9], true)) { 
     header('location:../'); exit; 
 }
 app_require_permission('report.generate', 'admin');
@@ -25,6 +25,7 @@ $years = [];
 try {
     $conn = app_db();
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    app_ensure_promotion_workflow_schema($conn);
 
     // Get classes
     $stmt = $conn->prepare('SELECT id, name FROM tbl_classes ORDER BY grade, name');
@@ -37,12 +38,14 @@ try {
     $years = array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'academic_year');
 
     // Get promotion batches
-    $stmt = $conn->prepare('
+    $stmt = $conn->prepare("
         SELECT pb.*, 
                c.name AS class_name,
                COALESCE(COUNT(sp.id), 0) as total_students,
-               COALESCE(SUM(CASE WHEN sp.status = \'promoted\' THEN 1 ELSE 0 END), 0) as promoted_count,
-               COALESCE(SUM(CASE WHEN sp.status = \'repeated\' THEN 1 ELSE 0 END), 0) as repeated_count,
+               COALESCE(SUM(CASE WHEN COALESCE(sp.final_status, sp.status) = 'promoted' THEN 1 ELSE 0 END), 0) as promoted_count,
+               COALESCE(SUM(CASE WHEN COALESCE(sp.suggested_status, sp.status) = 'conditional' THEN 1 ELSE 0 END), 0) as conditional_count,
+               COALESCE(SUM(CASE WHEN COALESCE(sp.final_status, sp.status) = 'repeated' THEN 1 ELSE 0 END), 0) as repeated_count,
+               COALESCE(SUM(CASE WHEN COALESCE(sp.final_status, sp.status) IN ('exited', 'suspended') THEN 1 ELSE 0 END), 0) as exited_count,
                COALESCE(SUM(CASE WHEN sp.fees_cleared = FALSE THEN 1 ELSE 0 END), 0) as not_cleared_count
         FROM tbl_promotion_batches pb
         LEFT JOIN tbl_classes c ON c.id = pb.class_id
@@ -50,7 +53,7 @@ try {
         GROUP BY pb.id
         ORDER BY pb.created_at DESC
         LIMIT 100
-    ');
+    ");
     $stmt->execute();
     $promotion_batches = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -66,22 +69,31 @@ try {
         $batch_details = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if ($batch_details) {
+            $batchRule = app_promotion_rule_for_grade($conn, (int)($batch_details['class_level'] ?? 0));
+            $reviewState = strtolower(trim((string)($batch_details['review_state'] ?? 'pending_review')));
+            $requiresReview = (bool)($batchRule['require_headteacher_approval'] ?? true);
+
             // Get students in this batch
-            $stmt = $conn->prepare('
+            $stmt = $conn->prepare("
                 SELECT sp.*, 
                        st.school_id, st.fname, st.mname, st.lname,
-                       concat_ws(\' \', st.fname, st.mname, st.lname) as student_name,
+                       concat_ws(' ', st.fname, st.mname, st.lname) as student_name,
                        c_from.name as from_class,
-                       c_to.name as to_class
+                       c_to.name as to_class,
+                       COALESCE(sp.final_status, sp.status) AS final_status,
+                       COALESCE(sp.suggested_status, sp.status) AS suggested_status
                 FROM tbl_student_promotions sp
                 JOIN tbl_students st ON st.id = sp.student_id
                 LEFT JOIN tbl_classes c_from ON c_from.id = sp.from_class
                 LEFT JOIN tbl_classes c_to ON c_to.id = sp.to_class
                 WHERE sp.batch_id = ?
                 ORDER BY st.fname, st.lname
-            ');
+            ");
             $stmt->execute([$batchId]);
             $students_in_batch = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $reviewMode = ((int)$level === 1 && $batch_details['status'] === 'pending' && $reviewState === 'pending_review');
+            $canFinalize = ((int)$level === 0 || (int)$level === 9) && $batch_details['status'] === 'pending' && ($reviewState === 'reviewed' || !$requiresReview || $reviewState === 'ready_for_execution');
         }
     }
 } catch (Throwable $e) {
@@ -106,6 +118,18 @@ try {
 <?php include('admin/partials/sidebar.php'); ?>
 <main class="app-content">
 <div class="app-title"><div><h1>🎓 Student Promotions</h1><p>Manage student class promotions with approval workflow and fees clearance integration.</p></div></div>
+
+<div class="tile mb-3">
+<div class="row g-3 align-items-center">
+<div class="col-md-8">
+<h3 class="tile-title mb-1">Promotion Workflow</h3>
+<p class="mb-0">Create a promotion simulation, review suggested decisions, then execute the final class updates after approval.</p>
+</div>
+<div class="col-md-4 text-md-end">
+<a class="btn btn-outline-primary" href="admin/promotions"><i class="bi bi-arrow-clockwise me-2"></i>Refresh</a>
+</div>
+</div>
+</div>
 
 <?php if ($batchId === 0): ?>
 <!-- ===== CREATE NEW PROMOTION BATCH ===== -->
@@ -159,8 +183,8 @@ try {
 <div class="tile">
 <h3 class="tile-title">📋 Promotion Batches</h3>
 <div class="table-responsive">
-<table class="table table-hover">
-<thead><tr><th>#</th><th>Class</th><th>Academic Year</th><th>Cycle</th><th>Status</th><th>Students</th><th>Promoted</th><th>Repeated</th><th>Not Cleared</th><th>Created</th><th>Action</th></tr></thead>
+<table class="table table-hover align-middle">
+<thead><tr><th>#</th><th>Class</th><th>Academic Year</th><th>Cycle</th><th>Workflow</th><th>Students</th><th>Promoted</th><th>Conditional</th><th>Repeated</th><th>Not Cleared</th><th>Created</th><th>Action</th></tr></thead>
 <tbody>
 <?php foreach ($promotion_batches as $batch): ?>
 <tr>
@@ -169,6 +193,7 @@ try {
 <td><?php echo htmlspecialchars((string)$batch['academic_year']); ?></td>
 <td><?php echo htmlspecialchars((string)$batch['promotion_cycle']); ?></td>
 <td>
+<div class="d-flex flex-column gap-1">
 <span class="badge bg-<?php 
 switch($batch['status']) {
     case 'approved': echo 'success'; break;
@@ -176,12 +201,13 @@ switch($batch['status']) {
     case 'pending': echo 'warning'; break;
     default: echo 'secondary';
 }
-?>">
-<?php echo ucfirst(htmlspecialchars((string)$batch['status'])); ?>
-</span>
+?>"><?php echo ucfirst(htmlspecialchars((string)$batch['status'])); ?></span>
+<small class="text-muted">Review: <?php echo htmlspecialchars((string)($batch['review_state'] ?? 'pending_review')); ?></small>
+</div>
 </td>
 <td><?php echo (int)$batch['total_students']; ?></td>
 <td><span class="badge bg-success"><?php echo (int)$batch['promoted_count']; ?></span></td>
+<td><span class="badge bg-info text-dark"><?php echo (int)$batch['conditional_count']; ?></span></td>
 <td><span class="badge bg-warning text-dark"><?php echo (int)$batch['repeated_count']; ?></span></td>
 <td><span class="badge bg-danger"><?php echo (int)$batch['not_cleared_count']; ?></span></td>
 <td><small><?php echo htmlspecialchars((string)$batch['created_at']); ?></small></td>
@@ -191,7 +217,7 @@ switch($batch['status']) {
 </tr>
 <?php endforeach; ?>
 <?php if (!$promotion_batches): ?>
-<tr><td colspan="11" class="text-center text-muted">No promotion batches created yet.</td></tr>
+<tr><td colspan="12" class="text-center text-muted">No promotion batches created yet.</td></tr>
 <?php endif; ?>
 </tbody>
 </table>
@@ -215,10 +241,21 @@ switch($batch['status']) {
 <div class="tile">
 <h3 class="tile-title">Promotion Summary</h3>
 <p><strong><?php echo (int)count($students_in_batch); ?></strong> students in batch</p>
-<p><strong class="text-success"><?php echo count(array_filter($students_in_batch, fn($s) => $s['status'] === 'promoted')); ?></strong> recommended for promotion</p>
-<p><strong class="text-warning"><?php echo count(array_filter($students_in_batch, fn($s) => $s['status'] === 'repeated')); ?></strong> to repeat</p>
+<p><strong class="text-success"><?php echo count(array_filter($students_in_batch, fn($s) => ($s['final_status'] ?? $s['status']) === 'promoted')); ?></strong> final promotions</p>
+<p><strong class="text-info"><?php echo count(array_filter($students_in_batch, fn($s) => ($s['status'] ?? '') === 'conditional')); ?></strong> awaiting review</p>
+<p><strong class="text-warning"><?php echo count(array_filter($students_in_batch, fn($s) => ($s['final_status'] ?? $s['status']) === 'repeated')); ?></strong> to repeat</p>
 <p><strong class="text-danger"><?php echo count(array_filter($students_in_batch, fn($s) => !$s['fees_cleared'])); ?></strong> not cleared fees</p>
 </div>
+</div>
+</div>
+
+<div class="tile mb-3">
+<h3 class="tile-title">Rule Preview</h3>
+<div class="row g-2">
+<div class="col-md-3"><div class="alert alert-light mb-0"><strong>Minimum score</strong><br><?php echo number_format((float)($batchRule['min_score_for_promotion'] ?? 40), 2); ?></div></div>
+<div class="col-md-3"><div class="alert alert-light mb-0"><strong>Fees clearance</strong><br><?php echo !empty($batchRule['require_fees_clearance']) ? 'Required' : 'Optional'; ?></div></div>
+<div class="col-md-3"><div class="alert alert-light mb-0"><strong>Report finalization</strong><br><?php echo !empty($batchRule['require_report_finalization']) ? 'Required' : 'Optional'; ?></div></div>
+<div class="col-md-3"><div class="alert alert-light mb-0"><strong>Headteacher review</strong><br><?php echo !empty($batchRule['require_headteacher_approval']) ? 'Required' : 'Optional'; ?></div></div>
 </div>
 </div>
 
@@ -253,9 +290,13 @@ switch($batch['status']) {
 <!-- ===== STUDENTS IN BATCH ===== -->
 <div class="tile">
 <h3 class="tile-title">👥 Students in Promotion Batch</h3>
+<?php if (!empty($reviewMode)): ?>
+<form method="POST" action="admin/core/review_promotion_batch">
+<input type="hidden" name="batch_id" value="<?php echo (int)$batchId; ?>">
+<?php endif; ?>
 <div class="table-responsive">
-<table class="table table-sm table-hover">
-<thead><tr><th>#</th><th>Name</th><th>Adm No</th><th>Mean</th><th>Grade</th><th>Report</th><th>Fees</th><th>Status</th><th>Notes</th></tr></thead>
+<table class="table table-sm table-hover align-middle">
+<thead><tr><th>#</th><th>Name</th><th>Adm No</th><th>Mean</th><th>Grade</th><th>Report</th><th>Fees</th><th>Suggested</th><th>Final</th><th>Review Notes</th></tr></thead>
 <tbody>
 <?php foreach ($students_in_batch as $idx => $student): ?>
 <tr<?php echo !$student['fees_cleared'] || !$student['report_card_finalized'] ? ' class="table-warning"' : ''; ?>>
@@ -267,16 +308,42 @@ switch($batch['status']) {
 <td><?php echo $student['report_card_finalized'] ? '✓' : '<span class="badge bg-danger">✗</span>'; ?></td>
 <td><?php echo $student['fees_cleared'] ? '✓' : '<span class="badge bg-danger">✗ Bal</span>'; ?></td>
 <td>
-<span class="badge bg-<?php echo $student['status'] === 'promoted' ? 'success' : ($student['status'] === 'repeated' ? 'warning' : 'secondary'); ?>">
-<?php echo ucfirst(htmlspecialchars((string)$student['status'])); ?>
+<span class="badge bg-<?php echo $student['suggested_status'] === 'promoted' ? 'success' : ($student['suggested_status'] === 'conditional' ? 'info text-dark' : ($student['suggested_status'] === 'repeated' ? 'warning' : 'secondary')); ?>">
+<?php echo ucfirst(htmlspecialchars((string)$student['suggested_status'])); ?>
 </span>
 </td>
-<td><small><?php echo htmlspecialchars((string)($student['notes'] ?? '')); ?></small></td>
+<td>
+<?php if (!empty($reviewMode)): ?>
+<select class="form-control form-control-sm" name="final_status[<?php echo (int)$student['id']; ?>]">
+<option value="promoted"<?php echo ($student['final_status'] === 'promoted') ? ' selected' : ''; ?>>Promoted</option>
+<option value="repeated"<?php echo ($student['final_status'] === 'repeated') ? ' selected' : ''; ?>>Repeat</option>
+<option value="exited"<?php echo ($student['final_status'] === 'exited') ? ' selected' : ''; ?>>Exited</option>
+<option value="suspended"<?php echo ($student['final_status'] === 'suspended') ? ' selected' : ''; ?>>Suspended</option>
+</select>
+<?php else: ?>
+<span class="badge bg-<?php echo $student['final_status'] === 'promoted' ? 'success' : ($student['final_status'] === 'repeated' ? 'warning' : ($student['final_status'] === 'exited' ? 'danger' : 'secondary')); ?>">
+<?php echo ucfirst(htmlspecialchars((string)$student['final_status'])); ?>
+</span>
+<?php endif; ?>
+</td>
+<td>
+<?php if (!empty($reviewMode)): ?>
+<input class="form-control form-control-sm" type="text" name="review_notes[<?php echo (int)$student['id']; ?>]" value="<?php echo htmlspecialchars((string)($student['override_reason'] ?? $student['review_comment'] ?? $student['notes'] ?? '')); ?>" placeholder="Review note or override reason">
+<?php else: ?>
+<small><?php echo htmlspecialchars((string)($student['override_reason'] ?? $student['review_comment'] ?? $student['notes'] ?? '')); ?></small>
+<?php endif; ?>
+</td>
 </tr>
 <?php endforeach; ?>
 </tbody>
 </table>
 </div>
+<?php if (!empty($reviewMode)): ?>
+<div class="d-grid mt-3">
+<button class="btn btn-info btn-lg" type="submit"><i class="bi bi-clipboard-check me-2"></i>Save Headteacher Review</button>
+</div>
+</form>
+<?php endif; ?>
 </div>
 
 <!-- ===== PROMOTION ACTIONS ===== -->
@@ -286,9 +353,10 @@ switch($batch['status']) {
 <div class="row g-2">
 <div class="col-md-12">
 <p class="alert alert-info">
-<strong>Next Steps:</strong> Review the checklist above. Once all students have finalized report cards and cleared fees, you can approve this promotion batch.
+<strong>Next Steps:</strong> Review the checklist above. Headteacher review saves the final decisions, then admin execution updates class placement and certificates.
 </p>
 </div>
+<?php if (!empty($canFinalize)): ?>
 <div class="col-md-6 d-grid">
 <form method="POST" action="admin/core/approve_promotion" style="display:inline;">
 <input type="hidden" name="batch_id" value="<?php echo (int)$batchId; ?>">
@@ -297,6 +365,7 @@ switch($batch['status']) {
 </button>
 </form>
 </div>
+<?php endif; ?>
 <div class="col-md-6 d-grid">
 <form method="POST" action="admin/core/reject_promotion" style="display:inline;">
 <input type="hidden" name="batch_id" value="<?php echo (int)$batchId; ?>">
@@ -309,7 +378,7 @@ switch($batch['status']) {
 </div>
 <?php else: ?>
 <div class="alert alert-info mt-3">
-<strong>Status:</strong> This promotion batch has been <?php echo htmlspecialchars((string)$batch_details['status']); ?> on <?php echo htmlspecialchars((string)$batch_details['approved_at']); ?>
+<strong>Status:</strong> This promotion batch is <?php echo htmlspecialchars((string)$batch_details['status']); ?> with review state <?php echo htmlspecialchars((string)($batch_details['review_state'] ?? 'pending_review')); ?>.
 </div>
 <?php endif; ?>
 

@@ -42,7 +42,7 @@ try {
     throw new RuntimeException("Subject not assigned to exam class.");
   }
 
-  if (app_results_locked($conn, (int)$exam['class_id'], (int)$exam['term_id'])) {
+  if (app_results_locked($conn, (int)$exam['class_id'], (int)$exam['term_id'], $examId)) {
     throw new RuntimeException("Results are locked for this class/term.");
   }
 
