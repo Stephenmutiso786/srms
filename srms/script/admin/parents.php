@@ -149,6 +149,7 @@ try {
 		  <th>Presence</th>
 		  <th>Linked Students</th>
 		  <th>Link Student</th>
+		  <th>Actions</th>
 		</tr>
 	  </thead>
 	  <tbody>
@@ -202,6 +203,13 @@ try {
 			  <div class="col-4 d-grid">
 				<button class="btn btn-sm btn-outline-primary" type="submit">Link</button>
 			  </div>
+			</form>
+		  </td>
+		  <td>
+			<form method="POST" action="admin/core/start_impersonation" style="margin:0;">
+			  <input type="hidden" name="target_type" value="parent">
+			  <input type="hidden" name="target_id" value="<?php echo $pid; ?>">
+			  <button class="btn btn-warning btn-sm" type="submit" onclick="return confirm('Impersonate this parent account now?');">Impersonate</button>
 			</form>
 		  </td>
 		</tr>

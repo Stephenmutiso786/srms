@@ -144,6 +144,86 @@
 			});
 	}
 
+	function appReadCookie(name) {
+		var safeName = String(name || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+		var match = document.cookie.match(new RegExp('(?:^|; )' + safeName + '=([^;]*)'));
+		return match ? decodeURIComponent(match[1]) : '';
+	}
+
+	function appApplyImpersonationBanner() {
+		if (document.getElementById('srmsImpersonationBanner')) {
+			return;
+		}
+
+		var raw = appReadCookie('srms_impersonation');
+		if (!raw) {
+			return;
+		}
+
+		var payload = null;
+		try {
+			payload = JSON.parse(raw);
+		} catch (e) {
+			return;
+		}
+
+		if (!payload || !payload.active) {
+			return;
+		}
+
+		var targetName = String(payload.target_name || 'User');
+		var targetRole = String(payload.target_role || 'Account');
+		var exitPath = String(payload.exit_path || 'admin/core/stop_impersonation').replace(/^\/+/, '');
+
+		var banner = document.createElement('div');
+		banner.id = 'srmsImpersonationBanner';
+		banner.style.position = 'fixed';
+		banner.style.top = '0';
+		banner.style.left = '0';
+		banner.style.right = '0';
+		banner.style.zIndex = '3000';
+		banner.style.background = '#8f1414';
+		banner.style.color = '#fff';
+		banner.style.padding = '10px 16px';
+		banner.style.boxShadow = '0 10px 24px rgba(0,0,0,0.28)';
+
+		var row = document.createElement('div');
+		row.style.display = 'flex';
+		row.style.alignItems = 'center';
+		row.style.justifyContent = 'space-between';
+		row.style.gap = '12px';
+		row.style.flexWrap = 'wrap';
+
+		var message = document.createElement('div');
+		message.style.fontWeight = '700';
+		message.textContent = 'Impersonation Active: You are browsing as ' + targetName + ' (' + targetRole + ').';
+
+		var stopForm = document.createElement('form');
+		stopForm.method = 'POST';
+		stopForm.action = exitPath;
+		stopForm.style.margin = '0';
+
+		var stopBtn = document.createElement('button');
+		stopBtn.type = 'submit';
+		stopBtn.textContent = 'Stop Impersonation';
+		stopBtn.style.border = 'none';
+		stopBtn.style.background = '#ffffff';
+		stopBtn.style.color = '#8f1414';
+		stopBtn.style.fontWeight = '700';
+		stopBtn.style.padding = '7px 12px';
+		stopBtn.style.borderRadius = '6px';
+		stopBtn.style.cursor = 'pointer';
+
+		stopForm.appendChild(stopBtn);
+		row.appendChild(message);
+		row.appendChild(stopForm);
+		banner.appendChild(row);
+		document.body.appendChild(banner);
+
+		var currentPadding = parseInt(window.getComputedStyle(document.body).paddingTop || '0', 10) || 0;
+		document.body.style.paddingTop = (currentPadding + banner.offsetHeight) + 'px';
+	}
+
 	initSiteLoader();
 	loadUiSettings();
 
@@ -649,6 +729,7 @@
 	appEnsurePortalGuideMenu(portal);
 	appEnsurePublicWebsiteButton();
 	appInitOnlineWidget(portal);
+	appApplyImpersonationBanner();
 
 	// Disable right-click
 	document.addEventListener('contextmenu', function(e) {

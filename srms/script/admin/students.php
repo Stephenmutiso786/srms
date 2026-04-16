@@ -174,6 +174,11 @@ if (($row['display_image'] ?? '') == "DEFAULT") {
 <textarea style="display:none;" id="optional_choices_<?php echo $row['id']; ?>"><?php echo htmlspecialchars(implode(',', array_map('intval', $choiceSummary['optional'] ?? []))); ?></textarea>
 
 <a onclick="set_student('<?php echo $row['id']; ?>');" class="btn btn-primary btn-sm" href="javascript:void(0);" data-bs-toggle="modal" data-bs-target="#editModal">Edit</a>
+<form method="POST" action="admin/core/start_impersonation" style="display:inline-block;">
+<input type="hidden" name="target_type" value="student">
+<input type="hidden" name="target_id" value="<?php echo htmlspecialchars((string)$row['id']); ?>">
+<button type="submit" class="btn btn-warning btn-sm" onclick="return confirm('Impersonate this student account now?');">Impersonate</button>
+</form>
 <a onclick="del('admin/core/drop_student?id=<?php echo $row['id']; ?>&img=<?php echo $row['display_image']; ?>', 'Delete Student?');" class="btn btn-danger btn-sm" href="javascript:void(0);">Delete</a>
 </td>
 

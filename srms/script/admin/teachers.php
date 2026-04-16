@@ -280,6 +280,11 @@ $st = '<span class="me-1 badge badge-pill bg-danger">Blocked</span>';
 <textarea style="display:none;" id="email_<?php echo $row[0]; ?>"><?php echo $row[4]; ?></textarea>
 <textarea style="display:none;" id="role_<?php echo $row[0]; ?>"><?php echo $row[6]; ?></textarea>
 <button onclick="set_user('<?php echo $row[0]; ?>', '<?php echo $row[3]; ?>', '<?php echo $row[7]; ?>', '<?php echo $row[6]; ?>');" data-bs-toggle="modal" data-bs-target="#editModal" class="btn btn-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#editModal">Edit</button>
+<form method="POST" action="admin/core/start_impersonation" style="display:inline-block;">
+<input type="hidden" name="target_type" value="staff">
+<input type="hidden" name="target_id" value="<?php echo (int)$row['id']; ?>">
+<button type="submit" class="btn btn-warning btn-sm" onclick="return confirm('Impersonate this staff account now?');">Impersonate</button>
+</form>
 <a onclick="del('admin/core/drop_user2?id=<?php echo $row[0]; ?>', 'Delete Teacher?');" href="javascript:void(0);" class="btn btn-danger btn-sm">Delete</a>
 </td>
 </tr>
