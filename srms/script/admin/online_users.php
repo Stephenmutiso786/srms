@@ -108,6 +108,13 @@ if ($res == "1" && $level == "0") {}else{header("location:../");}
   var refreshBtn = document.getElementById('refreshBtn');
   var meta = document.getElementById('onlineMeta');
   var allUsers = [];
+  var onlineEndpoint;
+
+  try {
+    onlineEndpoint = new URL('core/online_users.php', document.baseURI || window.location.href).toString();
+  } catch (e) {
+    onlineEndpoint = 'core/online_users.php';
+  }
 
   function escapeHtml(value) {
     return String(value || '')
@@ -174,7 +181,13 @@ if ($res == "1" && $level == "0") {}else{header("location:../");}
   }
 
   function refreshOnline() {
-    fetch('core/online_users.php', { credentials: 'same-origin' })
+    if (typeof navigator.onLine === 'boolean' && !navigator.onLine) {
+      body.innerHTML = '<tr><td colspan="6" class="text-muted">You are offline. Reconnect to load live presence.</td></tr>';
+      meta.textContent = 'Offline';
+      return;
+    }
+
+    fetch(onlineEndpoint, { credentials: 'same-origin' })
       .then(function (r) { return r.json(); })
       .then(function (data) {
         if (!data || !data.ok) {

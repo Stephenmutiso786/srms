@@ -175,6 +175,7 @@ try {
 <p><b>Status:</b> <?php echo htmlspecialchars(ucfirst($submissionStatus)); ?> · <b>Class Average:</b> <?php echo number_format($avgScore, 2); ?></p>
 <div class="small text-muted" id="autoSaveStatus">Autosave ready</div>
 <div class="mb-2">
+  <a class="btn btn-sm btn-outline-secondary" target="_blank" href="teacher/print_mark_sheet?exam_id=<?php echo (int)$examId; ?>&subject_combination=<?php echo (int)$subjectComb; ?>&assessment_type=<?php echo urlencode((string)($exam['name'] ?? 'Assessment')); ?>"><i class="bi bi-printer me-1"></i>Print Mark Sheet</a>
   <a class="btn btn-sm btn-outline-secondary" href="teacher/import_results"><i class="bi bi-upload me-1"></i>Bulk Import CSV</a>
 </div>
 <form class="app_frm" method="POST" action="teacher/core/save_exam_marks">

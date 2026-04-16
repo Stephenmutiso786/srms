@@ -158,6 +158,7 @@ try {
 <li class="treeview is-expanded"><a class="app-menu__item" href="javascript:void(0);" data-toggle="treeview"><i class="app-menu__icon feather icon-file-text"></i><span class="app-menu__label">Exams</span><i class="treeview-indicator bi bi-chevron-right"></i></a>
 <ul class="treeview-menu">
 <li><a class="treeview-item active" href="teacher/exam_marks_entry"><i class="icon bi bi-circle-fill"></i> Exam Marks Entry</a></li>
+<li><a class="treeview-item" href="teacher/print_mark_sheet"><i class="icon bi bi-circle-fill"></i> Print Mark Sheet</a></li>
 <li><a class="treeview-item" href="teacher/import_results"><i class="icon bi bi-circle-fill"></i> Import Results</a></li>
 <li><a class="treeview-item" href="teacher/manage_results"><i class="icon bi bi-circle-fill"></i> View Results</a></li>
 </ul>
@@ -199,7 +200,10 @@ try {
 <option value="" selected disabled>Select subject</option>
 </select>
 </div>
-<button class="btn btn-primary app_btn">Start Entry</button>
+<div class="d-flex gap-2 flex-wrap">
+<button class="btn btn-primary app_btn" type="submit">Start Entry</button>
+<button class="btn btn-outline-secondary" id="printMarkSheetBtn" type="button"><i class="bi bi-printer me-1"></i>Print Mark Sheet</button>
+</div>
 </form>
 </div>
 </div>
@@ -233,6 +237,19 @@ try {
       $subject.append('<option value="" disabled>No assigned subjects found for this exam</option>');
     }
     $subject.trigger('change');
+  });
+
+  $('#printMarkSheetBtn').on('click', function () {
+    const examId = $('#examSelect').val();
+    const subjectId = $('#subjectSelect').val();
+    if (!examId || !subjectId) {
+      alert('Please select exam and subject first.');
+      return;
+    }
+    const url = new URL('teacher/print_mark_sheet', document.baseURI || window.location.href);
+    url.searchParams.set('exam_id', examId);
+    url.searchParams.set('subject_combination', subjectId);
+    window.open(url.toString(), '_blank');
   });
 </script>
 </body>

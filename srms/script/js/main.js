@@ -546,6 +546,51 @@
 		return 'school_main_website.php';
 	}
 
+	function appCoreEndpoint(fileName) {
+		var base = document.baseURI || window.location.href;
+		try {
+			return new URL('core/' + fileName, base).toString();
+		} catch (e) {
+			return 'core/' + fileName;
+		}
+	}
+
+	function appEnsureConnectivityBanner() {
+		if (document.getElementById('appConnectivityBanner')) {
+			return;
+		}
+
+		var bar = document.createElement('div');
+		bar.id = 'appConnectivityBanner';
+		bar.setAttribute('role', 'status');
+		bar.style.position = 'fixed';
+		bar.style.left = '12px';
+		bar.style.right = '12px';
+		bar.style.bottom = '12px';
+		bar.style.zIndex = '1400';
+		bar.style.background = '#b42318';
+		bar.style.color = '#fff';
+		bar.style.padding = '10px 14px';
+		bar.style.borderRadius = '10px';
+		bar.style.fontWeight = '700';
+		bar.style.fontSize = '13px';
+		bar.style.textAlign = 'center';
+		bar.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.25)';
+		bar.style.display = 'none';
+		bar.textContent = 'You are offline. Live updates are paused until internet reconnects.';
+
+		document.body.appendChild(bar);
+
+		function refreshState() {
+			var online = (typeof navigator.onLine === 'boolean') ? navigator.onLine : true;
+			bar.style.display = online ? 'none' : 'block';
+		}
+
+		window.addEventListener('online', refreshState);
+		window.addEventListener('offline', refreshState);
+		refreshState();
+	}
+
 	function appEnsurePublicWebsiteButton() {
 		if (appCurrentPortal() !== 'other') {
 			return;
@@ -649,6 +694,7 @@
 		var label = document.getElementById('appOnlineLabel');
 		var quickStatus = document.getElementById('appOnlineQuickStatus');
 		var quickLabel = document.getElementById('appOnlineQuickLabel');
+		var onlineEndpoint = appCoreEndpoint('online_users.php');
 
 		function renderOnline(data) {
 			if (!menu || !label) return;
@@ -696,10 +742,14 @@
 		}
 
 		function refreshOnline() {
+			if (typeof navigator.onLine === 'boolean' && !navigator.onLine) {
+				renderOnline(null);
+				return;
+			}
 			if (document.visibilityState && document.visibilityState !== 'visible') {
 				return;
 			}
-			fetch('core/online_users.php', { credentials: 'same-origin' })
+			fetch(onlineEndpoint, { credentials: 'same-origin' })
 				.then(function (r) { return r.json(); })
 				.then(renderOnline)
 				.catch(function () {
@@ -728,6 +778,7 @@
 	appEnsureSidebarFooter(portal);
 	appEnsurePortalGuideMenu(portal);
 	appEnsurePublicWebsiteButton();
+	appEnsureConnectivityBanner();
 	appInitOnlineWidget(portal);
 	appApplyImpersonationBanner();
 

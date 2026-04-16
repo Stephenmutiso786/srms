@@ -1,4 +1,4 @@
-const CACHE_NAME = "kyandulu-school-v3";
+const CACHE_NAME = "kyandulu-school-v4";
 const urlsToCache = [
   "./",
   "./school_main_website.php",
@@ -35,6 +35,14 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  const pathname = requestUrl.pathname || "";
+  const accepts = event.request.headers.get("accept") || "";
+  const isDynamicEndpoint =
+    pathname.endsWith(".php") ||
+    pathname.indexOf("/core/") !== -1 ||
+    pathname.indexOf("/api/") !== -1 ||
+    accepts.indexOf("application/json") !== -1;
+
   // Always prefer fresh HTML so UI updates are visible without hard refresh.
   if (event.request.mode === "navigate") {
     event.respondWith(
@@ -45,6 +53,22 @@ self.addEventListener("fetch", (event) => {
         }
         return response;
       }).catch(() => caches.match(event.request).then((cached) => cached || caches.match("./index.php")))
+    );
+    return;
+  }
+
+  // Dynamic endpoints must stay live; never serve stale cached API/auth data.
+  if (isDynamicEndpoint) {
+    event.respondWith(
+      fetch(event.request).catch(() => {
+        if (accepts.indexOf("application/json") !== -1) {
+          return new Response(JSON.stringify({ ok: false, offline: true, message: "Offline" }), {
+            status: 503,
+            headers: { "Content-Type": "application/json" }
+          });
+        }
+        return caches.match(event.request).then((cached) => cached || caches.match("./index.php"));
+      })
     );
     return;
   }
