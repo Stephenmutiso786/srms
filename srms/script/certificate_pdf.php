@@ -5,6 +5,7 @@ require_once('const/school.php');
 require_once('const/check_session.php');
 require_once('const/report_engine.php');
 require_once('const/certificate_engine.php');
+require_once('const/pdf_branding.php');
 require_once('tcpdf/tcpdf.php');
 
 if ($res !== '1') { header('location:./'); exit; }
@@ -127,8 +128,9 @@ try {
  */
 function renderPrimaryCompletionCertificate($pdf, $cert, $studentPhoto, $logoHtml, $competencies, $verifyUrl) {
     $pdf->SetFont('helvetica', '', 11);
+    $brandingHeader = app_pdf_brand_header_html(null, 'PRIMARY EDUCATION COMPLETION CERTIFICATE', 'Issued as the official school record for Grade 6 completion', 56);
     
-    $html = '
+    $html = $brandingHeader . '
     <table width="100%" cellpadding="3" cellspacing="0">
       <tr>
         <td width="20%">' . $logoHtml . '</td>
@@ -228,7 +230,8 @@ function renderJuniorCompletionCertificate($pdf, $cert, $studentPhoto, $logoHtml
  */
 function renderConductCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verifyUrl) {
     $pdf->SetFont('helvetica', '', 11);
-    $html = '
+    $brandingHeader = app_pdf_brand_header_html(null, 'GOOD CONDUCT CERTIFICATE', 'Issued to recognize exemplary discipline and school conduct', 56);
+    $html = $brandingHeader . '
     <table width="100%" cellpadding="4" cellspacing="0" style="text-align:center;">
       <tr>
         <td>' . $logoHtml . '</td>
@@ -403,6 +406,9 @@ body {
     <div class="title1">REPUBLIC OF KENYA</div>
     <div class="title2">MINISTRY OF EDUCATION</div>
     <div class="title3">KENYA PRIMARY SCHOOL LEAVING CERTIFICATE</div>
+    <div class="row">Motto: ' . htmlspecialchars((string)WBMotto) . '</div>
+    <div class="row">Contacts: ' . htmlspecialchars(trim((string)WBAddress . ' | ' . (string)WBPhone . ' | ' . (string)WBEmail), ENT_QUOTES, 'UTF-8') . '</div>
+    <div class="row">Purpose: Official leaver verification and student clearance document</div>
   </div>
 
   <div class="row">
@@ -488,8 +494,9 @@ function renderTransferCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verif
 function renderMeritCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verifyUrl) {
     $pdf->SetFont('helvetica', '', 12);
     $meritDesc = $cert['merit_grade'] ? app_merit_grade_description($cert['merit_grade']) : 'Exceptional achievement';
+  $brandingHeader = app_pdf_brand_header_html(null, 'MERIT CERTIFICATE', 'Issued for outstanding academic excellence and achievement', 56);
     
-    $html = '
+  $html = $brandingHeader . '
     <div style="text-align:center;margin-top:20px;">
       <div style="font-size:24pt;font-weight:bold;color:#d4af37;">★ MERIT CERTIFICATE ★</div>
       <div style="font-size:12pt;color:#666;margin-bottom:15px;">In Recognition of Academic Excellence</div>
@@ -536,7 +543,8 @@ function renderMeritCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verifyUr
  */
 function renderGeneralCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verifyUrl) {
     $pdf->SetFont('helvetica', '', 11);
-    $html = '
+    $brandingHeader = app_pdf_brand_header_html(null, (string)$cert['title'], 'Official school document issued for record, verification, and originality', 56);
+    $html = $brandingHeader . '
     <table width="100%" cellpadding="4" cellspacing="0">
       <tr>
         <td width="20%">' . $logoHtml . '</td>

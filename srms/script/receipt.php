@@ -3,6 +3,7 @@ session_start();
 require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
+require_once('const/pdf_branding.php');
 require_once('tcpdf/tcpdf.php');
 
 if ($res !== '1') {
@@ -73,11 +74,9 @@ try {
     $pdf->AddPage();
     $pdf->SetFont('helvetica', '', 11);
 
-    $html = '<table width="100%" cellpadding="4">'
-      . '<tr><td style="text-align:center;font-size:16pt;font-weight:bold;">' . htmlspecialchars(WBName) . '</td></tr>'
-      . '<tr><td style="text-align:center;font-size:12pt;">OFFICIAL FEE RECEIPT</td></tr>'
-      . '</table>'
-      . '<hr>'
+        $brandingHeader = app_pdf_brand_header_html($conn, 'OFFICIAL FEE RECEIPT', 'Proof of payment issued by the school accounts office', 52);
+
+        $html = $brandingHeader
       . '<table width="100%" cellpadding="4" style="font-size:10pt;">'
       . '<tr><td width="50%"><b>Receipt No:</b> ' . htmlspecialchars((string)$row['receipt_number']) . '</td><td width="50%" style="text-align:right;"><b>Date:</b> ' . htmlspecialchars((string)substr((string)$row['receipt_date'], 0, 10)) . '</td></tr>'
       . '<tr><td><b>Student:</b> ' . htmlspecialchars((string)$row['student_name']) . '</td><td style="text-align:right;"><b>Adm No:</b> ' . htmlspecialchars((string)($row['school_id'] !== '' ? $row['school_id'] : $row['student_id'])) . '</td></tr>'

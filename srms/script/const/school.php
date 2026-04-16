@@ -40,6 +40,30 @@ if (!defined('WBAddress')) {
 	DEFINE('WBAddress', $address);
 }
 
+if (!defined('WBMotto')) {
+	$motto = '';
+	try {
+		if (function_exists('app_setting_get')) {
+			$motto = (string)app_setting_get($conn, 'public_school_motto', '');
+		}
+	} catch (Throwable $e) {
+		$motto = '';
+	}
+	DEFINE('WBMotto', $motto);
+}
+
+if (!defined('WBPhone')) {
+	$phone = '';
+	try {
+		if (function_exists('app_setting_get')) {
+			$phone = (string)app_setting_get($conn, 'public_school_phone', '');
+		}
+	} catch (Throwable $e) {
+		$phone = '';
+	}
+	DEFINE('WBPhone', $phone);
+}
+
 if (!defined('WBEmail')) {
 	$email = '';
 	try {

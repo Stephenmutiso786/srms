@@ -6,6 +6,7 @@ require_once('const/school.php');
 require_once('const/check_session.php');
 require_once('tcpdf/tcpdf.php');
 require_once('const/calculations.php');
+require_once('const/pdf_branding.php');
 
 if ($res == '1' && $level == '1') {} else { header('location:../'); exit; }
 
@@ -125,14 +126,12 @@ try {
 	$pdf->AddPage();
 	$pdf->setTextShadow(array('enabled' => true, 'depth_w' => 0.2, 'depth_h' => 0.2, 'color' => array(196, 196, 196), 'opacity' => 1, 'blend_mode' => 'Normal'));
 
-	$logoHtml = app_pdf_image_html('images/logo/' . WBLogo, 60, 0, WBName);
-	$html = '<table width="100%">'
-		. '<tr>'
-		. '<td width="15%">' . $logoHtml . '</td>'
-		. '<td width="85%"><h5><b style="font-size:18px;">' . WBName . '</b><br>Student Performance Report<br>'
+	$brandingHeader = app_pdf_brand_header_html($conn, 'CLASS PERFORMANCE REPORT', 'Official class performance summary for term review and record keeping', 60);
+	$html = $brandingHeader
+		. '<table width="100%" cellpadding="0" cellspacing="0">'
+		. '<tr><td style="text-align:center;"><h5><b style="font-size:18px;">' . WBName . '</b><br>Student Performance Report<br>'
 		. htmlspecialchars((string)$class_row[1]) . '<br>'
-		. htmlspecialchars((string)$term_row[1]) . '</h5></td>'
-		. '</tr>'
+		. htmlspecialchars((string)$term_row[1]) . '</h5></td></tr>'
 		. '</table>';
 	$pdf->writeHTMLCell(0, 0, '', '', $html, 0, 1, 0, true, '', true);
 	$pdf->SetFont('helvetica', '', 10, '', true);
