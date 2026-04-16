@@ -22,6 +22,7 @@ $gradingSystemId = (int)($_POST['grading_system_id'] ?? 0);
 $assessmentMode = strtolower(trim((string)($_POST['assessment_mode'] ?? 'normal'))) === 'cbc' ? 'cbc' : 'normal';
 $examTypeId = $_POST['exam_type_id'] ?? null;
 $examTypeId = $examTypeId === '' ? null : (int)$examTypeId;
+$weightPercentage = (float)($_POST['weight_percentage'] ?? 100);
 $classIds = is_array($classIds) ? array_values(array_unique(array_filter(array_map('intval', $classIds)))) : [];
 $subjectIds = is_array($subjectIds) ? array_values(array_unique(array_filter(array_map('intval', $subjectIds)))) : [];
 
@@ -29,6 +30,8 @@ try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 	app_ensure_overall_grading_defaults($conn);
+	app_ensure_exam_type($conn);
+	app_ensure_exam_weights_table($conn);
 	$createdBy = isset($account_id) ? (int)$account_id : null;
 
 	if ($gradingSystemId < 1 && app_table_exists($conn, 'tbl_grading_systems')) {
@@ -74,6 +77,7 @@ try {
 	}
 
 	$subjectStmt = $conn->prepare("INSERT INTO tbl_exam_subjects (exam_id, subject_id) VALUES (?, ?)");
+	$weightStmt = $conn->prepare("INSERT INTO tbl_exam_weights (exam_id, weight_percentage) VALUES (?, ?)");
 	$created = 0;
 	$skippedClasses = [];
 	foreach ($classIds as $classId) {
@@ -108,6 +112,7 @@ try {
 		foreach ($validSubjects as $subjectId) {
 			$subjectStmt->execute([$examId, $subjectId]);
 		}
+		$weightStmt->execute([$examId, $weightPercentage > 0 ? $weightPercentage : 100]);
 		$created++;
 	}
 

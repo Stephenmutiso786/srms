@@ -1035,6 +1035,53 @@ function app_ensure_exam_assessment_mode_column(PDO $conn): void
 	}
 }
 
+function app_ensure_exam_weights_table(PDO $conn): void
+{
+	if (app_table_exists($conn, 'tbl_exam_weights')) {
+		return;
+	}
+
+	if (DBDriver === 'pgsql') {
+		$conn->exec("
+			CREATE TABLE IF NOT EXISTS tbl_exam_weights (
+				exam_id integer NOT NULL,
+				weight_percentage numeric(6,2) NOT NULL DEFAULT 100,
+				created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				PRIMARY KEY (exam_id),
+				CONSTRAINT tbl_exam_weights_exam_fk FOREIGN KEY (exam_id) REFERENCES tbl_exams (id) ON DELETE CASCADE
+			)
+		");
+	} else {
+		$conn->exec("
+			CREATE TABLE IF NOT EXISTS tbl_exam_weights (
+				exam_id int NOT NULL,
+				weight_percentage decimal(6,2) NOT NULL DEFAULT 100,
+				created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+				PRIMARY KEY (exam_id),
+				CONSTRAINT tbl_exam_weights_exam_fk FOREIGN KEY (exam_id) REFERENCES tbl_exams (id) ON DELETE CASCADE
+			) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+		");
+	}
+}
+
+function app_ensure_exam_type(PDO $conn, string $name = 'Consolidated / Complex Exam'): int
+{
+	if ($name === '' || !app_table_exists($conn, 'tbl_exam_types')) {
+		return 0;
+	}
+
+	$stmt = $conn->prepare("SELECT id FROM tbl_exam_types WHERE LOWER(TRIM(name)) = LOWER(TRIM(?)) LIMIT 1");
+	$stmt->execute([$name]);
+	$existing = (int)$stmt->fetchColumn();
+	if ($existing > 0) {
+		return $existing;
+	}
+
+	$stmt = $conn->prepare("INSERT INTO tbl_exam_types (name, status) VALUES (?, 1)");
+	$stmt->execute([$name]);
+	return (int)$conn->lastInsertId();
+}
+
 function app_exam_subject_ids(PDO $conn, int $examId): array
 {
 	if ($examId < 1) {

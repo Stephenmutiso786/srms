@@ -25,8 +25,7 @@ LEFT JOIN tbl_staff ON tbl_subject_combinations.teacher = tbl_staff.id WHERE tbl
 
 	$classes = [];
 	if (count($myclasses) > 0) {
-		$matches = implode(',', $myclasses);
-		$matches = preg_replace('/[A-Z0-9]/', '?', $matches);
+		$matches = implode(',', array_fill(0, count($myclasses), '?'));
 		$stmt = $conn->prepare("SELECT id, name FROM tbl_classes WHERE id IN ($matches) ORDER BY id");
 		$stmt->execute($myclasses);
 		$classes = $stmt->fetchAll();
@@ -38,8 +37,7 @@ LEFT JOIN tbl_staff ON tbl_subject_combinations.teacher = tbl_staff.id WHERE tbl
 
 	$sessions = [];
 	if (app_table_exists($conn, 'tbl_attendance_sessions') && count($myclasses) > 0) {
-		$matches = implode(',', $myclasses);
-		$matches = preg_replace('/[A-Z0-9]/', '?', $matches);
+		$matches = implode(',', array_fill(0, count($myclasses), '?'));
 		$stmt = $conn->prepare("SELECT s.id, s.session_date, c.name AS class_name
 			FROM tbl_attendance_sessions s
 			LEFT JOIN tbl_classes c ON c.id = s.class_id
@@ -107,10 +105,13 @@ LEFT JOIN tbl_staff ON tbl_subject_combinations.teacher = tbl_staff.id WHERE tbl
 
 <div class="tile">
 <h3 class="tile-title">New Attendance Session</h3>
+<?php if (count($classes) < 1) { ?>
+<div class="alert alert-warning">No assigned classes found. Ask admin to assign you to a class/subject combination first.</div>
+<?php } ?>
 <form class="row g-3" method="POST" action="teacher/core/new_attendance_session">
 <div class="col-md-4">
 <label class="form-label">Class</label>
-<select class="form-control" name="class_id" required>
+<select class="form-control" name="class_id" required <?php echo count($classes) < 1 ? 'disabled' : ''; ?>>
 <option value="" disabled selected>Select class</option>
 <?php foreach($classes as $c){ ?>
 <option value="<?php echo $c[0]; ?>"><?php echo $c[1]; ?></option>
@@ -119,7 +120,7 @@ LEFT JOIN tbl_staff ON tbl_subject_combinations.teacher = tbl_staff.id WHERE tbl
 </div>
 <div class="col-md-4">
 <label class="form-label">Term</label>
-<select class="form-control" name="term_id">
+<select class="form-control" name="term_id" <?php echo count($classes) < 1 ? 'disabled' : ''; ?>>
 <option value="">(optional)</option>
 <?php foreach($terms as $t){ ?>
 <option value="<?php echo $t[0]; ?>"><?php echo $t[1]; ?></option>
@@ -128,10 +129,10 @@ LEFT JOIN tbl_staff ON tbl_subject_combinations.teacher = tbl_staff.id WHERE tbl
 </div>
 <div class="col-md-4">
 <label class="form-label">Date</label>
-<input class="form-control" type="date" name="session_date" required value="<?php echo date('Y-m-d'); ?>">
+<input class="form-control" type="date" name="session_date" required value="<?php echo date('Y-m-d'); ?>" <?php echo count($classes) < 1 ? 'disabled' : ''; ?>>
 </div>
 <div class="col-12 d-grid">
-<button class="btn btn-primary" type="submit">Start Session</button>
+<button class="btn btn-primary" type="submit" <?php echo count($classes) < 1 ? 'disabled' : ''; ?>>Start Session</button>
 </div>
 </form>
 </div>

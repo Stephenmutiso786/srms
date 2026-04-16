@@ -31,6 +31,8 @@ try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 	app_ensure_exam_subjects_table($conn);
+	app_ensure_exam_type($conn);
+	app_ensure_exam_weights_table($conn);
 
 	$stmt = $conn->prepare("SELECT * FROM tbl_exams WHERE id = ? LIMIT 1");
 	$stmt->execute([$examId]);
@@ -75,6 +77,12 @@ try {
 	}
 
 	$selectedSubjects = app_exam_subject_ids($conn, $examId);
+	$examWeight = 100.0;
+	if (app_table_exists($conn, 'tbl_exam_weights')) {
+		$stmt = $conn->prepare("SELECT weight_percentage FROM tbl_exam_weights WHERE exam_id = ? LIMIT 1");
+		$stmt->execute([$examId]);
+		$examWeight = (float)($stmt->fetchColumn() ?: 100);
+	}
 } catch (Throwable $e) {
 	error_log("[".__FILE__.":".__LINE__." Throwable] " . $e->getMessage());
 	$_SESSION['reply'] = array(array("danger", "Operation failed. Please try again."));
@@ -166,6 +174,11 @@ try {
 							<option value="cbc" <?php echo (($exam['assessment_mode'] ?? 'normal') === 'cbc') ? 'selected' : ''; ?>>CBC Assessment</option>
 						</select>
 					</div>
+						<div class="col-md-6 mb-3">
+							<label class="form-label">Weight Percentage</label>
+							<input class="form-control" type="number" name="weight_percentage" min="0" max="100" step="0.1" value="<?php echo htmlspecialchars((string)$examWeight); ?>">
+							<div class="small text-muted mt-1">Use this to build consolidated exam components like CAT 1 = 20%.</div>
+						</div>
 					<div class="col-md-12 mb-3">
 						<label class="form-label">Subjects</label>
 						<select class="form-control" name="subject_ids[]" id="edit_subject_ids" multiple required size="10">

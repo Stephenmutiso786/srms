@@ -22,6 +22,7 @@ $gradingSystemId = (int)($_POST['grading_system_id'] ?? 0);
 $assessmentMode = strtolower(trim((string)($_POST['assessment_mode'] ?? 'normal'))) === 'cbc' ? 'cbc' : 'normal';
 $examTypeId = $_POST['exam_type_id'] ?? null;
 $examTypeId = $examTypeId === '' ? null : (int)$examTypeId;
+$weightPercentage = (float)($_POST['weight_percentage'] ?? 100);
 $subjectIds = $_POST['subject_ids'] ?? [];
 $subjectIds = is_array($subjectIds) ? array_values(array_unique(array_filter(array_map('intval', $subjectIds)))) : [];
 
@@ -31,6 +32,8 @@ try {
 	app_ensure_overall_grading_defaults($conn);
 	app_ensure_exam_assessment_mode_column($conn);
 	app_ensure_exam_subjects_table($conn);
+	app_ensure_exam_type($conn);
+	app_ensure_exam_weights_table($conn);
 
 	if ($gradingSystemId < 1 && app_table_exists($conn, 'tbl_grading_systems')) {
 		$stmt = $conn->prepare("SELECT id FROM tbl_grading_systems WHERE is_active = 1 ORDER BY is_default DESC, id ASC LIMIT 1");
@@ -104,6 +107,16 @@ try {
 
 	$stmt = $conn->prepare("UPDATE tbl_exams SET name = ?, class_id = ?, term_id = ?, exam_type_id = ?, grading_system_id = ?, assessment_mode = ? WHERE id = ?");
 	$stmt->execute([$name, $classId, $termId, $examTypeId, $gradingSystemId, $assessmentMode, $examId]);
+
+	if (DBDriver === 'pgsql') {
+		$stmt = $conn->prepare("INSERT INTO tbl_exam_weights (exam_id, weight_percentage) VALUES (?, ?)
+			ON CONFLICT (exam_id) DO UPDATE SET weight_percentage = EXCLUDED.weight_percentage");
+		$stmt->execute([$examId, $weightPercentage > 0 ? $weightPercentage : 100]);
+	} else {
+		$stmt = $conn->prepare("INSERT INTO tbl_exam_weights (exam_id, weight_percentage) VALUES (?, ?)
+			ON DUPLICATE KEY UPDATE weight_percentage = VALUES(weight_percentage)");
+		$stmt->execute([$examId, $weightPercentage > 0 ? $weightPercentage : 100]);
+	}
 
 	$stmt = $conn->prepare("DELETE FROM tbl_exam_subjects WHERE exam_id = ?");
 	$stmt->execute([$examId]);

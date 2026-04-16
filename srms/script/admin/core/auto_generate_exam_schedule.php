@@ -79,23 +79,51 @@ try {
 	}
 
 	$placeholders = implode(',', array_fill(0, count($subjectIds), '?'));
-	$params = array_merge([(int)$classId], $subjectIds);
-	$stmt = $conn->prepare("SELECT ta.subject_id, ta.teacher_id, s.name AS subject_name,
-		concat_ws(' ', st.fname, st.lname) AS teacher_name
-		FROM tbl_teacher_assignments ta
-		JOIN tbl_subjects s ON s.id = ta.subject_id
-		JOIN tbl_staff st ON st.id = ta.teacher_id
-		WHERE ta.class_id = ? AND ta.subject_id IN ($placeholders) AND ta.term_id = ? AND ta.status = 1
-		ORDER BY s.name, ta.year DESC, ta.id DESC");
-	$params[] = (int)$termId;
-	$stmt->execute($params);
-	$assignmentRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	$assignmentRows = [];
+	if (app_table_exists($conn, 'tbl_teacher_assignments')) {
+		$params = array_merge([(int)$classId], $subjectIds, [(int)$termId]);
+		$stmt = $conn->prepare("SELECT ta.subject_id, ta.teacher_id, s.name AS subject_name,
+			concat_ws(' ', st.fname, st.lname) AS teacher_name
+			FROM tbl_teacher_assignments ta
+			JOIN tbl_subjects s ON s.id = ta.subject_id
+			LEFT JOIN tbl_staff st ON st.id = ta.teacher_id
+			WHERE ta.class_id = ? AND ta.subject_id IN ($placeholders) AND ta.term_id = ? AND ta.status = 1
+			ORDER BY s.name, ta.year DESC, ta.id DESC");
+		$stmt->execute($params);
+		$assignmentRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	}
+
+	if (empty($assignmentRows) && app_table_exists($conn, 'tbl_subject_combinations')) {
+		$stmt = $conn->prepare("SELECT sc.subject AS subject_id, sc.teacher AS teacher_id, sc.class AS class_list, s.name AS subject_name,
+			concat_ws(' ', st.fname, st.lname) AS teacher_name
+			FROM tbl_subject_combinations sc
+			JOIN tbl_subjects s ON s.id = sc.subject
+			LEFT JOIN tbl_staff st ON st.id = sc.teacher
+			WHERE sc.subject IN ($placeholders)
+			ORDER BY s.name, sc.id DESC");
+		$stmt->execute($subjectIds);
+		foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+			$classList = app_unserialize((string)($row['class_list'] ?? ''));
+			if (!in_array((string)$classId, array_map('strval', $classList), true)) {
+				continue;
+			}
+			$assignmentRows[] = [
+				'subject_id' => (int)$row['subject_id'],
+				'teacher_id' => (int)$row['teacher_id'],
+				'subject_name' => (string)$row['subject_name'],
+				'teacher_name' => (string)($row['teacher_name'] ?? '')
+			];
+		}
+	}
 
 	$assignments = [];
 	$seenSubjectIds = [];
 	foreach ($assignmentRows as $row) {
 		$subjectId = (int)$row['subject_id'];
 		if (isset($seenSubjectIds[$subjectId])) {
+			continue;
+		}
+		if ((int)$row['teacher_id'] < 1) {
 			continue;
 		}
 		$comboId = app_get_teacher_subject_combination_id($conn, (int)$row['teacher_id'], $subjectId, (int)$classId, true);

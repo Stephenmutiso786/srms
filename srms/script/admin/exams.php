@@ -22,6 +22,8 @@ $defaultGradingSystemId = 0;
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	app_ensure_exam_type($conn);
+	app_ensure_exam_weights_table($conn);
 
 	if (app_table_exists($conn, 'tbl_exam_types')) {
 		$stmt = $conn->prepare("SELECT * FROM tbl_exam_types ORDER BY name");
@@ -237,6 +239,11 @@ try {
 <option value="cbc">CBC Assessment</option>
 </select>
 <div class="small text-muted mt-1">Use one exam module for both normal and CBC workflows.</div>
+</div>
+<div class="col-md-6 mb-3">
+<label class="form-label">Weight Percentage</label>
+<input class="form-control" type="number" name="weight_percentage" min="0" max="100" step="0.1" value="100">
+<div class="small text-muted mt-1">Use this for consolidated/complex exam components, for example 20, 20, 10, 50.</div>
 </div>
 <div class="col-md-12 mb-3">
 <label class="form-label">Subjects</label>
