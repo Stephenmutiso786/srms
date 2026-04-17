@@ -642,13 +642,20 @@ function report_compute_totals(PDO $conn, array $scores, array $weights, array $
 
 function report_fees_balance(PDO $conn, string $studentId, int $termId): float
 {
+	static $cache = [];
+	$cacheKey = $studentId . '|' . $termId;
+	if (array_key_exists($cacheKey, $cache)) {
+		return $cache[$cacheKey];
+	}
 	if (!app_table_exists($conn, 'tbl_invoices') || !app_table_exists($conn, 'tbl_invoice_lines')) {
+		$cache[$cacheKey] = 0;
 		return 0;
 	}
 	$stmt = $conn->prepare("SELECT id FROM tbl_invoices WHERE student_id = ? AND term_id = ? AND status <> 'void' LIMIT 1");
 	$stmt->execute([$studentId, $termId]);
 	$invoiceId = $stmt->fetchColumn();
 	if (!$invoiceId) {
+		$cache[$cacheKey] = 0;
 		return 0;
 	}
 	$stmt = $conn->prepare("SELECT COALESCE(SUM(amount),0) FROM tbl_invoice_lines WHERE invoice_id = ?");
@@ -660,7 +667,8 @@ function report_fees_balance(PDO $conn, string $studentId, int $termId): float
 		$stmt->execute([$invoiceId]);
 		$paid = (float)$stmt->fetchColumn();
 	}
-	return max(0, round($total - $paid, 2));
+	$cache[$cacheKey] = max(0, round($total - $paid, 2));
+	return $cache[$cacheKey];
 }
 
 function report_attendance_summary(PDO $conn, string $studentId, int $classId, int $termId): array

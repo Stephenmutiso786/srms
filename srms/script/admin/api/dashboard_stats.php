@@ -12,6 +12,16 @@ if (!isset($res) || $res !== "1" || !isset($level) || $level !== "0") {
 	exit;
 }
 
+$cacheTtl = 60;
+$cacheFile = sys_get_temp_dir() . '/srms_dashboard_stats_' . (defined('DBDriver') ? DBDriver : 'default') . '.json';
+if (is_file($cacheFile) && (time() - filemtime($cacheFile) < $cacheTtl)) {
+	$cached = file_get_contents($cacheFile);
+	if (is_string($cached) && $cached !== '') {
+		echo $cached;
+		exit;
+	}
+}
+
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
@@ -148,7 +158,7 @@ try {
 		$paymentsByMethod = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
 
-	echo json_encode([
+	$response = json_encode([
 		"counts" => $counts,
 		"studentsByClass" => $studentsByClass,
 		"avgScoreByTerm" => $avgScoreByTerm,
@@ -159,6 +169,11 @@ try {
 		"paymentsByDay" => $paymentsByDay,
 		"paymentsByMethod" => $paymentsByMethod
 	]);
+	if (!is_string($response)) {
+		throw new RuntimeException('Failed to encode dashboard stats.');
+	}
+	@file_put_contents($cacheFile, $response, LOCK_EX);
+	echo $response;
 } catch (PDOException $e) {
 	http_response_code(500);
 	echo json_encode(["error" => $e->getMessage()]);

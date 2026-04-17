@@ -22,24 +22,41 @@ try {
 	if ($hasReceipts) {
 		$stmt = $conn->prepare("SELECT i.id, t.name AS term_name, i.issue_date, i.due_date,
 			COALESCE(SUM(l.amount),0) AS total,
-			COALESCE((SELECT SUM(p.amount) FROM tbl_payments p WHERE p.invoice_id = i.id), 0) AS paid,
-			(SELECT r.id FROM tbl_receipts r JOIN tbl_payments p2 ON p2.id = r.payment_id WHERE p2.invoice_id = i.id ORDER BY r.id DESC LIMIT 1) AS latest_receipt_id,
-			(SELECT r.receipt_number FROM tbl_receipts r JOIN tbl_payments p2 ON p2.id = r.payment_id WHERE p2.invoice_id = i.id ORDER BY r.id DESC LIMIT 1) AS latest_receipt_no
+			COALESCE(paid.total_paid, 0) AS paid,
+			lr.latest_receipt_id,
+			lr.receipt_number AS latest_receipt_no
 			FROM tbl_invoices i
 			JOIN tbl_terms t ON t.id = i.term_id
 			LEFT JOIN tbl_invoice_lines l ON l.invoice_id = i.id
+			LEFT JOIN (
+				SELECT invoice_id, SUM(amount) AS total_paid
+				FROM tbl_payments
+				GROUP BY invoice_id
+			) paid ON paid.invoice_id = i.id
+			LEFT JOIN (
+				SELECT pr.invoice_id, MAX(r.id) AS latest_receipt_id
+				FROM tbl_receipts r
+				JOIN tbl_payments pr ON pr.id = r.payment_id
+				GROUP BY pr.invoice_id
+			) lr_map ON lr_map.invoice_id = i.id
+			LEFT JOIN tbl_receipts lr ON lr.id = lr_map.latest_receipt_id
 			WHERE i.student_id = ? AND i.status != 'void'
-			GROUP BY i.id, t.name, i.issue_date, i.due_date
+			GROUP BY i.id, t.name, i.issue_date, i.due_date, paid.total_paid, lr.latest_receipt_id, lr.receipt_number
 			ORDER BY i.term_id DESC, i.id DESC");
 	} else {
 		$stmt = $conn->prepare("SELECT i.id, t.name AS term_name, i.issue_date, i.due_date,
 			COALESCE(SUM(l.amount),0) AS total,
-			COALESCE((SELECT SUM(p.amount) FROM tbl_payments p WHERE p.invoice_id = i.id), 0) AS paid
+			COALESCE(paid.total_paid, 0) AS paid
 			FROM tbl_invoices i
 			JOIN tbl_terms t ON t.id = i.term_id
 			LEFT JOIN tbl_invoice_lines l ON l.invoice_id = i.id
+			LEFT JOIN (
+				SELECT invoice_id, SUM(amount) AS total_paid
+				FROM tbl_payments
+				GROUP BY invoice_id
+			) paid ON paid.invoice_id = i.id
 			WHERE i.student_id = ? AND i.status != 'void'
-			GROUP BY i.id, t.name, i.issue_date, i.due_date
+			GROUP BY i.id, t.name, i.issue_date, i.due_date, paid.total_paid
 			ORDER BY i.term_id DESC, i.id DESC");
 	}
 	$stmt->execute([(string)$account_id]);
