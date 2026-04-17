@@ -156,6 +156,9 @@ try {
 <div class="mb-3 btn-container d-grid">
 <a href="school_main_website.php" class="btn btn-primary btn-block app_btn" style="font-weight:700;"><i class="bi bi-globe2 me-2 fs-5"></i>visit the  school main website</a>
 </div>
+<div class="mb-3 btn-container d-grid">
+<a href="status" class="btn btn-outline-secondary btn-block" style="font-weight:700;"><i class="bi bi-heart-pulse me-2 fs-5"></i>system status</a>
+</div>
 </form>
 
 <form class="forget-form app_frm" action="core/forgot_pw" method="POST" autocomplete="OFF">
