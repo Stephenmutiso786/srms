@@ -16,6 +16,7 @@ $error = '';
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	app_ensure_finance_tables($conn);
 
 	if (!app_table_exists($conn, 'tbl_invoices') || !app_table_exists($conn, 'tbl_invoice_lines') || !app_table_exists($conn, 'tbl_payments')) {
 		throw new RuntimeException("Fees module is not installed. Run migration 003_fees_finance.sql.");

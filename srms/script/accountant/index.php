@@ -10,6 +10,7 @@ $summary = ['open_invoices' => 0, 'paid_today' => 0, 'outstanding' => 0, 'paymen
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	app_ensure_finance_tables($conn);
 
 	if (app_table_exists($conn, 'tbl_invoices')) {
 		$summary['open_invoices'] = (int)$conn->query("SELECT COUNT(*) FROM tbl_invoices WHERE status = 'open'")->fetchColumn();

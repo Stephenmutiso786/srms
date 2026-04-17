@@ -25,6 +25,7 @@ if (is_file($cacheFile) && (time() - filemtime($cacheFile) < $cacheTtl)) {
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	app_ensure_finance_tables($conn);
 	$driver = $conn->getAttribute(PDO::ATTR_DRIVER_NAME);
 
 	$counts = [];

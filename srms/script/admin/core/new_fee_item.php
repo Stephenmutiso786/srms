@@ -26,6 +26,7 @@ if ($name === '') {
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	app_ensure_finance_tables($conn);
 
 	$stmt = $conn->prepare("INSERT INTO tbl_fee_items (name, description, status) VALUES (?,?,1)");
 	$stmt->execute([$name, $description]);

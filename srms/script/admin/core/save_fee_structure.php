@@ -27,6 +27,7 @@ if ($classId < 1 || $termId < 1 || !is_array($amounts)) {
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	app_ensure_finance_tables($conn);
 	$conn->beginTransaction();
 	$saveFailed = false;
 	$saveError = '';

@@ -26,6 +26,20 @@ $data = [
 try {
     $conn = app_db();
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    app_ensure_finance_tables($conn);
+    $driver = $conn->getAttribute(PDO::ATTR_DRIVER_NAME);
+    $openInvoiceExpr = $driver === 'pgsql'
+        ? "COUNT(DISTINCT i.id) FILTER (WHERE i.status = 'open')"
+        : "COUNT(DISTINCT CASE WHEN i.status = 'open' THEN i.id END)";
+    $paidInvoiceExpr = $driver === 'pgsql'
+        ? "COUNT(DISTINCT i.id) FILTER (WHERE i.status = 'paid')"
+        : "COUNT(DISTINCT CASE WHEN i.status = 'paid' THEN i.id END)";
+    $daysOverdueExpr = $driver === 'pgsql'
+        ? "(CURRENT_DATE - i.due_date)"
+        : "DATEDIFF(CURRENT_DATE, i.due_date)";
+    $studentDaysOverdueExpr = $driver === 'pgsql'
+        ? "(CURRENT_DATE - MAX(i.due_date))"
+        : "DATEDIFF(CURRENT_DATE, MAX(i.due_date))";
 
     // Load classes and terms for filters
     $stmt = $conn->prepare("SELECT id, name FROM tbl_classes ORDER BY name");
@@ -59,7 +73,7 @@ try {
                 c.id,
                 c.name as class_name,
                 COUNT(DISTINCT i.id) as num_students,
-                COUNT(DISTINCT i.id) FILTER (WHERE i.status = 'open') as unpaid_count,
+                {$openInvoiceExpr} as unpaid_count,
                 COALESCE(SUM(il.amount), 0) as class_total,
                 COALESCE(SUM(p.amount), 0) as class_paid,
                 COALESCE(SUM(il.amount), 0) - COALESCE(SUM(p.amount), 0) as class_outstanding,
@@ -88,7 +102,7 @@ try {
                 t.name as term_name,
                 t.year,
                 COUNT(DISTINCT i.id) as num_invoices,
-                COUNT(DISTINCT i.id) FILTER (WHERE i.status = 'paid') as paid_invoices,
+                {$paidInvoiceExpr} as paid_invoices,
                 COALESCE(SUM(il.amount), 0) as term_total,
                 COALESCE(SUM(p.amount), 0) as term_paid,
                 COALESCE(SUM(il.amount), 0) - COALESCE(SUM(p.amount), 0) as term_outstanding,
@@ -109,10 +123,10 @@ try {
         $stmt = $conn->prepare("
             SELECT 
                 CASE 
-                    WHEN CURRENT_DATE - i.due_date BETWEEN 0 AND 29 THEN '0-30 days'
-                    WHEN CURRENT_DATE - i.due_date BETWEEN 30 AND 59 THEN '30-60 days'
-                    WHEN CURRENT_DATE - i.due_date BETWEEN 60 AND 89 THEN '60-90 days'
-                    WHEN CURRENT_DATE - i.due_date > 90 THEN '90+ days'
+                    WHEN {$daysOverdueExpr} BETWEEN 0 AND 29 THEN '0-30 days'
+                    WHEN {$daysOverdueExpr} BETWEEN 30 AND 59 THEN '30-60 days'
+                    WHEN {$daysOverdueExpr} BETWEEN 60 AND 89 THEN '60-90 days'
+                    WHEN {$daysOverdueExpr} > 90 THEN '90+ days'
                     ELSE 'Not Due'
                 END as age_bucket,
                 COUNT(DISTINCT i.id) as invoice_count,
@@ -166,7 +180,7 @@ try {
                 COALESCE(SUM(il.amount - COALESCE(p.amount, 0)), 0) as total_outstanding,
                 COUNT(DISTINCT i.id) as open_invoices,
                 MAX(i.due_date) as earliest_due_date,
-                CURRENT_DATE - MAX(i.due_date) as days_overdue
+                {$studentDaysOverdueExpr} as days_overdue
             FROM tbl_students s
             LEFT JOIN tbl_invoices i ON i.student_id = s.id AND i.status = 'open'
             LEFT JOIN tbl_classes c ON c.id = i.class_id

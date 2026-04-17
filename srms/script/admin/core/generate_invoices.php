@@ -18,6 +18,7 @@ $classId = (int)($_POST['class_id'] ?? 0);
 $termId = (int)($_POST['term_id'] ?? 0);
 $dueDate = trim((string)($_POST['due_date'] ?? ''));
 $dueDate = $dueDate === '' ? null : $dueDate;
+$issueDate = date('Y-m-d');
 
 if ($classId < 1 || $termId < 1) {
 	$_SESSION['reply'] = array(array("error", "Invalid request."));
@@ -28,6 +29,7 @@ if ($classId < 1 || $termId < 1) {
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	app_ensure_finance_tables($conn);
 
 	if (!app_table_exists($conn, 'tbl_fee_structures') || !app_table_exists($conn, 'tbl_invoices') || !app_table_exists($conn, 'tbl_invoice_lines')) {
 		$_SESSION['reply'] = array(array("error", "Fees module is not installed. Run migration 003_fees_finance.sql."));
@@ -48,39 +50,40 @@ try {
 	$stmt->execute([$classId]);
 	$students = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
-	$isPgsql = (defined('DBDriver') && DBDriver === 'pgsql');
 	$conn->beginTransaction();
-
-	$insertInvoice = $isPgsql
-		? $conn->prepare("INSERT INTO tbl_invoices (student_id, class_id, term_id, due_date, status, created_by) VALUES (?,?,?,?, 'open', ?)
-			ON CONFLICT (student_id, term_id) DO UPDATE SET class_id = EXCLUDED.class_id, due_date = EXCLUDED.due_date, status = CASE WHEN tbl_invoices.status='void' THEN 'open' ELSE tbl_invoices.status END
-			RETURNING id")
-		: $conn->prepare("INSERT INTO tbl_invoices (student_id, class_id, term_id, due_date, status, created_by) VALUES (?,?,?,?, 'open', ?)
-			ON DUPLICATE KEY UPDATE class_id = VALUES(class_id), due_date = VALUES(due_date), status = IF(status='void','open',status)");
-
-	$selectInvoiceId = $conn->prepare("SELECT id FROM tbl_invoices WHERE student_id = ? AND term_id = ? LIMIT 1");
-
-	$upsertLine = $isPgsql
-		? $conn->prepare("INSERT INTO tbl_invoice_lines (invoice_id, item_id, amount) VALUES (?,?,?)
-			ON CONFLICT (invoice_id, item_id) DO UPDATE SET amount = EXCLUDED.amount")
-		: $conn->prepare("INSERT INTO tbl_invoice_lines (invoice_id, item_id, amount) VALUES (?,?,?)
-			ON DUPLICATE KEY UPDATE amount = VALUES(amount)");
+	$selectInvoice = $conn->prepare("SELECT id, status FROM tbl_invoices WHERE student_id = ? AND term_id = ? LIMIT 1");
+	$updateInvoice = $conn->prepare("UPDATE tbl_invoices SET class_id = ?, due_date = ?, status = ? WHERE id = ?");
+	$insertInvoice = $conn->prepare("INSERT INTO tbl_invoices (student_id, class_id, term_id, issue_date, due_date, status, created_by) VALUES (?,?,?,?,?, 'open', ?)");
+	$updateLine = $conn->prepare("UPDATE tbl_invoice_lines SET amount = ? WHERE invoice_id = ? AND item_id = ?");
+	$insertLine = $conn->prepare("INSERT INTO tbl_invoice_lines (invoice_id, item_id, amount) VALUES (?,?,?)");
 
 	foreach ($students as $sid) {
 		$invoiceId = 0;
-		if ($isPgsql) {
-			$insertInvoice->execute([(string)$sid, $classId, $termId, $dueDate, (int)$account_id]);
-			$invoiceId = (int)$insertInvoice->fetchColumn();
+		$selectInvoice->execute([(string)$sid, $termId]);
+		$existingInvoice = $selectInvoice->fetch(PDO::FETCH_ASSOC) ?: [];
+		if ($existingInvoice) {
+			$invoiceId = (int)($existingInvoice['id'] ?? 0);
+			$status = ((string)($existingInvoice['status'] ?? '') === 'void') ? 'open' : (string)($existingInvoice['status'] ?? 'open');
+			if ($status === '') {
+				$status = 'open';
+			}
+			$updateInvoice->execute([$classId, $dueDate, $status, $invoiceId]);
 		} else {
-			$insertInvoice->execute([(string)$sid, $classId, $termId, $dueDate, (int)$account_id]);
-			$selectInvoiceId->execute([(string)$sid, $termId]);
-			$invoiceId = (int)$selectInvoiceId->fetchColumn();
+			$insertInvoice->execute([(string)$sid, $classId, $termId, $issueDate, $dueDate, (int)$account_id]);
+			$invoiceId = (int)$conn->lastInsertId();
+			if ($invoiceId < 1) {
+				$selectInvoice->execute([(string)$sid, $termId]);
+				$invoiceId = (int)$selectInvoice->fetchColumn();
+			}
 		}
 
 		if ($invoiceId < 1) continue;
 
 		foreach ($structure as $line) {
-			$upsertLine->execute([$invoiceId, (int)$line['item_id'], (float)$line['amount']]);
+			$updateLine->execute([(float)$line['amount'], $invoiceId, (int)$line['item_id']]);
+			if ($updateLine->rowCount() < 1) {
+				$insertLine->execute([$invoiceId, (int)$line['item_id'], (float)$line['amount']]);
+			}
 		}
 	}
 

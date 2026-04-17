@@ -20,6 +20,7 @@ $hasReceipts = false;
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	app_ensure_finance_tables($conn);
 
 	if (!app_table_exists($conn, 'tbl_invoices') || !app_table_exists($conn, 'tbl_invoice_lines') || !app_table_exists($conn, 'tbl_payments')) {
 		throw new RuntimeException("Fees module is not installed. Run migration 003_fees_finance.sql.");
@@ -186,6 +187,7 @@ try {
 		<label class="form-check-label" for="selectAllInvoices">Select all</label>
 	  </div>
 	</div>
+	</form>
 	<table class="table table-hover table-striped">
 	  <thead>
 		<tr>
@@ -206,7 +208,7 @@ try {
 		$bal = max(0, $total - $paid);
 	  ?>
 		<tr>
-		  <td><input class="form-check-input invoice-checkbox" type="checkbox" name="invoice_ids[]" value="<?php echo (int)$inv['id']; ?>"></td>
+		  <td><input class="form-check-input invoice-checkbox" type="checkbox" form="bulkInvoicesForm" name="invoice_ids[]" value="<?php echo (int)$inv['id']; ?>"></td>
 		  <td><?php echo htmlspecialchars((string)$inv['student_id'].' — '.$inv['student_name']); ?></td>
 		  <td><?php echo number_format($total, 2); ?></td>
 		  <td><?php echo number_format($paid, 2); ?></td>
@@ -247,7 +249,6 @@ try {
 	  <?php } } ?>
 	  </tbody>
 	</table>
-	</form>
   </div>
 </div>
 <?php } ?>
