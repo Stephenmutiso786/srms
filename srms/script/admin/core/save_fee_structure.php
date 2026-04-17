@@ -27,7 +27,7 @@ if ($classId < 1 || $termId < 1 || !is_array($amounts)) {
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-	app_ensure_finance_tables($conn);
+	app_ensure_fee_structure_tables($conn);
 	$conn->beginTransaction();
 	$saveFailed = false;
 	$saveError = '';
@@ -103,7 +103,7 @@ try {
 		$conn->rollBack();
 	}
 	error_log('[admin.save_fee_structure] ' . $e->getMessage());
-	$_SESSION['reply'] = array(array("error", "Failed to save fee structure. Please try again."));
+	$_SESSION['reply'] = array(array("error", "Failed to save fee structure. " . $e->getMessage()));
 	if (isset($level) && $level === "5") {
 		header("location:../../accountant/fee_structure?class_id=".$classId."&term_id=".$termId);
 	} else {
