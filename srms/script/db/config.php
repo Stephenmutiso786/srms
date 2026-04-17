@@ -25,6 +25,7 @@ DEFINE('DBName', getenv('DB_NAME') ?: 'srms');
 DEFINE('DBCharset', getenv('DB_CHARSET') ?: 'utf8mb4');
 DEFINE('DBCollation', getenv('DB_COLLATION') ?: 'utf8_general_ci');
 DEFINE('DBPrefix', getenv('DB_PREFIX') ?: '');
+DEFINE('DBConnectTimeout', (int)(getenv('DB_CONNECT_TIMEOUT') ?: 5));
 
 // Canonical DSN (the rest of the app should use this).
 if (getenv('DB_DSN')) {
@@ -33,14 +34,15 @@ if (getenv('DB_DSN')) {
 	$portPart = DBPort !== '' ? ';port='.DBPort : '';
 	$sslMode = strtoupper(trim(getenv('DB_SSL_MODE') ?: ''));
 
-	if (DBDriver === 'pgsql') {
+		if (DBDriver === 'pgsql') {
+			$connectTimeout = DBConnectTimeout > 0 ? ';connect_timeout=' . DBConnectTimeout : '';
 		$sslPart = '';
 		// For Postgres, SSL is configured via the DSN string.
 		// Most managed Postgres providers only need sslmode=require.
 		if ($sslMode === 'REQUIRED') {
 			$sslPart = ';sslmode=require';
 		}
-		DEFINE('DB_DSN', 'pgsql:host='.DBHost.$portPart.';dbname='.DBName.$sslPart);
+			DEFINE('DB_DSN', 'pgsql:host='.DBHost.$portPart.';dbname='.DBName.$connectTimeout.$sslPart);
 	} else {
 		DEFINE('DB_DSN', 'mysql:host='.DBHost.$portPart.';dbname='.DBName.';charset='.DBCharset);
 	}
@@ -64,6 +66,7 @@ function app_db(): PDO
 
 	$options = [
 		PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+		PDO::ATTR_TIMEOUT => (DBConnectTimeout > 0 ? DBConnectTimeout : 5),
 	];
 
 	if (DBDriver === 'mysql') {

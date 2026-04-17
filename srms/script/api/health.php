@@ -1,8 +1,9 @@
 <?php
-session_start();
-require_once(__DIR__ . '/_common.php');
+declare(strict_types=1);
 
-api_apply_cors();
+require_once(__DIR__ . '/../db/config.php');
+
+header('Content-Type: application/json; charset=utf-8');
 
 $deep = isset($_GET['deep']) && (string)$_GET['deep'] !== '0';
 $started = microtime(true);
@@ -10,8 +11,8 @@ $started = microtime(true);
 $payload = [
 	'ok' => true,
 	'service' => 'backend',
-	'app' => APP_NAME,
-	'driver' => DBDriver,
+	'app' => defined('APP_NAME') ? APP_NAME : 'Elimu Hub',
+	'driver' => defined('DBDriver') ? DBDriver : 'unknown',
 	'time' => date('c'),
 	'php' => PHP_VERSION,
 	'mode' => $deep ? 'deep' : 'basic',
@@ -23,6 +24,7 @@ if ($deep) {
 		'latency_ms' => null,
 		'error' => null,
 	];
+
 	try {
 		$dbStarted = microtime(true);
 		$conn = app_db();
@@ -46,4 +48,6 @@ if ($deep) {
 
 $payload['latency_ms'] = round((microtime(true) - $started) * 1000, 2);
 
-api_json($payload, $payload['ok'] ? 200 : 503);
+http_response_code($payload['ok'] ? 200 : 503);
+echo json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+exit;

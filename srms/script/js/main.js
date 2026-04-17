@@ -785,6 +785,12 @@
 			return;
 		}
 
+		// Refresh only authenticated portal pages to avoid hammering public pages.
+		var isAuthenticated = document.cookie.indexOf('__SRMS__logged=') !== -1 && document.cookie.indexOf('__SRMS__key=') !== -1;
+		if (!isAuthenticated) {
+			return;
+		}
+
 		var pauseRefresh = false;
 		var hasUnsavedFormInput = false;
 
