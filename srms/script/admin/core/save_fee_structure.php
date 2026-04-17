@@ -27,8 +27,6 @@ if ($classId < 1 || $termId < 1 || !is_array($amounts)) {
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-	$isPgsql = (defined('DBDriver') && DBDriver === 'pgsql');
 	$conn->beginTransaction();
 	$saveFailed = false;
 	$saveError = '';
@@ -61,14 +59,14 @@ try {
 				continue;
 			}
 
-			if ($isPgsql) {
-				$stmt = $conn->prepare("INSERT INTO tbl_fee_structures (class_id, term_id, item_id, amount) VALUES (?,?,?,?)
-					ON CONFLICT (class_id, term_id, item_id) DO UPDATE SET amount = EXCLUDED.amount");
-			} else {
-				$stmt = $conn->prepare("INSERT INTO tbl_fee_structures (class_id, term_id, item_id, amount) VALUES (?,?,?,?)
-					ON DUPLICATE KEY UPDATE amount = VALUES(amount)");
+			// Use update-then-insert instead of database-specific upsert syntax so
+			// fee structure saving still works on older or partially migrated schemas.
+			$stmt = $conn->prepare("UPDATE tbl_fee_structures SET amount = ? WHERE class_id = ? AND term_id = ? AND item_id = ?");
+			$stmt->execute([$amount, $classId, $termId, $itemId]);
+			if ($stmt->rowCount() < 1) {
+				$stmt = $conn->prepare("INSERT INTO tbl_fee_structures (class_id, term_id, item_id, amount) VALUES (?,?,?,?)");
+				$stmt->execute([$classId, $termId, $itemId, $amount]);
 			}
-			$stmt->execute([$classId, $termId, $itemId, $amount]);
 			app_tx_savepoint_release($conn, $savepoint);
 		} catch (Throwable $e) {
 			app_tx_savepoint_rollback($conn, $savepoint);
