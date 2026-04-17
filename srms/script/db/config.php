@@ -1,4 +1,10 @@
 <?php
+// PERF FIX: Set HTTP cache headers early (must be before any headers sent)
+// This dramatically reduces server load by enabling browser/CDN caching
+if (!headers_sent()) {
+	require_once(__DIR__ . '/../const/http_cache.php');
+}
+
 // Prefer environment variables for cloud hosting (Render, etc.)
 $driverEnv = strtolower(getenv('DB_DRIVER') ?: '');
 $dsnEnv = getenv('DB_DSN') ?: '';

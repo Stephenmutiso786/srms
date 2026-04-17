@@ -100,64 +100,86 @@ document.getElementById('remark').value = document.getElementById('remark_'+id).
 document.getElementById('id').value = id;
 }
 
+// Performance: Lazy-load and debounce announcement fetching
+var announcementAjaxTimeout = null;
+var announcementLazyInit = false;
+
 function set_announcement(id) {
-var loader = "<div class='d-flex justify-content-center'><div class='spinner-border' style='height:16px; width:16px; margin-top:2px;'  role='status'><span class='sr-only'></span></div>&nbsp;Fetching information, please wait..</div>";
-document.getElementById('ajax_callback').innerHTML = '<div class="alert alert-dismissible alert-info"><strong>'+loader+'</strong> </div>';
+	// Debounce to prevent rapid re-calls
+	if (announcementAjaxTimeout) clearTimeout(announcementAjaxTimeout);
+	
+	var loader = "<div class='d-flex justify-content-center'><div class='spinner-border' style='height:16px; width:16px; margin-top:2px;'  role='status'><span class='sr-only'></span></div>&nbsp;Fetching information, please wait..</div>";
+	document.getElementById('ajax_callback').innerHTML = '<div class="alert alert-dismissible alert-info"><strong>'+loader+'</strong> </div>';
 
-$.ajax({
-type: 'POST',
-url: 'app/ajax/fetch_announcement.php',
-data: 'id=' + id + '&submit=1',
-success: function (announcement_data) {
-document.getElementById('ajax_callback').innerHTML = announcement_data;
+	// Debounce by 250ms - PERF FIX: Prevents multiple rapid calls
+	announcementAjaxTimeout = setTimeout(function() {
+		$.ajax({
+			type: 'POST',
+			url: 'app/ajax/fetch_announcement.php',
+			data: 'id=' + id + '&submit=1',
+			success: function (announcement_data) {
+				document.getElementById('ajax_callback').innerHTML = announcement_data;
 
-$('#summernote2').summernote({
-tabsize: 2,
-height: 120,
-fontNames: ['Comic Sans MS']
-});
-
+				// Lazy-load Summernote: Only initialize ONCE when needed (not repeated)
+				if (!announcementLazyInit && $('#summernote2').length) {
+					$('#summernote2').summernote({
+						tabsize: 2,
+						height: 120,
+						fontNames: ['Comic Sans MS']
+					});
+					announcementLazyInit = true;
+				}
+			}
+		});
+	}, 250);
 }
-});
-}
+
+// Performance: Debounce and cache subject fetching
+var subjectAjaxTimeout = null;
+var lastFetchedSubject = { classId: null, termId: null };
 
 function fetch_subjects(class_id) {
-var current_effect = 'bounce';
-run_waitMe(current_effect);
-function run_waitMe(effect){
-$('.app_frm').waitMe({
+	var termId = $('#termSelect').val() || '';
+	
+	// Skip duplicate requests - PERF FIX: Prevents redundant API calls
+	if (lastFetchedSubject.classId === class_id && lastFetchedSubject.termId === termId) {
+		return;
+	}
+	
+	// Debounce to prevent rapid re-calls
+	if (subjectAjaxTimeout) clearTimeout(subjectAjaxTimeout);
+	
+	var current_effect = 'bounce';
+	run_waitMe(current_effect);
+	function run_waitMe(effect){
+		$('.app_frm').waitMe({
+			effect: 'ios',
+			text: 'Fetching Subjects....',
+			bg: 'rgba(255,255,255,0.6)',
+			color: '#00695c',
+			maxSize: '',
+			waitTime: -1,
+			source: '',
+			textPos: 'vertical',
+			fontSize: '',
+			onClose: function() {}
+		});
+	}
 
-effect: 'ios',
-text: 'Fetching Subjects....',
+	$('#sub_imp').find('option').remove();
 
-bg: 'rgba(255,255,255,0.6)',
-
-color: '#00695c',
-
-maxSize: '',
-
-waitTime: -1,
-source: '',
-
-textPos: 'vertical',
-
-fontSize: '',
-onClose: function() {}
-
-});
-}
-
-$('#sub_imp').find('option').remove();
-
-var termId = $('#termSelect').val() || '';
-$.ajax({
-type: 'POST',
-url: 'app/ajax/fetch_subjects.php',
-data: 'id=' + class_id + '&term_id=' + termId + '&submit=1',
-success: function (data) {
-$('#sub_imp').append(data)
-$('.app_frm').waitMe('hide');
-}
+	// Debounce by 200ms - PERF FIX: Prevents hammer-clicking on dropdowns
+	subjectAjaxTimeout = setTimeout(function() {
+		lastFetchedSubject = { classId: class_id, termId: termId };
+		
+		$.ajax({
+			type: 'POST',
+			url: 'app/ajax/fetch_subjects.php',
+			data: 'id=' + class_id + '&term_id=' + termId + '&submit=1',
+			success: function (data) {
+				$('#sub_imp').append(data)
+				$('.app_frm').waitMe('hide');
+			}
 });
 
 }
