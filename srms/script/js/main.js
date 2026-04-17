@@ -808,18 +808,19 @@
 		document.addEventListener('cut', function(e) {
 			e.preventDefault();
 			return false;
-	});
+		});
 
-	// Disable text selection with keyboard shortcuts
-	document.addEventListener('keydown', function(e) {
-		if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
-			e.preventDefault();
-			return false;
-		}
-		if ((e.ctrlKey || e.metaKey) && e.key === 'x') {
-			e.preventDefault();
-			return false;
-		}
-	});
+		// Disable text selection with keyboard shortcuts
+		document.addEventListener('keydown', function(e) {
+			if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+				e.preventDefault();
+				return false;
+			}
+			if ((e.ctrlKey || e.metaKey) && e.key === 'x') {
+				e.preventDefault();
+				return false;
+			}
+		});
+	}
 
 })();

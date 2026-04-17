@@ -180,8 +180,8 @@ function fetch_subjects(class_id) {
 				$('#sub_imp').append(data)
 				$('.app_frm').waitMe('hide');
 			}
-});
-
+		});
+	}, 200);
 }
 
 $("#sub_btnp").on("click", function(){
