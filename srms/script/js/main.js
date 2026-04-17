@@ -779,12 +779,57 @@
 		});
 	}
 
+	function appInitGlobalAutoRefresh() {
+		var path = String(window.location.pathname || '').toLowerCase();
+		if (path.indexOf('/api/') !== -1 || path.indexOf('/core/') !== -1 || path.indexOf('/setup') !== -1) {
+			return;
+		}
+
+		var pauseRefresh = false;
+		var hasUnsavedFormInput = false;
+
+		document.addEventListener('focusin', function (e) {
+			var target = e && e.target ? e.target : null;
+			if (!target) return;
+			if (target.matches('input, textarea, select, [contenteditable="true"]')) {
+				pauseRefresh = true;
+			}
+		});
+
+		document.addEventListener('focusout', function () {
+			pauseRefresh = false;
+		});
+
+		document.addEventListener('input', function (e) {
+			var target = e && e.target ? e.target : null;
+			if (!target) return;
+			if (target.matches('input, textarea, select')) {
+				hasUnsavedFormInput = true;
+			}
+		});
+
+		document.addEventListener('submit', function () {
+			hasUnsavedFormInput = false;
+		});
+
+		window.setInterval(function () {
+			if (document.visibilityState && document.visibilityState !== 'visible') {
+				return;
+			}
+			if (pauseRefresh || hasUnsavedFormInput) {
+				return;
+			}
+			window.location.reload();
+		}, 5000);
+	}
+
 	var portal = appCurrentPortal();
 	appEnsureSidebarFooter(portal);
 	appEnsurePortalGuideMenu(portal);
 	appEnsurePublicWebsiteButton();
 	appEnsureConnectivityBanner();
 	appInitOnlineWidget(portal);
+	appInitGlobalAutoRefresh();
 	appApplyImpersonationBanner();
 
 	// Restrict copying/paste/context menu only on admin/teacher portals - PERF: Reduces event overhead

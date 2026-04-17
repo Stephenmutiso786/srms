@@ -141,20 +141,24 @@ try {
 		$notifications = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
 
-	app_ensure_discipline_cases_table($conn);
-	$stmt = $conn->prepare("SELECT d.created_at, d.incident_type, d.severity, d.status,
-		concat_ws(' ', st.fname, st.mname, st.lname) AS student_name
-		FROM tbl_discipline_cases d
-		JOIN tbl_students st ON st.id = d.student_id
-		WHERE d.teacher_id = ?
-		ORDER BY d.id DESC
-		LIMIT 5");
-	$stmt->execute([(int)$account_id]);
-	$recentDiscipline = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	if (app_table_exists($conn, 'tbl_discipline_cases')) {
+		app_ensure_discipline_cases_table($conn);
+		$stmt = $conn->prepare("SELECT d.created_at, d.incident_type, d.severity, d.status,
+			concat_ws(' ', st.fname, st.mname, st.lname) AS student_name
+			FROM tbl_discipline_cases d
+			JOIN tbl_students st ON st.id = d.student_id
+			WHERE d.teacher_id = ?
+			ORDER BY d.id DESC
+			LIMIT 5");
+		$stmt->execute([(int)$account_id]);
+		$recentDiscipline = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	}
 
-	$stmt = $conn->prepare("SELECT * FROM tbl_announcements WHERE level = '0' OR level = '2' ORDER BY id DESC LIMIT 5");
-	$stmt->execute();
-	$announcements = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	if (app_table_exists($conn, 'tbl_announcements')) {
+		$stmt = $conn->prepare("SELECT * FROM tbl_announcements WHERE level = '0' OR level = '2' ORDER BY id DESC LIMIT 5");
+		$stmt->execute();
+		$announcements = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	}
 } catch (Throwable $e) {
 	error_log("[".__FILE__.":".__LINE__." Throwable] " . $e->getMessage());
 	$error = "An internal error occurred.";
@@ -200,7 +204,33 @@ body.app{background:#f4f7f6}
 .grade-badge{padding:4px 10px;border-radius:999px;background:#e7f1ef;color:#00695C;font-weight:700;font-size:.82rem}
 .note-list{display:grid;gap:10px}
 .note-item{background:#fff;border:1px solid #e9eef5;border-radius:14px;padding:12px 14px}
+.dashboard-hero{background:linear-gradient(135deg,#00695C,#0b7d6d);border-radius:22px;color:#fff;padding:24px;box-shadow:0 20px 50px rgba(0,105,92,.16);margin-bottom:18px}
+.hero-kicker{display:inline-block;font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;font-weight:800;opacity:.82;margin-bottom:8px}
+.hero-main h2{font-weight:900;letter-spacing:-.02em}
+.hero-main p{max-width:72ch;opacity:.93;line-height:1.6;margin:0}
+.hero-actions{margin-top:18px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.hero-actions .btn,.hero-actions .glass-input{min-height:44px;border-radius:12px;font-weight:700}
+.dashboard-stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;margin-bottom:18px}
+.dashboard-grid{display:grid;grid-template-columns:1fr;gap:16px}
+.dashboard-grid .tile{border-radius:18px;border:1px solid #e7edf5;box-shadow:0 14px 40px rgba(15,95,168,.08)}
+.chart-lg{height:320px}
 @media (max-width:1100px){.portal-shell{grid-template-columns:1fr}.portal-side{position:relative;height:auto}.hero-controls,.stats-grid,.grid-two{grid-template-columns:1fr 1fr}}
+
+@media (max-width: 1200px){
+	.hero-actions{grid-template-columns:repeat(2,minmax(0,1fr))}
+	.dashboard-stats{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+
+@media (max-width: 760px){
+	.hero-actions{grid-template-columns:1fr}
+	.dashboard-stats{grid-template-columns:1fr 1fr}
+	.grid-two{grid-template-columns:1fr}
+	.chart-lg{height:260px}
+}
+
+@media (max-width: 520px){
+	.dashboard-stats{grid-template-columns:1fr}
+}
 	</style>
 	</head>
 	<body class="app sidebar-mini">
@@ -332,11 +362,6 @@ if (teacherTrendEl) {
 let pauseRefresh = false;
 document.addEventListener('focusin', function() { pauseRefresh = true; });
 document.addEventListener('focusout', function() { pauseRefresh = false; });
-setInterval(function() {
-	if (!pauseRefresh) {
-		window.location.reload();
-	}
-}, 5000);
 </script>
 </body>
 </html>
