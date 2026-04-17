@@ -24,7 +24,7 @@ try {
 		$stmt = $conn->prepare("SELECT i.id, t.name AS term_name, i.issue_date, i.due_date,
 			COALESCE(SUM(l.amount),0) AS total,
 			COALESCE(paid.total_paid, 0) AS paid,
-			lr.latest_receipt_id,
+			lr_map.latest_receipt_id,
 			lr.receipt_number AS latest_receipt_no
 			FROM tbl_invoices i
 			JOIN tbl_terms t ON t.id = i.term_id
@@ -42,7 +42,7 @@ try {
 			) lr_map ON lr_map.invoice_id = i.id
 			LEFT JOIN tbl_receipts lr ON lr.id = lr_map.latest_receipt_id
 			WHERE i.student_id = ? AND i.status != 'void'
-			GROUP BY i.id, t.name, i.issue_date, i.due_date, paid.total_paid, lr.latest_receipt_id, lr.receipt_number
+			GROUP BY i.id, t.name, i.issue_date, i.due_date, paid.total_paid, lr_map.latest_receipt_id, lr.receipt_number
 			ORDER BY i.term_id DESC, i.id DESC");
 	} else {
 		$stmt = $conn->prepare("SELECT i.id, t.name AS term_name, i.issue_date, i.due_date,

@@ -40,7 +40,7 @@ try {
 			$stmt = $conn->prepare("SELECT i.id, i.student_id, concat_ws(' ', s.fname, s.mname, s.lname) AS student_name,
 				COALESCE(SUM(l.amount),0) AS total,
 				COALESCE(paid.total_paid, 0) AS paid,
-				lr.latest_receipt_id,
+				lr_map.latest_receipt_id,
 				lr.receipt_number AS latest_receipt_no
 				FROM tbl_invoices i
 				JOIN tbl_students s ON s.id = i.student_id
@@ -58,7 +58,7 @@ try {
 				) lr_map ON lr_map.invoice_id = i.id
 				LEFT JOIN tbl_receipts lr ON lr.id = lr_map.latest_receipt_id
 				WHERE i.class_id = ? AND i.term_id = ? AND i.status != 'void'
-				GROUP BY i.id, i.student_id, student_name, paid.total_paid, lr.latest_receipt_id, lr.receipt_number
+				GROUP BY i.id, i.student_id, student_name, paid.total_paid, lr_map.latest_receipt_id, lr.receipt_number
 				ORDER BY i.student_id");
 		} else {
 			$stmt = $conn->prepare("SELECT i.id, i.student_id, concat_ws(' ', s.fname, s.mname, s.lname) AS student_name,
