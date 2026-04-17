@@ -1,6 +1,6 @@
 {
   "name": "Kyandulu Primary School",
-  "short_name": "Kyandulu School",
+  "short_name": "Kyandulu PS",
   "id": "/script/",
   "start_url": "./school_main_website.php",
   "scope": "./",

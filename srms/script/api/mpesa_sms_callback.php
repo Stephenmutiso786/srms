@@ -86,5 +86,6 @@ try {
 	echo json_encode(['ok' => true]);
 } catch (Throwable $e) {
 	http_response_code(500);
-	echo json_encode(['error' => $e->getMessage()]);
+	error_log('[api.mpesa_sms_callback] ' . $e->getMessage());
+	echo json_encode(['error' => 'Internal server error.']);
 }
