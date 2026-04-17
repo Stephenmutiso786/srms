@@ -28,9 +28,6 @@ try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 	app_ensure_fee_structure_tables($conn);
-	$conn->beginTransaction();
-	$saveFailed = false;
-	$saveError = '';
 
 	foreach ($amounts as $itemIdRaw => $amountRaw) {
 		$itemId = (int)$itemIdRaw;
@@ -45,46 +42,24 @@ try {
 		} elseif (is_numeric($amountRaw)) {
 			$amount = (float)$amountRaw;
 		} else {
-			$saveFailed = true;
-			$saveError = 'Invalid fee amount submitted.';
-			break;
+			throw new RuntimeException('Invalid fee amount submitted.');
 		}
 
-		$savepoint = app_tx_savepoint_begin($conn, 'fee_structure_item');
+		if ($amount <= 0) {
+			$stmt = $conn->prepare("DELETE FROM tbl_fee_structures WHERE class_id = ? AND term_id = ? AND item_id = ?");
+			$stmt->execute([$classId, $termId, $itemId]);
+			continue;
+		}
 
-		try {
-			if ($amount <= 0) {
-				$stmt = $conn->prepare("DELETE FROM tbl_fee_structures WHERE class_id = ? AND term_id = ? AND item_id = ?");
-				$stmt->execute([$classId, $termId, $itemId]);
-				app_tx_savepoint_release($conn, $savepoint);
-				continue;
-			}
-
-			// Use update-then-insert instead of database-specific upsert syntax so
-			// fee structure saving still works on older or partially migrated schemas.
-			$stmt = $conn->prepare("UPDATE tbl_fee_structures SET amount = ? WHERE class_id = ? AND term_id = ? AND item_id = ?");
-			$stmt->execute([$amount, $classId, $termId, $itemId]);
-			if ($stmt->rowCount() < 1) {
-				$stmt = $conn->prepare("INSERT INTO tbl_fee_structures (class_id, term_id, item_id, amount) VALUES (?,?,?,?)");
-				$stmt->execute([$classId, $termId, $itemId, $amount]);
-			}
-			app_tx_savepoint_release($conn, $savepoint);
-		} catch (Throwable $e) {
-			app_tx_savepoint_rollback($conn, $savepoint);
-			$saveFailed = true;
-			$saveError = $e->getMessage();
-			break;
+		// Use update-then-insert instead of database-specific upsert syntax so
+		// fee structure saving still works on older or partially migrated schemas.
+		$stmt = $conn->prepare("UPDATE tbl_fee_structures SET amount = ? WHERE class_id = ? AND term_id = ? AND item_id = ?");
+		$stmt->execute([$amount, $classId, $termId, $itemId]);
+		if ($stmt->rowCount() < 1) {
+			$stmt = $conn->prepare("INSERT INTO tbl_fee_structures (class_id, term_id, item_id, amount) VALUES (?,?,?,?)");
+			$stmt->execute([$classId, $termId, $itemId, $amount]);
 		}
 	}
-
-	if ($saveFailed) {
-		if ($conn->inTransaction()) {
-			$conn->rollBack();
-		}
-		throw new RuntimeException($saveError !== '' ? $saveError : 'Failed to save fee structure.');
-	}
-
-	$conn->commit();
 	try {
 		app_audit_log($conn, 'staff', (string)$account_id, 'fee_structure.save', 'fee_structure', $classId . ':' . $termId);
 	} catch (Throwable $auditError) {
@@ -99,9 +74,6 @@ try {
 	}
 	exit;
 } catch (Throwable $e) {
-	if (isset($conn) && $conn instanceof PDO && $conn->inTransaction()) {
-		$conn->rollBack();
-	}
 	error_log('[admin.save_fee_structure] ' . $e->getMessage());
 	$_SESSION['reply'] = array(array("error", "Failed to save fee structure. " . $e->getMessage()));
 	if (isset($level) && $level === "5") {
