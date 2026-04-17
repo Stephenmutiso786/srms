@@ -145,17 +145,21 @@ try {
 		$notifications = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
 
-	$stmt = $conn->prepare("SELECT incident_type, description, severity, status, created_at
-		FROM tbl_discipline_cases
-		WHERE student_id = ?
-		ORDER BY id DESC
-		LIMIT 10");
-	$stmt->execute([(string)$account_id]);
-	$disciplineCases = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		if (app_table_exists($conn, 'tbl_discipline_cases')) {
+			$stmt = $conn->prepare("SELECT incident_type, description, severity, status, created_at
+					FROM tbl_discipline_cases
+					WHERE student_id = ?
+					ORDER BY id DESC
+					LIMIT 10");
+			$stmt->execute([(string)$account_id]);
+			$disciplineCases = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		}
 
-	$stmt = $conn->prepare("SELECT * FROM tbl_announcements WHERE level = '1' OR level = '2' ORDER BY id DESC LIMIT 5");
-	$stmt->execute();
-	$announcements = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		if (app_table_exists($conn, 'tbl_announcements')) {
+			$stmt = $conn->prepare("SELECT * FROM tbl_announcements WHERE level = '1' OR level = '2' ORDER BY id DESC LIMIT 5");
+			$stmt->execute();
+			$announcements = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		}
 } catch (Throwable $e) {
 	error_log("[".__FILE__.":".__LINE__." Throwable] " . $e->getMessage());
 	$error = "An internal error occurred.";

@@ -56,7 +56,7 @@ try {
 	}
 	$transitionMap = [
 		'draft' => ['active'],
-		'active' => ['draft', 'reviewed'],
+		'active' => $assessmentMode === 'consolidated' ? ['draft', 'finalized'] : ['draft', 'reviewed'],
 		'reviewed' => ['draft', 'finalized'],
 		'finalized' => ['published'],
 		'published' => ['finalized'],

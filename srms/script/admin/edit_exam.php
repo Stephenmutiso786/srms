@@ -211,6 +211,9 @@ try {
 							<div class="small text-muted mt-1">Use this to build consolidated exam components like CAT 1 = 20%.</div>
 						</div>
 					<div class="col-md-12 mb-3">
+						<div id="edit_consolidated_notice" class="alert alert-info" style="display:none;">
+							Consolidated exams inherit their subjects from the selected source exams and do not require manual mark entry or mark review.
+						</div>
 						<label class="form-label">Subjects</label>
 						<select class="form-control" name="subject_ids[]" id="edit_subject_ids" multiple size="10">
 							<?php foreach ($subjects as $subject): $classesMap = $subjectClassMap[(int)$subject['id']] ?? []; ?>
@@ -272,6 +275,13 @@ function toggleEditAssessmentMode() {
 	const consolidated = mode === 'consolidated';
 	document.getElementById('edit_component_wrap').style.display = consolidated ? '' : 'none';
 	document.getElementById('edit_component_exam_ids').required = consolidated;
+	document.getElementById('edit_consolidated_notice').style.display = consolidated ? '' : 'none';
+	document.getElementById('edit_subject_ids').disabled = consolidated;
+	if (consolidated) {
+		document.querySelectorAll('#edit_subject_ids option').forEach(function(option) {
+			option.selected = false;
+		});
+	}
 	if (consolidated) {
 		filterEditComponentExams();
 	}

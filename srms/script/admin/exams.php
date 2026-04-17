@@ -194,7 +194,7 @@ try {
 <div class="col-md-7">
 <div class="tile">
 <h3 class="tile-title">Create Exam</h3>
-<p class="text-muted">Create the assessment structure first, choose whether it is a normal exam or CBC assessment, then activate it for teachers, review submitted marks, finalize, and publish when ready.</p>
+<p class="text-muted">Create the assessment structure first, choose whether it is a normal exam, CBC assessment, or a consolidated average. Consolidated exams are auto-computed from selected exams, so they skip manual mark review and go straight to finalization and publishing.</p>
 <div class="d-flex flex-wrap gap-2 mb-3">
 	<a class="btn btn-outline-primary btn-sm" href="admin/exam_timetable"><i class="bi bi-calendar-event me-1"></i>Manage Timetable</a>
 	<a class="btn btn-outline-secondary btn-sm" href="admin/results_locks"><i class="bi bi-lock me-1"></i>Results Locks</a>
@@ -275,6 +275,9 @@ try {
 <div class="small text-muted mt-1">Use this for consolidated/complex exam components, for example 20, 20, 10, 50.</div>
 </div>
 <div class="col-md-12 mb-3">
+<div id="consolidatedSubjectNotice" class="alert alert-info" style="display:none;">
+Subjects are pulled automatically from the selected source exams in consolidated mode. No manual subject selection or mark entry is needed.
+</div>
 <label class="form-label">Subjects</label>
 <select class="form-control" name="subject_ids[]" id="examSubjectIds" multiple size="10">
 <?php foreach ($subjects as $subject): $classesMap = $subjectClassMap[(int)$subject['id']] ?? []; ?>
@@ -326,6 +329,8 @@ try {
 		<input type="hidden" name="exam_id" value="<?php echo (int)$exam['id']; ?>">
 		<?php if (($exam['status'] ?? '') === 'draft') { ?>
 			<button type="submit" class="btn btn-sm btn-outline-primary" name="status" value="active">Activate</button>
+		<?php } elseif (($exam['status'] ?? '') === 'active' && ($exam['assessment_mode'] ?? 'normal') === 'consolidated') { ?>
+			<button type="submit" class="btn btn-sm btn-outline-success" name="status" value="finalized">Finalize</button>
 		<?php } elseif (($exam['status'] ?? '') === 'active') { ?>
 			<button type="submit" class="btn btn-sm btn-outline-info" name="status" value="reviewed">Mark Reviewed</button>
 		<?php } elseif (($exam['status'] ?? '') === 'reviewed') { ?>
@@ -399,6 +404,7 @@ const assessmentModeSelect = document.getElementById('assessmentModeSelect');
 const componentExamWrap = document.getElementById('componentExamWrap');
 const componentExamIds = document.getElementById('componentExamIds');
 const termSelect = document.querySelector('select[name="term_id"]');
+const consolidatedSubjectNotice = document.getElementById('consolidatedSubjectNotice');
 
 function filterComponentExams() {
 	const selectedClasses = Array.from(document.getElementById('examClassIds').selectedOptions).map(option => parseInt(option.value || '0', 10)).filter(Boolean);
@@ -424,6 +430,13 @@ function toggleAssessmentModeFields() {
 	const consolidated = mode === 'consolidated';
 	componentExamWrap.style.display = consolidated ? '' : 'none';
 	componentExamIds.required = consolidated;
+	consolidatedSubjectNotice.style.display = consolidated ? '' : 'none';
+	document.getElementById('examSubjectIds').disabled = consolidated;
+	if (consolidated) {
+		Array.from(document.getElementById('examSubjectIds').options).forEach(function(option) {
+			option.selected = false;
+		});
+	}
 	if (consolidated) {
 		filterComponentExams();
 	}

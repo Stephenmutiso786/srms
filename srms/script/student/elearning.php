@@ -17,6 +17,7 @@ $studentClassId = 0;
 $progressRows = [];
 $pendingAssignments = 0;
 $upcomingLiveClasses = 0;
+	$hasCoursesTable = false;
 $progressSummary = [
 	'tracked_courses' => 0,
 	'avg_completion' => 0,
@@ -29,12 +30,13 @@ $progressSummary = [
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	$hasCoursesTable = app_table_exists($conn, 'tbl_courses');
 
 	$stmt = $conn->prepare("SELECT class FROM tbl_students WHERE id = ? LIMIT 1");
 	$stmt->execute([$account_id]);
 	$studentClassId = (int)$stmt->fetchColumn();
 
-	if (app_table_exists($conn, 'tbl_courses')) {
+	if ($hasCoursesTable) {
 		$stmt = $conn->prepare("SELECT c.*, sb.name AS subject_name
 			FROM tbl_courses c
 			LEFT JOIN tbl_subjects sb ON sb.id = c.subject_id
@@ -44,7 +46,7 @@ try {
 		$courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
 
-	if (app_table_exists($conn, 'tbl_lessons')) {
+	if ($hasCoursesTable && app_table_exists($conn, 'tbl_lessons')) {
 		$stmt = $conn->prepare("SELECT l.*, c.name AS course_name
 			FROM tbl_lessons l
 			LEFT JOIN tbl_courses c ON c.id = l.course_id
@@ -53,7 +55,7 @@ try {
 		$stmt->execute([$studentClassId]);
 		$lessons = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
-	if (app_table_exists($conn, 'tbl_lesson_content') && count($lessons) > 0) {
+	if ($hasCoursesTable && app_table_exists($conn, 'tbl_lesson_content') && count($lessons) > 0) {
 		$lessonIds = array_map(function ($row) { return (int)$row['id']; }, $lessons);
 		$placeholders = implode(',', array_fill(0, count($lessonIds), '?'));
 		$stmt = $conn->prepare("SELECT * FROM tbl_lesson_content WHERE lesson_id IN ($placeholders)");
@@ -63,7 +65,7 @@ try {
 		}
 	}
 
-	if (app_table_exists($conn, 'tbl_assignments')) {
+	if ($hasCoursesTable && app_table_exists($conn, 'tbl_assignments')) {
 		$stmt = $conn->prepare("SELECT a.*, c.name AS course_name
 			FROM tbl_assignments a
 			LEFT JOIN tbl_courses c ON c.id = a.course_id
@@ -81,7 +83,7 @@ try {
 		}
 	}
 
-	if (app_table_exists($conn, 'tbl_live_classes')) {
+	if ($hasCoursesTable && app_table_exists($conn, 'tbl_live_classes')) {
 		$stmt = $conn->prepare("SELECT lc.*, c.name AS course_name
 			FROM tbl_live_classes lc
 			LEFT JOIN tbl_courses c ON c.id = lc.course_id
@@ -97,7 +99,7 @@ try {
 			}
 		}
 	}
-	if (app_table_exists($conn, 'tbl_quizzes')) {
+	if ($hasCoursesTable && app_table_exists($conn, 'tbl_quizzes')) {
 		$stmt = $conn->prepare("SELECT q.*, c.name AS course_name
 			FROM tbl_quizzes q
 			JOIN tbl_courses c ON c.id = q.course_id
