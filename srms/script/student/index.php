@@ -29,12 +29,14 @@ $summary = [
 ];
 $subjectRows = [];
 $history = [];
+$disciplineCases = [];
 $reportCard = null;
 $error = '';
 
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	app_ensure_discipline_cases_table($conn);
 
 	$stmt = $conn->prepare("SELECT class, school_id FROM tbl_students WHERE id = ? LIMIT 1");
 	$stmt->execute([$account_id]);
@@ -143,6 +145,14 @@ try {
 		$notifications = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
 
+	$stmt = $conn->prepare("SELECT incident_type, description, severity, status, created_at
+		FROM tbl_discipline_cases
+		WHERE student_id = ?
+		ORDER BY id DESC
+		LIMIT 10");
+	$stmt->execute([(string)$account_id]);
+	$disciplineCases = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
 	$stmt = $conn->prepare("SELECT * FROM tbl_announcements WHERE level = '1' OR level = '2' ORDER BY id DESC LIMIT 5");
 	$stmt->execute();
 	$announcements = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -219,13 +229,14 @@ body.app{background:var(--student-bg)}
 </div>
 </div>
 <ul class="app-menu">
+<li><a class="app-menu__item" href="student/attendance"><i class="app-menu__icon feather icon-check-square"></i><span class="app-menu__label">My Attendance</span></a></li>
 <li><a class="app-menu__item active" href="student"><i class="app-menu__icon feather icon-monitor"></i><span class="app-menu__label">Dashboard</span></a></li>
-<li><a class="app-menu__item" href="student/leadership"><i class="app-menu__icon feather icon-users"></i><span class="app-menu__label">Leadership</span></a></li>
+<li><a class="app-menu__item" href="student/discipline"><i class="app-menu__icon feather icon-alert-triangle"></i><span class="app-menu__label">Discipline</span></a></li>
 <li><a class="app-menu__item" href="student/elearning"><i class="app-menu__icon feather icon-book-open"></i><span class="app-menu__label">E-Learning</span></a></li>
+<li><a class="app-menu__item" href="student/leadership"><i class="app-menu__icon feather icon-users"></i><span class="app-menu__label">Leadership</span></a></li>
+<li><a class="app-menu__item" href="student/results"><i class="app-menu__icon feather icon-file-text"></i><span class="app-menu__label">My Examination Results</span></a></li>
 <li><a class="app-menu__item" href="student/view"><i class="app-menu__icon feather icon-user"></i><span class="app-menu__label">My Profile</span></a></li>
 <li><a class="app-menu__item" href="student/subjects"><i class="app-menu__icon feather icon-book-open"></i><span class="app-menu__label">My Subjects</span></a></li>
-<li><a class="app-menu__item" href="student/attendance"><i class="app-menu__icon feather icon-check-square"></i><span class="app-menu__label">My Attendance</span></a></li>
-<li><a class="app-menu__item" href="student/results"><i class="app-menu__icon feather icon-file-text"></i><span class="app-menu__label">My Examination Results</span></a></li>
 <li><a class="app-menu__item" href="student/report_card"><i class="app-menu__icon feather icon-file-text"></i><span class="app-menu__label">Report Card</span></a></li>
 </ul>
 </aside>
@@ -373,6 +384,30 @@ body.app{background:var(--student-bg)}
 					</div>
 				</section>
 			</div>
+
+			<div class="analytics-panel bottom-panel mt-3">
+				<div class="panel-body">
+					<div class="section-title">Discipline Cases (Live)</div>
+					<div class="small text-muted mb-2">Auto refresh every 5 seconds. Full list in Student -> Discipline.</div>
+					<div class="table-responsive">
+						<table class="table table-hover table-striped">
+							<thead><tr><th>Date</th><th>Type</th><th>Severity</th><th>Status</th><th>Description</th></tr></thead>
+							<tbody>
+							<?php if (!$disciplineCases) { ?><tr><td colspan="5" class="text-muted">No discipline incidents yet.</td></tr><?php } ?>
+							<?php foreach ($disciplineCases as $dc): ?>
+							<tr>
+								<td><?php echo htmlspecialchars((string)$dc['created_at']); ?></td>
+								<td><?php echo htmlspecialchars((string)$dc['incident_type']); ?></td>
+								<td><?php echo htmlspecialchars(ucfirst((string)$dc['severity'])); ?></td>
+								<td><?php echo htmlspecialchars((string)$dc['status']); ?></td>
+								<td><?php echo htmlspecialchars((string)$dc['description']); ?></td>
+							</tr>
+							<?php endforeach; ?>
+							</tbody>
+						</table>
+					</div>
+				</div>
+			</div>
 			<?php } ?>
 	</div>
 </main>
@@ -425,6 +460,15 @@ if (historyEl) {
 		]
 	});
 }
+
+let pauseRefresh = false;
+document.addEventListener('focusin', function() { pauseRefresh = true; });
+document.addEventListener('focusout', function() { pauseRefresh = false; });
+setInterval(function() {
+	if (!pauseRefresh) {
+		window.location.reload();
+	}
+}, 5000);
 </script>
 </body>
 </html>

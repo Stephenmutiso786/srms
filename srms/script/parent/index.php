@@ -17,6 +17,7 @@ $selectedTermId = (int)($_GET['term'] ?? 0);
 $publishedTerms = [];
 $subjectRows = [];
 $history = [];
+$disciplineCases = [];
 $summary = ['children' => 0, 'attendance_rate' => 0, 'avg_score' => 0, 'fees_balance' => 0, 'grade' => 'N/A', 'position' => '-'];
 $error = '';
 
@@ -54,6 +55,8 @@ try {
 	}
 
 	if ($selectedStudent) {
+		app_ensure_discipline_cases_table($conn);
+
 		if (app_table_exists($conn, 'tbl_invoices') && app_table_exists($conn, 'tbl_invoice_lines') && app_table_exists($conn, 'tbl_payments')) {
 			$stmt = $conn->prepare("
 				SELECT COALESCE(SUM(lines.total_amount - COALESCE(paid.total_paid, 0)), 0) AS outstanding
@@ -102,6 +105,14 @@ try {
 			$attendance = report_attendance_summary($conn, $selectedStudentId, (int)$selectedStudent['class_id'], $selectedTermId);
 			$summary['attendance_rate'] = $attendance['days_open'] > 0 ? round(($attendance['present'] / $attendance['days_open']) * 100, 1) : 0;
 		}
+
+		$stmt = $conn->prepare("SELECT incident_type, description, severity, status, created_at
+			FROM tbl_discipline_cases
+			WHERE student_id = ?
+			ORDER BY id DESC
+			LIMIT 10");
+		$stmt->execute([$selectedStudentId]);
+		$disciplineCases = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
 
 	if (app_table_exists($conn, 'tbl_notifications')) {
@@ -241,6 +252,28 @@ body.app{background:linear-gradient(180deg,#eef5f3 0%,#f4f7f6 40%,#eef3f1 100%)}
 				<section class="tile"><h3 class="tile-title">Notifications</h3><div class="note-list"><?php if(!$notifications){ ?><div class="note-item text-muted">No notifications yet.</div><?php } foreach($notifications as $note){ ?><div class="note-item"><div class="fw-bold"><?php echo htmlspecialchars((string)$note['title']); ?></div><div class="small text-muted mt-1"><?php echo htmlspecialchars((string)$note['message']); ?></div><div class="small text-muted mt-2"><?php echo htmlspecialchars((string)$note['created_at']); ?></div></div><?php } ?></div></section>
 				<section class="tile"><h3 class="tile-title">Children</h3><div class="note-list"><?php foreach($students as $student){ ?><div class="note-item d-flex justify-content-between align-items-center"><div><div class="fw-bold"><?php echo htmlspecialchars($student['name']); ?></div><div class="small text-muted"><?php echo htmlspecialchars((string)$student['class_name']); ?></div></div><a class="btn btn-sm btn-outline-success" href="parent?student=<?php echo urlencode((string)$student['id']); ?>&term=<?php echo (int)$selectedTermId; ?>">Open</a></div><?php } ?></div></section>
 			</div>
+
+			<section class="tile mt-3">
+				<h3 class="tile-title">Discipline Cases (Live)</h3>
+				<div class="small text-muted mb-2">Auto refresh every 5 seconds. Full list in Parent -> Discipline.</div>
+				<div class="table-responsive">
+					<table class="table table-hover table-striped">
+						<thead><tr><th>Date</th><th>Type</th><th>Severity</th><th>Status</th><th>Description</th></tr></thead>
+						<tbody>
+						<?php if (!$disciplineCases) { ?><tr><td colspan="5" class="text-muted">No discipline incidents yet.</td></tr><?php } ?>
+						<?php foreach ($disciplineCases as $dc): ?>
+						<tr>
+							<td><?php echo htmlspecialchars((string)$dc['created_at']); ?></td>
+							<td><?php echo htmlspecialchars((string)$dc['incident_type']); ?></td>
+							<td><?php echo htmlspecialchars(ucfirst((string)$dc['severity'])); ?></td>
+							<td><?php echo htmlspecialchars((string)$dc['status']); ?></td>
+							<td><?php echo htmlspecialchars((string)$dc['description']); ?></td>
+						</tr>
+						<?php endforeach; ?>
+						</tbody>
+					</table>
+				</div>
+			</div>
 			<?php } ?>
 		</main>
 <script src="js/jquery-3.7.0.min.js"></script>
@@ -259,6 +292,15 @@ if (parentTrendEl) {
 		series:[{type:'line',smooth:true,data:parentTrend.map(item=>item.mean),areaStyle:{color:'rgba(0,105,92,0.16)'},lineStyle:{color:'#00695C',width:2},itemStyle:{color:'#00695C'}}]
 	});
 }
+
+let pauseRefresh = false;
+document.addEventListener('focusin', function() { pauseRefresh = true; });
+document.addEventListener('focusout', function() { pauseRefresh = false; });
+setInterval(function() {
+	if (!pauseRefresh) {
+		window.location.reload();
+	}
+}, 5000);
 </script>
 </body>
 </html>

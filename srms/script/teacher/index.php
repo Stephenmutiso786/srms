@@ -19,6 +19,7 @@ $selectedTerm = (int)($_GET['term_id'] ?? 0);
 $summary = ['subjects' => 0, 'classes' => 0, 'students' => 0, 'avg' => 0, 'best' => 0];
 $rows = [];
 $trendPoints = [];
+$recentDiscipline = [];
 $error = '';
 
 try {
@@ -139,6 +140,17 @@ try {
 		$stmt->execute();
 		$notifications = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
+
+	app_ensure_discipline_cases_table($conn);
+	$stmt = $conn->prepare("SELECT d.created_at, d.incident_type, d.severity, d.status,
+		concat_ws(' ', st.fname, st.mname, st.lname) AS student_name
+		FROM tbl_discipline_cases d
+		JOIN tbl_students st ON st.id = d.student_id
+		WHERE d.teacher_id = ?
+		ORDER BY d.id DESC
+		LIMIT 5");
+	$stmt->execute([(int)$account_id]);
+	$recentDiscipline = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 	$stmt = $conn->prepare("SELECT * FROM tbl_announcements WHERE level = '0' OR level = '2' ORDER BY id DESC LIMIT 5");
 	$stmt->execute();
@@ -276,6 +288,28 @@ body.app{background:#f4f7f6}
 					<section class="tile"><h3 class="tile-title">Notifications</h3><div class="note-list"><?php if(!$notifications){ ?><div class="note-item text-muted">No notifications yet.</div><?php } foreach($notifications as $note){ ?><div class="note-item"><div class="fw-bold"><?php echo htmlspecialchars((string)$note['title']); ?></div><div class="small text-muted mt-1"><?php echo htmlspecialchars((string)$note['message']); ?></div><div class="small text-muted mt-2"><?php echo htmlspecialchars((string)$note['created_at']); ?></div></div><?php } ?></div></section>
 					<section class="tile"><h3 class="tile-title">Announcements</h3><div class="note-list"><?php if(!$announcements){ ?><div class="note-item text-muted">No announcements right now.</div><?php } foreach($announcements as $row){ ?><div class="note-item"><div class="fw-bold"><?php echo htmlspecialchars((string)$row[1]); ?></div><div class="small text-muted mt-1"><?php echo htmlspecialchars((string)$row[2]); ?></div><div class="small text-muted mt-2"><?php echo htmlspecialchars((string)$row[3]); ?></div></div><?php } ?></div></section>
 				</div>
+					<section class="tile mt-3">
+						<h3 class="tile-title">Recent Discipline Cases</h3>
+						<div class="small text-muted mb-2">Auto refresh every 5 seconds. Open Teacher -> Discipline to submit or view all.</div>
+						<div class="table-responsive">
+							<table class="table table-hover table-striped">
+								<thead><tr><th>Date</th><th>Student</th><th>Type</th><th>Severity</th><th>Status</th></tr></thead>
+								<tbody>
+								<?php if (!$recentDiscipline) { ?><tr><td colspan="5" class="text-muted">No discipline incidents yet.</td></tr><?php } ?>
+								<?php foreach ($recentDiscipline as $dc): ?>
+								<tr>
+									<td><?php echo htmlspecialchars((string)$dc['created_at']); ?></td>
+									<td><?php echo htmlspecialchars((string)$dc['student_name']); ?></td>
+									<td><?php echo htmlspecialchars((string)$dc['incident_type']); ?></td>
+									<td><?php echo htmlspecialchars(ucfirst((string)$dc['severity'])); ?></td>
+									<td><?php echo htmlspecialchars((string)$dc['status']); ?></td>
+								</tr>
+								<?php endforeach; ?>
+								</tbody>
+							</table>
+						</div>
+						<a class="btn btn-outline-primary btn-sm" href="teacher/discipline">Open Discipline Module</a>
+					</section>
 			<?php } ?>
 </main>
 <script src="js/jquery-3.7.0.min.js"></script>
@@ -294,6 +328,15 @@ if (teacherTrendEl) {
 		series:[{type:'line',smooth:true,data:teacherTrend.map(item=>item.mean),areaStyle:{color:'rgba(0,105,92,0.16)'},lineStyle:{color:'#00695C',width:2},itemStyle:{color:'#00695C'}}]
 	});
 }
+
+let pauseRefresh = false;
+document.addEventListener('focusin', function() { pauseRefresh = true; });
+document.addEventListener('focusout', function() { pauseRefresh = false; });
+setInterval(function() {
+	if (!pauseRefresh) {
+		window.location.reload();
+	}
+}, 5000);
 </script>
 </body>
 </html>

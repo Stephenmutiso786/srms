@@ -1,6 +1,6 @@
 <?php
 $currentPage = basename($_SERVER['PHP_SELF'], '.php');
-$studentPages = ['register_students', 'import_students', 'manage_students', 'students', 'student_leaders'];
+$studentPages = ['register_students', 'import_students', 'manage_students', 'students', 'student_leaders', 'discipline'];
 $isStudentsOpen = in_array($currentPage, $studentPages, true);
 $certificatePages = ['certificates', 'promotions', 'promotion_approvals'];
 $isCertificatesOpen = in_array($currentPage, $certificatePages, true);
@@ -39,9 +39,10 @@ function app_tree_active($page)
     <li class="treeview<?php echo $isStudentsOpen ? ' is-expanded' : ''; ?>">
       <a class="app-menu__item" href="javascript:void(0);" data-toggle="treeview"><i class="app-menu__icon feather icon-users"></i><span class="app-menu__label">Students</span><i class="treeview-indicator bi bi-chevron-right"></i></a>
       <ul class="treeview-menu">
-        <li><a class="treeview-item<?php echo app_tree_active('register_students'); ?>" href="admin/register_students"><i class="icon bi bi-circle-fill"></i> Register Students</a></li>
+        <li><a class="treeview-item<?php echo app_tree_active('discipline'); ?>" href="admin/discipline"><i class="icon bi bi-circle-fill"></i> Discipline Cases</a></li>
         <li><a class="treeview-item<?php echo app_tree_active('import_students'); ?>" href="admin/import_students"><i class="icon bi bi-circle-fill"></i> Import Students</a></li>
         <li><a class="treeview-item<?php echo app_tree_active('manage_students'); ?>" href="admin/manage_students"><i class="icon bi bi-circle-fill"></i> Manage Students</a></li>
+        <li><a class="treeview-item<?php echo app_tree_active('register_students'); ?>" href="admin/register_students"><i class="icon bi bi-circle-fill"></i> Register Students</a></li>
         <li><a class="treeview-item<?php echo app_tree_active('student_leaders'); ?>" href="admin/student_leaders"><i class="icon bi bi-circle-fill"></i> Student Leadership</a></li>
       </ul>
     </li>
