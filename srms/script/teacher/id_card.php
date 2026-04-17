@@ -38,8 +38,7 @@ $verifyUrl = $payload ? idcard_verify_url($payload['school_id']) : '#';
 </head>
 <body class="app sidebar-mini">
 <header class="app-header"><a class="app-header__logo" href="javascript:void(0);"><?php echo APP_NAME; ?></a><a class="app-sidebar__toggle" href="#" data-toggle="sidebar" aria-label="Hide Sidebar"></a><ul class="app-nav"><li class="dropdown"><a class="app-nav__item" href="#" data-bs-toggle="dropdown" aria-label="Open Profile Menu"><i class="bi bi-person fs-4"></i></a><ul class="dropdown-menu settings-menu dropdown-menu-right"><li><a class="dropdown-item" href="teacher/profile"><i class="bi bi-person me-2 fs-5"></i> Profile</a></li><li><a class="dropdown-item" href="logout"><i class="bi bi-box-arrow-right me-2 fs-5"></i> Logout</a></li></ul></li></ul></header>
-<div class="app-sidebar__overlay" data-toggle="sidebar"></div>
-<aside class="app-sidebar"><div class="app-sidebar__user"><div><p class="app-sidebar__user-name"><?php echo $fname.' '.$lname; ?></p><p class="app-sidebar__user-designation">Teacher</p></div></div><ul class="app-menu"><li><a class="app-menu__item" href="teacher"><i class="app-menu__icon feather icon-monitor"></i><span class="app-menu__label">Dashboard</span></a></li><li><a class="app-menu__item active" href="teacher/id_card"><i class="app-menu__icon feather icon-credit-card"></i><span class="app-menu__label">My ID Card</span></a></li><li><a class="app-menu__item" href="teacher/profile"><i class="app-menu__icon feather icon-user"></i><span class="app-menu__label">Profile</span></a></li></ul></aside>
+<?php include("teacher/partials/sidebar.php"); ?>
 <main class="app-content">
 <div class="app-title"><div><h1>Staff ID Card</h1><p class="mb-0 text-muted">Professional digital staff identity card.</p></div></div>
 <div class="id-shell">

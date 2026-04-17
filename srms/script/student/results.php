@@ -11,13 +11,16 @@ if ($res !== "1" || $level !== "3") { header("location:../"); exit; }
 $studentId = (string)$account_id;
 $classId = (int)$class;
 $termId = (int)($_GET['term'] ?? 0);
+$examId = (int)($_GET['exam'] ?? 0);
 $terms = [];
+$examOptions = [];
 $subjectRows = [];
 $history = [];
 $card = null;
 $summary = ['mean' => 0, 'grade' => 'N/A', 'position' => '-', 'total' => 0];
 $publicationState = 'draft';
 $isPublished = false;
+$selectedExam = null;
 $error = '';
 
 try {
@@ -41,17 +44,38 @@ try {
 	if ($termId > 0) {
 		$publicationState = report_term_publish_state($conn, $classId, $termId);
 		$isPublished = report_term_is_published($conn, $classId, $termId);
+		$examOptions = report_term_exam_options($conn, $classId, $termId);
+		if ($examId < 1 && !empty($examOptions)) {
+			$examId = (int)$examOptions[0]['id'];
+		}
+		foreach ($examOptions as $option) {
+			if ((int)$option['id'] === $examId) {
+				$selectedExam = $option;
+				break;
+			}
+		}
 		if ($isPublished) {
 			$card = report_ensure_card_generated($conn, $studentId, $classId, $termId);
-			if ($card) {
+			if ($selectedExam) {
+				$examSummary = report_exam_summary($conn, $studentId, $classId, $termId, (int)$selectedExam['id']);
+				if ($examSummary) {
+					$summary = [
+						'mean' => (float)($examSummary['mean'] ?? 0),
+						'grade' => (string)($examSummary['grade'] ?? 'N/A'),
+						'position' => (string)($examSummary['position'] ?? '-'),
+						'total' => (float)($examSummary['total'] ?? 0),
+					];
+					$subjectRows = report_exam_subject_breakdown($conn, $studentId, $classId, $termId, (int)$selectedExam['id']);
+				}
+			} elseif ($card) {
 				$summary = [
 					'mean' => (float)($card['mean'] ?? 0),
 					'grade' => (string)($card['grade'] ?? 'N/A'),
 					'position' => isset($card['position'], $card['total_students']) ? ($card['position'].'/'.$card['total_students']) : '-',
 					'total' => (float)($card['total'] ?? 0),
 				];
+				$subjectRows = report_subject_breakdown($conn, $studentId, $classId, $termId);
 			}
-			$subjectRows = report_subject_breakdown($conn, $studentId, $classId, $termId);
 			$history = report_student_term_history($conn, $studentId, $classId);
 		}
 	}
@@ -101,18 +125,7 @@ try {
 <a class="app-sidebar__toggle" href="#" data-toggle="sidebar" aria-label="Hide Sidebar"></a>
 <ul class="app-nav"><li class="dropdown"><a class="app-nav__item" href="#" data-bs-toggle="dropdown"><i class="bi bi-person fs-4"></i></a><ul class="dropdown-menu settings-menu dropdown-menu-right"><li><a class="dropdown-item" href="student/settings"><i class="bi bi-person me-2 fs-5"></i> Change Password</a></li><li><a class="dropdown-item" href="logout"><i class="bi bi-box-arrow-right me-2 fs-5"></i> Logout</a></li></ul></li></ul>
 </header>
-<div class="app-sidebar__overlay" data-toggle="sidebar"></div>
-<aside class="app-sidebar">
-<div class="app-sidebar__user"><div><p class="app-sidebar__user-name"><?php echo $fname.' '.$lname; ?></p><p class="app-sidebar__user-designation">Student</p></div></div>
-<ul class="app-menu">
-<li><a class="app-menu__item" href="student"><i class="app-menu__icon feather icon-monitor"></i><span class="app-menu__label">Dashboard</span></a></li>
-<li><a class="app-menu__item" href="student/elearning"><i class="app-menu__icon feather icon-book-open"></i><span class="app-menu__label">E-Learning</span></a></li>
-<li><a class="app-menu__item" href="student/view"><i class="app-menu__icon feather icon-user"></i><span class="app-menu__label">My Profile</span></a></li>
-<li><a class="app-menu__item" href="student/subjects"><i class="app-menu__icon feather icon-book-open"></i><span class="app-menu__label">My Subjects</span></a></li>
-<li><a class="app-menu__item active" href="student/results"><i class="app-menu__icon feather icon-file-text"></i><span class="app-menu__label">My Examination Results</span></a></li>
-<li><a class="app-menu__item" href="student/report_card"><i class="app-menu__icon feather icon-file-text"></i><span class="app-menu__label">Report Card</span></a></li>
-</ul>
-</aside>
+<?php include("student/partials/sidebar.php"); ?>
 <main class="app-content">
 <div class="app-title"><div><h1>My Results</h1><p>Published academic performance and subject analytics.</p></div></div>
 
@@ -134,6 +147,17 @@ try {
 						<option value="">Select published term</option>
 						<?php foreach ($terms as $term): ?>
 						<option value="<?php echo (int)$term['id']; ?>" <?php echo ((int)$term['id'] === $termId) ? 'selected' : ''; ?>><?php echo htmlspecialchars($term['name']); ?></option>
+						<?php endforeach; ?>
+					</select>
+				</div>
+				<div>
+					<label class="form-label text-white-50">Exam</label>
+					<select class="form-control" name="exam">
+						<option value="">Latest visible exam</option>
+						<?php foreach ($examOptions as $exam): ?>
+						<option value="<?php echo (int)$exam['id']; ?>" <?php echo ((int)$exam['id'] === $examId) ? 'selected' : ''; ?>>
+							<?php echo htmlspecialchars($exam['name'] . ' [' . strtoupper((string)$exam['status']) . ']'); ?>
+						</option>
 						<?php endforeach; ?>
 					</select>
 				</div>
@@ -176,17 +200,18 @@ try {
 				<div class="results-summary">
 					<div><div class="text-muted small">Release Stage</div><div class="fw-bold fs-5"><?php echo htmlspecialchars(ucfirst($publicationState)); ?></div></div>
 					<div><div class="text-muted small">Subjects</div><div class="fw-bold fs-5"><?php echo count($subjectRows); ?></div></div>
+					<div><div class="text-muted small">Exam</div><div class="fw-bold fs-5"><?php echo htmlspecialchars($selectedExam['name'] ?? 'Latest'); ?></div></div>
 					<div><div class="text-muted small">Term</div><div class="fw-bold fs-5"><?php foreach ($terms as $term){ if((int)$term['id']===$termId){ echo htmlspecialchars($term['name']); break; } } ?></div></div>
 				</div>
 				<hr>
-				<p class="mb-0 text-muted">Your report card and downloadable PDF are available only after the school completes moderation, finalization, and publishing.</p>
+				<p class="mb-0 text-muted">Choose any exam completed in this term to view that exact paper or assessment. The report card remains the official overall term result.</p>
 			</div>
 		</div>
 	</div>
 
 	<div class="panel-card">
 		<div class="panel-header d-flex justify-content-between align-items-center flex-wrap gap-2">
-			<h3 class="mb-0">Subject Performance</h3>
+			<h3 class="mb-0">Exam Subject Performance</h3>
 			<a class="btn btn-sm btn-outline-primary" href="student/report_card?term=<?php echo $termId; ?>">Open Official Report Card</a>
 		</div>
 		<div class="panel-body">
@@ -196,10 +221,11 @@ try {
 						<tr>
 							<th>Name</th>
 							<th>Performance</th>
-							<th>Mean</th>
-							<th>Change in Mean</th>
-							<th>Trend</th>
+							<th>Score</th>
+							<th>Class Mean</th>
 							<th>Grade</th>
+							<th>Teacher</th>
+							<th>Source</th>
 						</tr>
 					</thead>
 					<tbody>
@@ -207,13 +233,11 @@ try {
 						<tr>
 							<td><?php echo htmlspecialchars($row['subject_name']); ?></td>
 							<td><div class="performance-bar"><span style="width: <?php echo (float)$row['progress']; ?>%"></span></div></td>
-							<td><?php echo number_format((float)$row['class_mean'], 3); ?>%</td>
-							<td><?php echo ($row['change'] >= 0 ? '+' : '') . number_format((float)$row['change'], 3); ?></td>
-							<td class="<?php echo $row['trend'] === 'up' ? 'trend-up' : ($row['trend'] === 'down' ? 'trend-down' : 'trend-steady'); ?>">
-								<i class="bi <?php echo $row['trend'] === 'up' ? 'bi-arrow-up-right' : ($row['trend'] === 'down' ? 'bi-arrow-down-right' : 'bi-dash'); ?>"></i>
-								<?php echo ucfirst($row['trend']); ?>
-							</td>
+							<td><?php echo number_format((float)$row['score'], 2); ?>%</td>
+							<td><?php echo number_format((float)$row['class_mean'], 2); ?>%</td>
 							<td><?php echo htmlspecialchars($row['grade']); ?></td>
+							<td><?php echo htmlspecialchars($row['teacher_name'] ?? ''); ?></td>
+							<td><?php echo htmlspecialchars($row['source'] ?? 'Exam result'); ?></td>
 						</tr>
 					<?php endforeach; ?>
 					</tbody>

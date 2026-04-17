@@ -71,20 +71,7 @@ try {
 </ul>
 </header>
 
-<div class="app-sidebar__overlay" data-toggle="sidebar"></div>
-<aside class="app-sidebar">
-<div class="app-sidebar__user">
-<div>
-<p class="app-sidebar__user-name"><?php echo $fname.' '.$lname; ?></p>
-<p class="app-sidebar__user-designation">Teacher</p>
-</div>
-</div>
-<ul class="app-menu">
-<li><a class="app-menu__item" href="teacher"><i class="app-menu__icon feather icon-monitor"></i><span class="app-menu__label">Dashboard</span></a></li>
-<li><a class="app-menu__item" href="teacher/elearning"><i class="app-menu__icon feather icon-book-open"></i><span class="app-menu__label">E-Learning</span></a></li>
-<li><a class="app-menu__item active" href="teacher/exam_timetable"><i class="app-menu__icon feather icon-calendar"></i><span class="app-menu__label">Exam Timetable</span></a></li>
-</ul>
-</aside>
+<?php include("teacher/partials/sidebar.php"); ?>
 
 <main class="app-content">
 <div class="app-title">

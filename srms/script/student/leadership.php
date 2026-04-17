@@ -61,7 +61,7 @@ try {
 <link rel="stylesheet" type="text/css" href="cdn.jsdelivr.net/npm/bootstrap-icons%401.10.5/font/bootstrap-icons.css">
 </head><body class="app sidebar-mini">
 <header class="app-header"><a class="app-header__logo" href="javascript:void(0);"><?php echo APP_NAME; ?></a><a class="app-sidebar__toggle" href="#" data-toggle="sidebar"></a></header>
-<aside class="app-sidebar"><ul class="app-menu"><li><a class="app-menu__item" href="student"><span class="app-menu__label">Dashboard</span></a></li><li><a class="app-menu__item" href="student/report_card"><span class="app-menu__label">Report Card</span></a></li><li><a class="app-menu__item active" href="student/leadership"><span class="app-menu__label">Student Leadership</span></a></li></ul></aside>
+<?php include("student/partials/sidebar.php"); ?>
 <main class="app-content"><div class="app-title"><div><h1>Student Leadership</h1></div></div>
 
 <div class="tile mb-3">

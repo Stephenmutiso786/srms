@@ -34,7 +34,7 @@ try {
 <link rel="stylesheet" type="text/css" href="css/main.css"><link rel="icon" href="images/icon.ico">
 </head><body class="app sidebar-mini">
 <header class="app-header"><a class="app-header__logo" href="javascript:void(0);\"><?php echo APP_NAME; ?></a><a class="app-sidebar__toggle" href="#" data-toggle="sidebar"></a></header>
-<aside class="app-sidebar"><ul class="app-menu"><li><a class="app-menu__item" href="parent"><span class="app-menu__label">Dashboard</span></a></li><li><a class="app-menu__item" href="parent/report_card"><span class="app-menu__label">Report Card</span></a></li><li><a class="app-menu__item active" href="parent/certificates"><span class="app-menu__label">Certificates</span></a></li></ul></aside>
+<?php include("parent/partials/sidebar.php"); ?>
 <main class="app-content"><div class="app-title"><div><h1>Children Certificates</h1></div></div>
 <div class="tile"><div class="table-responsive"><table class="table table-hover"><thead><tr><th>Student</th><th>Type</th><th>Serial</th><th>Issue Date</th><th>Action</th></tr></thead><tbody>
 <?php foreach($rows as $row): ?>

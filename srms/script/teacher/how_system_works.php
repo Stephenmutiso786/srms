@@ -66,16 +66,7 @@ if ($res !== '1' || $level !== '2') {
   </ul>
 </header>
 
-<div class="app-sidebar__overlay" data-toggle="sidebar"></div>
-<aside class="app-sidebar">
-  <ul class="app-menu">
-    <li><a class="app-menu__item" href="teacher"><i class="app-menu__icon feather icon-monitor"></i><span class="app-menu__label">Dashboard</span></a></li>
-    <li><a class="app-menu__item" href="teacher/manage_results"><i class="app-menu__icon feather icon-file-text"></i><span class="app-menu__label">Manage Results</span></a></li>
-    <li><a class="app-menu__item" href="teacher/attendance"><i class="app-menu__icon feather icon-check-square"></i><span class="app-menu__label">Attendance</span></a></li>
-    <li><a class="app-menu__item" href="teacher/elearning"><i class="app-menu__icon feather icon-book-open"></i><span class="app-menu__label">E-Learning</span></a></li>
-    <li><a class="app-menu__item active" href="teacher/how_system_works"><i class="app-menu__icon feather icon-help-circle"></i><span class="app-menu__label">How The System Works</span></a></li>
-  </ul>
-</aside>
+<?php include("teacher/partials/sidebar.php"); ?>
 
 <main class="app-content">
   <div class="guide-hero">

@@ -85,17 +85,7 @@ $verifyUrl = $payload ? idcard_verify_url($payload['school_id']) : '#';
 </li>
 </ul>
 </header>
-<div class="app-sidebar__overlay" data-toggle="sidebar"></div>
-<aside class="app-sidebar">
-<div class="app-sidebar__user"><div><p class="app-sidebar__user-name"><?php echo $fname.' '.$lname; ?></p><p class="app-sidebar__user-designation">Student</p></div></div>
-<ul class="app-menu">
-<li><a class="app-menu__item" href="student"><i class="app-menu__icon feather icon-monitor"></i><span class="app-menu__label">Dashboard</span></a></li>
-<li><a class="app-menu__item" href="student/elearning"><i class="app-menu__icon feather icon-book-open"></i><span class="app-menu__label">E-Learning</span></a></li>
-<li><a class="app-menu__item" href="student/view"><i class="app-menu__icon feather icon-user"></i><span class="app-menu__label">My Profile</span></a></li>
-<li><a class="app-menu__item active" href="student/id_card"><i class="app-menu__icon feather icon-credit-card"></i><span class="app-menu__label">My ID Card</span></a></li>
-<li><a class="app-menu__item" href="student/report_card"><i class="app-menu__icon feather icon-file-text"></i><span class="app-menu__label">Report Card</span></a></li>
-</ul>
-</aside>
+<?php include("student/partials/sidebar.php"); ?>
 <main class="app-content">
 <div class="app-title"><div><h1>My ID Card</h1><p class="mb-0 text-muted">Digital student identification card with print and PDF download.</p></div></div>
 <div class="id-shell">

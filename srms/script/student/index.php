@@ -220,26 +220,7 @@ body.app{background:var(--student-bg)}
 </ul>
 </header>
 
-<div class="app-sidebar__overlay" data-toggle="sidebar"></div>
-<aside class="app-sidebar">
-<div class="app-sidebar__user">
-<div>
-<p class="app-sidebar__user-name"><?php echo $fname.' '.$lname; ?></p>
-<p class="app-sidebar__user-designation">Student</p>
-</div>
-</div>
-<ul class="app-menu">
-<li><a class="app-menu__item" href="student/attendance"><i class="app-menu__icon feather icon-check-square"></i><span class="app-menu__label">My Attendance</span></a></li>
-<li><a class="app-menu__item active" href="student"><i class="app-menu__icon feather icon-monitor"></i><span class="app-menu__label">Dashboard</span></a></li>
-<li><a class="app-menu__item" href="student/discipline"><i class="app-menu__icon feather icon-alert-triangle"></i><span class="app-menu__label">Discipline</span></a></li>
-<li><a class="app-menu__item" href="student/elearning"><i class="app-menu__icon feather icon-book-open"></i><span class="app-menu__label">E-Learning</span></a></li>
-<li><a class="app-menu__item" href="student/leadership"><i class="app-menu__icon feather icon-users"></i><span class="app-menu__label">Leadership</span></a></li>
-<li><a class="app-menu__item" href="student/results"><i class="app-menu__icon feather icon-file-text"></i><span class="app-menu__label">My Examination Results</span></a></li>
-<li><a class="app-menu__item" href="student/view"><i class="app-menu__icon feather icon-user"></i><span class="app-menu__label">My Profile</span></a></li>
-<li><a class="app-menu__item" href="student/subjects"><i class="app-menu__icon feather icon-book-open"></i><span class="app-menu__label">My Subjects</span></a></li>
-<li><a class="app-menu__item" href="student/report_card"><i class="app-menu__icon feather icon-file-text"></i><span class="app-menu__label">Report Card</span></a></li>
-</ul>
-</aside>
+<?php include("student/partials/sidebar.php"); ?>
 
 <main class="app-content">
 	<div class="app-title">

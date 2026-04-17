@@ -43,7 +43,7 @@ try {
 <link rel="stylesheet" type="text/css" href="css/main.css"><link rel="icon" href="images/icon.ico">
 </head><body class="app sidebar-mini">
 <header class="app-header"><a class="app-header__logo" href="javascript:void(0);\"><?php echo APP_NAME; ?></a><a class="app-sidebar__toggle" href="#" data-toggle="sidebar"></a></header>
-<aside class="app-sidebar"><ul class="app-menu"><li><a class="app-menu__item" href="teacher"><span class="app-menu__label">Dashboard</span></a></li><li><a class="app-menu__item" href="teacher/manage_results"><span class="app-menu__label">Results</span></a></li><li><a class="app-menu__item active" href="teacher/certificates"><span class="app-menu__label">Certificates</span></a></li></ul></aside>
+<?php include("teacher/partials/sidebar.php"); ?>
 <main class="app-content"><div class="app-title"><div><h1>Class Certificates</h1></div></div>
 <div class="tile"><div class="table-responsive"><table class="table table-hover"><thead><tr><th>Student</th><th>Class</th><th>Type</th><th>Issue Date</th><th>Action</th></tr></thead><tbody>
 <?php foreach($rows as $row): ?>

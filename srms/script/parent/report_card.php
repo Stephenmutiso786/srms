@@ -11,6 +11,7 @@ if ($res !== "1" || $level !== "4") { header("location:../"); }
 
 $termId = isset($_GET['term']) ? (int)$_GET['term'] : 0;
 $studentId = isset($_GET['student']) ? (string)$_GET['student'] : '';
+$examId = isset($_GET['exam']) ? (int)$_GET['exam'] : 0;
 $card = null;
 $attendance = ['days_open' => 0, 'present' => 0, 'absent' => 0];
 $feesBalance = 0;
@@ -22,6 +23,9 @@ $schoolId = '';
 $photoPath = '';
 $photoExists = false;
 $subjectBreakdown = [];
+$examBreakdown = [];
+$examSummary = null;
+$examOptions = [];
 $history = [];
 $publicationState = 'draft';
 
@@ -66,10 +70,18 @@ try {
 			$stmt->execute([$classId]);
 			$className = (string)$stmt->fetchColumn();
 			$publicationState = report_term_publish_state($conn, $classId, $termId);
+			$examOptions = report_term_exam_options($conn, $classId, $termId);
+			if ($examId < 1 && !empty($examOptions)) {
+				$examId = (int)$examOptions[0]['id'];
+			}
 
 			if (!report_term_is_published($conn, $classId, $termId)) {
 				$card = null;
 			} else {
+				if ($examId > 0) {
+					$examSummary = report_exam_summary($conn, $studentId, $classId, $termId, $examId);
+					$examBreakdown = report_exam_subject_breakdown($conn, $studentId, $classId, $termId, $examId);
+				}
 				$card = report_ensure_card_generated($conn, $studentId, $classId, $termId);
 				if ($card) {
 					$attendance = report_attendance_summary($conn, $studentId, $classId, $termId);
@@ -147,23 +159,7 @@ try {
 </ul>
 </header>
 
-<div class="app-sidebar__overlay" data-toggle="sidebar"></div>
-<aside class="app-sidebar">
-<div class="app-sidebar__user">
-<div>
-<p class="app-sidebar__user-name"><?php echo $fname.' '.$lname; ?></p>
-<p class="app-sidebar__user-designation">Parent</p>
-</div>
-</div>
-<ul class="app-menu">
-<li><a class="app-menu__item" href="parent"><i class="app-menu__icon feather icon-monitor"></i><span class="app-menu__label">Dashboard</span></a></li>
-<li><a class="app-menu__item" href="parent/elearning"><i class="app-menu__icon feather icon-book-open"></i><span class="app-menu__label">E-Learning</span></a></li>
-<li><a class="app-menu__item active" href="parent/report_card"><i class="app-menu__icon feather icon-file-text"></i><span class="app-menu__label">Report Card</span></a></li>
-<li><a class="app-menu__item" href="parent/certificates"><i class="app-menu__icon feather icon-award"></i><span class="app-menu__label">Certificates</span></a></li>
-<li><a class="app-menu__item" href="parent/fees"><i class="app-menu__icon feather icon-credit-card"></i><span class="app-menu__label">Fees</span></a></li>
-<li><a class="app-menu__item" href="parent/attendance"><i class="app-menu__icon feather icon-check-square"></i><span class="app-menu__label">Attendance</span></a></li>
-</ul>
-</aside>
+<?php include("parent/partials/sidebar.php"); ?>
 
 <main class="app-content">
 <div class="app-title">
@@ -194,11 +190,67 @@ try {
 </select>
 </div>
 <div>
+<label class="form-label">Exam</label>
+<select class="form-control" name="exam">
+<option value="">Latest visible exam</option>
+<?php foreach (($examOptions ?? []) as $exam): ?>
+<option value="<?php echo (int)$exam['id']; ?>" <?php echo ((int)$exam['id'] === $examId) ? 'selected' : ''; ?>><?php echo htmlspecialchars($exam['name'] . ' [' . strtoupper((string)$exam['status']) . ']'); ?></option>
+<?php endforeach; ?>
+</select>
+</div>
+<div>
 <button class="btn btn-primary">View Report</button>
 </div>
 </form>
 </div>
 </div>
+
+<?php if ($examSummary && !empty($examBreakdown)): ?>
+<div class="tile mb-3">
+<div class="tile-body">
+<div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
+<div>
+<h4 class="mb-1">Selected Exam Snapshot</h4>
+<p class="text-muted mb-0"><?php echo htmlspecialchars((string)$examSummary['exam_name']); ?> · <?php echo htmlspecialchars(strtoupper((string)$examSummary['status'])); ?> · <?php echo htmlspecialchars(strtoupper((string)$examSummary['assessment_mode'])); ?></p>
+</div>
+<div class="d-flex gap-2 flex-wrap">
+<span class="badge bg-primary">Mean <?php echo number_format((float)$examSummary['mean'], 2); ?>%</span>
+<span class="badge bg-success">Grade <?php echo htmlspecialchars((string)$examSummary['grade']); ?></span>
+<span class="badge bg-info text-dark">Position <?php echo htmlspecialchars((string)$examSummary['position']); ?></span>
+<span class="badge bg-secondary">Total <?php echo number_format((float)$examSummary['total'], 1); ?></span>
+</div>
+</div>
+<div class="table-responsive">
+<table class="subject-table">
+<thead>
+<tr>
+<th>Subject</th>
+<th>Performance</th>
+<th>Score</th>
+<th>Class Mean</th>
+<th>Grade</th>
+<th>Teacher</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<?php foreach ($examBreakdown as $subject): ?>
+<tr>
+<td><?php echo htmlspecialchars((string)$subject['subject_name']); ?></td>
+<td><div class="performance-bar"><span style="width: <?php echo (float)$subject['progress']; ?>%"></span></div></td>
+<td><?php echo number_format((float)$subject['score'], 2); ?>%</td>
+<td><?php echo number_format((float)$subject['class_mean'], 2); ?>%</td>
+<td><?php echo htmlspecialchars((string)$subject['grade']); ?></td>
+<td><?php echo htmlspecialchars((string)($subject['teacher_name'] ?? '')); ?></td>
+<td><?php echo htmlspecialchars((string)($subject['source'] ?? 'Exam result')); ?></td>
+</tr>
+<?php endforeach; ?>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<?php endif; ?>
 
 <?php if (!$card): ?>
 <div class="tile">

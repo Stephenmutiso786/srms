@@ -358,25 +358,7 @@ if ($downloadPdf && !empty($students) && $examMeta && $subjectMeta) {
 </ul>
 </header>
 
-<div class="app-sidebar__overlay" data-toggle="sidebar"></div>
-<aside class="app-sidebar">
-<div class="app-sidebar__user">
-<div>
-<p class="app-sidebar__user-name"><?php echo htmlspecialchars($fname.' '.$lname); ?></p>
-<p class="app-sidebar__user-designation">Teacher</p>
-</div>
-</div>
-<ul class="app-menu">
-<li><a class="app-menu__item" href="teacher"><i class="app-menu__icon feather icon-monitor"></i><span class="app-menu__label">Dashboard</span></a></li>
-<li class="treeview is-expanded"><a class="app-menu__item" href="javascript:void(0);" data-toggle="treeview"><i class="app-menu__icon feather icon-file-text"></i><span class="app-menu__label">Exams</span><i class="treeview-indicator bi bi-chevron-right"></i></a>
-<ul class="treeview-menu">
-<li><a class="treeview-item" href="teacher/exam_marks_entry"><i class="icon bi bi-circle-fill"></i> Exam Marks Entry</a></li>
-<li><a class="treeview-item active" href="teacher/print_mark_sheet"><i class="icon bi bi-circle-fill"></i> Print Mark Sheet</a></li>
-<li><a class="treeview-item" href="teacher/manage_results"><i class="icon bi bi-circle-fill"></i> View Results</a></li>
-</ul>
-</li>
-</ul>
-</aside>
+<?php include("teacher/partials/sidebar.php"); ?>
 
 <main class="app-content">
 <div class="app-title">
