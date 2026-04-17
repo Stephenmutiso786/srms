@@ -19,6 +19,43 @@ php -S localhost:8000 router.php
 
 Open `http://localhost:8000`.
 
+## Health Checks + Uptime Probes
+
+Use these endpoints to quickly diagnose timeout issues like `ERR_TIMED_OUT`.
+
+- Basic liveness: `/api/health`
+- Deep readiness (includes DB check): `/api/health?deep=1`
+
+Expected behavior:
+
+- `200` when healthy
+- `503` when deep check fails (for example, DB unreachable)
+
+Quick probes:
+
+```bash
+curl -sS -i https://elimuhub.tech/api/health
+curl -sS -i https://elimuhub.tech/api/health?deep=1
+```
+
+Continuous probe (every 5 seconds):
+
+```bash
+while true; do
+  date '+%F %T'
+  curl -sS -m 10 -o /dev/null -w 'basic=%{http_code} total=%{time_total}s\n' https://elimuhub.tech/api/health
+  curl -sS -m 10 -o /dev/null -w 'deep=%{http_code} total=%{time_total}s\n' 'https://elimuhub.tech/api/health?deep=1'
+  echo '---'
+  sleep 5
+done
+```
+
+How to interpret outages:
+
+- Both probes timeout: network / DNS / edge path issue
+- Basic `200`, deep `503`: app is up, database path is failing
+- Basic `200`, deep `200`, but browser times out: likely client ISP/proxy/firewall or intermittent edge route
+
 ## Demo data (optional)
 
 If you want sample data and logins for testing, import:
@@ -40,8 +77,8 @@ This repo includes a `Dockerfile` so Render can run the PHP app as a single web 
 2. Create a database:
    - MySQL: use `srms/database/srms_mysql_schema_clean.sql`
    - Postgres (Neon/Supabase/etc.): use `srms/database/srms_postgres_schema.sql`
-    - Optional demo seed (only if you want sample accounts/data): `srms/database/srms_postgres_seed_demo.sql`
-    - Then run migrations (recommended):
+  - Optional demo seed (only if you want sample accounts/data): `srms/database/srms_postgres_seed_demo.sql`
+  - Then run migrations (recommended):
        - `srms/database/pg_migrations/001_rbac_attendance.sql`
        - `srms/database/pg_migrations/002_parent_sessions.sql`
        - `srms/database/pg_migrations/003_fees_finance.sql`
@@ -130,6 +167,7 @@ If your DB has **no staff accounts**, create the first admin via:
   - `MPESA_CALLBACK_URL=https://YOUR-RENDER.onrender.com/api/mpesa_callback`
 
 Notes:
+
 - Uploads (student photos / logos) need persistent storage; Render’s filesystem is ephemeral unless you attach a disk or move uploads to object storage.
 
 ## Report cards (Exam engine)
