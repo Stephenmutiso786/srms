@@ -287,6 +287,7 @@ body.app{background:var(--student-bg)}
 						<div class="metric-boxes">
 							<div class="metric-box"><div class="label">Total Marks</div><div class="value"><?php echo number_format((float)$summary['total_marks'], 0); ?></div></div>
 							<div class="metric-box"><div class="label">Mean Points</div><div class="value"><?php echo number_format((float)$summary['avg_score'], 2); ?></div></div>
+							<div class="metric-box"><div class="label">Fees Balance</div><div class="value">KES <?php echo number_format((float)$summary['fees_balance'], 2); ?></div></div>
 							<div class="metric-box"><div class="label">Overall Position</div><div class="value"><?php echo htmlspecialchars((string)$summary['position']); ?></div></div>
 							<div class="metric-box"><div class="label">Average Position</div><div class="value"><?php echo count($history) > 0 ? number_format(array_sum(array_column($history,'mean'))/count($history),2) : '0.00'; ?></div></div>
 						</div>

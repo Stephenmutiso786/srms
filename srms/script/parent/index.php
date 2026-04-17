@@ -23,6 +23,7 @@ $error = '';
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	app_ensure_finance_tables($conn);
 
 	if (!app_table_exists($conn, 'tbl_parent_students')) {
 		throw new RuntimeException("Parent module is not installed on the server.");
@@ -53,6 +54,26 @@ try {
 	}
 
 	if ($selectedStudent) {
+		if (app_table_exists($conn, 'tbl_invoices') && app_table_exists($conn, 'tbl_invoice_lines') && app_table_exists($conn, 'tbl_payments')) {
+			$stmt = $conn->prepare("
+				SELECT COALESCE(SUM(lines.total_amount - COALESCE(paid.total_paid, 0)), 0) AS outstanding
+				FROM (
+					SELECT i.id, SUM(l.amount) AS total_amount
+					FROM tbl_invoices i
+					INNER JOIN tbl_invoice_lines l ON l.invoice_id = i.id
+					WHERE i.student_id = ? AND i.status <> 'void'
+					GROUP BY i.id
+				) lines
+				LEFT JOIN (
+					SELECT invoice_id, SUM(amount) AS total_paid
+					FROM tbl_payments
+					GROUP BY invoice_id
+				) paid ON paid.invoice_id = lines.id
+			");
+			$stmt->execute([$selectedStudentId]);
+			$summary['fees_balance'] = (float)$stmt->fetchColumn();
+		}
+
 		$stmt = $conn->prepare("SELECT t.id, t.name
 			FROM tbl_terms t
 			WHERE EXISTS (
@@ -80,7 +101,6 @@ try {
 			$history = report_student_term_history($conn, $selectedStudentId, (int)$selectedStudent['class_id'], 12);
 			$attendance = report_attendance_summary($conn, $selectedStudentId, (int)$selectedStudent['class_id'], $selectedTermId);
 			$summary['attendance_rate'] = $attendance['days_open'] > 0 ? round(($attendance['present'] / $attendance['days_open']) * 100, 1) : 0;
-			$summary['fees_balance'] = report_fees_balance($conn, $selectedStudentId, $selectedTermId);
 		}
 	}
 
@@ -186,6 +206,7 @@ body.app{background:linear-gradient(180deg,#eef5f3 0%,#f4f7f6 40%,#eef3f1 100%)}
 				<div class="stat-card"><div class="label">Children</div><div class="value"><?php echo (int)$summary['children']; ?></div></div>
 				<div class="stat-card"><div class="label">Attendance</div><div class="value"><?php echo number_format((float)$summary['attendance_rate'],1); ?>%</div></div>
 				<div class="stat-card"><div class="label">Mean Score</div><div class="value"><?php echo number_format((float)$summary['avg_score'],2); ?></div></div>
+				<div class="stat-card"><div class="label">Fees Balance</div><div class="value">KES <?php echo number_format((float)$summary['fees_balance'],2); ?></div></div>
 				<div class="stat-card"><div class="label">Grade</div><div class="value"><?php echo htmlspecialchars($summary['grade']); ?></div></div>
 				<div class="stat-card"><div class="label">Position</div><div class="value"><?php echo htmlspecialchars((string)$summary['position']); ?></div></div>
 			</div>
