@@ -322,7 +322,22 @@ if ($downloadPdf && !empty($students) && $examMeta && $subjectMeta) {
 <link rel="stylesheet" type="text/css" href="cdn.jsdelivr.net/npm/bootstrap-icons%401.10.5/font/bootstrap-icons.css">
 <link rel="stylesheet" href="select2/dist/css/select2.min.css">
 <style>
-.sheet-wrap { background:#fff; border:1px solid #d6e2dd; border-radius:10px; padding:18px; }
+body.print-sheet-page{background:linear-gradient(180deg,#eef5f2 0%,#f7fbf9 42%,#edf3ef 100%)}
+.sheet-page-shell{display:grid;gap:18px}
+.sheet-hero{position:relative;overflow:hidden;background:linear-gradient(135deg,#07463d 0%,#0b7b70 56%,#0e8eb1 100%);color:#fff;border-radius:24px;padding:24px 26px;box-shadow:0 22px 50px rgba(6,60,52,.18);display:grid;grid-template-columns:minmax(0,1.25fr) minmax(280px,.75fr);gap:18px;align-items:stretch}
+.sheet-hero:before,.sheet-hero:after{content:"";position:absolute;border-radius:50%;background:rgba(255,255,255,.1);pointer-events:none}
+.sheet-hero:before{width:210px;height:210px;right:-80px;top:-84px}
+.sheet-hero:after{width:150px;height:150px;right:120px;bottom:-80px}
+.sheet-hero-copy{position:relative;z-index:1}
+.sheet-hero h2{margin:0 0 8px;font-size:clamp(1.2rem,2.5vw,1.8rem);font-weight:900;letter-spacing:-.03em}
+.sheet-hero p{margin:0;opacity:.95;line-height:1.65}
+.sheet-hero-badges{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.sheet-badge{display:inline-flex;align-items:center;gap:8px;border-radius:999px;background:rgba(255,255,255,.12);padding:7px 12px;font-size:.82rem;font-weight:700}
+.sheet-hero-stats{position:relative;z-index:1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.sheet-stat{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.16);backdrop-filter:blur(10px);border-radius:18px;padding:14px}
+.sheet-stat .label{text-transform:uppercase;letter-spacing:.08em;font-size:.72rem;opacity:.8}
+.sheet-stat .value{font-size:1.2rem;font-weight:800;margin-top:4px}
+.sheet-wrap { background:#fff; border:1px solid #d6e2dd; border-radius:16px; padding:18px; box-shadow:0 12px 30px rgba(14,53,47,.08); }
 .sheet-header { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:12px; }
 .sheet-school { font-size:1.1rem; font-weight:800; color:#164e3a; line-height:1.2; }
 .sheet-sub { font-size:12px; color:#4b5f56; margin-top:4px; }
@@ -332,11 +347,13 @@ if ($downloadPdf && !empty($students) && $examMeta && $subjectMeta) {
 .sheet-table th, .sheet-table td { border:1px solid #333; padding:6px 8px; font-size:12px; }
 .sheet-table th { background:#f4f6f5; text-align:center; }
 .sheet-table .name-cell { text-align:left; }
-.sheet-sign { margin-top:18px; display:flex; justify-content:space-between; gap:12px; font-size:12px; }
+.sheet-sign { margin-top:18px; display:flex; justify-content:space-between; gap:12px; font-size:12px; flex-wrap:wrap; }
 .sheet-sign .line { min-width:240px; border-bottom:1px solid #333; height:26px; display:inline-block; }
 .sheet-code-help { font-size:10px; color:#5f6b65; margin-top:8px; }
-.logo-box { width:72px; height:72px; border:1px solid #d5dfda; border-radius:8px; background:#fff; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+.logo-box { width:72px; height:72px; border:1px solid #d5dfda; border-radius:12px; background:#fff; display:flex; align-items:center; justify-content:center; overflow:hidden; box-shadow:0 8px 18px rgba(13,61,43,.08); }
 .logo-box img { max-width:100%; max-height:100%; object-fit:contain; }
+@media (max-width: 991px){.sheet-hero{grid-template-columns:1fr}.sheet-hero-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width: 600px){.sheet-hero-stats{grid-template-columns:1fr}.sheet-sign .line{min-width:180px}}
 @media print {
   .app-header, .app-sidebar, .app-title, .print-controls, .app-footer, .no-print, .app-nav { display:none !important; }
   .app-content { margin:0 !important; padding:0 !important; }
@@ -344,7 +361,7 @@ if ($downloadPdf && !empty($students) && $examMeta && $subjectMeta) {
 }
 </style>
 </head>
-<body class="app sidebar-mini">
+<body class="app sidebar-mini print-sheet-page">
 
 <header class="app-header"><a class="app-header__logo" href="javascript:void(0);"><?php echo APP_NAME; ?></a>
 <a class="app-sidebar__toggle" href="#" data-toggle="sidebar" aria-label="Hide Sidebar"></a>
@@ -368,11 +385,30 @@ if ($downloadPdf && !empty($students) && $examMeta && $subjectMeta) {
 </div>
 </div>
 
+<section class="sheet-hero mb-3">
+  <div class="sheet-hero-copy">
+    <p class="text-uppercase fw-bold mb-2" style="letter-spacing:.1em;opacity:.8;">Paper workflow</p>
+    <h2>Generate a clean mark sheet for manual capture and classroom marking.</h2>
+    <p>The screen preview mirrors a print-ready sheet so you can hand it out, fill it in, and later enter the scores back into the system.</p>
+    <div class="sheet-hero-badges">
+      <span class="sheet-badge"><i class="bi bi-printer"></i>Print-ready</span>
+      <span class="sheet-badge"><i class="bi bi-file-earmark-pdf"></i>PDF download</span>
+      <span class="sheet-badge"><i class="bi bi-clipboard-check"></i>Paper entry workflow</span>
+    </div>
+  </div>
+  <div class="sheet-hero-stats">
+    <div class="sheet-stat"><div class="label">Students loaded</div><div class="value"><?php echo !empty($students) ? count($students) : 0; ?></div></div>
+    <div class="sheet-stat"><div class="label">Columns</div><div class="value"><?php echo (int)$columns; ?></div></div>
+    <div class="sheet-stat"><div class="label">Max score</div><div class="value"><?php echo (int)$maxScore; ?></div></div>
+    <div class="sheet-stat"><div class="label">Coding key</div><div class="value"><?php echo $showCodes ? 'Enabled' : 'Hidden'; ?></div></div>
+  </div>
+</section>
+
 <?php if ($formError !== ''): ?>
 <div class="tile"><div class="alert alert-danger mb-0"><?php echo htmlspecialchars($formError); ?></div></div>
 <?php endif; ?>
 
-<div class="tile no-print">
+<div class="tile no-print" style="border-radius:18px;box-shadow:0 12px 28px rgba(14,53,47,.08);">
 <form method="GET" action="teacher/print_mark_sheet" class="row g-3" id="markSheetForm">
   <div class="col-md-4">
     <label class="form-label">Exam / Assessment Session</label>
@@ -443,7 +479,7 @@ if ($downloadPdf && !empty($students) && $examMeta && $subjectMeta) {
 </div>
 
 <?php if (!empty($students) && $examMeta && $subjectMeta): ?>
-<div class="tile print-controls no-print">
+<div class="tile print-controls no-print" style="border-radius:18px;box-shadow:0 12px 28px rgba(14,53,47,.08);">
   <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
     <div class="text-muted small">Loaded <?php echo count($students); ?> students</div>
     <div class="d-flex gap-2">
@@ -453,7 +489,7 @@ if ($downloadPdf && !empty($students) && $examMeta && $subjectMeta) {
   </div>
 </div>
 
-<div class="tile">
+<div class="tile" style="border-radius:18px;box-shadow:0 12px 28px rgba(14,53,47,.08);">
   <div class="sheet-wrap">
     <div class="sheet-header">
       <div>

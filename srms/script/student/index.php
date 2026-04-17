@@ -178,10 +178,19 @@ try {
 <link rel="stylesheet" type="text/css" href="cdn.jsdelivr.net/npm/bootstrap-icons%401.10.5/font/bootstrap-icons.css">
 <script src="cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
 <style>
-:root{--student-primary:#00695C;--student-primary-deep:#00544a;--student-primary-soft:#e7f1ef;--student-bg:linear-gradient(180deg,#eef5f3 0%,#f4f7f6 40%,#eef3f1 100%);--student-card:#ffffff;--student-text:#263238;--student-muted:#6b7c93}
+:root{--student-primary:#00695C;--student-primary-deep:#00544a;--student-primary-soft:#e7f1ef;--student-bg:linear-gradient(180deg,#eef5f3 0%,#f4f7f6 40%,#eef3f1 100%);--student-card:#ffffff;--student-text:#263238;--student-muted:#6b7c93;--student-accent:#f0b24a}
 body.app{background:var(--student-bg)}
 .portal-content{padding:20px clamp(16px,2vw,28px);max-width:1520px;margin:0 auto}
-.hero-banner{background:linear-gradient(135deg,var(--student-primary),#0b7d6d);border-radius:22px;padding:22px 24px;color:#fff;box-shadow:0 20px 45px rgba(0,105,92,.18);margin-bottom:18px}
+.hero-banner{position:relative;overflow:hidden;background:linear-gradient(135deg,#054d46 0%,#0b7d6d 55%,#0d8aa7 100%);border-radius:26px;padding:26px 28px;color:#fff;box-shadow:0 24px 55px rgba(0,105,92,.2);margin-bottom:18px;display:grid;grid-template-columns:minmax(0,1.2fr) minmax(260px,.8fr);gap:20px;align-items:stretch}
+.hero-banner:before,.hero-banner:after{content:"";position:absolute;border-radius:50%;background:rgba(255,255,255,.12);pointer-events:none}
+.hero-banner:before{width:220px;height:220px;right:-70px;top:-80px}
+.hero-banner:after{width:160px;height:160px;right:110px;bottom:-80px}
+.hero-copy{position:relative;z-index:1}
+.hero-copy .small{max-width:62ch;line-height:1.65}
+.hero-summary{position:relative;z-index:1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-content:start}
+.hero-summary-card{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.16);border-radius:18px;padding:14px 15px;backdrop-filter:blur(10px)}
+.hero-summary-card .label{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;opacity:.8}
+.hero-summary-card .value{font-size:1.35rem;font-weight:800;margin-top:4px}
 .profile-card{background:#fff;border:1px solid #e5edf5;border-radius:22px;padding:18px 20px;margin-bottom:18px;box-shadow:0 12px 32px rgba(16,41,38,.06)}
 .profile-head{display:flex;align-items:center;gap:14px}
 .student-avatar{width:52px;height:52px;border-radius:50%;background:var(--student-primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.1rem;overflow:hidden}
@@ -190,11 +199,12 @@ body.app{background:var(--student-bg)}
 .analytics-layout{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,.88fr);gap:18px}
 .analytics-panel{background:#fff;border:1px solid #e6edf5;border-radius:22px;overflow:hidden;box-shadow:0 12px 32px rgba(16,41,38,.06)}
 .analytics-panel .panel-body{padding:18px}
-.mean-ribbon{background:linear-gradient(90deg,var(--student-primary),#0b7d6d);border-radius:8px;padding:10px 14px;color:#fff;font-weight:700;display:flex;justify-content:space-between;align-items:center}
+.mean-ribbon{background:linear-gradient(90deg,var(--student-primary),#0b7d6d);border-radius:12px;padding:10px 14px;color:#fff;font-weight:700;display:flex;justify-content:space-between;align-items:center;box-shadow:0 12px 22px rgba(0,105,92,.14)}
 .insight-switches{display:flex;gap:10px;margin:14px 0;flex-wrap:wrap}
-.insight-switch{border:1px solid #d3e5e0;background:#fff;color:var(--student-primary-deep);border-radius:8px;padding:6px 10px;font-size:.8rem;font-weight:700}
+.insight-switch{border:1px solid #d3e5e0;background:#fff;color:var(--student-primary-deep);border-radius:999px;padding:7px 12px;font-size:.8rem;font-weight:700;box-shadow:0 6px 16px rgba(16,41,38,.04)}
 .metric-boxes{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
-.metric-box{border:1px solid #e8edf3;border-radius:16px;padding:14px;background:#fff;box-shadow:0 8px 18px rgba(16,41,38,.05)}
+.metric-box{border:1px solid #e8edf3;border-radius:18px;padding:14px;background:#fff;box-shadow:0 8px 18px rgba(16,41,38,.05);position:relative;overflow:hidden}
+.metric-box:before{content:"";position:absolute;inset:auto -18px -18px auto;width:54px;height:54px;border-radius:50%;background:rgba(0,105,92,.08)}
 .metric-box .label{font-size:.72rem;color:#7a8796;text-transform:uppercase}
 .metric-box .value{font-size:1.1rem;font-weight:800;color:#1f2d3d}
 .subject-table{width:100%;border-collapse:collapse;margin-top:12px}
@@ -207,8 +217,11 @@ body.app{background:var(--student-bg)}
 .bottom-panel{margin-top:18px}
 .note-list{display:grid;gap:10px}
 .note-item{background:#fff;border:1px solid #e8eef4;border-radius:16px;padding:12px 14px;box-shadow:0 8px 18px rgba(16,41,38,.04)}
+.empty-card{background:linear-gradient(180deg,#fff,#f8fbfa);border:1px dashed #cfe0da;border-radius:16px;padding:14px 16px;color:#667788}
 @media (max-width: 1100px){.analytics-layout{grid-template-columns:1fr}}
 @media (max-width: 768px){.portal-content{padding:16px}.profile-head{align-items:flex-start}.mean-ribbon{flex-direction:column;align-items:flex-start;gap:6px}}
+@media (max-width: 991px){.hero-banner{grid-template-columns:1fr}.hero-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width: 600px){.hero-summary{grid-template-columns:1fr}}
 </style>
 </head>
 <body class="app sidebar-mini">
@@ -239,8 +252,20 @@ body.app{background:var(--student-bg)}
 			<div class="analytics-panel"><div class="panel-body"><div class="alert alert-danger mb-0"><?php echo htmlspecialchars($error); ?></div></div></div>
 			<?php } else { ?>
 			<div class="hero-banner">
-				<div class="fw-bold mb-1">Academic Overview</div>
-				<div class="small">Use published academic insights to follow performance, subject trends, and improvement over time.</div>
+				<div class="hero-copy">
+					<div class="fw-bold mb-1">Academic Overview</div>
+					<div class="small">Use published academic insights to follow performance, subject trends, and improvement over time.</div>
+					<div class="insight-switches mt-3">
+						<span class="insight-switch"><i class="bi bi-calendar2-event me-1"></i><?php echo htmlspecialchars($selectedTermName !== '' ? $selectedTermName : 'Latest published term'); ?></span>
+						<span class="insight-switch"><i class="bi bi-person-badge me-1"></i><?php echo htmlspecialchars($studentClassId > 0 ? 'Class ' . (string)$studentClassId : 'Class not set'); ?></span>
+					</div>
+				</div>
+				<div class="hero-summary">
+					<div class="hero-summary-card"><div class="label">Attendance</div><div class="value"><?php echo number_format((float)$summary['attendance_rate'], 1); ?>%</div></div>
+					<div class="hero-summary-card"><div class="label">Grade</div><div class="value"><?php echo htmlspecialchars($summary['grade']); ?></div></div>
+					<div class="hero-summary-card"><div class="label">Total Marks</div><div class="value"><?php echo number_format((float)$summary['total_marks'], 0); ?></div></div>
+					<div class="hero-summary-card"><div class="label">Fees Balance</div><div class="value">KES <?php echo number_format((float)$summary['fees_balance'], 0); ?></div></div>
+				</div>
 			</div>
 
 			<div class="profile-card">
@@ -301,7 +326,7 @@ body.app{background:var(--student-bg)}
 							</thead>
 							<tbody>
 							<?php if (!$subjectRows) { ?>
-								<tr><td colspan="6" class="text-muted">No published subject analytics yet.</td></tr>
+								<tr><td colspan="6"><div class="empty-card">No published subject analytics yet. When the school releases results, each subject will show here with trend and class comparison.</div></td></tr>
 							<?php } ?>
 							<?php foreach ($subjectRows as $row): ?>
 								<tr>
