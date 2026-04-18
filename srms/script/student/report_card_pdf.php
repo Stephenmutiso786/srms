@@ -41,8 +41,12 @@ try {
 
     $examSummary = null;
     $examBreakdown = [];
+    $examOptions = report_term_exam_options($conn, (int)$class, $termId);
+    if ($examId < 1 && !empty($examOptions)) {
+        $examId = (int)$examOptions[0]['id'];
+    }
     if ($examId > 0) {
-        foreach (report_term_exam_options($conn, (int)$class, $termId) as $option) {
+        foreach ($examOptions as $option) {
             if ((int)$option['id'] === $examId) {
                 $examSummary = report_exam_summary($conn, $studentId, (int)$class, $termId, $examId);
                 $examBreakdown = report_exam_subject_breakdown($conn, $studentId, (int)$class, $termId, $examId);

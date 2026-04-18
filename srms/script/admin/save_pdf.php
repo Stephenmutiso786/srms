@@ -45,8 +45,12 @@ try {
     $feesBalance = report_fees_balance($conn, $studentId, $termId);
     $examSummary = null;
     $examBreakdown = [];
+    $examOptions = report_term_exam_options($conn, (int)$student['class_id'], $termId);
+    if ($examId < 1 && !empty($examOptions)) {
+        $examId = (int)$examOptions[0]['id'];
+    }
     if ($examId > 0) {
-        foreach (report_term_exam_options($conn, (int)$student['class_id'], $termId) as $option) {
+        foreach ($examOptions as $option) {
             if ((int)$option['id'] === $examId) {
                 $examSummary = report_exam_summary($conn, $studentId, (int)$student['class_id'], $termId, $examId);
                 $examBreakdown = report_exam_subject_breakdown($conn, $studentId, (int)$student['class_id'], $termId, $examId);
