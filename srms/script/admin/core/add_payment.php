@@ -66,10 +66,20 @@ try {
 		$reference = 'CASH-' . date('YmdHis');
 	}
 
+	$receivedBy = null;
+	if (app_table_exists($conn, 'tbl_staff')) {
+		$stmt = $conn->prepare("SELECT id FROM tbl_staff WHERE id = ? LIMIT 1");
+		$stmt->execute([(int)$account_id]);
+		$staffId = (int)$stmt->fetchColumn();
+		if ($staffId > 0) {
+			$receivedBy = $staffId;
+		}
+	}
+
 	$conn->beginTransaction();
 
 	$stmt = $conn->prepare("INSERT INTO tbl_payments (invoice_id, amount, method, reference, received_by) VALUES (?,?,?,?,?)");
-	$stmt->execute([$invoiceId, $amount, $method, $reference, (int)$account_id]);
+	$stmt->execute([$invoiceId, $amount, $method, $reference, $receivedBy]);
 	$paymentId = (int)$conn->lastInsertId();
 	if ($paymentId < 1) {
 		$stmt = $conn->prepare("SELECT id FROM tbl_payments WHERE invoice_id = ? ORDER BY id DESC LIMIT 1");
