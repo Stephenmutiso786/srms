@@ -69,12 +69,13 @@ Legacy demo dumps (avoid for production):
 - `srms/database/srms_makumbusho.sql`
 - `srms/database/srms_postgres.sql`
 
-## Deploy on Render (backend)
+## Deploy on DigitalOcean (backend)
 
-This repo includes a `Dockerfile` so Render can run the PHP app as a single web service.
+This repo includes a `Dockerfile` so DigitalOcean App Platform can run the PHP app as a single web service.
 
-1. Create a new **Render Web Service** from this repo (environment: **Docker**).
-2. Create a database:
+1. Create a new **DigitalOcean App Platform** app from this repo (source type: **Dockerfile**).
+2. Optional: use the provided app spec as a starting point: `.do/app.yaml`.
+3. Create a database:
    - MySQL: use `srms/database/srms_mysql_schema_clean.sql`
    - Postgres (Neon/Supabase/etc.): use `srms/database/srms_postgres_schema.sql`
   - Optional demo seed (only if you want sample accounts/data): `srms/database/srms_postgres_seed_demo.sql`
@@ -91,12 +92,12 @@ This repo includes a `Dockerfile` so Render can run the PHP app as a single web 
        - `srms/database/pg_migrations/011_transport_fleet.sql`
        - `srms/database/pg_migrations/012_rbac_enterprise.sql`
        - `srms/database/pg_migrations/013_import_export.sql`
-3. In Render → Service → **Environment**, set:
+4. In DigitalOcean App Platform → **Environment Variables**, set:
    - `DB_DRIVER` (`mysql` or `pgsql`)
    - `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASS`
-4. If your DB provider requires TLS, set `DB_SSL_MODE=REQUIRED`.
-5. Optional (report verification):
-   - `APP_URL` (public base URL, e.g. `https://your-app.onrender.com`)
+5. If your DB provider requires TLS, set `DB_SSL_MODE=REQUIRED`.
+6. Optional (report verification):
+  - `APP_URL` (public base URL, e.g. `https://your-app.ondigitalocean.app`)
    - `APP_SECRET` (used to hash report cards)
    - `REPORT_PRINCIPAL_SIGN` (filename under `srms/script/images/signatures/`)
    - `REPORT_TEACHER_SIGN` (filename under `srms/script/images/signatures/`)
@@ -107,7 +108,7 @@ This repo includes a `Dockerfile` so Render can run the PHP app as a single web 
 If your DB has **no staff accounts**, create the first admin via:
 
 - Open `/setup?token=YOUR_TOKEN`
-- Set `SETUP_TOKEN` in Render Environment first
+- Set `SETUP_TOKEN` in DigitalOcean App Platform Environment Variables first
 
 ## Attendance + Parent Portal
 
@@ -154,21 +155,21 @@ If your DB has **no staff accounts**, create the first admin via:
 
 - Run DB migration: `srms/database/pg_migrations/006_mpesa_stk.sql`
 - Admin: `Admin → M-Pesa` (configure)
-- Callback URL: `https://YOUR-RENDER.onrender.com/api/mpesa_callback`
+- Callback URL: `https://YOUR-DOMAIN/api/mpesa_callback`
   - Optional security: set `MPESA_CALLBACK_TOKEN` env var and it will be required by the callback endpoint
 - Invoices: `Admin/Accountant → Invoices` → **STK Push**
-- Environment variables (recommended on Render):
+- Environment variables (recommended on DigitalOcean):
   - `MPESA_ENABLED=1`
   - `MPESA_ENV=sandbox` (or `live`)
   - `MPESA_SHORTCODE=...`
   - `MPESA_PASSKEY=...`
   - `MPESA_CONSUMER_KEY=...`
   - `MPESA_CONSUMER_SECRET=...`
-  - `MPESA_CALLBACK_URL=https://YOUR-RENDER.onrender.com/api/mpesa_callback`
+  - `MPESA_CALLBACK_URL=https://YOUR-DOMAIN/api/mpesa_callback`
 
 Notes:
 
-- Uploads (student photos / logos) need persistent storage; Render’s filesystem is ephemeral unless you attach a disk or move uploads to object storage.
+- Uploads (student photos / logos) should use persistent storage (DigitalOcean Volumes or Spaces/object storage).
 
 ## Report cards (Exam engine)
 
@@ -216,6 +217,6 @@ Notes:
 
 ## Vercel (frontend)
 
-This system’s “frontend” is PHP-rendered pages, so it must run on the same PHP server (Render/Apache) — Vercel won’t run PHP pages as a separate frontend.
+This system’s “frontend” is PHP-rendered pages, so it must run on the same PHP server (DigitalOcean/Apache) — Vercel won’t run PHP pages as a separate frontend.
 
-If you want a true split (Vercel Next.js frontend + Render API backend), you’d need to build a new frontend that talks to an API (bigger change).
+If you want a true split (Vercel Next.js frontend + DigitalOcean API backend), you’d need to build a new frontend that talks to an API (bigger change).
