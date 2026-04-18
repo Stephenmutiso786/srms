@@ -364,13 +364,11 @@ function app_output_single_page_report_pdf(PDO $conn, TCPDF $pdf, array $payload
 {
     $pdf->setPrintHeader(false);
     $pdf->setPrintFooter(false);
-    $pdf->SetAutoPageBreak(false, 0);
+    $pdf->SetAutoPageBreak(true, 10);
     $pdf->SetMargins(8, 8, 8);
     $pdf->SetTitle('Academic Report Card');
     $pdf->AddPage('P', 'A4');
     $pdf->SetFont('helvetica', '', 9);
-
-    app_pdf_draw_document_watermark($pdf, (string)($payload['student_name'] ?? ''), defined('WBName') ? (string)WBName : 'School');
 
     $examSummary = is_array($payload['exam_summary'] ?? null) ? $payload['exam_summary'] : null;
     $examMode = strtolower(trim((string)($examSummary['assessment_mode'] ?? 'normal')));
@@ -381,5 +379,12 @@ function app_output_single_page_report_pdf(PDO $conn, TCPDF $pdf, array $payload
     $pdf->writeHTML($html, true, false, true, false, '');
 
     $verifyUrl = app_report_verify_url((string)($payload['card']['verification_code'] ?? ''));
-    $pdf->write2DBarcode($verifyUrl, 'QRCODE,H', 12, 252, 24, 24);
+    if ($verifyUrl !== '') {
+        $pdf->lastPage();
+        $margins = $pdf->getMargins();
+        $qrSize = 18;
+        $x = $pdf->getPageWidth() - (float)$margins['right'] - $qrSize;
+        $y = $pdf->getPageHeight() - (float)$margins['bottom'] - $qrSize;
+        $pdf->write2DBarcode($verifyUrl, 'QRCODE,H', $x, $y, $qrSize, $qrSize);
+    }
 }
