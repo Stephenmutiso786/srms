@@ -297,8 +297,8 @@ try {
 	<?php } ?>
 	<?php if (!$blockReport): ?>
 	<div class="report-actions mt-4 d-flex flex-wrap gap-2">
-		<a class="btn btn-outline-secondary" href="parent/report_card_pdf?term=<?php echo $termId; ?>&student=<?php echo $studentId; ?>&print=1" target="_blank"><i class="bi bi-printer me-2"></i>Print</a>
-		<a class="btn btn-primary" href="parent/report_card_pdf?term=<?php echo $termId; ?>&student=<?php echo $studentId; ?>&download=1" target="_blank"><i class="bi bi-download me-2"></i>Download PDF</a>
+		<a class="btn btn-outline-secondary" href="parent/report_card_pdf?term=<?php echo $termId; ?>&student=<?php echo $studentId; ?><?php echo $examId > 0 ? '&exam=' . $examId : ''; ?>&print=1" target="_blank"><i class="bi bi-printer me-2"></i>Print</a>
+		<a class="btn btn-primary" href="parent/report_card_pdf?term=<?php echo $termId; ?>&student=<?php echo $studentId; ?><?php echo $examId > 0 ? '&exam=' . $examId : ''; ?>&download=1" target="_blank"><i class="bi bi-download me-2"></i>Download PDF</a>
 		<a class="btn btn-outline-secondary" href="verify_report?code=<?php echo $card['verification_code']; ?>" target="_blank"><i class="bi bi-qr-code-scan me-2"></i>Verify</a>
 	</div>
 	<?php endif; ?>

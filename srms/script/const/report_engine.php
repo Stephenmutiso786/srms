@@ -554,6 +554,124 @@ function report_exam_summary(PDO $conn, string $studentId, int $classId, int $te
 	];
 }
 
+function report_consolidated_cycle_breakdown(PDO $conn, string $studentId, int $classId, int $termId, int $examId): array
+{
+	if ($studentId === '' || $classId < 1 || $termId < 1 || $examId < 1 || !app_table_exists($conn, 'tbl_exams') || !app_table_exists($conn, 'tbl_exam_results')) {
+		return ['cycle_labels' => [], 'rows' => []];
+	}
+
+	$stmt = $conn->prepare("SELECT id, name, COALESCE(assessment_mode, 'normal') AS assessment_mode
+		FROM tbl_exams
+		WHERE id = ? AND class_id = ? AND term_id = ?
+		LIMIT 1");
+	$stmt->execute([$examId, $classId, $termId]);
+	$exam = $stmt->fetch(PDO::FETCH_ASSOC);
+	if (!$exam || strtolower(trim((string)($exam['assessment_mode'] ?? 'normal'))) !== 'consolidated') {
+		return ['cycle_labels' => [], 'rows' => []];
+	}
+
+	$componentExamIds = array_values(array_unique(array_map('intval', app_exam_component_ids($conn, $examId))));
+	if (count($componentExamIds) < 1) {
+		return ['cycle_labels' => [], 'rows' => []];
+	}
+
+	$cycleLabels = [];
+	$labelStmt = $conn->prepare('SELECT id, name FROM tbl_exams WHERE id IN (' . implode(',', array_fill(0, count($componentExamIds), '?')) . ') ORDER BY id');
+	$labelStmt->execute($componentExamIds);
+	foreach ($labelStmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+		$cycleLabels[(int)$row['id']] = (string)$row['name'];
+	}
+	if (empty($cycleLabels)) {
+		foreach ($componentExamIds as $index => $componentExamId) {
+			$cycleLabels[$componentExamId] = 'Cycle ' . ($index + 1);
+		}
+	}
+
+	$placeholders = implode(',', array_fill(0, count($componentExamIds), '?'));
+	$query = "SELECT student, subject_combination, exam_id, score FROM tbl_exam_results WHERE class = ? AND term = ? AND exam_id IN ($placeholders) ORDER BY student, subject_combination, exam_id";
+	$stmt = $conn->prepare($query);
+	$stmt->execute(array_merge([$classId, $termId], $componentExamIds));
+
+	$scoreBuckets = [];
+	foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+		$rowStudentId = (string)($row['student'] ?? '');
+		$combinationId = (int)($row['subject_combination'] ?? 0);
+		$rowExamId = (int)($row['exam_id'] ?? 0);
+		if ($rowStudentId === '' || $combinationId < 1 || $rowExamId < 1) {
+			continue;
+		}
+		$scoreBuckets[$rowStudentId][$combinationId][$rowExamId] = (float)($row['score'] ?? 0);
+	}
+
+	$subjects = report_fetch_subjects_for_class($conn, $classId);
+	$gradingSystemId = report_exam_grading_system_id($conn, $examId);
+
+	$combinedTotals = [];
+	$combinedCounts = [];
+	foreach ($scoreBuckets as $rowStudentId => $subjectScores) {
+		foreach ($subjectScores as $combinationId => $examScores) {
+			if (empty($examScores)) {
+				continue;
+			}
+			$combinedScore = round(array_sum($examScores) / count($examScores), 2);
+			$combinedTotals[$combinationId] = (float)($combinedTotals[$combinationId] ?? 0) + $combinedScore;
+			$combinedCounts[$combinationId] = (int)($combinedCounts[$combinationId] ?? 0) + 1;
+		}
+	}
+
+	$rows = [];
+	foreach ($subjects as $subject) {
+		$combinationId = (int)$subject['combination_id'];
+		$examScores = $scoreBuckets[$studentId][$combinationId] ?? [];
+		$cycleValues = [];
+		foreach ($componentExamIds as $componentExamId) {
+			$cycleValues[] = isset($examScores[$componentExamId]) ? round((float)$examScores[$componentExamId], 2) : 0.0;
+		}
+		$combinedScore = !empty($cycleValues) ? round(array_sum($cycleValues) / count($cycleValues), 2) : 0.0;
+		$classMean = isset($combinedCounts[$combinationId]) && $combinedCounts[$combinationId] > 0
+			? round((float)$combinedTotals[$combinationId] / (int)$combinedCounts[$combinationId], 2)
+			: 0.0;
+		$subjectTotals = [];
+		foreach ($scoreBuckets as $sid => $subjectRows) {
+			$subjectExamScores = $subjectRows[$combinationId] ?? [];
+			if (empty($subjectExamScores)) {
+				continue;
+			}
+			$subjectTotals[$sid] = round(array_sum($subjectExamScores) / count($subjectExamScores), 2);
+		}
+		arsort($subjectTotals, SORT_NUMERIC);
+		$position = '-';
+		$rank = 0;
+		$prevTotal = null;
+		foreach ($subjectTotals as $sid => $subjectTotal) {
+			if ($prevTotal === null || (float)$subjectTotal !== (float)$prevTotal) {
+				$rank = count(array_slice($subjectTotals, 0, array_search($sid, array_keys($subjectTotals), true) + 1, true));
+				$prevTotal = (float)$subjectTotal;
+			}
+			if ((string)$sid === $studentId) {
+				$position = $rank . '/' . count($subjectTotals);
+				break;
+			}
+		}
+		list($gradeLabel, $remark, $gradePoints) = report_grade_for_score($conn, $combinedScore, $gradingSystemId);
+		$rows[] = [
+			'subject_id' => (int)$subject['subject'],
+			'subject_name' => (string)$subject['subject_name'],
+			'teacher_name' => trim(($subject['fname'] ?? '') . ' ' . ($subject['lname'] ?? '')),
+			'cycle_scores' => array_combine(array_values($cycleLabels), $cycleValues) ?: [],
+			'combined_score' => $combinedScore,
+			'class_mean' => $classMean,
+			'grade' => $gradeLabel,
+			'grade_points' => $gradePoints,
+			'remark' => $remark,
+			'progress' => max(0, min(100, $combinedScore)),
+			'position' => $position,
+		];
+	}
+
+	return ['cycle_labels' => array_values($cycleLabels), 'rows' => $rows];
+}
+
 function report_grade_for_score(PDO $conn, float $score, ?int $gradingSystemId = null): array
 {
 	$grade = 'BE';

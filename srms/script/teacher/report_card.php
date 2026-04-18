@@ -10,11 +10,16 @@ if ($res !== "1" || $level !== "2") { header("location:../"); }
 
 $termId = isset($_GET['term']) ? (int)$_GET['term'] : 0;
 $studentId = isset($_GET['student']) ? (string)$_GET['student'] : '';
+$examId = isset($_GET['exam']) ? (int)$_GET['exam'] : 0;
 $card = null;
 $student = null;
 $attendance = ['days_open' => 0, 'present' => 0, 'absent' => 0];
 $feesBalance = 0;
 $termName = '';
+$examOptions = [];
+$selectedExam = null;
+$examSummary = null;
+$examBreakdown = [];
 
 try {
 	$conn = app_db();
@@ -28,11 +33,25 @@ try {
 	$stmt = $conn->prepare("SELECT name FROM tbl_terms WHERE id = ? LIMIT 1");
 	$stmt->execute([$termId]);
 	$termName = (string)$stmt->fetchColumn();
+	$examOptions = report_term_exam_options($conn, (int)$student['class_id'], $termId);
+	if ($examId < 1 && !empty($examOptions)) {
+		$examId = (int)$examOptions[0]['id'];
+	}
+	foreach ($examOptions as $option) {
+		if ((int)$option['id'] === $examId) {
+			$selectedExam = $option;
+			break;
+		}
+	}
 
 	if (app_table_exists($conn, 'tbl_results_locks') && !app_results_locked($conn, (int)$student['class_id'], $termId)) {
 		$card = null;
 	} else {
 		$card = report_ensure_card_generated($conn, $studentId, (int)$student['class_id'], $termId, (int)$account_id);
+		if ($selectedExam) {
+			$examSummary = report_exam_summary($conn, $studentId, (int)$student['class_id'], $termId, (int)$selectedExam['id']);
+			$examBreakdown = report_exam_subject_breakdown($conn, $studentId, (int)$student['class_id'], $termId, (int)$selectedExam['id']);
+		}
 		if ($card) {
 			$attendance = report_attendance_summary($conn, $studentId, (int)$student['class_id'], $termId);
 			$feesBalance = report_fees_balance($conn, $studentId, $termId);
@@ -66,9 +85,75 @@ try {
 <?php include("teacher/partials/sidebar.php"); ?>
 <main class="app-content">
 <div class="app-title"><div><h1>Student Report Card</h1><p class="mb-0 text-muted">Teacher access is limited to assigned classes only.</p></div></div>
+<div class="tile mb-3">
+<div class="tile-body">
+<form method="get" class="d-flex flex-wrap gap-2 align-items-end">
+<input type="hidden" name="student" value="<?php echo htmlspecialchars($studentId); ?>">
+<input type="hidden" name="term" value="<?php echo (int)$termId; ?>">
+<div>
+	<label class="form-label">Term</label>
+	<div class="form-control-plaintext fw-semibold"><?php echo htmlspecialchars($termName !== '' ? $termName : 'Selected term'); ?></div>
+</div>
+<div>
+	<label class="form-label">Exam</label>
+	<select class="form-control" name="exam">
+		<option value="">Latest visible exam</option>
+		<?php foreach (($examOptions ?? []) as $exam): ?>
+		<option value="<?php echo (int)$exam['id']; ?>" <?php echo ((int)$exam['id'] === $examId) ? 'selected' : ''; ?>><?php echo htmlspecialchars($exam['name'] . ' [' . strtoupper((string)$exam['status']) . ']'); ?></option>
+		<?php endforeach; ?>
+	</select>
+</div>
+<div>
+	<button class="btn btn-primary">View Report</button>
+</div>
+</form>
+</div>
+</div>
 <?php if (!$card || !$student): ?>
 <div class="tile"><div class="tile-body"><p class="mb-0 text-muted">This report card is not available yet. Process and lock results first.</p></div></div>
 <?php else: ?>
+<?php if ($examSummary && !empty($examBreakdown)): ?>
+<div class="tile mb-3">
+<div class="tile-body">
+	<div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
+		<div>
+			<h4 class="mb-1">Selected Exam Snapshot</h4>
+			<p class="text-muted mb-0"><?php echo htmlspecialchars((string)$examSummary['exam_name']); ?> · <?php echo htmlspecialchars(strtoupper((string)$examSummary['status'])); ?> · <?php echo htmlspecialchars(strtoupper((string)$examSummary['assessment_mode'])); ?></p>
+		</div>
+		<div class="d-flex gap-2 flex-wrap">
+			<span class="badge bg-primary">Mean <?php echo number_format((float)$examSummary['mean'], 2); ?>%</span>
+			<span class="badge bg-success">Grade <?php echo htmlspecialchars((string)$examSummary['grade']); ?></span>
+			<span class="badge bg-info text-dark">Position <?php echo htmlspecialchars((string)$examSummary['position']); ?></span>
+			<span class="badge bg-secondary">Total <?php echo number_format((float)$examSummary['total'], 1); ?></span>
+		</div>
+	</div>
+	<div class="table-responsive">
+		<table class="table table-sm table-bordered mb-0">
+			<thead>
+				<tr>
+					<th>Subject</th>
+					<th>Score</th>
+					<th>Class Mean</th>
+					<th>Grade</th>
+					<th>Teacher</th>
+				</tr>
+			</thead>
+			<tbody>
+			<?php foreach ($examBreakdown as $subject): ?>
+				<tr>
+					<td><?php echo htmlspecialchars((string)$subject['subject_name']); ?></td>
+					<td><?php echo number_format((float)$subject['score'], 1); ?>%</td>
+					<td><?php echo number_format((float)$subject['class_mean'], 1); ?>%</td>
+					<td><?php echo htmlspecialchars((string)$subject['grade']); ?></td>
+					<td><?php echo htmlspecialchars((string)($subject['teacher_name'] ?? '')); ?></td>
+				</tr>
+			<?php endforeach; ?>
+			</tbody>
+		</table>
+	</div>
+</div>
+</div>
+<?php endif; ?>
 <div class="report-card">
 <div class="report-header">
 <div><h2><?php echo WBName; ?></h2><div class="report-meta"><span><?php echo htmlspecialchars($student['name']); ?></span><span><?php echo htmlspecialchars($student['school_id'] ?: $student['id']); ?></span></div></div>
@@ -96,8 +181,8 @@ try {
 <strong>Verification Code:</strong><p class="mb-0"><?php echo htmlspecialchars($card['verification_code']); ?></p>
 </div>
 <div class="report-actions">
-<a class="btn btn-outline-secondary" href="teacher/report_card_pdf?term=<?php echo $termId; ?>&student=<?php echo urlencode($studentId); ?>&print=1" target="_blank"><i class="bi bi-printer me-2"></i>Print</a>
-<a class="btn btn-primary" href="teacher/report_card_pdf?term=<?php echo $termId; ?>&student=<?php echo urlencode($studentId); ?>&download=1" target="_blank"><i class="bi bi-download me-2"></i>Download PDF</a>
+<a class="btn btn-outline-secondary" href="teacher/report_card_pdf?term=<?php echo $termId; ?>&student=<?php echo urlencode($studentId); ?><?php echo $examId > 0 ? '&exam=' . $examId : ''; ?>&print=1" target="_blank"><i class="bi bi-printer me-2"></i>Print</a>
+<a class="btn btn-primary" href="teacher/report_card_pdf?term=<?php echo $termId; ?>&student=<?php echo urlencode($studentId); ?><?php echo $examId > 0 ? '&exam=' . $examId : ''; ?>&download=1" target="_blank"><i class="bi bi-download me-2"></i>Download PDF</a>
 </div>
 </div>
 <?php endif; ?>

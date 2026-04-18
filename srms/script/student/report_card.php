@@ -10,6 +10,7 @@ require_once('const/id_card_engine.php');
 if ($res !== "1" || $level !== "3") { header("location:../"); }
 
 $termId = isset($_GET['term']) ? (int)$_GET['term'] : 0;
+$examId = isset($_GET['exam']) ? (int)$_GET['exam'] : 0;
 $card = null;
 $attendance = ['days_open' => 0, 'present' => 0, 'absent' => 0];
 $feesBalance = 0;
@@ -22,6 +23,10 @@ $photoExists = false;
 $subjectBreakdown = [];
 $history = [];
 $publicationState = 'draft';
+$examOptions = [];
+$selectedExam = null;
+$examSummary = null;
+$examBreakdown = [];
 
 try {
 	$conn = app_db();
@@ -55,11 +60,25 @@ try {
 			$photoExists = (bool)$payload['photo_exists'];
 		}
 		$publicationState = report_term_publish_state($conn, (int)$class, $termId);
+		$examOptions = report_term_exam_options($conn, (int)$class, $termId);
+		if ($examId < 1 && !empty($examOptions)) {
+			$examId = (int)$examOptions[0]['id'];
+		}
+		foreach ($examOptions as $option) {
+			if ((int)$option['id'] === $examId) {
+				$selectedExam = $option;
+				break;
+			}
+		}
 
 		if (!report_term_is_published($conn, (int)$class, $termId)) {
 			$card = null;
 		} elseif (app_table_exists($conn, 'tbl_report_cards')) {
 			$card = report_ensure_card_generated($conn, $studentId, (int)$class, $termId);
+			if ($selectedExam) {
+				$examSummary = report_exam_summary($conn, $studentId, (int)$class, $termId, (int)$selectedExam['id']);
+				$examBreakdown = report_exam_subject_breakdown($conn, $studentId, (int)$class, $termId, (int)$selectedExam['id']);
+			}
 			if ($card) {
 				$attendance = report_attendance_summary($conn, $studentId, (int)$class, $termId);
 				$feesBalance = report_fees_balance($conn, $studentId, $termId);
@@ -158,11 +177,63 @@ try {
 </select>
 </div>
 <div>
+	<label class="form-label">Exam</label>
+	<select class="form-control" name="exam">
+		<option value="">Latest visible exam</option>
+		<?php foreach (($examOptions ?? []) as $exam): ?>
+		<option value="<?php echo (int)$exam['id']; ?>" <?php echo ((int)$exam['id'] === $examId) ? 'selected' : ''; ?>><?php echo htmlspecialchars($exam['name'] . ' [' . strtoupper((string)$exam['status']) . ']'); ?></option>
+		<?php endforeach; ?>
+	</select>
+</div>
+<div>
 <button class="btn btn-primary">View Report</button>
 </div>
 </form>
 </div>
 </div>
+
+<?php if ($examSummary && !empty($examBreakdown)): ?>
+<div class="tile mb-3">
+<div class="tile-body">
+	<div class="d-flex justify-content-between align-items-start gap-3 flex-wrap mb-3">
+		<div>
+			<h4 class="mb-1">Selected Exam Snapshot</h4>
+			<p class="text-muted mb-0"><?php echo htmlspecialchars((string)$examSummary['exam_name']); ?> · <?php echo htmlspecialchars(strtoupper((string)$examSummary['status'])); ?> · <?php echo htmlspecialchars(strtoupper((string)$examSummary['assessment_mode'])); ?></p>
+		</div>
+		<div class="d-flex gap-2 flex-wrap">
+			<span class="badge bg-primary">Mean <?php echo number_format((float)$examSummary['mean'], 2); ?>%</span>
+			<span class="badge bg-success">Grade <?php echo htmlspecialchars((string)$examSummary['grade']); ?></span>
+			<span class="badge bg-info text-dark">Position <?php echo htmlspecialchars((string)$examSummary['position']); ?></span>
+			<span class="badge bg-secondary">Total <?php echo number_format((float)$examSummary['total'], 1); ?></span>
+		</div>
+	</div>
+	<div class="table-responsive">
+		<table class="table table-sm table-bordered mb-0">
+			<thead>
+				<tr>
+					<th>Subject</th>
+					<th>Score</th>
+					<th>Class Mean</th>
+					<th>Grade</th>
+					<th>Teacher</th>
+				</tr>
+			</thead>
+			<tbody>
+			<?php foreach ($examBreakdown as $subject): ?>
+				<tr>
+					<td><?php echo htmlspecialchars((string)$subject['subject_name']); ?></td>
+					<td><?php echo number_format((float)$subject['score'], 1); ?>%</td>
+					<td><?php echo number_format((float)$subject['class_mean'], 1); ?>%</td>
+					<td><?php echo htmlspecialchars((string)$subject['grade']); ?></td>
+					<td><?php echo htmlspecialchars((string)($subject['teacher_name'] ?? '')); ?></td>
+				</tr>
+			<?php endforeach; ?>
+			</tbody>
+		</table>
+	</div>
+</div>
+</div>
+<?php endif; ?>
 
 <?php if (!$card): ?>
 <div class="tile">
@@ -209,8 +280,8 @@ try {
 	<?php } ?>
 	<?php if (!$blockReport): ?>
 	<div class="report-actions mt-4 d-flex flex-wrap gap-2">
-		<a class="btn btn-outline-secondary" href="student/report_card_pdf?term=<?php echo $termId; ?>&print=1" target="_blank"><i class="bi bi-printer me-2"></i>Print</a>
-		<a class="btn btn-primary" href="student/report_card_pdf?term=<?php echo $termId; ?>&download=1" target="_blank"><i class="bi bi-download me-2"></i>Download PDF</a>
+		<a class="btn btn-outline-secondary" href="student/report_card_pdf?term=<?php echo $termId; ?><?php echo $examId > 0 ? '&exam=' . $examId : ''; ?>&print=1" target="_blank"><i class="bi bi-printer me-2"></i>Print</a>
+		<a class="btn btn-primary" href="student/report_card_pdf?term=<?php echo $termId; ?><?php echo $examId > 0 ? '&exam=' . $examId : ''; ?>&download=1" target="_blank"><i class="bi bi-download me-2"></i>Download PDF</a>
 		<a class="btn btn-outline-secondary" href="verify_report?code=<?php echo $card['verification_code']; ?>" target="_blank"><i class="bi bi-qr-code-scan me-2"></i>Verify</a>
 	</div>
 	<?php endif; ?>

@@ -4,12 +4,15 @@ session_start();
 require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
+require_once('const/report_engine.php');
 require_once('const/calculations.php');
 if ($res == "1" && $level == "1") {}else{header("location:../");}
 
 if (isset($_SESSION['bulk_result'])) {
 $class = $_SESSION['bulk_result']['student'];
 $term = $_SESSION['bulk_result']['term'];
+$examId = isset($_GET['exam']) ? (int)$_GET['exam'] : 0;
+$examOptions = [];
 
 $stmt = $conn->prepare("SELECT * FROM tbl_grade_system");
 $stmt->execute();
@@ -30,6 +33,11 @@ $term_data = $stmt->fetchAll();
 $stmt = $conn->prepare("SELECT * FROM tbl_classes WHERE id = ?");
 $stmt->execute([$std_data[0][6]]);
 $class_data = $stmt->fetchAll();
+
+$examOptions = report_term_exam_options($conn, (int)$class, (int)$term);
+if ($examId < 1 && !empty($examOptions)) {
+	$examId = (int)$examOptions[0]['id'];
+}
 
 $tit = ''.$class_data[0][1].' ('.$term_data[0][1].' Results)';
 }catch(PDOException $e)
@@ -142,6 +150,18 @@ header("location:./");
 <h1><?php echo $tit; ?></h1>
 </div>
 <div class="no-print">
+<form method="get" class="d-flex flex-wrap gap-2 align-items-end d-inline-flex">
+	<div>
+		<label class="form-label mb-1">Exam</label>
+		<select class="form-control" name="exam">
+			<option value="">Latest visible exam</option>
+			<?php foreach (($examOptions ?? []) as $exam): ?>
+			<option value="<?php echo (int)$exam['id']; ?>" <?php echo ((int)$exam['id'] === $examId) ? 'selected' : ''; ?>><?php echo htmlspecialchars($exam['name'] . ' [' . strtoupper((string)$exam['status']) . ']'); ?></option>
+			<?php endforeach; ?>
+		</select>
+	</div>
+	<div><button class="btn btn-primary" type="submit">Apply</button></div>
+</form>
 <button class="btn btn-primary" type="button" onclick="window.print();"><i class="bi bi-printer me-2"></i>Print All</button>
 <a class="btn btn-danger ms-2" href="javascript:void(0);" onclick="del('academic/core/drop_results?src=bulk_results&amp;std=all&amp;class=<?php echo $class; ?>&amp;term=<?php echo $term; ?>', 'Delete all results for this class and term?');"><i class="bi bi-trash me-2"></i>Delete All</a>
 </div>
@@ -176,6 +196,19 @@ header("location:./");
 try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$useExamId = app_column_exists($conn, 'tbl_exam_results', 'exam_id');
+$selectedExamName = '';
+
+if ($useExamId && $examId > 0) {
+	foreach ($examOptions as $examOption) {
+		if ((int)$examOption['id'] === $examId) {
+			$selectedExamName = (string)$examOption['name'];
+			break;
+		}
+	}
+}
+
+$tit = $tit . ($selectedExamName !== '' ? ' - ' . $selectedExamName : ($examId > 0 ? ' - Selected Exam' : ''));
 
 $stmt = $conn->prepare("SELECT * FROM tbl_subject_combinations LEFT JOIN tbl_subjects ON tbl_subject_combinations.subject = tbl_subjects.id");
 $stmt->execute();
@@ -199,8 +232,13 @@ if (in_array($class, $class_list))
 $t_subjects++;
 $score = 0;
 
-$stmt = $conn->prepare("SELECT * FROM tbl_exam_results WHERE class = ? AND subject_combination = ? AND term = ? AND student = ?");
-$stmt->execute([$class, $row[0], $term, $row2[0]]);
+if ($useExamId && $examId > 0) {
+	$stmt = $conn->prepare("SELECT * FROM tbl_exam_results WHERE class = ? AND subject_combination = ? AND term = ? AND student = ? AND exam_id = ?");
+	$stmt->execute([$class, $row[0], $term, $row2[0], $examId]);
+} else {
+	$stmt = $conn->prepare("SELECT * FROM tbl_exam_results WHERE class = ? AND subject_combination = ? AND term = ? AND student = ?");
+	$stmt->execute([$class, $row[0], $term, $row2[0]]);
+}
 $ex_result = $stmt->fetchAll();
 
 if (!empty($ex_result[0][5])) {
@@ -257,7 +295,7 @@ if ($row2[9] == "DEFAULT") {
 
 <td align="center" width="190" class="no-print">
 <a href="academic/core/edit_result?std=<?php echo $row2[0]; ?>&term=<?php echo $term;?>" class="btn btn-primary btn-sm" href="javascript:void(0);">Edit</a>
-<a href="academic/save_pdf?std=<?php echo $row2[0]; ?>&term=<?php echo $term;?>&download=1" class="btn btn-primary btn-sm" href="javascript:void(0);">Report</a>
+<a href="academic/save_pdf?std=<?php echo $row2[0]; ?>&term=<?php echo $term;?><?php echo $examId > 0 ? '&exam=' . $examId : ''; ?>&download=1" class="btn btn-primary btn-sm" href="javascript:void(0);">Report</a>
 <a onclick="del('academic/core/drop_results?src=bulk_results&std=<?php echo $row2[0]; ?>&class=<?php echo $class; ?>&term=<?php echo $term; ?>', 'Delete Results?');" href="javascript:void(0);" class="btn btn-danger btn-sm">Delete</a>
 </td>
 
