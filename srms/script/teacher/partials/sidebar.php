@@ -32,6 +32,9 @@ function teacher_menu_active_any(array $pages)
 	<li><a class="app-menu__item<?php echo teacher_menu_active('how_system_works'); ?>" href="teacher/how_system_works"><i class="app-menu__icon feather icon-help-circle"></i><span class="app-menu__label">How The System Works</span></a></li>
   <li><a class="app-menu__item<?php echo teacher_menu_active_any(['exam_marks_entry', 'exam_marks_table', 'cbc_entry']); ?>" href="teacher/exam_marks_entry"><i class="app-menu__icon feather icon-edit-3"></i><span class="app-menu__label">Marks Entry</span></a></li>
   <li><a class="app-menu__item<?php echo teacher_menu_active_any(['manage_results', 'results', 'report_card', 'certificates', 'published_analytics', 'print_mark_sheet']); ?>" href="teacher/manage_results"><i class="app-menu__icon feather icon-graph"></i><span class="app-menu__label">Results</span></a></li>
+  <?php if (function_exists('app_has_permission') && app_has_permission('staff.manage')): ?>
+  <li><a class="app-menu__item<?php echo teacher_menu_active('roles'); ?>" href="teacher/roles"><i class="app-menu__icon feather icon-shield"></i><span class="app-menu__label">Roles</span></a></li>
+  <?php endif; ?>
   <li><a class="app-menu__item<?php echo teacher_menu_active('staff_attendance'); ?>" href="teacher/staff_attendance"><i class="app-menu__icon feather icon-clock"></i><span class="app-menu__label">Staff Attendance</span></a></li>
     <li><a class="app-menu__item<?php echo teacher_menu_active('students'); ?>" href="teacher/students"><i class="app-menu__icon feather icon-users"></i><span class="app-menu__label">Students</span></a></li>
   <li><a class="app-menu__item<?php echo teacher_menu_active_any(['combinations', 'import_results']); ?>" href="teacher/combinations"><i class="app-menu__icon feather icon-book-open"></i><span class="app-menu__label">Subject Combinations</span></a></li>
