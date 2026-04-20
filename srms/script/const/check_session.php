@@ -4,6 +4,75 @@
 
 $res = "0";
 
+function app_requested_staff_module(): string
+{
+	$path = parse_url((string)($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH);
+	$path = is_string($path) ? trim($path, '/') : '';
+	if ($path === '') {
+		return '';
+	}
+	$parts = explode('/', $path);
+	foreach ($parts as $segment) {
+		$segment = strtolower(trim((string)$segment));
+		if (in_array($segment, ['admin', 'academic', 'teacher', 'accountant', 'bom'], true)) {
+			return $segment;
+		}
+	}
+	return '';
+}
+
+function app_module_level_bridge_rules(): array
+{
+	return [
+		'teacher' => [
+			'expected_level' => '2',
+			'permissions' => ['attendance.manage', 'marks.enter', 'report.view', 'report.generate', 'exams.manage', 'student.leadership.manage', 'communication.manage', 'communication.send', 'results.approve'],
+		],
+		'academic' => [
+			'expected_level' => '1',
+			'permissions' => ['academic.manage', 'teacher.allocate', 'classes.assign', 'timetable.manage', 'exams.manage', 'marks.review', 'results.approve', 'report.generate'],
+		],
+		'accountant' => [
+			'expected_level' => '5',
+			'permissions' => ['finance.manage', 'finance.view', 'sms.wallet.manage'],
+		],
+		'bom' => [
+			'expected_level' => '10',
+			'permissions' => ['bom.view', 'bom.manage'],
+		],
+	];
+}
+
+function app_apply_module_level_bridge(PDO $conn, string $staffId, string $currentLevel): string
+{
+	$module = app_requested_staff_module();
+	if ($module === '' || $staffId === '' || $currentLevel === '') {
+		return $currentLevel;
+	}
+
+	$rules = app_module_level_bridge_rules();
+	if (!isset($rules[$module])) {
+		return $currentLevel;
+	}
+
+	$expected = (string)$rules[$module]['expected_level'];
+	if ($currentLevel === $expected || $currentLevel === '0' || $currentLevel === '9') {
+		return $currentLevel;
+	}
+
+	if (!function_exists('app_has_permission')) {
+		require_once('const/rbac.php');
+	}
+
+	foreach ((array)$rules[$module]['permissions'] as $permissionCode) {
+		if (app_has_permission($conn, $staffId, $currentLevel, (string)$permissionCode)) {
+			return $expected;
+		}
+	}
+
+	return $currentLevel;
+}
+
 if (!isset($_COOKIE["__SRMS__logged"]) || !isset($_COOKIE["__SRMS__key"])) {
 	return;
 }
@@ -59,6 +128,7 @@ try {
 		$email = (string)$row['email'];
 		$login = (string)$row['password'];
 		$level = (string)$row['level'];
+		$level = app_apply_module_level_bridge($conn, (string)$row['id'], $level);
 		$designation = app_staff_primary_title($conn, (int)$row['id'], $level);
 		if ($level === "9") {
 			$super_admin = true;
