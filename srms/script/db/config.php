@@ -344,6 +344,12 @@ function app_level_title_label(int $level): string
 
 function app_ensure_school_roles(PDO $conn): void
 {
+	static $seeded = [];
+	$seedKey = DBDriver . ':' . DBName;
+	if (isset($seeded[$seedKey])) {
+		return;
+	}
+
 	if (!app_table_exists($conn, 'tbl_roles') || !app_table_exists($conn, 'tbl_permissions') || !app_table_exists($conn, 'tbl_role_permissions')) {
 		return;
 	}
@@ -485,6 +491,8 @@ function app_ensure_school_roles(PDO $conn): void
 			$stmt->execute([$roleId, $permIds[$permCode]]);
 		}
 	}
+
+	$seeded[$seedKey] = true;
 }
 
 function app_staff_primary_title(PDO $conn, int $staffId, string $level = ''): string

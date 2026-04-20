@@ -29,20 +29,20 @@ $hasParentSessions = $hasParents && app_table_exists($conn, 'tbl_login_sessions'
 
 if ($isPgsql) {
 	$sql = "SELECT id::text AS id, email, password, level, status FROM tbl_staff WHERE id::text = ? OR email = ?
-UNION SELECT id::text AS id, email, password, level, status FROM tbl_students WHERE id::text = ? OR email = ?";
+UNION ALL SELECT id::text AS id, email, password, level, status FROM tbl_students WHERE id::text = ? OR email = ?";
 	$params = [$_username, $_username, $_username, $_username];
 	if ($hasParents) {
-		$sql .= "\nUNION SELECT id::text AS id, email, password, 4 AS level, status FROM tbl_parents WHERE id::text = ? OR email = ?";
+		$sql .= "\nUNION ALL SELECT id::text AS id, email, password, 4 AS level, status FROM tbl_parents WHERE id::text = ? OR email = ?";
 		$params[] = $_username;
 		$params[] = $_username;
 	}
 	$stmt = $conn->prepare($sql);
 } else {
 	$sql = "SELECT id, email, password, level, status FROM tbl_staff WHERE id = ? OR email = ?
-UNION SELECT id, email, password, level, status FROM tbl_students WHERE id = ? OR email = ?";
+UNION ALL SELECT id, email, password, level, status FROM tbl_students WHERE id = ? OR email = ?";
 	$params = [$_username, $_username, $_username, $_username];
 	if ($hasParents) {
-		$sql .= "\nUNION SELECT id, email, password, 4 AS level, status FROM tbl_parents WHERE id = ? OR email = ?";
+		$sql .= "\nUNION ALL SELECT id, email, password, 4 AS level, status FROM tbl_parents WHERE id = ? OR email = ?";
 		$params[] = $_username;
 		$params[] = $_username;
 	}
