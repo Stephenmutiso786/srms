@@ -157,6 +157,40 @@ function app_teacher_portal_module_catalog(): array
 function app_portal_module_catalog(string $portal): array
 {
 	$portal = strtolower(trim($portal));
+	if ($portal === 'student') {
+		return [
+			['key' => 'attendance', 'label' => 'Attendance', 'href' => 'student/attendance', 'icon' => 'feather icon-check-square', 'description' => 'Attendance view', 'permissions' => [], 'core' => true, 'active' => ['attendance']],
+			['key' => 'certificates', 'label' => 'Certificates', 'href' => 'student/certificates', 'icon' => 'feather icon-award', 'description' => 'Download certificates', 'permissions' => [], 'core' => true, 'active' => ['certificates']],
+			['key' => 'dashboard', 'label' => 'Dashboard', 'href' => 'student', 'icon' => 'feather icon-monitor', 'description' => 'Student overview', 'permissions' => [], 'core' => true, 'active' => ['index', 'dashboard']],
+			['key' => 'discipline', 'label' => 'Discipline', 'href' => 'student/discipline', 'icon' => 'feather icon-alert-triangle', 'description' => 'Discipline information', 'permissions' => [], 'core' => true, 'active' => ['discipline']],
+			['key' => 'division_system', 'label' => 'Division System', 'href' => 'student/division-system', 'icon' => 'feather icon-layers', 'description' => 'Division guidance', 'permissions' => [], 'core' => true, 'active' => ['division-system']],
+			['key' => 'elearning', 'label' => 'E-Learning', 'href' => 'student/elearning', 'icon' => 'feather icon-book-open', 'description' => 'Lessons and content', 'permissions' => [], 'core' => true, 'active' => ['elearning']],
+			['key' => 'exam_timetable', 'label' => 'Exam Timetable', 'href' => 'student/exam_timetable', 'icon' => 'feather icon-calendar', 'description' => 'Exam timetable', 'permissions' => [], 'core' => true, 'active' => ['exam_timetable']],
+			['key' => 'fees', 'label' => 'Fees', 'href' => 'student/fees', 'icon' => 'feather icon-credit-card', 'description' => 'Fee statements', 'permissions' => ['finance.view'], 'core' => true, 'active' => ['fees']],
+			['key' => 'grading_system', 'label' => 'Grading System', 'href' => 'student/grading-system', 'icon' => 'feather icon-award', 'description' => 'Grading rules', 'permissions' => [], 'core' => true, 'active' => ['grading-system']],
+			['key' => 'leadership', 'label' => 'Leadership', 'href' => 'student/leadership', 'icon' => 'feather icon-users', 'description' => 'Student leadership', 'permissions' => ['student.leadership.view'], 'core' => false, 'active' => ['leadership']],
+			['key' => 'profile', 'label' => 'Profile', 'href' => 'student/view', 'icon' => 'feather icon-user', 'description' => 'My profile', 'permissions' => [], 'core' => true, 'active' => ['view', 'profile', 'id_card']],
+			['key' => 'ranking', 'label' => 'Ranking', 'href' => 'student/ranking', 'icon' => 'feather icon-bar-chart-2', 'description' => 'Class ranking', 'permissions' => ['report.view'], 'core' => false, 'active' => ['ranking']],
+			['key' => 'report_card', 'label' => 'Report Card', 'href' => 'student/report_card', 'icon' => 'feather icon-file-text', 'description' => 'Report card and results', 'permissions' => ['report.view'], 'core' => true, 'active' => ['report_card']],
+			['key' => 'results', 'label' => 'Results', 'href' => 'student/results', 'icon' => 'feather icon-file-text', 'description' => 'My result summary', 'permissions' => ['report.view'], 'core' => true, 'active' => ['results']],
+			['key' => 'settings', 'label' => 'Settings', 'href' => 'student/settings', 'icon' => 'feather icon-settings', 'description' => 'Account settings', 'permissions' => [], 'core' => true, 'active' => ['settings']],
+			['key' => 'subjects', 'label' => 'Subjects', 'href' => 'student/subjects', 'icon' => 'feather icon-book', 'description' => 'Subject list', 'permissions' => [], 'core' => true, 'active' => ['subjects']],
+		];
+	}
+
+	if ($portal === 'parent') {
+		return [
+			['key' => 'attendance', 'label' => 'Attendance', 'href' => 'parent/attendance', 'icon' => 'feather icon-check-square', 'description' => 'Child attendance', 'permissions' => [], 'core' => true, 'active' => ['attendance']],
+			['key' => 'certificates', 'label' => 'Certificates', 'href' => 'parent/certificates', 'icon' => 'feather icon-award', 'description' => 'Download certificates', 'permissions' => [], 'core' => true, 'active' => ['certificates']],
+			['key' => 'dashboard', 'label' => 'Dashboard', 'href' => 'parent', 'icon' => 'feather icon-monitor', 'description' => 'Parent overview', 'permissions' => [], 'core' => true, 'active' => ['index', 'dashboard']],
+			['key' => 'discipline', 'label' => 'Discipline', 'href' => 'parent/discipline', 'icon' => 'feather icon-alert-triangle', 'description' => 'Discipline information', 'permissions' => [], 'core' => true, 'active' => ['discipline']],
+			['key' => 'elearning', 'label' => 'E-Learning', 'href' => 'parent/elearning', 'icon' => 'feather icon-laptop', 'description' => 'Learning content', 'permissions' => [], 'core' => true, 'active' => ['elearning']],
+			['key' => 'fees', 'label' => 'Fees', 'href' => 'parent/fees', 'icon' => 'feather icon-credit-card', 'description' => 'Fee statements', 'permissions' => ['finance.view'], 'core' => true, 'active' => ['fees']],
+			['key' => 'how_system_works', 'label' => 'How The System Works', 'href' => 'how_system_works', 'icon' => 'feather icon-help-circle', 'description' => 'Portal guide', 'permissions' => [], 'core' => true, 'active' => ['how_system_works']],
+			['key' => 'report_card', 'label' => 'Report Card', 'href' => 'parent/report_card', 'icon' => 'feather icon-file-text', 'description' => 'Report cards and results', 'permissions' => ['report.view'], 'core' => true, 'active' => ['report_card']],
+		];
+	}
+
 	if ($portal === 'academic') {
 		return [
 			['key' => 'dashboard', 'label' => 'Dashboard', 'href' => 'academic', 'icon' => 'feather icon-monitor', 'description' => 'Academic overview', 'permissions' => [], 'core' => true],
@@ -214,6 +248,48 @@ function app_portal_visible_modules(PDO $conn, string $portal, string $staffId, 
 function app_portal_allocated_modules(PDO $conn, string $portal, string $staffId, string $level): array
 {
 	return array_values(array_filter(app_portal_visible_modules($conn, $portal, $staffId, $level), static function (array $module): bool {
+		return empty($module['core']);
+	}));
+}
+
+function app_current_user_visible_portal_modules(string $portal): array
+{
+	static $cache = [];
+	$portal = strtolower(trim($portal));
+	if (isset($cache[$portal])) {
+		return $cache[$portal];
+	}
+
+	$modules = app_portal_module_catalog($portal);
+	$permissions = app_current_user_permission_codes();
+	if (in_array('*', $permissions, true)) {
+		$cache[$portal] = $modules;
+		return $cache[$portal];
+	}
+
+	$visible = [];
+	foreach ($modules as $module) {
+		$modulePermissions = array_values(array_filter(array_map('strval', (array)($module['permissions'] ?? []))));
+		if (empty($modulePermissions)) {
+			$visible[] = $module;
+			continue;
+		}
+
+		foreach ($modulePermissions as $permission) {
+			if (in_array($permission, $permissions, true)) {
+				$visible[] = $module;
+				break;
+			}
+		}
+	}
+
+	$cache[$portal] = $visible;
+	return $cache[$portal];
+}
+
+function app_current_user_allocated_portal_modules(string $portal): array
+{
+	return array_values(array_filter(app_current_user_visible_portal_modules($portal), static function (array $module): bool {
 		return empty($module['core']);
 	}));
 }

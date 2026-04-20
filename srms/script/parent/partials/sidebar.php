@@ -1,9 +1,26 @@
 <?php
 $currentPage = basename($_SERVER['PHP_SELF'], '.php');
+require_once('const/rbac.php');
 function parent_menu_active($page)
 {
     global $currentPage;
     return $currentPage === $page ? ' active' : '';
+}
+
+function parent_menu_is_active(array $module): string
+{
+  global $currentPage;
+  $activePages = array_map('strval', (array)($module['active'] ?? []));
+  if (!empty($activePages) && in_array($currentPage, $activePages, true)) {
+    return ' active';
+  }
+
+  $href = (string)($module['href'] ?? '');
+  if ($href !== '' && basename($href) === $currentPage) {
+    return ' active';
+  }
+
+  return '';
 }
 ?>
 <div class="app-sidebar__overlay" data-toggle="sidebar"></div>
@@ -15,13 +32,8 @@ function parent_menu_active($page)
     </div>
   </div>
   <ul class="app-menu">
-	<li><a class="app-menu__item<?php echo parent_menu_active('attendance'); ?>" href="parent/attendance"><i class="app-menu__icon feather icon-check-square"></i><span class="app-menu__label">Attendance</span></a></li>
-  <li><a class="app-menu__item<?php echo parent_menu_active('certificates'); ?>" href="parent/certificates"><i class="app-menu__icon feather icon-award"></i><span class="app-menu__label">Certificates</span></a></li>
-    <li><a class="app-menu__item<?php echo parent_menu_active('index'); ?>" href="parent"><i class="app-menu__icon feather icon-monitor"></i><span class="app-menu__label">Dashboard</span></a></li>
-	<li><a class="app-menu__item<?php echo parent_menu_active('discipline'); ?>" href="parent/discipline"><i class="app-menu__icon feather icon-alert-triangle"></i><span class="app-menu__label">Discipline</span></a></li>
-	<li><a class="app-menu__item<?php echo parent_menu_active('elearning'); ?>" href="parent/elearning"><i class="app-menu__icon feather icon-laptop"></i><span class="app-menu__label">E-Learning</span></a></li>
-    <li><a class="app-menu__item<?php echo parent_menu_active('fees'); ?>" href="parent/fees"><i class="app-menu__icon feather icon-credit-card"></i><span class="app-menu__label">Fees</span></a></li>
-    <li><a class="app-menu__item<?php echo parent_menu_active('how_system_works'); ?>" href="how_system_works"><i class="app-menu__icon feather icon-help-circle"></i><span class="app-menu__label">How The System Works</span></a></li>
-	<li><a class="app-menu__item<?php echo parent_menu_active('report_card'); ?>" href="parent/report_card"><i class="app-menu__icon feather icon-file-text"></i><span class="app-menu__label">Report Card</span></a></li>
+    <?php foreach (app_current_user_visible_portal_modules('parent') as $module): ?>
+    <li><a class="app-menu__item<?php echo parent_menu_is_active($module); ?>" href="<?php echo htmlspecialchars((string)$module['href']); ?>"><i class="app-menu__icon <?php echo htmlspecialchars((string)$module['icon']); ?>"></i><span class="app-menu__label"><?php echo htmlspecialchars((string)$module['label']); ?></span></a></li>
+    <?php endforeach; ?>
   </ul>
 </aside>
