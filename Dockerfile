@@ -12,7 +12,7 @@ COPY php.ini /usr/local/etc/php/conf.d/99-elimu.ini
 # Allow .htaccess overrides (needed for the app routes)
 RUN sed -i 's/AllowOverride None/AllowOverride All/g' /etc/apache2/apache2.conf
 
-# Copy the PHP app (for DigitalOcean App Platform and any Docker host)
+# Copy the PHP app (for Render and any Docker host)
 WORKDIR /var/www/html
 COPY srms/script/ ./
 COPY srms/database/ ./database/

@@ -352,16 +352,22 @@ function app_ensure_school_roles(PDO $conn): void
 	$permissions = [
 		['system.manage', 'Manage system settings'],
 		['audit.view', 'View audit logs'],
+		['users.impersonate', 'Impersonate users for support and debugging'],
 		['students.manage', 'Manage students'],
+		['admissions.manage', 'Manage admissions and student onboarding'],
 		['staff.manage', 'Manage staff and role assignment'],
 		['teacher.allocate', 'Allocate teachers to subjects/classes'],
+		['classes.assign', 'Assign classes and class teachers'],
+		['timetable.manage', 'Manage school and exam timetables'],
 		['student.leadership.manage', 'Manage student leadership assignments and reports'],
 		['bom.manage', 'Manage Board of Management records and meetings'],
 		['bom.view', 'View Board of Management records'],
 		['attendance.manage', 'Manage attendance'],
 		['exams.manage', 'Manage exams and timetable'],
 		['marks.enter', 'Enter marks and assessments'],
+		['marks.review', 'Review submitted marks before approval'],
 		['results.approve', 'Approve results'],
+		['results.publish', 'Publish approved results to students and parents'],
 		['results.lock', 'Lock results'],
 		['results.unlock', 'Unlock results'],
 		['report.generate', 'Generate report cards'],
@@ -369,9 +375,13 @@ function app_ensure_school_roles(PDO $conn): void
 		['finance.manage', 'Manage fees and payments'],
 		['finance.view', 'View finance reports'],
 		['communication.manage', 'Manage communication'],
+		['communication.send', 'Send direct messages and announcements'],
+		['notifications.send', 'Send SMS/email notifications'],
+		['sms.wallet.manage', 'Manage SMS wallet and topups'],
 		['transport.manage', 'Manage transport'],
 		['library.manage', 'Manage library'],
 		['inventory.manage', 'Manage inventory'],
+		['academic.manage', 'Manage academic structures and settings'],
 	];
 
 	foreach ($permissions as $perm) {
@@ -384,33 +394,55 @@ function app_ensure_school_roles(PDO $conn): void
 	}
 
 	$roles = [
+		['Super Admin (System Owner)', 110, 'Highest authority with full system access and cross-school control.', [
+			'system.manage','audit.view','users.impersonate','students.manage','admissions.manage','staff.manage','teacher.allocate','classes.assign','timetable.manage',
+			'attendance.manage','exams.manage','marks.enter','marks.review','results.approve','results.publish','results.lock','results.unlock','report.generate','report.view',
+			'finance.manage','finance.view','communication.manage','communication.send','notifications.send','sms.wallet.manage','student.leadership.manage','bom.manage','bom.view',
+			'transport.manage','library.manage','inventory.manage','academic.manage'
+		]],
+		['School Admin / Principal', 98, 'Runs daily school operations and approves key workflows.', [
+			'audit.view','users.impersonate','students.manage','admissions.manage','staff.manage','teacher.allocate','classes.assign','timetable.manage','attendance.manage',
+			'exams.manage','marks.review','results.approve','results.publish','results.lock','results.unlock','report.generate','report.view','finance.view',
+			'communication.manage','communication.send','notifications.send','student.leadership.manage','transport.manage','library.manage','inventory.manage','academic.manage'
+		]],
 		['Headteacher', 100, 'Overall in charge of school operations, policy, staff and performance.', [
-			'system.manage','audit.view','students.manage','staff.manage','attendance.manage','exams.manage','marks.enter',
-			'results.approve','results.lock','results.unlock','report.generate','report.view','teacher.allocate','student.leadership.manage','bom.manage','bom.view','finance.manage','finance.view',
-			'communication.manage','transport.manage','library.manage','inventory.manage'
+			'system.manage','audit.view','users.impersonate','students.manage','admissions.manage','staff.manage','teacher.allocate','classes.assign','timetable.manage','attendance.manage',
+			'exams.manage','marks.enter','marks.review','results.approve','results.publish','results.lock','results.unlock','report.generate','report.view','student.leadership.manage',
+			'bom.manage','bom.view','finance.manage','finance.view','communication.manage','communication.send','notifications.send','transport.manage','library.manage','inventory.manage','academic.manage'
 		]],
 		['Deputy Headteacher', 95, 'Assists the headteacher and runs day-to-day academics, discipline, timetable and attendance.', [
-			'audit.view','students.manage','staff.manage','attendance.manage','exams.manage','marks.enter','results.approve',
-			'results.lock','results.unlock','report.generate','report.view','teacher.allocate','student.leadership.manage','bom.view','finance.view','communication.manage','transport.manage',
-			'library.manage','inventory.manage'
+			'audit.view','users.impersonate','students.manage','admissions.manage','staff.manage','teacher.allocate','classes.assign','timetable.manage','attendance.manage',
+			'exams.manage','marks.enter','marks.review','results.approve','results.lock','results.unlock','report.generate','report.view','student.leadership.manage','bom.view',
+			'finance.view','communication.manage','communication.send','notifications.send','transport.manage','library.manage','inventory.manage','academic.manage'
 		]],
-		['HOD Academics', 90, 'Oversees teaching and learning and syllabus coverage.', ['attendance.manage','exams.manage','marks.enter','results.approve','report.generate','report.view','teacher.allocate','communication.manage']],
-		['HOD Exams', 89, 'Leads exam planning, marking standards, CBC-aligned assessment and grading workflows.', ['exams.manage','marks.enter','results.approve','results.lock','results.unlock','report.generate','report.view','teacher.allocate','communication.manage']],
+		['Director of Studies (DOS)', 93, 'Oversees curriculum, assessments, and academic performance reviews.', [
+			'attendance.manage','exams.manage','marks.review','results.approve','report.generate','report.view','teacher.allocate','classes.assign','timetable.manage','communication.manage','academic.manage'
+		]],
+		['HOD Academics', 90, 'Oversees teaching and learning and syllabus coverage.', ['attendance.manage','exams.manage','marks.enter','marks.review','results.approve','report.generate','report.view','teacher.allocate','communication.manage','academic.manage']],
+		['HOD Exams', 89, 'Leads exam planning, marking standards, CBC-aligned assessment and grading workflows.', ['exams.manage','marks.enter','marks.review','results.approve','results.lock','results.unlock','report.generate','report.view','teacher.allocate','timetable.manage','communication.manage','academic.manage']],
 		['HOD Languages', 84, 'Leads language department instruction and quality assurance.', ['marks.enter','report.view','communication.manage']],
 		['HOD Sciences', 84, 'Leads science department instruction and quality assurance.', ['marks.enter','report.view','communication.manage']],
 		['HOD Mathematics', 84, 'Leads mathematics department instruction and quality assurance.', ['marks.enter','report.view','communication.manage']],
 		['HOD Creative Arts / Co-curricular', 84, 'Leads arts and co-curricular teaching programs.', ['marks.enter','report.view','communication.manage']],
-		['Class Teacher', 75, 'In charge of class performance, discipline and parent communication.', ['attendance.manage','marks.enter','report.view','communication.manage']],
+		['Exams Officer', 88, 'Compiles exam outcomes, controls marks windows, and supports approvals.', ['exams.manage','marks.review','results.approve','results.lock','results.unlock','report.generate','report.view','timetable.manage','communication.manage','academic.manage']],
+		['Senior Teacher', 82, 'Supports supervision, discipline, and mentoring of teachers.', ['attendance.manage','marks.review','report.view','student.leadership.manage','communication.manage']],
+		['Class Teacher', 75, 'In charge of class performance, discipline and parent communication.', ['attendance.manage','marks.enter','report.view','communication.manage','communication.send','student.leadership.manage']],
 		['Subject Teacher', 70, 'Teaches subjects across classes and records continuous assessment.', ['marks.enter','report.view']],
-		['Examination Officer', 88, 'Supports HOD Exams in recording marks, report generation and analysis.', ['exams.manage','marks.enter','report.generate','report.view','communication.manage']],
-		['Bursar / Accounts Clerk', 80, 'Handles fees, payments and school financial records.', ['finance.manage','finance.view']],
+		['Examination Officer', 88, 'Supports HOD Exams in recording marks, report generation and analysis.', ['exams.manage','marks.enter','marks.review','report.generate','report.view','communication.manage','academic.manage']],
+		['Registrar / Admission Officer', 78, 'Handles student admissions, transfers, and records.', ['students.manage','admissions.manage','classes.assign','report.view','communication.manage']],
+		['Secretary / Admin Clerk', 72, 'Handles records, communication, and front-office workflows.', ['students.manage','admissions.manage','communication.manage','communication.send','notifications.send','report.view']],
+		['Bursar / Accounts Clerk', 80, 'Handles fees, payments and school financial records.', ['finance.manage','finance.view','communication.send','notifications.send']],
 		['BOM Chairperson', 82, 'Heads Board of Management and oversees governance meetings and decisions.', ['bom.manage','bom.view','finance.view','report.view','audit.view']],
 		['BOM Treasurer', 79, 'Oversees BOM financial approvals and controls.', ['bom.manage','bom.view','finance.view','audit.view']],
 		['BOM Member', 74, 'Participates in BOM meetings and governance decisions.', ['bom.view']],
-		['Secretary / Office Admin', 65, 'Manages communication, records and office administration.', ['students.manage','communication.manage','report.view']],
-		['ICT Teacher / System Admin', 92, 'Maintains school digital systems, e-learning and technical operations.', ['system.manage','audit.view','exams.manage','report.generate','report.view','communication.manage']],
+		['Secretary / Office Admin', 65, 'Manages communication, records and office administration.', ['students.manage','admissions.manage','communication.manage','communication.send','report.view']],
+		['ICT Teacher / System Admin', 92, 'Maintains school digital systems, e-learning and technical operations.', ['system.manage','audit.view','users.impersonate','exams.manage','report.generate','report.view','communication.manage','inventory.manage','academic.manage']],
+		['IT Support / Moderator', 77, 'Provides technical support, account recovery, and moderation.', ['audit.view','users.impersonate','staff.manage','communication.manage']],
 		['Guidance and Counselling Teacher', 72, 'Supports learner welfare, behaviour and counselling records.', ['attendance.manage','report.view','communication.manage']],
+		['Welfare Officer / Matron', 71, 'Handles welfare cases, health incidents, and parent alerts.', ['attendance.manage','student.leadership.manage','communication.send','notifications.send','report.view']],
 		['Games / Sports Teacher', 68, 'Manages sports and co-curricular participation records.', ['attendance.manage','report.view','communication.manage']],
+		['Librarian', 66, 'Manages book issuance, returns, and fines.', ['library.manage','report.view']],
+		['Transport Manager', 67, 'Runs school transport routes, assignments, and related charges.', ['transport.manage','report.view','finance.view']],
 		['HOD', 85, 'Legacy generic HOD role kept for backward compatibility.', ['attendance.manage','marks.enter','report.view','communication.manage']],
 		['Exam Officer', 86, 'Legacy exam officer role kept for backward compatibility.', ['exams.manage','marks.enter','results.approve','results.lock','results.unlock','report.generate','report.view','communication.manage']],
 	];

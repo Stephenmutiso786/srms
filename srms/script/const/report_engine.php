@@ -273,7 +273,7 @@ function report_exam_result_matrix(PDO $conn, int $classId, int $termId, ?string
 
 function report_visible_exam_statuses(): array
 {
-	return ['published', 'finalized', 'reviewed', 'active'];
+	return ['published', 'finalized', 'reviewed', 'active', 'open'];
 }
 
 function report_term_exam_options(PDO $conn, int $classId, int $termId): array
@@ -286,38 +286,56 @@ function report_term_exam_options(PDO $conn, int $classId, int $termId): array
 	$hasAssessmentMode = app_column_exists($conn, 'tbl_exams', 'assessment_mode');
 
 	$statuses = report_visible_exam_statuses();
-	$placeholders = implode(',', array_fill(0, count($statuses), '?'));
-	$sql = "SELECT e.id, e.name, COALESCE(e.status, 'draft') AS status,";
-	$sql .= $hasAssessmentMode
-		? " COALESCE(e.assessment_mode, 'normal') AS assessment_mode,"
-		: " 'normal' AS assessment_mode,";
-	$sql .= $hasExamTypes
-		? " COALESCE(et.name, '') AS type_name FROM tbl_exams e LEFT JOIN tbl_exam_types et ON et.id = e.exam_type_id"
-		: " '' AS type_name FROM tbl_exams e";
-	$sql .= "
-		WHERE e.class_id = ? AND e.term_id = ? AND COALESCE(e.status, 'draft') IN ($placeholders)
-		ORDER BY
-			CASE COALESCE(e.status, 'draft')
-				WHEN 'published' THEN 1
-				WHEN 'finalized' THEN 2
-				WHEN 'reviewed' THEN 3
-				WHEN 'active' THEN 4
-				ELSE 5
-			END,
-			" . ($hasCreatedAt ? 'e.created_at DESC,' : '') . "
-			e.id DESC";
-	$stmt = $conn->prepare($sql);
-	$stmt->execute(array_merge([$classId, $termId], $statuses));
+	$fetchRows = function (bool $statusFiltered) use ($conn, $classId, $termId, $hasAssessmentMode, $hasExamTypes, $hasCreatedAt, $statuses): array {
+		$sql = "SELECT e.id, e.name, COALESCE(e.status, 'draft') AS status,";
+		$sql .= $hasAssessmentMode
+			? " COALESCE(e.assessment_mode, 'normal') AS assessment_mode,"
+			: " 'normal' AS assessment_mode,";
+		$sql .= $hasExamTypes
+			? " COALESCE(et.name, '') AS type_name FROM tbl_exams e LEFT JOIN tbl_exam_types et ON et.id = e.exam_type_id"
+			: " '' AS type_name FROM tbl_exams e";
+		$sql .= " WHERE e.class_id = ? AND e.term_id = ?";
+		$args = [$classId, $termId];
+		if ($statusFiltered) {
+			$placeholders = implode(',', array_fill(0, count($statuses), '?'));
+			$sql .= " AND COALESCE(e.status, 'draft') IN ($placeholders)";
+			$args = array_merge($args, $statuses);
+		}
+		$sql .= "
+			ORDER BY
+				CASE COALESCE(e.status, 'draft')
+					WHEN 'published' THEN 1
+					WHEN 'finalized' THEN 2
+					WHEN 'reviewed' THEN 3
+					WHEN 'active' THEN 4
+					WHEN 'open' THEN 5
+					ELSE 6
+				END,
+				" . ($hasCreatedAt ? 'e.created_at DESC,' : '') . "
+				e.id DESC";
+		$stmt = $conn->prepare($sql);
+		$stmt->execute($args);
+		return $stmt->fetchAll(PDO::FETCH_ASSOC);
+	};
+
+	$rows = $fetchRows(true);
+	if (empty($rows)) {
+		$rows = $fetchRows(false);
+	}
 
 	return array_map(function ($row) {
+		$status = strtolower(trim((string)($row['status'] ?? 'draft')));
+		if ($status === 'open') {
+			$status = 'active';
+		}
 		return [
 			'id' => (int)($row['id'] ?? 0),
 			'name' => (string)($row['name'] ?? ''),
-			'status' => strtolower(trim((string)($row['status'] ?? 'draft'))),
+			'status' => $status,
 			'assessment_mode' => strtolower(trim((string)($row['assessment_mode'] ?? 'normal'))),
 			'type_name' => (string)($row['type_name'] ?? ''),
 		];
-	}, $stmt->fetchAll(PDO::FETCH_ASSOC));
+	}, $rows);
 }
 
 function report_exam_subject_breakdown(PDO $conn, string $studentId, int $classId, int $termId, int $examId): array
@@ -341,6 +359,28 @@ function report_exam_subject_breakdown(PDO $conn, string $studentId, int $classI
 	$rows = [];
 	$gradingSystemId = report_exam_grading_system_id($conn, $examId);
 	$assessmentMode = strtolower(trim((string)($exam['assessment_mode'] ?? 'normal')));
+	$loadLegacyTermBuckets = function () use ($conn, $classId, $termId): array {
+		$scoreBuckets = [];
+		if (!app_table_exists($conn, 'tbl_exam_results')) {
+			return $scoreBuckets;
+		}
+		$stmt = $conn->prepare("SELECT id, student, subject_combination, score
+			FROM tbl_exam_results
+			WHERE class = ? AND term = ?
+			ORDER BY id DESC");
+		$stmt->execute([$classId, $termId]);
+		foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+			$rowStudentId = (string)($row['student'] ?? '');
+			$combinationId = (int)($row['subject_combination'] ?? 0);
+			if ($rowStudentId === '' || $combinationId < 1) {
+				continue;
+			}
+			if (!isset($scoreBuckets[$rowStudentId][$combinationId])) {
+				$scoreBuckets[$rowStudentId][$combinationId] = [(float)($row['score'] ?? 0)];
+			}
+		}
+		return $scoreBuckets;
+	};
 
 	if ($assessmentMode === 'cbc') {
 		$studentMatrix = report_cbc_score_matrix($conn, $classId, $termId, $subjects, null);
@@ -378,24 +418,7 @@ function report_exam_subject_breakdown(PDO $conn, string $studentId, int $classI
 
 	$scoreBuckets = [];
 	if (!$hasExamId) {
-		if (!app_table_exists($conn, 'tbl_exam_results')) {
-			return [];
-		}
-		$stmt = $conn->prepare("SELECT id, student, subject_combination, score
-			FROM tbl_exam_results
-			WHERE class = ? AND term = ?
-			ORDER BY id DESC");
-		$stmt->execute([$classId, $termId]);
-		foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-			$rowStudentId = (string)($row['student'] ?? '');
-			$combinationId = (int)($row['subject_combination'] ?? 0);
-			if ($rowStudentId === '' || $combinationId < 1) {
-				continue;
-			}
-			if (!isset($scoreBuckets[$rowStudentId][$combinationId])) {
-				$scoreBuckets[$rowStudentId][$combinationId] = [(float)($row['score'] ?? 0)];
-			}
-		}
+		$scoreBuckets = $loadLegacyTermBuckets();
 	} elseif ($assessmentMode === 'consolidated') {
 		$componentExamIds = array_values(array_unique(array_map('intval', app_exam_component_ids($conn, $examId))));
 		if (empty($componentExamIds) || !app_table_exists($conn, 'tbl_exam_results')) {
@@ -429,6 +452,9 @@ function report_exam_subject_breakdown(PDO $conn, string $studentId, int $classI
 				continue;
 			}
 			$scoreBuckets[$rowStudentId][$combinationId] = [(float)($row['score'] ?? 0)];
+		}
+		if (empty($scoreBuckets)) {
+			$scoreBuckets = $loadLegacyTermBuckets();
 		}
 	}
 
@@ -485,6 +511,9 @@ function report_exam_summary(PDO $conn, string $studentId, int $classId, int $te
 	}
 
 	$rows = report_exam_subject_breakdown($conn, $studentId, $classId, $termId, $examId);
+	if (empty($rows)) {
+		$rows = report_subject_breakdown($conn, $studentId, $classId, $termId);
+	}
 	if (empty($rows)) {
 		return [
 			'exam_id' => $examId,
