@@ -4,8 +4,13 @@ session_start();
 require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
+require_once('const/rbac.php');
 if ($res == "1" && $level == "5") {}else{header("location:../"); exit;}
 $summary = ['open_invoices' => 0, 'paid_today' => 0, 'outstanding' => 0, 'payments_month' => 0];
+$roleNames = [];
+$permissionCodes = [];
+$visibleModules = [];
+$allocatedModules = [];
 
 try {
 	$conn = app_db();
@@ -15,6 +20,11 @@ try {
 	if (app_table_exists($conn, 'tbl_invoices')) {
 		$summary['open_invoices'] = (int)$conn->query("SELECT COUNT(*) FROM tbl_invoices WHERE status = 'open'")->fetchColumn();
 	}
+
+	$roleNames = app_staff_role_names($conn, (int)$account_id);
+	$permissionCodes = app_get_permissions($conn, (string)$account_id, (string)$level);
+	$visibleModules = app_portal_visible_modules($conn, 'accountant', (string)$account_id, (string)$level);
+	$allocatedModules = app_portal_allocated_modules($conn, 'accountant', (string)$account_id, (string)$level);
 
 	if (app_table_exists($conn, 'tbl_payments')) {
 		$driver = $conn->getAttribute(PDO::ATTR_DRIVER_NAME);
@@ -67,6 +77,24 @@ try {
 <link rel="icon" href="images/icon.ico">
 <link rel="stylesheet" type="text/css" href="cdn.jsdelivr.net/npm/bootstrap-icons%401.10.5/font/bootstrap-icons.css">
 <link type="text/css" rel="stylesheet" href="loader/waitMe.css">
+<style>
+.access-grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:14px;margin:18px 0 18px}
+.access-card{background:#fff;border:1px solid #e7edf5;border-radius:18px;padding:16px;box-shadow:0 14px 40px rgba(15,95,168,.08)}
+.access-card.roles,.access-card.permissions,.access-card.modules{grid-column:span 4}
+.chip-wrap{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.access-chip,.module-chip{display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border-radius:999px;font-size:.82rem;font-weight:700}
+.access-chip{background:#eef4fb;color:#27405c}
+.module-chip{background:#e7f1ef;color:#00695C}
+.module-list{display:grid;gap:10px;margin-top:12px}
+.module-link{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border:1px solid #e7edf5;border-radius:16px;text-decoration:none;color:#203040;background:#fbfdff}
+.module-link:hover{border-color:#cfe3db;background:#f4fbf8}
+.module-icon{width:38px;height:38px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:#e7f1ef;color:#00695C;flex:0 0 auto}
+.module-title{font-weight:800;color:#123;line-height:1.2}
+.module-desc{font-size:.84rem;color:#6f7e8f;margin-top:2px}
+.module-perms{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.module-perms span{font-size:.72rem;background:#eef4fb;color:#4d647d;padding:4px 8px;border-radius:999px}
+@media (max-width: 1100px){.access-card.roles,.access-card.permissions,.access-card.modules{grid-column:span 12}}
+</style>
 </head>
 <body class="app sidebar-mini">
 
@@ -91,10 +119,9 @@ try {
 </div>
 </div>
 <ul class="app-menu">
-<li><a class="app-menu__item active" href="accountant"><i class="app-menu__icon feather icon-monitor"></i><span class="app-menu__label">Dashboard</span></a></li>
-<li><a class="app-menu__item" href="accountant/fees"><i class="app-menu__icon feather icon-credit-card"></i><span class="app-menu__label">Fees & Finance</span></a></li>
-<li><a class="app-menu__item" href="accountant/fee_structure"><i class="app-menu__icon feather icon-sliders"></i><span class="app-menu__label">Fee Structure</span></a></li>
-<li><a class="app-menu__item" href="accountant/invoices"><i class="app-menu__icon feather icon-file-text"></i><span class="app-menu__label">Invoices</span></a></li>
+<?php foreach ($visibleModules as $module): ?>
+<li><a class="app-menu__item<?php echo basename((string)$module['href']) === basename($_SERVER['PHP_SELF'], '.php') ? ' active' : ''; ?>" href="<?php echo htmlspecialchars((string)$module['href']); ?>"><i class="app-menu__icon <?php echo htmlspecialchars((string)$module['icon']); ?>"></i><span class="app-menu__label"><?php echo htmlspecialchars((string)$module['label']); ?></span></a></li>
+<?php endforeach; ?>
 </ul>
 </aside>
 
@@ -113,6 +140,59 @@ try {
 		<div class="meta-card">
 			<span class="meta-label">Month Total</span>
 			<strong class="meta-value"><?php echo number_format((float)$summary['payments_month'], 2); ?></strong>
+		</div>
+	</div>
+</div>
+
+<div class="access-grid">
+	<div class="access-card roles">
+		<h3 class="tile-title mb-2">Assigned Roles</h3>
+		<div class="small text-muted">Roles attached to this accountant account.</div>
+		<div class="chip-wrap">
+			<?php if (!empty($roleNames)): ?>
+				<?php foreach ($roleNames as $roleName): ?>
+					<span class="access-chip"><?php echo htmlspecialchars($roleName); ?></span>
+				<?php endforeach; ?>
+			<?php else: ?>
+				<span class="access-chip">Accountant</span>
+			<?php endif; ?>
+		</div>
+	</div>
+	<div class="access-card permissions">
+		<h3 class="tile-title mb-2">Allocated Permissions</h3>
+		<div class="small text-muted">Permission codes active in this portal.</div>
+		<div class="chip-wrap">
+			<?php if (!empty($permissionCodes)): ?>
+				<?php foreach ($permissionCodes as $permissionCode): ?>
+					<span class="module-chip"><?php echo htmlspecialchars((string)$permissionCode); ?></span>
+				<?php endforeach; ?>
+			<?php else: ?>
+				<span class="module-chip">No extra permissions</span>
+			<?php endif; ?>
+		</div>
+	</div>
+	<div class="access-card modules">
+		<h3 class="tile-title mb-2">Allocated Modules</h3>
+		<div class="small text-muted">Modules unlocked by your permissions.</div>
+		<div class="module-list">
+			<?php if (!empty($allocatedModules)): ?>
+				<?php foreach ($allocatedModules as $module): ?>
+					<a class="module-link" href="<?php echo htmlspecialchars((string)$module['href']); ?>">
+						<div class="module-icon"><i class="<?php echo htmlspecialchars((string)$module['icon']); ?>"></i></div>
+						<div>
+							<div class="module-title"><?php echo htmlspecialchars((string)$module['label']); ?></div>
+							<div class="module-desc"><?php echo htmlspecialchars((string)$module['description']); ?></div>
+							<div class="module-perms">
+								<?php foreach ((array)$module['permissions'] as $permission): ?>
+									<span><?php echo htmlspecialchars((string)$permission); ?></span>
+								<?php endforeach; ?>
+							</div>
+						</div>
+					</a>
+				<?php endforeach; ?>
+			<?php else: ?>
+				<div class="text-muted">No additional modules found yet.</div>
+			<?php endif; ?>
 		</div>
 	</div>
 </div>

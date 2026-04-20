@@ -4,8 +4,28 @@ session_start();
 require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
+require_once('const/rbac.php');
 require_once('const/academic_dashboard.php');
 if ($res == "1" && $level == "1") {}else{header("location:../");}
+
+$roleNames = [];
+$permissionCodes = [];
+$visibleModules = [];
+$allocatedModules = [];
+
+try {
+	$conn = app_db();
+	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	$roleNames = app_staff_role_names($conn, (int)$account_id);
+	$permissionCodes = app_get_permissions($conn, (string)$account_id, (string)$level);
+	$visibleModules = app_portal_visible_modules($conn, 'academic', (string)$account_id, (string)$level);
+	$allocatedModules = app_portal_allocated_modules($conn, 'academic', (string)$account_id, (string)$level);
+} catch (Throwable $e) {
+	$roleNames = [];
+	$permissionCodes = [];
+	$visibleModules = [];
+	$allocatedModules = [];
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -20,6 +40,24 @@ if ($res == "1" && $level == "1") {}else{header("location:../");}
 <link rel="icon" href="images/icon.ico">
 <link rel="stylesheet" type="text/css" href="cdn.jsdelivr.net/npm/bootstrap-icons%401.10.5/font/bootstrap-icons.css">
 <link type="text/css" rel="stylesheet" href="loader/waitMe.css">
+<style>
+.access-grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:14px;margin:18px 0 18px}
+.access-card{background:#fff;border:1px solid #e7edf5;border-radius:18px;padding:16px;box-shadow:0 14px 40px rgba(15,95,168,.08)}
+.access-card.roles,.access-card.permissions,.access-card.modules{grid-column:span 4}
+.chip-wrap{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.access-chip,.module-chip{display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border-radius:999px;font-size:.82rem;font-weight:700}
+.access-chip{background:#e7f1ef;color:#00695C}
+.module-chip{background:#eef4fb;color:#27405c}
+.module-list{display:grid;gap:10px;margin-top:12px}
+.module-link{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border:1px solid #e7edf5;border-radius:16px;text-decoration:none;color:#203040;background:#fbfdff}
+.module-link:hover{border-color:#cfe3db;background:#f4fbf8}
+.module-icon{width:38px;height:38px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:#e7f1ef;color:#00695C;flex:0 0 auto}
+.module-title{font-weight:800;color:#123;line-height:1.2}
+.module-desc{font-size:.84rem;color:#6f7e8f;margin-top:2px}
+.module-perms{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.module-perms span{font-size:.72rem;background:#eef4fb;color:#4d647d;padding:4px 8px;border-radius:999px}
+@media (max-width: 1100px){.access-card.roles,.access-card.permissions,.access-card.modules{grid-column:span 12}}
+</style>
 </head>
 <body class="app sidebar-mini">
 
@@ -46,28 +84,9 @@ if ($res == "1" && $level == "1") {}else{header("location:../");}
 </div>
 </div>
 <ul class="app-menu">
-<li><a class="app-menu__item active" href="academic"><i class="app-menu__icon feather icon-monitor"></i><span class="app-menu__label">Dashboard</span></a></li>
-<li><a class="app-menu__item" href="academic/terms"><i class="app-menu__icon feather icon-folder"></i><span class="app-menu__label">Academic Terms</span></a></li>
-
-<li><a class="app-menu__item" href="academic/classes"><i class="app-menu__icon feather icon-home"></i><span class="app-menu__label">Classes</span></a></li>
-<li><a class="app-menu__item" href="academic/subjects"><i class="app-menu__icon feather icon-book"></i><span class="app-menu__label">Subjects</span></a></li>
-<li><a class="app-menu__item" href="academic/combinations"><i class="app-menu__icon feather icon-book-open"></i><span class="app-menu__label">Subject Combinations</span></a></li>
-<li class="treeview"><a class="app-menu__item" href="javascript:void(0);" data-toggle="treeview"><i class="app-menu__icon feather icon-users"></i><span class="app-menu__label">Students</span><i class="treeview-indicator bi bi-chevron-right"></i></a>
-<ul class="treeview-menu">
-<li><a class="treeview-item" href="academic/promote_students"><i class="icon bi bi-circle-fill"></i> Promote Students</a></li>
-</ul>
-</li>
-<li class="treeview"><a class="app-menu__item" href="javascript:void(0);" data-toggle="treeview"><i class="app-menu__icon feather icon-file-text"></i><span class="app-menu__label">Examination Results</span><i class="treeview-indicator bi bi-chevron-right"></i></a>
-<ul class="treeview-menu">
-
-<li><a class="treeview-item" href="academic/manage_results"><i class="icon bi bi-circle-fill"></i> Manage Results</a></li>
-<li><a class="treeview-item" href="academic/individual_results"><i class="icon bi bi-circle-fill"></i> Individual Results</a></li>
-</ul>
-</li>
-<li><a class="app-menu__item" href="academic/report"><i class="app-menu__icon feather icon-bar-chart-2"></i><span class="app-menu__label">Report Tool</span></a></li>
-<li><a class="app-menu__item" href="academic/grading-system"><i class="app-menu__icon feather icon-award"></i><span class="app-menu__label">Grading System</span></a></li>
-<li><a class="app-menu__item" href="academic/division-system"><i class="app-menu__icon feather icon-layers"></i><span class="app-menu__label">Division System</span></a></li>
-<li><a class="app-menu__item" href="academic/announcement"><i class="app-menu__icon feather icon-bell"></i><span class="app-menu__label">Announcements</span></a></li>
+<?php foreach ($visibleModules as $module): ?>
+<li><a class="app-menu__item<?php echo basename((string)$module['href']) === basename($_SERVER['PHP_SELF'], '.php') ? ' active' : ''; ?>" href="<?php echo htmlspecialchars((string)$module['href']); ?>"><i class="app-menu__icon <?php echo htmlspecialchars((string)$module['icon']); ?>"></i><span class="app-menu__label"><?php echo htmlspecialchars((string)$module['label']); ?></span></a></li>
+<?php endforeach; ?>
 </ul>
 </aside>
 <main class="app-content">
@@ -76,6 +95,58 @@ if ($res == "1" && $level == "1") {}else{header("location:../");}
 <h1>Dashboard</h1>
 </div>
 
+</div>
+<div class="access-grid">
+	<div class="access-card roles">
+		<h3 class="tile-title mb-2">Assigned Roles</h3>
+		<div class="small text-muted">Roles attached to this academic account.</div>
+		<div class="chip-wrap">
+			<?php if (!empty($roleNames)): ?>
+				<?php foreach ($roleNames as $roleName): ?>
+					<span class="access-chip"><?php echo htmlspecialchars($roleName); ?></span>
+				<?php endforeach; ?>
+			<?php else: ?>
+				<span class="access-chip">Academic</span>
+			<?php endif; ?>
+		</div>
+	</div>
+	<div class="access-card permissions">
+		<h3 class="tile-title mb-2">Allocated Permissions</h3>
+		<div class="small text-muted">Permission codes active in this portal.</div>
+		<div class="chip-wrap">
+			<?php if (!empty($permissionCodes)): ?>
+				<?php foreach ($permissionCodes as $permissionCode): ?>
+					<span class="module-chip"><?php echo htmlspecialchars((string)$permissionCode); ?></span>
+				<?php endforeach; ?>
+			<?php else: ?>
+				<span class="module-chip">No extra permissions</span>
+			<?php endif; ?>
+		</div>
+	</div>
+	<div class="access-card modules">
+		<h3 class="tile-title mb-2">Allocated Modules</h3>
+		<div class="small text-muted">Modules unlocked by your permissions.</div>
+		<div class="module-list">
+			<?php if (!empty($allocatedModules)): ?>
+				<?php foreach ($allocatedModules as $module): ?>
+					<a class="module-link" href="<?php echo htmlspecialchars((string)$module['href']); ?>">
+						<div class="module-icon"><i class="<?php echo htmlspecialchars((string)$module['icon']); ?>"></i></div>
+						<div>
+							<div class="module-title"><?php echo htmlspecialchars((string)$module['label']); ?></div>
+							<div class="module-desc"><?php echo htmlspecialchars((string)$module['description']); ?></div>
+							<div class="module-perms">
+								<?php foreach ((array)$module['permissions'] as $permission): ?>
+									<span><?php echo htmlspecialchars((string)$permission); ?></span>
+								<?php endforeach; ?>
+							</div>
+						</div>
+					</a>
+				<?php endforeach; ?>
+			<?php else: ?>
+				<div class="text-muted">No additional modules found yet.</div>
+			<?php endif; ?>
+		</div>
+	</div>
 </div>
 <div class="row">
 <div class="col-md-6 col-lg-3">

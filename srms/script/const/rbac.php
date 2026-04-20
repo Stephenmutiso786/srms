@@ -154,9 +154,43 @@ function app_teacher_portal_module_catalog(): array
 	];
 }
 
-function app_teacher_portal_visible_modules(PDO $conn, string $staffId, string $level): array
+function app_portal_module_catalog(string $portal): array
 {
-	$modules = app_teacher_portal_module_catalog();
+	$portal = strtolower(trim($portal));
+	if ($portal === 'academic') {
+		return [
+			['key' => 'dashboard', 'label' => 'Dashboard', 'href' => 'academic', 'icon' => 'feather icon-monitor', 'description' => 'Academic overview', 'permissions' => [], 'core' => true],
+			['key' => 'terms', 'label' => 'Academic Terms', 'href' => 'academic/terms', 'icon' => 'feather icon-folder', 'description' => 'Manage academic terms', 'permissions' => ['academic.manage'], 'core' => true],
+			['key' => 'classes', 'label' => 'Classes', 'href' => 'academic/classes', 'icon' => 'feather icon-home', 'description' => 'Class setup and structure', 'permissions' => ['classes.assign', 'academic.manage'], 'core' => true],
+			['key' => 'subjects', 'label' => 'Subjects', 'href' => 'academic/subjects', 'icon' => 'feather icon-book', 'description' => 'Subject setup', 'permissions' => ['academic.manage'], 'core' => true],
+			['key' => 'combinations', 'label' => 'Subject Combinations', 'href' => 'academic/combinations', 'icon' => 'feather icon-book-open', 'description' => 'Teacher-subject allocation', 'permissions' => ['teacher.allocate', 'academic.manage'], 'core' => true],
+			['key' => 'students', 'label' => 'Student Promotion', 'href' => 'academic/promote_students', 'icon' => 'feather icon-users', 'description' => 'Promote and manage learners', 'permissions' => ['students.manage', 'academic.manage'], 'core' => true],
+			['key' => 'results_manage', 'label' => 'Manage Results', 'href' => 'academic/manage_results', 'icon' => 'feather icon-file-text', 'description' => 'Results entry and approval', 'permissions' => ['marks.enter', 'marks.review', 'results.approve'], 'core' => true],
+			['key' => 'individual_results', 'label' => 'Individual Results', 'href' => 'academic/individual_results', 'icon' => 'feather icon-user-check', 'description' => 'Single-student result review', 'permissions' => ['report.view', 'report.generate'], 'core' => true],
+			['key' => 'report_tool', 'label' => 'Report Tool', 'href' => 'academic/report', 'icon' => 'feather icon-bar-chart-2', 'description' => 'Class report analysis', 'permissions' => ['report.generate', 'report.view'], 'core' => true],
+			['key' => 'grading_system', 'label' => 'Grading System', 'href' => 'academic/grading-system', 'icon' => 'feather icon-award', 'description' => 'Grade scale and grading rules', 'permissions' => ['exams.manage', 'academic.manage'], 'core' => true],
+			['key' => 'division_system', 'label' => 'Division System', 'href' => 'academic/division-system', 'icon' => 'feather icon-layers', 'description' => 'Division and performance bands', 'permissions' => ['academic.manage', 'report.generate'], 'core' => true],
+			['key' => 'announcements', 'label' => 'Announcements', 'href' => 'academic/announcement', 'icon' => 'feather icon-bell', 'description' => 'Publish academic notices', 'permissions' => ['communication.manage', 'communication.send'], 'core' => false],
+			['key' => 'profile', 'label' => 'Profile', 'href' => 'academic/profile', 'icon' => 'feather icon-user', 'description' => 'My academic staff profile', 'permissions' => [], 'core' => true],
+		];
+	}
+
+	if ($portal === 'accountant') {
+		return [
+			['key' => 'dashboard', 'label' => 'Dashboard', 'href' => 'accountant', 'icon' => 'feather icon-monitor', 'description' => 'Finance overview', 'permissions' => [], 'core' => true],
+			['key' => 'fees', 'label' => 'Fees & Finance', 'href' => 'accountant/fees', 'icon' => 'feather icon-credit-card', 'description' => 'Payments and finance activity', 'permissions' => ['finance.manage', 'finance.view'], 'core' => true],
+			['key' => 'fee_structure', 'label' => 'Fee Structure', 'href' => 'accountant/fee_structure', 'icon' => 'feather icon-sliders', 'description' => 'Fee setup and policies', 'permissions' => ['finance.manage'], 'core' => true],
+			['key' => 'invoices', 'label' => 'Invoices', 'href' => 'accountant/invoices', 'icon' => 'feather icon-file-text', 'description' => 'Invoices and collections', 'permissions' => ['finance.manage', 'finance.view'], 'core' => true],
+			['key' => 'profile', 'label' => 'Profile', 'href' => 'accountant/profile', 'icon' => 'feather icon-user', 'description' => 'My accountant profile', 'permissions' => [], 'core' => true],
+		];
+	}
+
+	return app_teacher_portal_module_catalog();
+}
+
+function app_portal_visible_modules(PDO $conn, string $portal, string $staffId, string $level): array
+{
+	$modules = app_portal_module_catalog($portal);
 	$visible = [];
 
 	foreach ($modules as $module) {
@@ -177,11 +211,21 @@ function app_teacher_portal_visible_modules(PDO $conn, string $staffId, string $
 	return $visible;
 }
 
-function app_teacher_portal_allocated_modules(PDO $conn, string $staffId, string $level): array
+function app_portal_allocated_modules(PDO $conn, string $portal, string $staffId, string $level): array
 {
-	return array_values(array_filter(app_teacher_portal_visible_modules($conn, $staffId, $level), static function (array $module): bool {
+	return array_values(array_filter(app_portal_visible_modules($conn, $portal, $staffId, $level), static function (array $module): bool {
 		return empty($module['core']);
 	}));
+}
+
+function app_teacher_portal_visible_modules(PDO $conn, string $staffId, string $level): array
+{
+	return app_portal_visible_modules($conn, 'teacher', $staffId, $level);
+}
+
+function app_teacher_portal_allocated_modules(PDO $conn, string $staffId, string $level): array
+{
+	return app_portal_allocated_modules($conn, 'teacher', $staffId, $level);
 }
 
 function app_require_permission(string $permission, string $redirect = '../'): void
