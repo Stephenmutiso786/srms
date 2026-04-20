@@ -75,20 +75,7 @@ try {
 </ul>
 </header>
 
-<div class="app-sidebar__overlay" data-toggle="sidebar"></div>
-<aside class="app-sidebar">
-<div class="app-sidebar__user">
-<div>
-<p class="app-sidebar__user-name"><?php echo $fname.' '.$lname; ?></p>
-<p class="app-sidebar__user-designation">Academic</p>
-</div>
-</div>
-<ul class="app-menu">
-<?php foreach ($visibleModules as $module): ?>
-<li><a class="app-menu__item<?php echo basename((string)$module['href']) === basename($_SERVER['PHP_SELF'], '.php') ? ' active' : ''; ?>" href="<?php echo htmlspecialchars((string)$module['href']); ?>"><i class="app-menu__icon <?php echo htmlspecialchars((string)$module['icon']); ?>"></i><span class="app-menu__label"><?php echo htmlspecialchars((string)$module['label']); ?></span></a></li>
-<?php endforeach; ?>
-</ul>
-</aside>
+<?php include('academic/partials/sidebar.php'); ?>
 <main class="app-content">
 <div class="app-title">
 <div>
