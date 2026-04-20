@@ -30,7 +30,7 @@ try {
 	$stmt->execute();
 	$staff = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-	$stmt = $conn->prepare("SELECT ur.staff_id, ur.role_id, r.name AS role_name, s.fname, s.lname
+	$stmt = $conn->prepare("SELECT ur.staff_id, ur.role_id, r.name AS role_name, s.fname, s.lname, s.level
 		FROM tbl_user_roles ur
 		JOIN tbl_roles r ON r.id = ur.role_id
 		JOIN tbl_staff s ON s.id = ur.staff_id
@@ -123,7 +123,7 @@ try {
 <?php foreach ($assignments as $a): ?>
 <tr>
 <td><?php echo htmlspecialchars(trim($a['fname'].' '.$a['lname']).' (#'.$a['staff_id'].')'); ?></td>
-<td><?php echo htmlspecialchars(app_staff_primary_title($conn, (int)$a['staff_id'], '')); ?></td>
+<td><?php echo htmlspecialchars(app_staff_primary_title($conn, (int)$a['staff_id'], (string)($a['level'] ?? ''))); ?></td>
 <td><?php echo htmlspecialchars($a['role_name']); ?></td>
 <td>
   <form class="d-inline" action="teacher/core/remove_role" method="POST">

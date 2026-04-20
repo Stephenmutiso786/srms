@@ -489,6 +489,18 @@ function app_ensure_school_roles(PDO $conn): void
 
 function app_staff_primary_title(PDO $conn, int $staffId, string $level = ''): string
 {
+	$resolvedLevel = trim($level);
+	if ($resolvedLevel === '' && $staffId > 0 && app_table_exists($conn, 'tbl_staff')) {
+		try {
+			$stmt = $conn->prepare('SELECT level FROM tbl_staff WHERE id = ? LIMIT 1');
+			$stmt->execute([$staffId]);
+			$resolvedLevel = (string)($stmt->fetchColumn() ?: '');
+		} catch (Throwable $e) {
+			$resolvedLevel = '';
+		}
+	}
+
+	$baseTitle = app_level_title_label((int)$resolvedLevel);
 	if ($staffId > 0 && app_table_exists($conn, 'tbl_user_roles') && app_table_exists($conn, 'tbl_roles')) {
 		try {
 			$stmt = $conn->prepare("SELECT r.name
@@ -500,6 +512,9 @@ function app_staff_primary_title(PDO $conn, int $staffId, string $level = ''): s
 			$stmt->execute([$staffId]);
 			$roleName = trim((string)$stmt->fetchColumn());
 			if ($roleName !== '') {
+				if ($baseTitle !== '') {
+					return $baseTitle . ' / ' . $roleName;
+				}
 				return $roleName;
 			}
 		} catch (Throwable $e) {
@@ -507,7 +522,7 @@ function app_staff_primary_title(PDO $conn, int $staffId, string $level = ''): s
 		}
 	}
 
-	return app_level_title_label((int)$level);
+	return $baseTitle;
 }
 
 function app_staff_has_permission_code(PDO $conn, int $staffId, string $permissionCode): bool
