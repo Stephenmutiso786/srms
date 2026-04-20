@@ -12,6 +12,7 @@ $roles = [];
 $permissions = [];
 $rolePermissionMap = [];
 $staffRows = [];
+$permissionGroups = [];
 $error = '';
 
 try {
@@ -30,6 +31,20 @@ try {
 	$stmt = $conn->prepare("SELECT id, code, description FROM tbl_permissions ORDER BY code ASC");
 	$stmt->execute();
 	$permissions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	foreach ($permissions as &$permission) {
+		$code = strtolower(trim((string)($permission['code'] ?? '')));
+		$group = 'other';
+		if ($code !== '') {
+			$parts = explode('.', $code, 2);
+			$candidate = trim((string)($parts[0] ?? ''));
+			$group = $candidate !== '' ? $candidate : 'other';
+		}
+		$permission['group'] = $group;
+		$permissionGroups[$group] = true;
+	}
+	unset($permission);
+	$permissionGroups = array_keys($permissionGroups);
+	sort($permissionGroups);
 
 	$stmt = $conn->prepare("SELECT role_id, permission_id FROM tbl_role_permissions");
 	$stmt->execute();
@@ -124,6 +139,8 @@ try {
 .badge-role { font-size: 0.72rem; }
 .badge-perm { font-size: 0.72rem; }
 .staff-table td { vertical-align: top; }
+.filter-bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; margin-bottom: 12px; }
+.filter-item { min-width: 220px; }
 </style>
 </head>
 <body class="app sidebar-mini">
@@ -160,19 +177,35 @@ try {
 <div class="col-md-12">
 <div class="tile">
 <h3 class="tile-title">Role x Permission Grid</h3>
+<div class="filter-bar">
+<div class="filter-item">
+<label class="form-label mb-1" for="permGroupFilter">Permission Group</label>
+<select class="form-control" id="permGroupFilter">
+<option value="all">All permission groups</option>
+<?php foreach ($permissionGroups as $group): ?>
+<option value="<?php echo htmlspecialchars((string)$group); ?>"><?php echo htmlspecialchars(ucwords(str_replace('_', ' ', (string)$group))); ?></option>
+<?php endforeach; ?>
+</select>
+</div>
+<div class="filter-item">
+<label class="form-label mb-1" for="permCodeSearch">Permission Search</label>
+<input class="form-control" type="text" id="permCodeSearch" placeholder="Type code, e.g. finance or results">
+</div>
+<div class="small text-muted" id="matrixVisibleCounter">Showing all permissions</div>
+</div>
 <div class="matrix-wrap">
 <table class="table table-bordered table-sm matrix-table">
 <thead>
 <tr>
 <th class="matrix-role-col">Role</th>
 <?php foreach ($permissions as $permission): ?>
-<th title="<?php echo htmlspecialchars((string)($permission['description'] ?? '')); ?>"><?php echo htmlspecialchars((string)$permission['code']); ?></th>
+<th class="perm-col" data-group="<?php echo htmlspecialchars((string)$permission['group']); ?>" data-code="<?php echo htmlspecialchars((string)$permission['code']); ?>" title="<?php echo htmlspecialchars((string)($permission['description'] ?? '')); ?>"><?php echo htmlspecialchars((string)$permission['code']); ?></th>
 <?php endforeach; ?>
 </tr>
 </thead>
 <tbody>
 <?php foreach ($roles as $role): ?>
-<tr>
+<tr class="matrix-row">
 <td class="matrix-role-col">
 <div class="fw-semibold"><?php echo htmlspecialchars((string)$role['name']); ?></div>
 <div class="text-muted small">Level <?php echo (int)$role['level']; ?></div>
@@ -180,7 +213,7 @@ try {
 <?php foreach ($permissions as $permission):
   $hasPermission = !empty($rolePermissionMap[(int)$role['id']][(int)$permission['id']]);
 ?>
-<td class="text-center"><?php echo $hasPermission ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-dash text-muted"></i>'; ?></td>
+<td class="text-center perm-col" data-group="<?php echo htmlspecialchars((string)$permission['group']); ?>" data-code="<?php echo htmlspecialchars((string)$permission['code']); ?>"><?php echo $hasPermission ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-dash text-muted"></i>'; ?></td>
 <?php endforeach; ?>
 </tr>
 <?php endforeach; ?>
@@ -195,6 +228,13 @@ try {
 <div class="col-md-12">
 <div class="tile">
 <h3 class="tile-title">Staff Effective Access Snapshot</h3>
+<div class="filter-bar">
+<div class="filter-item">
+<label class="form-label mb-1" for="staffNameFilter">Staff Name Filter</label>
+<input class="form-control" type="text" id="staffNameFilter" placeholder="Search by staff name or title">
+</div>
+<div class="small text-muted" id="staffVisibleCounter">Showing all staff</div>
+</div>
 <div class="table-responsive">
 <table class="table table-hover staff-table">
 <thead>
@@ -207,7 +247,7 @@ try {
 </thead>
 <tbody>
 <?php foreach ($staffRows as $staff): ?>
-<tr>
+<tr class="staff-row" data-staff-search="<?php echo htmlspecialchars(strtolower((string)$staff['name'] . ' ' . (string)$staff['primary_title'] . ' ' . implode(' ', $staff['permission_codes']))); ?>">
 <td>
 <div class="fw-semibold"><?php echo htmlspecialchars((string)$staff['name']); ?></div>
 <div class="text-muted small">#<?php echo (int)$staff['id']; ?></div>
@@ -248,6 +288,74 @@ try {
 <script src="js/jquery-3.7.0.min.js"></script>
 <script src="js/bootstrap.min.js"></script>
 <script src="js/main.js"></script>
+<script>
+(function () {
+	var groupFilter = document.getElementById('permGroupFilter');
+	var codeSearch = document.getElementById('permCodeSearch');
+	var matrixCounter = document.getElementById('matrixVisibleCounter');
+	var matrixColumns = Array.prototype.slice.call(document.querySelectorAll('.perm-col'));
+	var staffNameFilter = document.getElementById('staffNameFilter');
+	var staffCounter = document.getElementById('staffVisibleCounter');
+	var staffRows = Array.prototype.slice.call(document.querySelectorAll('.staff-row'));
+	var matrixRows = Array.prototype.slice.call(document.querySelectorAll('.matrix-row'));
+
+	function updateMatrixFilter() {
+		var groupValue = (groupFilter && groupFilter.value) ? groupFilter.value.toLowerCase() : 'all';
+		var codeValue = (codeSearch && codeSearch.value) ? codeSearch.value.trim().toLowerCase() : '';
+		var visiblePermissionCount = 0;
+
+		matrixColumns.forEach(function (cell) {
+			var cellGroup = (cell.getAttribute('data-group') || '').toLowerCase();
+			var cellCode = (cell.getAttribute('data-code') || '').toLowerCase();
+			var groupMatch = (groupValue === 'all') || (cellGroup === groupValue);
+			var codeMatch = (codeValue === '') || (cellCode.indexOf(codeValue) !== -1);
+			var visible = groupMatch && codeMatch;
+			cell.style.display = visible ? '' : 'none';
+			if (visible && cell.parentElement && cell.parentElement.tagName === 'TR' && cell.parentElement.parentElement && cell.parentElement.parentElement.tagName === 'THEAD') {
+				visiblePermissionCount += 1;
+			}
+		});
+
+		matrixRows.forEach(function (row) {
+			var hasVisibleCell = !!row.querySelector('td.perm-col:not([style*="display: none"])');
+			row.style.display = hasVisibleCell ? '' : 'none';
+		});
+
+		if (matrixCounter) {
+			matrixCounter.textContent = 'Showing ' + visiblePermissionCount + ' permission columns';
+		}
+	}
+
+	function updateStaffFilter() {
+		var q = (staffNameFilter && staffNameFilter.value) ? staffNameFilter.value.trim().toLowerCase() : '';
+		var visible = 0;
+		staffRows.forEach(function (row) {
+			var haystack = (row.getAttribute('data-staff-search') || '').toLowerCase();
+			var match = (q === '') || (haystack.indexOf(q) !== -1);
+			row.style.display = match ? '' : 'none';
+			if (match) {
+				visible += 1;
+			}
+		});
+		if (staffCounter) {
+			staffCounter.textContent = 'Showing ' + visible + ' staff records';
+		}
+	}
+
+	if (groupFilter) {
+		groupFilter.addEventListener('change', updateMatrixFilter);
+	}
+	if (codeSearch) {
+		codeSearch.addEventListener('input', updateMatrixFilter);
+	}
+	if (staffNameFilter) {
+		staffNameFilter.addEventListener('input', updateStaffFilter);
+	}
+
+	updateMatrixFilter();
+	updateStaffFilter();
+})();
+</script>
 <?php require_once('const/check-reply.php'); ?>
 </body>
 </html>
