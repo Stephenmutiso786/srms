@@ -9,6 +9,8 @@ require_once('const/rbac.php');
 if ($res !== '1') { header('location:../'); exit; }
 app_require_permission('bom.view', '../');
 
+$visibleModules = app_current_user_visible_portal_modules('bom');
+
 $profile = [];
 $meetings = [];
 $approvals = [];
@@ -57,9 +59,9 @@ try {
 <aside class="app-sidebar">
 <div class="app-sidebar__user"><div><p class="app-sidebar__user-name"><?php echo htmlspecialchars(trim(($profile['fname'] ?? '') . ' ' . ($profile['lname'] ?? ''))); ?></p><p class="app-sidebar__user-designation"><?php echo htmlspecialchars((string)($designation ?? 'BOM Member')); ?></p></div></div>
 <ul class="app-menu">
-<li><a class="app-menu__item active" href="bom"><i class="app-menu__icon feather icon-home"></i><span class="app-menu__label">BOM Dashboard</span></a></li>
-<li><a class="app-menu__item" href="bom/profile"><i class="app-menu__icon feather icon-user"></i><span class="app-menu__label">My Profile</span></a></li>
-<li><a class="app-menu__item" href="logout"><i class="app-menu__icon feather icon-log-out"></i><span class="app-menu__label">Logout</span></a></li>
+<?php foreach ($visibleModules as $module): ?>
+<li><a class="app-menu__item<?php echo basename((string)$module['href']) === basename($_SERVER['PHP_SELF'], '.php') ? ' active' : ''; ?>" href="<?php echo htmlspecialchars((string)$module['href']); ?>"><i class="app-menu__icon <?php echo htmlspecialchars((string)$module['icon']); ?>"></i><span class="app-menu__label"><?php echo htmlspecialchars((string)$module['label']); ?></span></a></li>
+<?php endforeach; ?>
 </ul>
 </aside>
 

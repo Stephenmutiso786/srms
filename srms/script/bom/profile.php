@@ -9,6 +9,8 @@ require_once('const/rbac.php');
 if ($res !== '1') { header('location:../'); exit; }
 app_require_permission('bom.view', '../');
 
+$visibleModules = app_current_user_visible_portal_modules('bom');
+
 $profile = [];
 try {
 	$conn = app_db();
@@ -35,7 +37,7 @@ try {
 <body class="app sidebar-mini">
 <header class="app-header"><a class="app-header__logo" href="javascript:void(0);"><?php echo APP_NAME; ?> BOM</a><a class="app-sidebar__toggle" href="#" data-toggle="sidebar"></a></header>
 <div class="app-sidebar__overlay" data-toggle="sidebar"></div>
-<aside class="app-sidebar"><ul class="app-menu"><li><a class="app-menu__item" href="bom"><span class="app-menu__label">Dashboard</span></a></li><li><a class="app-menu__item active" href="bom/profile"><span class="app-menu__label">My Profile</span></a></li><li><a class="app-menu__item" href="logout"><span class="app-menu__label">Logout</span></a></li></ul></aside>
+<aside class="app-sidebar"><ul class="app-menu"><?php foreach ($visibleModules as $module): ?><li><a class="app-menu__item<?php echo basename((string)$module['href']) === basename($_SERVER['PHP_SELF'], '.php') ? ' active' : ''; ?>" href="<?php echo htmlspecialchars((string)$module['href']); ?>"><span class="app-menu__label"><?php echo htmlspecialchars((string)$module['label']); ?></span></a></li><?php endforeach; ?></ul></aside>
 <main class="app-content">
 <div class="app-title"><div><h1>My BOM Profile</h1></div></div>
 <div class="tile">

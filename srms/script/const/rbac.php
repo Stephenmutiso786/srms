@@ -248,6 +248,14 @@ function app_portal_module_catalog(string $portal): array
 		];
 	}
 
+	if ($portal === 'bom') {
+		return [
+			['key' => 'dashboard', 'label' => 'BOM Dashboard', 'href' => 'bom', 'icon' => 'feather icon-home', 'description' => 'Governance overview', 'permissions' => ['bom.view'], 'core' => true, 'active' => ['index']],
+			['key' => 'profile', 'label' => 'My Profile', 'href' => 'bom/profile', 'icon' => 'feather icon-user', 'description' => 'My BOM profile', 'permissions' => ['bom.view'], 'core' => true, 'active' => ['profile']],
+			['key' => 'logout', 'label' => 'Logout', 'href' => 'logout', 'icon' => 'feather icon-log-out', 'description' => 'Sign out', 'permissions' => [], 'core' => true, 'active' => ['logout']],
+		];
+	}
+
 	if ($portal === 'academic') {
 		return [
 			['key' => 'dashboard', 'label' => 'Dashboard', 'href' => 'academic', 'icon' => 'feather icon-monitor', 'description' => 'Academic overview', 'permissions' => [], 'core' => true],
