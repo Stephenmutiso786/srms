@@ -116,6 +116,9 @@ function app_report_combined_cycles_html(PDO $conn, array $payload): string
     );
 
     $rows = is_array($breakdownData['rows'] ?? null) ? $breakdownData['rows'] : [];
+    if (empty($rows)) {
+        return app_report_generic_html($conn, $payload);
+    }
     $cycleLabels = array_values(array_filter(array_map('strval', $breakdownData['cycle_labels'] ?? [])));
     $cycleTitle = !empty($cycleLabels) ? implode(' / ', $cycleLabels) : 'COMBINED CYCLES';
 
@@ -252,6 +255,15 @@ function app_report_generic_html(PDO $conn, array $payload): string
     $card = is_array($payload['card'] ?? null) ? $payload['card'] : [];
     $examSummary = is_array($payload['exam_summary'] ?? null) ? $payload['exam_summary'] : null;
     $subjects = is_array($payload['exam_breakdown'] ?? null) ? $payload['exam_breakdown'] : [];
+
+    if (empty($subjects) && !empty($card['class_id']) && !empty($card['term_id']) && !empty($payload['student_id'])) {
+        $subjects = report_subject_breakdown(
+            $conn,
+            (string)$payload['student_id'],
+            (int)$card['class_id'],
+            (int)$card['term_id']
+        );
+    }
 
     $studentName = (string)($payload['student_name'] ?? '');
     $schoolId = (string)($payload['school_id'] ?? '');
