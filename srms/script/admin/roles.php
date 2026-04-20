@@ -75,6 +75,9 @@ try {
 <h1>Roles & Permissions</h1>
 <p>Assign school leadership, departmental and support roles to staff. Only admin can allocate roles.</p>
 </div>
+<div>
+<a class="btn btn-outline-primary" href="admin/role_matrix"><i class="bi bi-grid me-1"></i>Open Role Matrix</a>
+</div>
 </div>
 
 <?php if ($error !== '') { ?>

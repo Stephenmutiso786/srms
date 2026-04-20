@@ -86,6 +86,7 @@ function app_tree_active($page)
     <li><a class="app-menu__item<?php echo app_menu_active('online_users'); ?>" href="admin/online_users"><i class="app-menu__icon feather icon-wifi"></i><span class="app-menu__label">Online Users</span></a></li>
     <li><a class="app-menu__item<?php echo app_menu_active('audit_logs'); ?>" href="admin/audit_logs"><i class="app-menu__icon feather icon-shield"></i><span class="app-menu__label">Audit Logs</span></a></li>
     <li><a class="app-menu__item<?php echo app_menu_active('roles'); ?>" href="admin/roles"><i class="app-menu__icon feather icon-shield"></i><span class="app-menu__label">Roles & Permissions</span></a></li>
+    <li><a class="app-menu__item<?php echo app_menu_active('role_matrix'); ?>" href="admin/role_matrix"><i class="app-menu__icon feather icon-grid"></i><span class="app-menu__label">Role Matrix</span></a></li>
     <li><a class="app-menu__item<?php echo app_menu_active('bom'); ?>" href="admin/bom"><i class="app-menu__icon feather icon-briefcase"></i><span class="app-menu__label">BOM Management</span></a></li>
     <li><a class="app-menu__item<?php echo app_menu_active('mpesa'); ?>" href="admin/mpesa"><i class="app-menu__icon feather icon-smartphone"></i><span class="app-menu__label">M-Pesa</span></a></li>
     <li><a class="app-menu__item<?php echo app_menu_active('smtp'); ?>" href="admin/smtp"><i class="app-menu__icon feather icon-mail"></i><span class="app-menu__label">SMTP Settings</span></a></li>
