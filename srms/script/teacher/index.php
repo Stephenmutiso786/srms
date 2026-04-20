@@ -4,6 +4,7 @@ session_start();
 require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
+require_once('const/rbac.php');
 require_once('const/report_engine.php');
 if ($res == "1" && $level == "2") {}else{header("location:../"); exit;}
 
@@ -20,6 +21,10 @@ $summary = ['subjects' => 0, 'classes' => 0, 'students' => 0, 'avg' => 0, 'best'
 $rows = [];
 $trendPoints = [];
 $recentDiscipline = [];
+$roleNames = [];
+$permissionCodes = [];
+$visibleModules = [];
+$allocatedModules = [];
 $error = '';
 
 try {
@@ -47,6 +52,11 @@ try {
 		$stmt->execute([(int)$account_id]);
 		$assignments = [];
 	}
+
+	$roleNames = app_staff_role_names($conn, (int)$account_id);
+	$permissionCodes = app_get_permissions($conn, (string)$account_id, (string)$level);
+	$visibleModules = app_teacher_portal_visible_modules($conn, (string)$account_id, (string)$level);
+	$allocatedModules = app_teacher_portal_allocated_modules($conn, (string)$account_id, (string)$level);
 
 	foreach ($assignments as $assignment) {
 		if (!empty($assignment['class_id'])) {
@@ -214,6 +224,23 @@ body.app{background:#f4f7f6}
 .dashboard-grid{display:grid;grid-template-columns:1fr;gap:16px}
 .dashboard-grid .tile{border-radius:18px;border:1px solid #e7edf5;box-shadow:0 14px 40px rgba(15,95,168,.08)}
 .chart-lg{height:320px}
+.access-grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:14px}
+.access-card{background:#fff;border:1px solid #e7edf5;border-radius:18px;padding:16px;box-shadow:0 14px 40px rgba(15,95,168,.08)}
+.access-card.roles{grid-column:span 4}
+.access-card.permissions{grid-column:span 4}
+.access-card.modules{grid-column:span 4}
+.chip-wrap{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.access-chip,.module-chip{display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border-radius:999px;font-size:.82rem;font-weight:700}
+.access-chip{background:#e7f1ef;color:#00695C}
+.module-chip{background:#eef4fb;color:#27405c}
+.module-list{display:grid;gap:10px;margin-top:12px}
+.module-link{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border:1px solid #e7edf5;border-radius:16px;text-decoration:none;color:#203040;background:#fbfdff}
+.module-link:hover{border-color:#cfe3db;background:#f4fbf8}
+.module-icon{width:38px;height:38px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:#e7f1ef;color:#00695C;flex:0 0 auto}
+.module-title{font-weight:800;color:#123;line-height:1.2}
+.module-desc{font-size:.84rem;color:#6f7e8f;margin-top:2px}
+.module-perms{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.module-perms span{font-size:.72rem;background:#eef4fb;color:#4d647d;padding:4px 8px;border-radius:999px}
 @media (max-width:1100px){.portal-shell{grid-template-columns:1fr}.portal-side{position:relative;height:auto}.hero-controls,.stats-grid,.grid-two{grid-template-columns:1fr 1fr}}
 
 @media (max-width: 1200px){
@@ -279,6 +306,59 @@ body.app{background:#f4f7f6}
 				<div class="stat-card"><div class="label">Students</div><div class="value"><?php echo (int)$summary['students']; ?></div></div>
 				<div class="stat-card"><div class="label">Selected Avg</div><div class="value"><?php echo number_format((float)$summary['avg'],2); ?></div></div>
 				<div class="stat-card"><div class="label">Best Score</div><div class="value"><?php echo number_format((float)$summary['best'],0); ?></div></div>
+			</div>
+
+			<div class="access-grid mb-3">
+				<div class="access-card roles">
+					<div class="tile-title mb-2">Assigned Roles</div>
+					<div class="small text-muted">These are the staff roles currently attached to your account.</div>
+					<div class="chip-wrap">
+						<?php if (!empty($roleNames)): ?>
+							<?php foreach ($roleNames as $roleName): ?>
+								<span class="access-chip"><?php echo htmlspecialchars($roleName); ?></span>
+							<?php endforeach; ?>
+						<?php else: ?>
+							<span class="access-chip">Teacher</span>
+						<?php endif; ?>
+					</div>
+				</div>
+				<div class="access-card permissions">
+					<div class="tile-title mb-2">Allocated Permissions</div>
+					<div class="small text-muted">Permission codes currently active on this portal.</div>
+					<div class="chip-wrap">
+						<?php if (!empty($permissionCodes)): ?>
+							<?php foreach ($permissionCodes as $permissionCode): ?>
+								<span class="module-chip"><?php echo htmlspecialchars((string)$permissionCode); ?></span>
+							<?php endforeach; ?>
+						<?php else: ?>
+							<span class="module-chip">No extra permissions</span>
+						<?php endif; ?>
+					</div>
+				</div>
+				<div class="access-card modules">
+					<div class="tile-title mb-2">Allocated Modules</div>
+					<div class="small text-muted">Modules unlocked by the current permission set.</div>
+					<div class="module-list">
+						<?php if (!empty($allocatedModules)): ?>
+							<?php foreach ($allocatedModules as $module): ?>
+								<a class="module-link" href="<?php echo htmlspecialchars((string)$module['href']); ?>">
+									<div class="module-icon"><i class="<?php echo htmlspecialchars((string)$module['icon']); ?>"></i></div>
+									<div>
+										<div class="module-title"><?php echo htmlspecialchars((string)$module['label']); ?></div>
+										<div class="module-desc"><?php echo htmlspecialchars((string)$module['description']); ?></div>
+										<div class="module-perms">
+											<?php foreach ((array)$module['permissions'] as $permission): ?>
+												<span><?php echo htmlspecialchars((string)$permission); ?></span>
+											<?php endforeach; ?>
+										</div>
+									</div>
+								</a>
+							<?php endforeach; ?>
+						<?php else: ?>
+							<div class="text-muted">No additional allocated modules found yet.</div>
+						<?php endif; ?>
+					</div>
+				</div>
 			</div>
 
 			<div class="dashboard-grid">
