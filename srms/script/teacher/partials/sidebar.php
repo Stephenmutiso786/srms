@@ -12,6 +12,30 @@ function teacher_menu_active_any(array $pages)
   global $currentPage;
   return in_array($currentPage, $pages, true) ? ' active' : '';
 }
+
+function teacher_menu_module_active(array $module)
+{
+  global $currentPage;
+  $activePages = array_values(array_filter(array_map('strval', (array)($module['active'] ?? []))));
+
+  if (empty($activePages)) {
+    $href = (string)($module['href'] ?? '');
+    $path = trim((string)parse_url($href, PHP_URL_PATH), '/');
+    if ($path === 'teacher' || $path === '') {
+      $activePages = ['index'];
+    } else {
+      $activePages = [basename($path)];
+    }
+  }
+
+  if (($module['key'] ?? '') === 'subject_combinations' && !in_array('import_results', $activePages, true)) {
+    $activePages[] = 'import_results';
+  }
+
+  return in_array($currentPage, $activePages, true) ? ' active' : '';
+}
+
+$allocatedSidebarModules = app_current_user_allocated_portal_modules('teacher');
 ?>
 <div class="app-sidebar__overlay" data-toggle="sidebar"></div>
 <aside class="app-sidebar">
@@ -31,21 +55,14 @@ function teacher_menu_active_any(array $pages)
     <li><a class="app-menu__item<?php echo teacher_menu_active_any(['manage_results', 'results', 'report_card', 'certificates', 'published_analytics', 'print_mark_sheet']); ?>" href="teacher/manage_results"><i class="app-menu__icon feather icon-graph"></i><span class="app-menu__label">Results</span></a></li>
     <li><a class="app-menu__item<?php echo teacher_menu_active('staff_attendance'); ?>" href="teacher/staff_attendance"><i class="app-menu__icon feather icon-clock"></i><span class="app-menu__label">Staff Attendance</span></a></li>
     <li><a class="app-menu__item<?php echo teacher_menu_active('students'); ?>" href="teacher/students"><i class="app-menu__icon feather icon-users"></i><span class="app-menu__label">Students</span></a></li>
-    <?php if (app_current_user_has_any_permission(['timetable.manage', 'exams.manage'])): ?>
-    <li><a class="app-menu__item<?php echo teacher_menu_active('exam_timetable'); ?>" href="teacher/exam_timetable"><i class="app-menu__icon feather icon-calendar"></i><span class="app-menu__label">Exam Timetable</span></a></li>
-    <?php endif; ?>
-    <?php if (app_current_user_has_any_permission(['exams.manage', 'academic.manage'])): ?>
-    <li><a class="app-menu__item<?php echo teacher_menu_active('grading-system'); ?>" href="teacher/grading-system"><i class="app-menu__icon feather icon-award"></i><span class="app-menu__label">Grading System</span></a></li>
-    <?php endif; ?>
-    <?php if (app_current_user_has_permission('academic.manage')): ?>
-    <li><a class="app-menu__item<?php echo teacher_menu_active('elearning'); ?>" href="teacher/elearning"><i class="app-menu__icon feather icon-book-open"></i><span class="app-menu__label">E-Learning</span></a></li>
-    <?php endif; ?>
-    <?php if (app_current_user_has_any_permission(['teacher.allocate', 'academic.manage'])): ?>
-    <li><a class="app-menu__item<?php echo teacher_menu_active_any(['combinations', 'import_results']); ?>" href="teacher/combinations"><i class="app-menu__icon feather icon-book-open"></i><span class="app-menu__label">Subject Combinations</span></a></li>
-    <?php endif; ?>
-    <?php if (app_current_user_has_permission('staff.manage')): ?>
-    <li><a class="app-menu__item<?php echo teacher_menu_active('roles'); ?>" href="teacher/roles"><i class="app-menu__icon feather icon-shield"></i><span class="app-menu__label">Roles</span></a></li>
-    <?php endif; ?>
+    <?php foreach ($allocatedSidebarModules as $module): ?>
+    <li>
+      <a class="app-menu__item<?php echo teacher_menu_module_active($module); ?>" href="<?php echo htmlspecialchars((string)($module['href'] ?? 'teacher')); ?>">
+        <i class="app-menu__icon <?php echo htmlspecialchars((string)($module['icon'] ?? 'feather icon-grid')); ?>"></i>
+        <span class="app-menu__label"><?php echo htmlspecialchars((string)($module['label'] ?? 'Module')); ?></span>
+      </a>
+    </li>
+    <?php endforeach; ?>
     <li><a class="app-menu__item<?php echo teacher_menu_active('how_system_works'); ?>" href="teacher/how_system_works"><i class="app-menu__icon feather icon-help-circle"></i><span class="app-menu__label">How The System Works</span></a></li>
   </ul>
 </aside>
