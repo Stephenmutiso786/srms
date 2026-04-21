@@ -15,6 +15,7 @@ $subjectCombination = (int)($_SESSION['result__data']['subject'] ?? 0);
 $termData = $classData = $subjectData = null;
 $rows = [];
 $summary = ['count' => 0, 'average' => 0, 'highest' => 0, 'lowest' => 0];
+$error = '';
 
 try {
 	$conn = app_db();
@@ -82,6 +83,8 @@ try {
 	}
 } catch (Throwable $e) {
 	$rows = [];
+	$error = 'Failed to load results for the selected class/subject.';
+	error_log('[teacher/results] ' . $e->getMessage());
 }
 
 $title = trim(($subjectData['subject_name'] ?? 'Subject') . ' - ' . ($termData['name'] ?? 'Term') . ' - ' . ($classData['name'] ?? 'Class') . ' Results');
@@ -111,6 +114,9 @@ $title = trim(($subjectData['subject_name'] ?? 'Subject') . ' - ' . ($termData['
 <?php include("teacher/partials/sidebar.php"); ?>
 <main class="app-content">
 <div class="app-title"><div><h1>Class Results</h1><p class="mb-0 text-muted"><?php echo htmlspecialchars($title); ?></p></div></div>
+<?php if ($error !== ''): ?>
+<div class="tile"><div class="alert alert-danger mb-0"><?php echo htmlspecialchars($error); ?></div></div>
+<?php endif; ?>
 <div class="row">
 <div class="col-md-12">
 <div class="tile">

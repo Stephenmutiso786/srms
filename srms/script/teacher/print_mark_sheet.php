@@ -186,9 +186,14 @@ try {
       ? 'fname ASC, mname ASC, lname ASC, id ASC'
       : $admExpr . ' ASC, fname ASC, mname ASC, lname ASC';
 
+    $studentFilter = 'class = ?';
+    if (app_column_exists($conn, 'tbl_students', 'status')) {
+      $studentFilter .= ' AND (status = 1 OR status IS NULL OR status = 0)';
+    }
+
     $sql = "SELECT id, fname, mname, lname, " . $admExpr . " AS admission_no
       FROM tbl_students
-      WHERE class = ? AND status = 1
+      WHERE " . $studentFilter . "
       ORDER BY " . $orderBy;
     $stmt = $conn->prepare($sql);
     $stmt->execute([(int)$examMeta['class_id']]);

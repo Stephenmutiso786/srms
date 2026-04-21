@@ -3578,7 +3578,47 @@ function app_unserialize($value): array
 	}
 
 	$decoded = @unserialize($value);
-	return is_array($decoded) ? $decoded : [];
+	if (is_array($decoded)) {
+		return $decoded;
+	}
+
+	// Backward compatibility for data saved as JSON arrays, CSV lists,
+	// Postgres array literals, or plain scalar class IDs.
+	$trimmed = trim($value);
+	if ($trimmed === '') {
+		return [];
+	}
+
+	if (($trimmed[0] === '[' && substr($trimmed, -1) === ']') || ($trimmed[0] === '{' && substr($trimmed, -1) === '}')) {
+		$json = json_decode($trimmed, true);
+		if (is_array($json)) {
+			return array_values(array_filter(array_map('strval', $json), static function ($v) {
+				return $v !== '';
+			}));
+		}
+	}
+
+	if ($trimmed[0] === '{' && substr($trimmed, -1) === '}') {
+		$body = trim(substr($trimmed, 1, -1));
+		if ($body === '') {
+			return [];
+		}
+		return array_values(array_filter(array_map('strval', array_map('trim', explode(',', $body))), static function ($v) {
+			return $v !== '';
+		}));
+	}
+
+	if (preg_match('/^\d+$/', $trimmed)) {
+		return [$trimmed];
+	}
+
+	if (strpos($trimmed, ',') !== false) {
+		return array_values(array_filter(array_map('strval', array_map('trim', explode(',', $trimmed))), static function ($v) {
+			return $v !== '';
+		}));
+	}
+
+	return [];
 }
 
 function app_max_upload_bytes(): int
