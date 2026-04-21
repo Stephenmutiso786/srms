@@ -21,6 +21,21 @@ function accountant_sidebar_is_active(array $module): string
 
 	return '';
 }
+
+function accountant_sidebar_group_label(string $moduleKey): string
+{
+	$groupMap = [
+		'fees' => 'Finance',
+		'fee_structure' => 'Finance',
+		'invoices' => 'Finance',
+		'profile' => 'Account',
+	];
+
+	return $groupMap[$moduleKey] ?? 'General';
+}
+
+$accountantModules = app_current_user_visible_portal_modules('accountant');
+$lastAccountantGroup = '';
 ?>
 <div class="app-sidebar__overlay" data-toggle="sidebar"></div>
 <aside class="app-sidebar">
@@ -31,7 +46,18 @@ function accountant_sidebar_is_active(array $module): string
 </div>
 </div>
 <ul class="app-menu">
-<?php foreach (app_current_user_visible_portal_modules('accountant') as $module): ?>
+<?php foreach ($accountantModules as $module): ?>
+<?php
+	$moduleKey = (string)($module['key'] ?? '');
+	$currentGroup = accountant_sidebar_group_label($moduleKey);
+	$shouldRenderHeading = $currentGroup !== $lastAccountantGroup;
+	if ($shouldRenderHeading) {
+		$lastAccountantGroup = $currentGroup;
+	}
+?>
+<?php if ($shouldRenderHeading): ?>
+<li class="px-3 pt-3 pb-1 text-uppercase" style="font-size:.7rem;letter-spacing:.12em;color:#6f7e8f;font-weight:800;"><?php echo htmlspecialchars($currentGroup); ?></li>
+<?php endif; ?>
 <li><a class="app-menu__item<?php echo accountant_sidebar_is_active($module); ?>" href="<?php echo htmlspecialchars((string)$module['href']); ?>"><i class="app-menu__icon <?php echo htmlspecialchars((string)$module['icon']); ?>"></i><span class="app-menu__label"><?php echo htmlspecialchars((string)$module['label']); ?></span></a></li>
 <?php endforeach; ?>
 </ul>

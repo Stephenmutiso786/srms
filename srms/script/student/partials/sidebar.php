@@ -29,6 +29,31 @@ function student_menu_is_active(array $module): string
 
   return '';
 }
+
+function student_sidebar_group_label(string $moduleKey): string
+{
+  $groupMap = [
+    'subjects' => 'Learning',
+    'elearning' => 'Learning',
+    'exam_timetable' => 'Learning',
+    'attendance' => 'Academic',
+    'results' => 'Academic',
+    'report_card' => 'Academic',
+    'grading_system' => 'Academic',
+    'ranking' => 'Academic',
+    'discipline' => 'Welfare',
+    'leadership' => 'Welfare',
+    'fees' => 'Account',
+    'certificates' => 'Account',
+    'profile' => 'Account',
+    'settings' => 'Account',
+  ];
+
+  return $groupMap[$moduleKey] ?? 'General';
+}
+
+$studentModules = app_current_user_visible_portal_modules('student');
+$lastStudentGroup = '';
 ?>
 <div class="app-sidebar__overlay" data-toggle="sidebar"></div>
 <aside class="app-sidebar">
@@ -39,7 +64,18 @@ function student_menu_is_active(array $module): string
     </div>
   </div>
   <ul class="app-menu">
-    <?php foreach (app_current_user_visible_portal_modules('student') as $module): ?>
+    <?php foreach ($studentModules as $module): ?>
+    <?php
+      $moduleKey = (string)($module['key'] ?? '');
+      $currentGroup = student_sidebar_group_label($moduleKey);
+      $shouldRenderHeading = $currentGroup !== $lastStudentGroup;
+      if ($shouldRenderHeading) {
+        $lastStudentGroup = $currentGroup;
+      }
+    ?>
+    <?php if ($shouldRenderHeading): ?>
+    <li class="px-3 pt-3 pb-1 text-uppercase" style="font-size:.7rem;letter-spacing:.12em;color:#6f7e8f;font-weight:800;"><?php echo htmlspecialchars($currentGroup); ?></li>
+    <?php endif; ?>
     <li><a class="app-menu__item<?php echo student_menu_is_active($module); ?>" href="<?php echo htmlspecialchars((string)$module['href']); ?>"><i class="app-menu__icon <?php echo htmlspecialchars((string)$module['icon']); ?>"></i><span class="app-menu__label"><?php echo htmlspecialchars((string)$module['label']); ?></span></a></li>
     <?php endforeach; ?>
   </ul>
