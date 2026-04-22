@@ -97,10 +97,6 @@ try {
 		throw new RuntimeException('Failed to save payment record. Please retry.');
 	}
 
-	$receiptNo = app_generate_receipt_number($conn);
-	$stmt = $conn->prepare("INSERT INTO tbl_receipts (payment_id, receipt_number, generated_by) VALUES (?,?,?)");
-	$stmt->execute([$paymentId, $receiptNo, (int)$account_id]);
-
 	$stmt = $conn->prepare("SELECT COALESCE(SUM(amount),0) FROM tbl_payments WHERE invoice_id = ?");
 	$stmt->execute([$invoiceId]);
 	$newPaid = (float)$stmt->fetchColumn();
@@ -110,13 +106,31 @@ try {
 
 	$conn->commit();
 
+	$receiptNo = '';
+	$receiptError = '';
+	try {
+		$receiptNo = app_generate_receipt_number($conn);
+		$generatedBy = $receivedBy;
+		$stmt = $conn->prepare("INSERT INTO tbl_receipts (payment_id, receipt_number, generated_by) VALUES (?,?,?)");
+		$stmt->execute([$paymentId, $receiptNo, $generatedBy]);
+	} catch (Throwable $receiptEx) {
+		$receiptNo = '';
+		$receiptError = $receiptEx->getMessage();
+		error_log('[admin.add_payment.receipt] ' . $receiptError);
+	}
+
 	app_audit_log($conn, 'staff', (string)$account_id, 'payment.add', 'invoice', (string)$invoiceId, [
 		'amount' => $amount,
 		'method' => 'cash',
 		'receipt' => $receiptNo,
+		'receipt_error' => $receiptError,
 	]);
 
-	$_SESSION['reply'] = array(array("success", "Cash payment recorded. Receipt: " . $receiptNo));
+	if ($receiptNo !== '') {
+		$_SESSION['reply'] = array(array("success", "Cash payment recorded. Receipt: " . $receiptNo));
+	} else {
+		$_SESSION['reply'] = array(array("success", "Cash payment recorded. Receipt generation skipped; invoice balance updated."));
+	}
 	if (isset($level) && $level === "5") {
 		header("location:../../accountant/invoices?class_id=".$classId."&term_id=".$termId);
 	} else {
