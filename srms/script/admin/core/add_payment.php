@@ -76,35 +76,65 @@ try {
 		}
 	}
 
-	$conn->beginTransaction();
+	$paymentId = 0;
+	$step = 'start';
+	$maxAttempts = 2;
+	for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+		try {
+			if ($conn->inTransaction()) {
+				$conn->rollBack();
+			}
 
-	if (defined('DBDriver') && DBDriver === 'pgsql') {
-		$stmt = $conn->prepare("INSERT INTO tbl_payments (invoice_id, amount, method, reference, received_by) VALUES (?,?,?,?,?) RETURNING id");
-		$stmt->execute([$invoiceId, $amount, $method, $reference, $receivedBy]);
-		$paymentId = (int)$stmt->fetchColumn();
-	} else {
-		$stmt = $conn->prepare("INSERT INTO tbl_payments (invoice_id, amount, method, reference, received_by) VALUES (?,?,?,?,?)");
-		$stmt->execute([$invoiceId, $amount, $method, $reference, $receivedBy]);
-		$paymentId = (int)$conn->lastInsertId();
+			$step = 'begin_transaction';
+			$conn->beginTransaction();
+
+			if (defined('DBDriver') && DBDriver === 'pgsql') {
+				$step = 'insert_payment_returning';
+				$stmt = $conn->prepare("INSERT INTO tbl_payments (invoice_id, amount, method, reference, received_by) VALUES (?,?,?,?,?) RETURNING id");
+				$stmt->execute([$invoiceId, $amount, $method, $reference, $receivedBy]);
+				$paymentId = (int)$stmt->fetchColumn();
+			} else {
+				$step = 'insert_payment';
+				$stmt = $conn->prepare("INSERT INTO tbl_payments (invoice_id, amount, method, reference, received_by) VALUES (?,?,?,?,?)");
+				$stmt->execute([$invoiceId, $amount, $method, $reference, $receivedBy]);
+				$paymentId = (int)$conn->lastInsertId();
+			}
+
+			if ($paymentId < 1) {
+				$step = 'select_payment_fallback';
+				$stmt = $conn->prepare("SELECT id FROM tbl_payments WHERE invoice_id = ? ORDER BY id DESC LIMIT 1");
+				$stmt->execute([$invoiceId]);
+				$paymentId = (int)$stmt->fetchColumn();
+			}
+			if ($paymentId < 1) {
+				throw new RuntimeException('Failed to save payment record. Please retry.');
+			}
+
+			$step = 'recalculate_paid';
+			$stmt = $conn->prepare("SELECT COALESCE(SUM(amount),0) FROM tbl_payments WHERE invoice_id = ?");
+			$stmt->execute([$invoiceId]);
+			$newPaid = (float)$stmt->fetchColumn();
+			$newStatus = ($newPaid + 0.00001 >= $total && $total > 0) ? 'paid' : 'open';
+
+			$step = 'update_invoice_status';
+			$stmt = $conn->prepare("UPDATE tbl_invoices SET status = ? WHERE id = ?");
+			$stmt->execute([$newStatus, $invoiceId]);
+
+			$step = 'commit';
+			$conn->commit();
+			break;
+		} catch (Throwable $txe) {
+			if ($conn->inTransaction()) {
+				$conn->rollBack();
+			}
+			$isAbortedTx = stripos($txe->getMessage(), '25P02') !== false || stripos($txe->getMessage(), 'current transaction is aborted') !== false;
+			if ($isAbortedTx && $attempt < $maxAttempts) {
+				error_log('[admin.add_payment.retry] attempt=' . $attempt . ' step=' . $step . ' err=' . $txe->getMessage());
+				continue;
+			}
+			throw new RuntimeException('Payment failed at step ' . $step . ': ' . $txe->getMessage(), 0, $txe);
+		}
 	}
-
-	if ($paymentId < 1) {
-		$stmt = $conn->prepare("SELECT id FROM tbl_payments WHERE invoice_id = ? ORDER BY id DESC LIMIT 1");
-		$stmt->execute([$invoiceId]);
-		$paymentId = (int)$stmt->fetchColumn();
-	}
-	if ($paymentId < 1) {
-		throw new RuntimeException('Failed to save payment record. Please retry.');
-	}
-
-	$stmt = $conn->prepare("SELECT COALESCE(SUM(amount),0) FROM tbl_payments WHERE invoice_id = ?");
-	$stmt->execute([$invoiceId]);
-	$newPaid = (float)$stmt->fetchColumn();
-	$newStatus = ($newPaid + 0.00001 >= $total && $total > 0) ? 'paid' : 'open';
-	$stmt = $conn->prepare("UPDATE tbl_invoices SET status = ? WHERE id = ?");
-	$stmt->execute([$newStatus, $invoiceId]);
-
-	$conn->commit();
 
 	$receiptNo = '';
 	$receiptError = '';
