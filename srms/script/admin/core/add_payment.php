@@ -78,13 +78,23 @@ try {
 
 	$conn->beginTransaction();
 
-	$stmt = $conn->prepare("INSERT INTO tbl_payments (invoice_id, amount, method, reference, received_by) VALUES (?,?,?,?,?)");
-	$stmt->execute([$invoiceId, $amount, $method, $reference, $receivedBy]);
-	$paymentId = (int)$conn->lastInsertId();
+	if (defined('DBDriver') && DBDriver === 'pgsql') {
+		$stmt = $conn->prepare("INSERT INTO tbl_payments (invoice_id, amount, method, reference, received_by) VALUES (?,?,?,?,?) RETURNING id");
+		$stmt->execute([$invoiceId, $amount, $method, $reference, $receivedBy]);
+		$paymentId = (int)$stmt->fetchColumn();
+	} else {
+		$stmt = $conn->prepare("INSERT INTO tbl_payments (invoice_id, amount, method, reference, received_by) VALUES (?,?,?,?,?)");
+		$stmt->execute([$invoiceId, $amount, $method, $reference, $receivedBy]);
+		$paymentId = (int)$conn->lastInsertId();
+	}
+
 	if ($paymentId < 1) {
 		$stmt = $conn->prepare("SELECT id FROM tbl_payments WHERE invoice_id = ? ORDER BY id DESC LIMIT 1");
 		$stmt->execute([$invoiceId]);
 		$paymentId = (int)$stmt->fetchColumn();
+	}
+	if ($paymentId < 1) {
+		throw new RuntimeException('Failed to save payment record. Please retry.');
 	}
 
 	$receiptNo = app_generate_receipt_number($conn);
@@ -98,13 +108,13 @@ try {
 	$stmt = $conn->prepare("UPDATE tbl_invoices SET status = ? WHERE id = ?");
 	$stmt->execute([$newStatus, $invoiceId]);
 
+	$conn->commit();
+
 	app_audit_log($conn, 'staff', (string)$account_id, 'payment.add', 'invoice', (string)$invoiceId, [
 		'amount' => $amount,
 		'method' => 'cash',
 		'receipt' => $receiptNo,
 	]);
-
-	$conn->commit();
 
 	$_SESSION['reply'] = array(array("success", "Cash payment recorded. Receipt: " . $receiptNo));
 	if (isset($level) && $level === "5") {

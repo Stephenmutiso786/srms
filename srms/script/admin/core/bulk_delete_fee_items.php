@@ -4,13 +4,17 @@ session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
 
-if ($res !== "1" || $level !== "0") {
-	header("location:../");
+if (!isset($res) || $res !== "1" || !isset($level) || ($level !== "0" && $level !== "5")) {
+	header("location:../../");
 	exit;
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-	header("location:../");
+	if (isset($level) && $level === "5") {
+		header("location:../../accountant/fee_structure");
+	} else {
+		header("location:../fee_structure");
+	}
 	exit;
 }
 
@@ -25,7 +29,11 @@ $ids = array_values(array_unique(array_filter($ids, function ($id) {
 
 if (count($ids) < 1) {
 	$_SESSION['reply'] = array (array("error","Select at least one fee item to delete"));
-	header("location:../fee_structure");
+	if (isset($level) && $level === "5") {
+		header("location:../../accountant/fee_structure");
+	} else {
+		header("location:../fee_structure");
+	}
 	exit;
 }
 
@@ -41,17 +49,49 @@ try {
 		$stmt->execute($ids);
 	}
 
-	$stmt = $conn->prepare("DELETE FROM tbl_fee_items WHERE id IN ($placeholders)");
-	$stmt->execute($ids);
+	$referencedIds = [];
+	if (app_table_exists($conn, 'tbl_invoice_lines')) {
+		$stmt = $conn->prepare("SELECT DISTINCT item_id FROM tbl_invoice_lines WHERE item_id IN ($placeholders)");
+		$stmt->execute($ids);
+		$referencedIds = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+	}
+
+	$deleteIds = array_values(array_diff(array_map('intval', $ids), $referencedIds));
+	if (count($deleteIds) > 0) {
+		$deletePlaceholders = implode(',', array_fill(0, count($deleteIds), '?'));
+		$stmt = $conn->prepare("DELETE FROM tbl_fee_items WHERE id IN ($deletePlaceholders)");
+		$stmt->execute($deleteIds);
+	}
+
+	if (count($referencedIds) > 0) {
+		$archivePlaceholders = implode(',', array_fill(0, count($referencedIds), '?'));
+		$stmt = $conn->prepare("UPDATE tbl_fee_items SET status = 0 WHERE id IN ($archivePlaceholders)");
+		$stmt->execute($referencedIds);
+	}
 
 	$conn->commit();
-	$_SESSION['reply'] = array (array("success","Selected fee items deleted successfully"));
-	header("location:../fee_structure");
+	$deletedCount = count($deleteIds);
+	$archivedCount = count($referencedIds);
+	if ($archivedCount > 0) {
+		$_SESSION['reply'] = array (array("success","Fee items updated: {$deletedCount} deleted, {$archivedCount} archived because they are used by invoices."));
+	} else {
+		$_SESSION['reply'] = array (array("success","Selected fee items deleted successfully"));
+	}
+	if (isset($level) && $level === "5") {
+		header("location:../../accountant/fee_structure");
+	} else {
+		header("location:../fee_structure");
+	}
 } catch(PDOException $e) {
-	if ($conn && $conn->inTransaction()) {
+	if (isset($conn) && $conn instanceof PDO && $conn->inTransaction()) {
 		$conn->rollBack();
 	}
 	error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
-	echo "Connection failed.";
+	$_SESSION['reply'] = array(array("error", "Failed to update fee items. " . $e->getMessage()));
+	if (isset($level) && $level === "5") {
+		header("location:../../accountant/fee_structure");
+	} else {
+		header("location:../fee_structure");
+	}
 }
 ?>

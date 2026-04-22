@@ -4,13 +4,17 @@ session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
 
-if ($res !== "1" || $level !== "0") {
-	header("location:../");
+if (!isset($res) || $res !== "1" || !isset($level) || ($level !== "0" && $level !== "5")) {
+	header("location:../../");
 	exit;
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-	header("location:../");
+	if (isset($level) && $level === "5") {
+		header("location:../../accountant/invoices");
+	} else {
+		header("location:../invoices");
+	}
 	exit;
 }
 
@@ -28,7 +32,11 @@ $termId = (int)($_POST['term_id'] ?? 0);
 
 if (count($ids) < 1) {
 	$_SESSION['reply'] = array (array("error","Select at least one invoice to delete"));
-	header("location:../invoices?class_id=".$classId."&term_id=".$termId);
+	if (isset($level) && $level === "5") {
+		header("location:../../accountant/invoices?class_id=".$classId."&term_id=".$termId);
+	} else {
+		header("location:../invoices?class_id=".$classId."&term_id=".$termId);
+	}
 	exit;
 }
 
@@ -39,8 +47,23 @@ try {
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 	$conn->beginTransaction();
 
+	if (app_table_exists($conn, 'tbl_receipts') && app_table_exists($conn, 'tbl_payments')) {
+		$stmt = $conn->prepare("DELETE FROM tbl_receipts WHERE payment_id IN (SELECT id FROM tbl_payments WHERE invoice_id IN ($placeholders))");
+		$stmt->execute($ids);
+	}
+
 	if (app_table_exists($conn, 'tbl_payments')) {
 		$stmt = $conn->prepare("DELETE FROM tbl_payments WHERE invoice_id IN ($placeholders)");
+		$stmt->execute($ids);
+	}
+
+	if (app_table_exists($conn, 'tbl_fee_installments')) {
+		$stmt = $conn->prepare("DELETE FROM tbl_fee_installments WHERE invoice_id IN ($placeholders)");
+		$stmt->execute($ids);
+	}
+
+	if (app_table_exists($conn, 'tbl_mpesa_stk_requests')) {
+		$stmt = $conn->prepare("DELETE FROM tbl_mpesa_stk_requests WHERE invoice_id IN ($placeholders)");
 		$stmt->execute($ids);
 	}
 
@@ -54,12 +77,21 @@ try {
 
 	$conn->commit();
 	$_SESSION['reply'] = array (array("success","Selected invoices deleted successfully"));
-	header("location:../invoices?class_id=".$classId."&term_id=".$termId);
+	if (isset($level) && $level === "5") {
+		header("location:../../accountant/invoices?class_id=".$classId."&term_id=".$termId);
+	} else {
+		header("location:../invoices?class_id=".$classId."&term_id=".$termId);
+	}
 } catch(PDOException $e) {
-	if ($conn && $conn->inTransaction()) {
+	if (isset($conn) && $conn instanceof PDO && $conn->inTransaction()) {
 		$conn->rollBack();
 	}
 	error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
-	echo "Connection failed.";
+	$_SESSION['reply'] = array(array("error", "Failed to delete invoices. " . $e->getMessage()));
+	if (isset($level) && $level === "5") {
+		header("location:../../accountant/invoices?class_id=".$classId."&term_id=".$termId);
+	} else {
+		header("location:../invoices?class_id=".$classId."&term_id=".$termId);
+	}
 }
 ?>

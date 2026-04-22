@@ -201,7 +201,7 @@ try {
 	  </thead>
 	  <tbody>
 	  <?php if (count($invoices) < 1) { ?>
-		<tr><td colspan="5" class="text-muted">No invoices found. Generate invoices first.</td></tr>
+		<tr><td colspan="6" class="text-muted">No invoices found. Generate invoices first.</td></tr>
 	  <?php } else { foreach ($invoices as $inv) {
 		$total = (float)$inv['total'];
 		$paid = (float)$inv['paid'];
