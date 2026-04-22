@@ -103,6 +103,69 @@ function app_report_metric_box(string $title, string $value): string
         . '</td>';
 }
 
+function app_report_scale_html_font_sizes(string $html, float $scale): string
+{
+    $safeScale = max(0.55, min(1.30, $scale));
+    return (string)preg_replace_callback(
+        '/font-size\s*:\s*([0-9]+(?:\.[0-9]+)?)pt/i',
+        static function (array $m) use ($safeScale): string {
+            $base = (float)$m[1];
+            $scaled = max(6.4, min(16.0, round($base * $safeScale, 2)));
+            return 'font-size:' . rtrim(rtrim(number_format($scaled, 2, '.', ''), '0'), '.') . 'pt';
+        },
+        $html
+    );
+}
+
+function app_report_pick_single_page_scale(TCPDF $pdf, string $html, float $topMargin, float $bottomMargin): float
+{
+    $pageHeight = (float)$pdf->getPageHeight();
+    $usableHeight = max(1.0, $pageHeight - $topMargin - $bottomMargin);
+
+    $chosenScale = 1.0;
+    $bestUtilization = 0.0;
+
+    for ($scale = 1.24; $scale >= 0.55; $scale -= 0.03) {
+        $trialHtml = app_report_scale_html_font_sizes($html, $scale);
+        $pdf->startTransaction();
+        $startPage = (int)$pdf->getPage();
+        $pdf->SetY($topMargin);
+        $pdf->writeHTML($trialHtml, true, false, true, false, '');
+
+        $endPage = (int)$pdf->getPage();
+        $endY = (float)$pdf->GetY();
+        $fitsOnePage = ($endPage === $startPage);
+        $usedHeight = max(0.0, $endY - $topMargin);
+        $utilization = min(1.0, $usedHeight / $usableHeight);
+
+        $pdf->rollbackTransaction(true);
+
+        if ($fitsOnePage) {
+            $chosenScale = $scale;
+            $bestUtilization = $utilization;
+            if ($utilization >= 0.96) {
+                break;
+            }
+        }
+    }
+
+    if ($bestUtilization < 0.72 && $chosenScale < 1.24) {
+        $boostedScale = min(1.24, $chosenScale + 0.04);
+        $trialHtml = app_report_scale_html_font_sizes($html, $boostedScale);
+        $pdf->startTransaction();
+        $startPage = (int)$pdf->getPage();
+        $pdf->SetY($topMargin);
+        $pdf->writeHTML($trialHtml, true, false, true, false, '');
+        $fitsOnePage = ((int)$pdf->getPage() === $startPage);
+        $pdf->rollbackTransaction(true);
+        if ($fitsOnePage) {
+            return $boostedScale;
+        }
+    }
+
+    return $chosenScale;
+}
+
 function app_report_combined_cycles_html(PDO $conn, array $payload): string
 {
     $card = is_array($payload['card'] ?? null) ? $payload['card'] : [];
@@ -184,10 +247,6 @@ function app_report_combined_cycles_html(PDO $conn, array $payload): string
     $remarksRight = app_report_html((string)($card['headteacher_comment'] ?? $card['remark'] ?? ''));
     $graderHtml = app_report_grade_descriptors_html($conn, $gradingSystemId);
     $verificationCode = app_report_html((string)($card['verification_code'] ?? ''));
-    $userName = $schoolId !== ''
-        ? $schoolId . '@' . strtolower(preg_replace('/[^a-z0-9]+/i', '', $schoolName))
-        : (string)($payload['student_id'] ?? '');
-
     return '
 <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:3px;">
     <tr><td style="font-size:10.8pt;font-weight:bold;">' . app_report_html($schoolName) . '</td></tr>
@@ -245,8 +304,7 @@ function app_report_combined_cycles_html(PDO $conn, array $payload): string
     </tr>
 </table>
 <div style="margin-top:4px;">' . $graderHtml . '</div>
-<div style="margin-top:3px;font-size:7.8pt;">Scan to access your interactive student profile on Zeraki Analytics.</div>
-<div style="font-size:7.8pt;">Your username: ' . app_report_html($userName) . '</div>
+<div style="margin-top:3px;font-size:7.8pt;">Verification Code: ' . $verificationCode . '</div>
 ';
 }
 
@@ -309,10 +367,6 @@ function app_report_generic_html(PDO $conn, array $payload): string
     $remarksRight = app_report_html((string)($card['headteacher_comment'] ?? $card['remark'] ?? ''));
     $graderHtml = app_report_grade_descriptors_html($conn, $gradingSystemId);
     $verificationCode = app_report_html((string)($card['verification_code'] ?? ''));
-    $userName = $schoolId !== ''
-        ? $schoolId . '@' . strtolower(preg_replace('/[^a-z0-9]+/i', '', $schoolName))
-        : (string)($payload['student_id'] ?? '');
-
     return '
 <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:3px;">
     <tr><td style="font-size:11pt;font-weight:bold;">' . app_report_html($schoolName) . '</td></tr>
@@ -367,17 +421,19 @@ function app_report_generic_html(PDO $conn, array $payload): string
     </tr>
 </table>
 <div style="margin-top:4px;">' . $graderHtml . '</div>
-<div style="margin-top:3px;font-size:7.8pt;">Scan to access your interactive student profile on Zeraki Analytics.</div>
-<div style="font-size:7.8pt;">Your username: ' . app_report_html($userName) . '</div>
+<div style="margin-top:3px;font-size:7.8pt;">Verification Code: ' . $verificationCode . '</div>
 ';
 }
 
 function app_output_single_page_report_pdf(PDO $conn, TCPDF $pdf, array $payload): void
 {
+    $topMargin = 8.0;
+    $bottomMargin = 8.0;
+
     $pdf->setPrintHeader(false);
     $pdf->setPrintFooter(false);
-    $pdf->SetAutoPageBreak(true, 10);
-    $pdf->SetMargins(8, 8, 8);
+    $pdf->SetAutoPageBreak(true, $bottomMargin);
+    $pdf->SetMargins(8, $topMargin, 8);
     $pdf->SetTitle('Academic Report Card');
     $pdf->AddPage('P', 'A4');
     $pdf->SetFont('helvetica', '', 9);
@@ -388,7 +444,11 @@ function app_output_single_page_report_pdf(PDO $conn, TCPDF $pdf, array $payload
         ? app_report_combined_cycles_html($conn, $payload)
         : app_report_generic_html($conn, $payload);
 
-    $pdf->writeHTML($html, true, false, true, false, '');
+    $scale = app_report_pick_single_page_scale($pdf, $html, $topMargin, $bottomMargin);
+    $scaledHtml = app_report_scale_html_font_sizes($html, $scale);
+
+    $pdf->SetY($topMargin);
+    $pdf->writeHTML($scaledHtml, true, false, true, false, '');
 
     $verifyUrl = app_report_verify_url((string)($payload['card']['verification_code'] ?? ''));
     if ($verifyUrl !== '') {
