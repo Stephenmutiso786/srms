@@ -166,6 +166,40 @@ function app_report_pick_single_page_scale(TCPDF $pdf, string $html, float $topM
     return $chosenScale;
 }
 
+function app_report_subject_table_density(int $subjectCount): array
+{
+    if ($subjectCount >= 16) {
+        return [
+            'header_padding' => '1px 2px',
+            'header_font' => '6.8pt',
+            'cell_padding' => '1px 2px',
+            'cell_font' => '6.9pt',
+            'empty_padding' => '4px',
+            'empty_font' => '7.4pt',
+        ];
+    }
+
+    if ($subjectCount >= 12) {
+        return [
+            'header_padding' => '2px 3px',
+            'header_font' => '7.1pt',
+            'cell_padding' => '2px 3px',
+            'cell_font' => '7.2pt',
+            'empty_padding' => '5px',
+            'empty_font' => '7.8pt',
+        ];
+    }
+
+    return [
+        'header_padding' => '3px 4px',
+        'header_font' => '7.5pt',
+        'cell_padding' => '3px 4px',
+        'cell_font' => '7.8pt',
+        'empty_padding' => '6px',
+        'empty_font' => '8pt',
+    ];
+}
+
 function app_report_combined_cycles_html(PDO $conn, array $payload): string
 {
     $card = is_array($payload['card'] ?? null) ? $payload['card'] : [];
@@ -207,6 +241,7 @@ function app_report_combined_cycles_html(PDO $conn, array $payload): string
     }
 
     $subjectCount = count($rows);
+    $density = app_report_subject_table_density($subjectCount);
     $maxMarks = max(1, $subjectCount * 100);
     $maxPoints = max(1, $subjectCount * 12);
     $meanScore = $subjectCount > 0 ? round($totalMarks / $subjectCount, 2) : 0.0;
@@ -215,32 +250,35 @@ function app_report_combined_cycles_html(PDO $conn, array $payload): string
     $overallPosition = (string)($card['position'] ?? '-') . '/' . (string)($card['total_students'] ?? 0);
     $streamPosition = $overallPosition;
     $cycleHeaders = '';
+    $headerStyle = 'border:1px solid #555;padding:' . $density['header_padding'] . ';font-size:' . $density['header_font'] . ';';
+    $cellStyle = 'border:1px solid #555;padding:' . $density['cell_padding'] . ';font-size:' . $density['cell_font'] . ';';
+    $cellCenterStyle = 'border:1px solid #555;padding:' . $density['cell_padding'] . ';text-align:center;font-size:' . $density['cell_font'] . ';';
     foreach ($cycleLabels as $cycleLabel) {
-        $cycleHeaders .= '<th style="border:1px solid #555;padding:3px 4px;font-size:7.5pt;">' . app_report_html($cycleLabel) . '</th>';
+        $cycleHeaders .= '<th style="' . $headerStyle . '">' . app_report_html($cycleLabel) . '</th>';
     }
 
     $subjectRows = '';
     foreach ($rows as $row) {
         $cycleCells = '';
         foreach ($cycleLabels as $cycleLabel) {
-            $cycleCells .= '<td style="border:1px solid #555;padding:3px 4px;text-align:center;font-size:7.8pt;">'
+            $cycleCells .= '<td style="' . $cellCenterStyle . '">'
                 . number_format((float)($row['cycle_scores'][$cycleLabel] ?? 0), 1) . '%</td>';
         }
 
         $subjectRows .= '<tr>'
-            . '<td style="border:1px solid #555;padding:3px 4px;font-size:7.8pt;">' . app_report_html((string)($row['subject_name'] ?? '')) . '</td>'
+            . '<td style="' . $cellStyle . '">' . app_report_html((string)($row['subject_name'] ?? '')) . '</td>'
             . $cycleCells
-            . '<td style="border:1px solid #555;padding:3px 4px;text-align:center;font-size:7.8pt;">' . number_format((float)($row['combined_score'] ?? 0), 1) . '%</td>'
-            . '<td style="border:1px solid #555;padding:3px 4px;text-align:center;font-size:7.8pt;">' . app_report_html((string)($row['position'] ?? '-')) . '</td>'
-            . '<td style="border:1px solid #555;padding:3px 4px;text-align:center;font-size:7.8pt;">' . app_report_html((string)($row['remark'] ?? '')) . '</td>'
-            . '<td style="border:1px solid #555;padding:3px 4px;font-size:7.8pt;">' . app_report_html((string)($row['teacher_name'] ?? '')) . '</td>'
-            . '<td style="border:1px solid #555;padding:3px 4px;text-align:center;font-size:7.8pt;">' . number_format(((float)($row['combined_score'] ?? 0)) - (float)($row['class_mean'] ?? 0), 1) . '</td>'
-            . '<td style="border:1px solid #555;padding:3px 4px;text-align:center;font-size:7.8pt;">' . app_report_html((string)($row['grade'] ?? '')) . '</td>'
+            . '<td style="' . $cellCenterStyle . '">' . number_format((float)($row['combined_score'] ?? 0), 1) . '%</td>'
+            . '<td style="' . $cellCenterStyle . '">' . app_report_html((string)($row['position'] ?? '-')) . '</td>'
+            . '<td style="' . $cellCenterStyle . '">' . app_report_html((string)($row['remark'] ?? '')) . '</td>'
+            . '<td style="' . $cellStyle . '">' . app_report_html((string)($row['teacher_name'] ?? '')) . '</td>'
+            . '<td style="' . $cellCenterStyle . '">' . number_format(((float)($row['combined_score'] ?? 0)) - (float)($row['class_mean'] ?? 0), 1) . '</td>'
+            . '<td style="' . $cellCenterStyle . '">' . app_report_html((string)($row['grade'] ?? '')) . '</td>'
             . '</tr>';
     }
 
     if ($subjectRows === '') {
-        $subjectRows = '<tr><td colspan="' . (7 + count($cycleLabels)) . '" style="border:1px solid #555;padding:6px;text-align:center;font-size:8pt;">No subject data available.</td></tr>';
+        $subjectRows = '<tr><td colspan="' . (7 + count($cycleLabels)) . '" style="border:1px solid #555;padding:' . $density['empty_padding'] . ';text-align:center;font-size:' . $density['empty_font'] . ';">No subject data available.</td></tr>';
     }
 
     $remarksLeft = app_report_html((string)($card['teacher_comment'] ?? $card['remark'] ?? ''));
@@ -274,14 +312,14 @@ function app_report_combined_cycles_html(PDO $conn, array $payload): string
 </table>
 <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
     <tr style="background:#e9edf1;">
-        <th style="border:1px solid #555;padding:3px 4px;font-size:7.5pt;">SUBJECT</th>
+        <th style="' . $headerStyle . '">SUBJECT</th>
         ' . $cycleHeaders . '
-        <th style="border:1px solid #555;padding:3px 4px;font-size:7.5pt;">MARKS</th>
-        <th style="border:1px solid #555;padding:3px 4px;font-size:7.5pt;">RANK</th>
-        <th style="border:1px solid #555;padding:3px 4px;font-size:7.5pt;">PERFORMANCE LEVEL</th>
-        <th style="border:1px solid #555;padding:3px 4px;font-size:7.5pt;">TEACHER</th>
-        <th style="border:1px solid #555;padding:3px 4px;font-size:7.5pt;">DEV.</th>
-        <th style="border:1px solid #555;padding:3px 4px;font-size:7.5pt;">GR.</th>
+        <th style="' . $headerStyle . '">MARKS</th>
+        <th style="' . $headerStyle . '">RANK</th>
+        <th style="' . $headerStyle . '">PERFORMANCE LEVEL</th>
+        <th style="' . $headerStyle . '">TEACHER</th>
+        <th style="' . $headerStyle . '">DEV.</th>
+        <th style="' . $headerStyle . '">GR.</th>
     </tr>
     ' . $subjectRows . '
 </table>
@@ -342,6 +380,10 @@ function app_report_generic_html(PDO $conn, array $payload): string
     [$meanGrade, $meanRemark] = report_grade_for_score($conn, $meanScore, $gradingSystemId);
     $totalMarks = (float)($card['total'] ?? 0);
     $position = (string)($card['position'] ?? '-') . '/' . (string)($card['total_students'] ?? 0);
+    $density = app_report_subject_table_density(count($subjects));
+    $headerStyle = 'border:1px solid #555;padding:' . $density['header_padding'] . ';font-size:' . $density['header_font'] . ';';
+    $cellStyle = 'border:1px solid #555;padding:' . $density['cell_padding'] . ';font-size:' . $density['cell_font'] . ';';
+    $cellCenterStyle = 'border:1px solid #555;padding:' . $density['cell_padding'] . ';text-align:center;font-size:' . $density['cell_font'] . ';';
 
     $subjectRows = '';
     foreach ($subjects as $subject) {
@@ -349,18 +391,18 @@ function app_report_generic_html(PDO $conn, array $payload): string
         $classMean = (float)($subject['class_mean'] ?? 0);
         $deviation = round($score - $classMean, 1);
         $subjectRows .= '<tr>'
-            . '<td style="border:1px solid #555;padding:3px 4px;font-size:7.8pt;">' . app_report_html((string)($subject['subject_name'] ?? '')) . '</td>'
-            . '<td style="border:1px solid #555;padding:3px 4px;text-align:center;font-size:7.8pt;">' . number_format($score, 1) . '%</td>'
-            . '<td style="border:1px solid #555;padding:3px 4px;text-align:center;font-size:7.8pt;">' . number_format($classMean, 1) . '%</td>'
-            . '<td style="border:1px solid #555;padding:3px 4px;text-align:center;font-size:7.8pt;">' . number_format($deviation, 1) . '</td>'
-            . '<td style="border:1px solid #555;padding:3px 4px;text-align:center;font-size:7.8pt;">' . app_report_html((string)($subject['grade'] ?? '')) . '</td>'
-            . '<td style="border:1px solid #555;padding:3px 4px;text-align:center;font-size:7.8pt;">' . app_report_html((string)($subject['position'] ?? '-')) . '</td>'
-            . '<td style="border:1px solid #555;padding:3px 4px;font-size:7.8pt;">' . app_report_html((string)($subject['teacher_name'] ?? '')) . '</td>'
+            . '<td style="' . $cellStyle . '">' . app_report_html((string)($subject['subject_name'] ?? '')) . '</td>'
+            . '<td style="' . $cellCenterStyle . '">' . number_format($score, 1) . '%</td>'
+            . '<td style="' . $cellCenterStyle . '">' . number_format($classMean, 1) . '%</td>'
+            . '<td style="' . $cellCenterStyle . '">' . number_format($deviation, 1) . '</td>'
+            . '<td style="' . $cellCenterStyle . '">' . app_report_html((string)($subject['grade'] ?? '')) . '</td>'
+            . '<td style="' . $cellCenterStyle . '">' . app_report_html((string)($subject['position'] ?? '-')) . '</td>'
+            . '<td style="' . $cellStyle . '">' . app_report_html((string)($subject['teacher_name'] ?? '')) . '</td>'
             . '</tr>';
     }
 
     if ($subjectRows === '') {
-        $subjectRows = '<tr><td colspan="7" style="border:1px solid #555;padding:6px;text-align:center;font-size:8pt;">No subject data available.</td></tr>';
+        $subjectRows = '<tr><td colspan="7" style="border:1px solid #555;padding:' . $density['empty_padding'] . ';text-align:center;font-size:' . $density['empty_font'] . ';">No subject data available.</td></tr>';
     }
 
     $remarksLeft = app_report_html((string)($card['teacher_comment'] ?? $card['remark'] ?? ''));
@@ -392,13 +434,13 @@ function app_report_generic_html(PDO $conn, array $payload): string
 </table>
 <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
     <tr style="background:#e9edf1;">
-        <th style="border:1px solid #555;padding:3px 4px;font-size:7.5pt;">SUBJECT</th>
-        <th style="border:1px solid #555;padding:3px 4px;font-size:7.5pt;">MARKS</th>
-        <th style="border:1px solid #555;padding:3px 4px;font-size:7.5pt;">CLASS AVG</th>
-        <th style="border:1px solid #555;padding:3px 4px;font-size:7.5pt;">DEV.</th>
-        <th style="border:1px solid #555;padding:3px 4px;font-size:7.5pt;">GR.</th>
-        <th style="border:1px solid #555;padding:3px 4px;font-size:7.5pt;">RANK</th>
-        <th style="border:1px solid #555;padding:3px 4px;font-size:7.5pt;">TEACHER</th>
+        <th style="' . $headerStyle . '">SUBJECT</th>
+        <th style="' . $headerStyle . '">MARKS</th>
+        <th style="' . $headerStyle . '">CLASS AVG</th>
+        <th style="' . $headerStyle . '">DEV.</th>
+        <th style="' . $headerStyle . '">GR.</th>
+        <th style="' . $headerStyle . '">RANK</th>
+        <th style="' . $headerStyle . '">TEACHER</th>
     </tr>
     ' . $subjectRows . '
 </table>
