@@ -50,6 +50,24 @@ while true; do
 done
 ```
 
+Repo monitor script (logs probe history to CSV):
+
+```bash
+python3 scripts/uptime_monitor.py \
+  --base-url https://elimuhub.tech \
+  --interval 10 \
+  --samples 120 \
+  --csv logs/uptime.csv \
+  --strict
+```
+
+Status labels from the script:
+
+- `OK`: both endpoints returned `200` within slow threshold
+- `SLOW`: both endpoints are `200` but one or both are slow
+- `DEEP_FAIL`: basic endpoint is up but deep readiness failed
+- `DOWN`: basic endpoint failed (site likely unreachable)
+
 How to interpret outages:
 
 - Both probes timeout: network / DNS / edge path issue
