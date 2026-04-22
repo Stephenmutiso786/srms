@@ -61,6 +61,24 @@ python3 scripts/uptime_monitor.py \
   --strict
 ```
 
+Cron-ready command (every 5 minutes, appends to one CSV):
+
+```bash
+*/5 * * * * cd /home/ofx_steve/Desktop/srms && /usr/bin/python3 scripts/uptime_monitor.py --base-url https://elimuhub.tech --samples 1 --timeout 12 --csv logs/uptime.csv >> logs/uptime_cron.log 2>&1
+```
+
+Daily uptime summary (defaults to yesterday UTC):
+
+```bash
+python3 scripts/uptime_summary.py --csv logs/uptime.csv
+```
+
+Specific date summary:
+
+```bash
+python3 scripts/uptime_summary.py --csv logs/uptime.csv --date 2026-04-22
+```
+
 Status labels from the script:
 
 - `OK`: both endpoints returned `200` within slow threshold
