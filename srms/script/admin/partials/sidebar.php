@@ -102,10 +102,6 @@ foreach ($visibleAdminModules as $module) {
 }
 
 $adminSidebarGroupOrder = ['Overview', 'Academic', 'Students', 'Operations', 'Finance', 'Communication', 'Exams', 'Reports', 'Results', 'Access Control', 'Resources', 'Governance', 'System', 'Support', 'General'];
-{
-  global $visibleAdminKeys;
-  return isset($visibleAdminKeys[$key]);
-}
 ?>
 <div class="app-sidebar__overlay" data-toggle="sidebar"></div>
 <aside class="app-sidebar">
