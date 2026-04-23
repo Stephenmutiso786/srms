@@ -86,13 +86,14 @@ try {
 .access-chip{background:#eef4fb;color:#27405c}
 .module-chip{background:#e7f1ef;color:#00695C}
 .module-list{display:grid;gap:10px;margin-top:12px}
-.module-link{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border:1px solid #e7edf5;border-radius:16px;text-decoration:none;color:#203040;background:#fbfdff}
-.module-link:hover{border-color:#cfe3db;background:#f4fbf8}
+.module-link{display:flex;gap:12px;align-items:flex-start;padding:14px 15px;border:1px solid #e7edf5;border-radius:18px;text-decoration:none;color:#203040;background:linear-gradient(180deg,#ffffff,#f8fbff);box-shadow:0 8px 18px rgba(16,41,38,.04);transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}
+.module-link:hover{border-color:#00695C;background:linear-gradient(180deg,#ffffff,#eefaf7);box-shadow:0 14px 26px rgba(0,105,92,.10);transform:translateY(-1px)}
 .module-icon{width:38px;height:38px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:#e7f1ef;color:#00695C;flex:0 0 auto}
 .module-title{font-weight:800;color:#123;line-height:1.2}
 .module-desc{font-size:.84rem;color:#6f7e8f;margin-top:2px}
 .module-perms{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .module-perms span{font-size:.72rem;background:#eef4fb;color:#4d647d;padding:4px 8px;border-radius:999px}
+.module-cta{margin-left:auto;align-self:center;font-size:.75rem;font-weight:800;color:#00695C;background:#e7f1ef;border-radius:999px;padding:7px 10px;white-space:nowrap}
 @media (max-width: 1100px){.access-card.roles,.access-card.permissions,.access-card.modules{grid-column:span 12}}
 </style>
 </head>
@@ -175,6 +176,7 @@ try {
 								<?php endforeach; ?>
 							</div>
 						</div>
+						<span class="module-cta">Open</span>
 					</a>
 				<?php endforeach; ?>
 			<?php else: ?>
