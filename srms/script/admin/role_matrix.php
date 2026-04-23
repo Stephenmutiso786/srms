@@ -61,11 +61,6 @@ try {
 		$roleById[(int)$role['id']] = $role;
 	}
 
-	$permissionById = [];
-	foreach ($permissions as $permission) {
-		$permissionById[(int)$permission['id']] = $permission;
-	}
-
 	$staffAssignments = [];
 	$stmt = $conn->prepare("SELECT staff_id, role_id FROM tbl_user_roles");
 	$stmt->execute();
@@ -93,13 +88,6 @@ try {
 		}
 
 		sort($assignedRoleNames);
-		$effectivePermissionCodes = [];
-		foreach (array_keys($effectivePermissionIds) as $permissionId) {
-			if (isset($permissionById[$permissionId])) {
-				$effectivePermissionCodes[] = (string)$permissionById[$permissionId]['code'];
-			}
-		}
-		sort($effectivePermissionCodes);
 
 		$staffRows[] = [
 			'id' => $staffId,
@@ -107,8 +95,7 @@ try {
 			'level' => (string)($staff['level'] ?? ''),
 			'primary_title' => app_staff_primary_title($conn, $staffId, (string)($staff['level'] ?? '')),
 			'roles' => $assignedRoleNames,
-			'permission_count' => count($effectivePermissionCodes),
-			'permission_codes' => $effectivePermissionCodes,
+			'permission_count' => count($effectivePermissionIds),
 		];
 	}
 } catch (Throwable $e) {
@@ -137,7 +124,6 @@ try {
 .matrix-role-col { position: sticky; left: 0; background: #fff; z-index: 1; min-width: 240px; }
 .matrix-table thead .matrix-role-col { z-index: 3; background: #f8fafc; }
 .badge-role { font-size: 0.72rem; }
-.badge-perm { font-size: 0.72rem; }
 .staff-table td { vertical-align: top; }
 .filter-bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; margin-bottom: 12px; }
 .filter-item { min-width: 220px; }
@@ -254,12 +240,12 @@ try {
 <th>Staff</th>
 <th>Primary Title</th>
 <th>Assigned Roles</th>
-<th>Effective Permissions</th>
+<th>Effective Access</th>
 </tr>
 </thead>
 <tbody>
 <?php foreach ($staffRows as $staff): ?>
-<tr class="staff-row" data-staff-search="<?php echo htmlspecialchars(strtolower((string)$staff['name'] . ' ' . (string)$staff['primary_title'] . ' ' . implode(' ', $staff['permission_codes']))); ?>">
+<tr class="staff-row" data-staff-search="<?php echo htmlspecialchars(strtolower((string)$staff['name'] . ' ' . (string)$staff['primary_title'] . ' ' . implode(' ', (array)$staff['roles']))); ?>">
 <td>
 <div class="fw-semibold"><?php echo htmlspecialchars((string)$staff['name']); ?></div>
 <div class="text-muted small">#<?php echo (int)$staff['id']; ?></div>
@@ -276,14 +262,7 @@ try {
 </td>
 <td>
 <span class="fw-semibold"><?php echo (int)$staff['permission_count']; ?></span>
-<span class="text-muted">permissions</span>
-<?php if (!empty($staff['permission_codes'])): ?>
-<div class="mt-1">
-<?php foreach ($staff['permission_codes'] as $permissionCode): ?>
-<span class="badge bg-secondary badge-perm"><?php echo htmlspecialchars((string)$permissionCode); ?></span>
-<?php endforeach; ?>
-</div>
-<?php endif; ?>
+<span class="text-muted">effective permissions via assigned roles</span>
 </td>
 </tr>
 <?php endforeach; ?>
