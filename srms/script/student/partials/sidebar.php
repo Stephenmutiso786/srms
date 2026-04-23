@@ -27,6 +27,10 @@ function student_menu_is_active(array $module): string
     return ' active';
   }
 
+  if ($currentPage === 'index' && $href === 'student') {
+    return ' active';
+  }
+
   return '';
 }
 
