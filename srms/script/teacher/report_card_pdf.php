@@ -28,6 +28,11 @@ try {
         exit;
     }
 
+    if (!report_term_is_published($conn, (int)$student['class_id'], $termId)) {
+        header('location:report_card?term=' . $termId . '&student=' . urlencode($studentId));
+        exit;
+    }
+
     if (app_table_exists($conn, 'tbl_results_locks') && !app_results_locked($conn, (int)$student['class_id'], $termId)) {
         header('location:report_card?term=' . $termId . '&student=' . urlencode($studentId));
         exit;

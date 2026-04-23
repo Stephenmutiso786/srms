@@ -27,28 +27,15 @@ try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-	$visibleStatuses = report_visible_exam_statuses();
-	$placeholders = implode(',', array_fill(0, count($visibleStatuses), '?'));
 	$stmt = $conn->prepare("SELECT t.id, t.name
 		FROM tbl_terms t
 		WHERE EXISTS (
 			SELECT 1 FROM tbl_exams e
-			WHERE e.term_id = t.id AND e.class_id = ? AND COALESCE(e.status, 'draft') IN ($placeholders)
+			WHERE e.term_id = t.id AND e.class_id = ? AND COALESCE(e.status, 'draft') = 'published'
 		)
 		ORDER BY t.id DESC");
-	$stmt->execute(array_merge([$classId], $visibleStatuses));
+	$stmt->execute([$classId]);
 	$terms = $stmt->fetchAll(PDO::FETCH_ASSOC);
-	if (empty($terms)) {
-		$stmt = $conn->prepare("SELECT t.id, t.name
-			FROM tbl_terms t
-			WHERE EXISTS (
-				SELECT 1 FROM tbl_exams e
-				WHERE e.term_id = t.id AND e.class_id = ?
-			)
-			ORDER BY t.id DESC");
-		$stmt->execute([$classId]);
-		$terms = $stmt->fetchAll(PDO::FETCH_ASSOC);
-	}
 
 	if ($termId < 1 && !empty($terms)) {
 		$termId = (int)$terms[0]['id'];
@@ -67,7 +54,7 @@ try {
 				break;
 			}
 		}
-		if ($selectedExam) {
+		if ($isPublished && $selectedExam) {
 			$examSummary = report_exam_summary($conn, $studentId, $classId, $termId, (int)$selectedExam['id']);
 			if ($examSummary) {
 				$summary = [
@@ -153,13 +140,13 @@ try {
 			<div>
 				<div class="small text-uppercase opacity-75">Published Results Center</div>
 				<h2 class="mb-2"><?php echo $fname.' '.$lname; ?></h2>
-				<p class="mb-0">Choose a term and exam to view that specific performance snapshot. Published term reports remain available in the report card section.</p>
+				<p class="mb-0">Choose a published term and published exam to view the approved performance snapshot.</p>
 			</div>
 			<form method="GET" action="student/results" class="d-flex gap-2 align-items-end flex-wrap">
 				<div>
 					<label class="form-label text-white-50">Term</label>
 					<select class="form-control" name="term">
-						<option value="">Select term</option>
+						<option value="">Select published term</option>
 						<?php foreach ($terms as $term): ?>
 						<option value="<?php echo (int)$term['id']; ?>" <?php echo ((int)$term['id'] === $termId) ? 'selected' : ''; ?>><?php echo htmlspecialchars($term['name']); ?></option>
 						<?php endforeach; ?>
@@ -168,7 +155,7 @@ try {
 				<div>
 					<label class="form-label text-white-50">Exam</label>
 					<select class="form-control" name="exam">
-						<option value="">Latest visible exam</option>
+						<option value="">Latest published exam</option>
 						<?php foreach ($examOptions as $exam): ?>
 						<option value="<?php echo (int)$exam['id']; ?>" <?php echo ((int)$exam['id'] === $examId) ? 'selected' : ''; ?>>
 							<?php echo htmlspecialchars($exam['name'] . ' [' . strtoupper((string)$exam['status']) . ']'); ?>
@@ -188,8 +175,8 @@ try {
 		</div>
 	</div>
 
-	<?php if ($termId < 1 || (empty($subjectRows) && !$isPublished)) { ?>
-	<div class="tile"><div class="alert alert-info mb-0">No exam results are available for the selected term yet. Once teachers publish or release exams for this term, they will appear here.</div></div>
+	<?php if ($termId < 1 || !$isPublished || empty($subjectRows)) { ?>
+	<div class="tile"><div class="alert alert-info mb-0">No published exam results are available for the selected term yet.</div></div>
 	<?php } else { ?>
 	<div class="analytics-grid">
 		<div class="panel-card">
@@ -219,7 +206,7 @@ try {
 					<div><div class="text-muted small">Term</div><div class="fw-bold fs-5"><?php foreach ($terms as $term){ if((int)$term['id']===$termId){ echo htmlspecialchars($term['name']); break; } } ?></div></div>
 				</div>
 				<hr>
-				<p class="mb-0 text-muted">Choose any exam completed in this term to view that exact paper or assessment. The report card remains the official overall term result.</p>
+				<p class="mb-0 text-muted">Only published exams are listed here. The report card remains the official overall term result.</p>
 			</div>
 		</div>
 	</div>

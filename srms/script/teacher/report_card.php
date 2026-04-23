@@ -99,7 +99,7 @@ try {
 <div>
 	<label class="form-label">Exam</label>
 	<select class="form-control" name="exam">
-		<option value="">Latest visible exam</option>
+		<option value="">Latest published exam</option>
 		<?php foreach (($examOptions ?? []) as $exam): ?>
 		<option value="<?php echo (int)$exam['id']; ?>" <?php echo ((int)$exam['id'] === $examId) ? 'selected' : ''; ?>><?php echo htmlspecialchars($exam['name'] . ' [' . strtoupper((string)$exam['status']) . ']'); ?></option>
 		<?php endforeach; ?>

@@ -273,7 +273,7 @@ function report_exam_result_matrix(PDO $conn, int $classId, int $termId, ?string
 
 function report_visible_exam_statuses(): array
 {
-	return ['published', 'finalized', 'reviewed', 'active', 'open'];
+	return ['published'];
 }
 
 function report_term_exam_options(PDO $conn, int $classId, int $termId): array
@@ -286,7 +286,7 @@ function report_term_exam_options(PDO $conn, int $classId, int $termId): array
 	$hasAssessmentMode = app_column_exists($conn, 'tbl_exams', 'assessment_mode');
 
 	$statuses = report_visible_exam_statuses();
-	$fetchRows = function (bool $statusFiltered) use ($conn, $classId, $termId, $hasAssessmentMode, $hasExamTypes, $hasCreatedAt, $statuses): array {
+	$fetchRows = function () use ($conn, $classId, $termId, $hasAssessmentMode, $hasExamTypes, $hasCreatedAt, $statuses): array {
 		$sql = "SELECT e.id, e.name, COALESCE(e.status, 'draft') AS status,";
 		$sql .= $hasAssessmentMode
 			? " COALESCE(e.assessment_mode, 'normal') AS assessment_mode,"
@@ -294,23 +294,11 @@ function report_term_exam_options(PDO $conn, int $classId, int $termId): array
 		$sql .= $hasExamTypes
 			? " COALESCE(et.name, '') AS type_name FROM tbl_exams e LEFT JOIN tbl_exam_types et ON et.id = e.exam_type_id"
 			: " '' AS type_name FROM tbl_exams e";
-		$sql .= " WHERE e.class_id = ? AND e.term_id = ?";
-		$args = [$classId, $termId];
-		if ($statusFiltered) {
-			$placeholders = implode(',', array_fill(0, count($statuses), '?'));
-			$sql .= " AND COALESCE(e.status, 'draft') IN ($placeholders)";
-			$args = array_merge($args, $statuses);
-		}
+		$placeholders = implode(',', array_fill(0, count($statuses), '?'));
+		$sql .= " WHERE e.class_id = ? AND e.term_id = ? AND COALESCE(e.status, 'draft') IN ($placeholders)";
+		$args = array_merge([$classId, $termId], $statuses);
 		$sql .= "
 			ORDER BY
-				CASE COALESCE(e.status, 'draft')
-					WHEN 'published' THEN 1
-					WHEN 'finalized' THEN 2
-					WHEN 'reviewed' THEN 3
-					WHEN 'active' THEN 4
-					WHEN 'open' THEN 5
-					ELSE 6
-				END,
 				" . ($hasCreatedAt ? 'e.created_at DESC,' : '') . "
 				e.id DESC";
 		$stmt = $conn->prepare($sql);
@@ -318,10 +306,7 @@ function report_term_exam_options(PDO $conn, int $classId, int $termId): array
 		return $stmt->fetchAll(PDO::FETCH_ASSOC);
 	};
 
-	$rows = $fetchRows(true);
-	if (empty($rows)) {
-		$rows = $fetchRows(false);
-	}
+	$rows = $fetchRows();
 
 	return array_map(function ($row) {
 		$status = strtolower(trim((string)($row['status'] ?? 'draft')));
@@ -1470,7 +1455,7 @@ function report_term_publish_state(PDO $conn, int $classId, int $termId): string
 function report_term_is_published(PDO $conn, int $classId, int $termId): bool
 {
 	$state = report_term_publish_state($conn, $classId, $termId);
-	return in_array($state, ['published', 'finalized', 'reviewed', 'active'], true);
+	return $state === 'published';
 }
 
 function report_student_term_history(PDO $conn, string $studentId, int $classId, int $limit = 6): array

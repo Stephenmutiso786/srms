@@ -72,14 +72,13 @@ try {
 				break;
 			}
 		}
-		if ($selectedExam) {
-			$examSummary = report_exam_summary($conn, $studentId, (int)$class, $termId, (int)$selectedExam['id']);
-			$examBreakdown = report_exam_subject_breakdown($conn, $studentId, (int)$class, $termId, (int)$selectedExam['id']);
-		}
-
 		if (!$isPublished) {
 			$card = null;
 		} elseif (app_table_exists($conn, 'tbl_report_cards')) {
+			if ($selectedExam) {
+				$examSummary = report_exam_summary($conn, $studentId, (int)$class, $termId, (int)$selectedExam['id']);
+				$examBreakdown = report_exam_subject_breakdown($conn, $studentId, (int)$class, $termId, (int)$selectedExam['id']);
+			}
 			$card = report_ensure_card_generated($conn, $studentId, (int)$class, $termId);
 			if ($card) {
 				$attendance = report_attendance_summary($conn, $studentId, (int)$class, $termId);
@@ -181,7 +180,7 @@ try {
 <div>
 	<label class="form-label">Exam</label>
 	<select class="form-control" name="exam">
-		<option value="">Latest visible exam</option>
+		<option value="">Latest published exam</option>
 		<?php foreach (($examOptions ?? []) as $exam): ?>
 		<option value="<?php echo (int)$exam['id']; ?>" <?php echo ((int)$exam['id'] === $examId) ? 'selected' : ''; ?>><?php echo htmlspecialchars($exam['name'] . ' [' . strtoupper((string)$exam['status']) . ']'); ?></option>
 		<?php endforeach; ?>

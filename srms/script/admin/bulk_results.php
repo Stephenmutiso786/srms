@@ -13,6 +13,7 @@ $class = $_SESSION['bulk_result']['student'];
 $term = $_SESSION['bulk_result']['term'];
 $examId = isset($_GET['exam']) ? (int)$_GET['exam'] : 0;
 $examOptions = [];
+$termPublished = false;
 
 $stmt = $conn->prepare("SELECT * FROM tbl_grade_system");
 $stmt->execute();
@@ -34,6 +35,7 @@ $stmt = $conn->prepare("SELECT * FROM tbl_classes WHERE id = ?");
 $stmt->execute([$std_data[0][6]]);
 $class_data = $stmt->fetchAll();
 
+$termPublished = report_term_is_published($conn, (int)$class, (int)$term);
 $examOptions = report_term_exam_options($conn, (int)$class, (int)$term);
 if ($examId < 1 && !empty($examOptions)) {
 	$examId = (int)$examOptions[0]['id'];
@@ -94,7 +96,7 @@ header("location:./");
 	<div>
 		<label class="form-label mb-1">Exam</label>
 		<select class="form-control" name="exam">
-			<option value="">Latest visible exam</option>
+			<option value="">Latest published exam</option>
 			<?php foreach (($examOptions ?? []) as $exam): ?>
 			<option value="<?php echo (int)$exam['id']; ?>" <?php echo ((int)$exam['id'] === $examId) ? 'selected' : ''; ?>><?php echo htmlspecialchars($exam['name'] . ' [' . strtoupper((string)$exam['status']) . ']'); ?></option>
 			<?php endforeach; ?>
@@ -110,6 +112,12 @@ header("location:./");
 <div class="col-md-12 center_form">
 <div class="tile">
 <div class="tile-body">
+
+<?php if (!$termPublished): ?>
+<div class="alert alert-warning">Results are not published for this class and term yet.</div>
+<?php elseif (empty($examOptions)): ?>
+<div class="alert alert-warning">No published exam is available for this class and term.</div>
+<?php endif; ?>
 
 <div class="table-responsive">
 
@@ -137,6 +145,11 @@ $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 $useExamId = app_column_exists($conn, 'tbl_exam_results', 'exam_id');
 $selectedExamName = '';
 
+if (!$termPublished) {
+	$result = [];
+	$result2 = [];
+}
+
 if ($useExamId && $examId > 0) {
 	foreach ($examOptions as $examOption) {
 		if ((int)$examOption['id'] === $examId) {
@@ -148,13 +161,18 @@ if ($useExamId && $examId > 0) {
 
 $tit = $tit . ($selectedExamName !== '' ? ' - ' . $selectedExamName : ($examId > 0 ? ' - Selected Exam' : ''));
 
-$stmt = $conn->prepare("SELECT * FROM tbl_subject_combinations LEFT JOIN tbl_subjects ON tbl_subject_combinations.subject = tbl_subjects.id");
-$stmt->execute();
-$result = $stmt->fetchAll();
+if ($termPublished && (!$useExamId || $examId > 0)) {
+	$stmt = $conn->prepare("SELECT * FROM tbl_subject_combinations LEFT JOIN tbl_subjects ON tbl_subject_combinations.subject = tbl_subjects.id");
+	$stmt->execute();
+	$result = $stmt->fetchAll();
 
-$stmt = $conn->prepare("SELECT * FROM tbl_students WHERE class = ?");
-$stmt->execute([$class]);
-$result2 = $stmt->fetchAll();
+	$stmt = $conn->prepare("SELECT * FROM tbl_students WHERE class = ?");
+	$stmt->execute([$class]);
+	$result2 = $stmt->fetchAll();
+} else {
+	$result = [];
+	$result2 = [];
+}
 
 foreach($result2 as $row2)
 {

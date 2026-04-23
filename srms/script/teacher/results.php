@@ -44,8 +44,12 @@ try {
 	$stmt->execute([$subjectCombination]);
 	$subjectData = $stmt->fetch(PDO::FETCH_ASSOC);
 
+	if (!report_term_is_published($conn, $class, $term)) {
+		$error = 'Results for this class and term are not published yet.';
+	}
+
 	$hasExamId = app_column_exists($conn, 'tbl_exam_results', 'exam_id');
-	if ($hasExamId) {
+	if ($error === '' && $hasExamId) {
 		$examOptions = report_term_exam_options($conn, $class, $term);
 		if ($examId < 1 && !empty($examOptions)) {
 			$examId = (int)$examOptions[0]['id'];
@@ -56,43 +60,48 @@ try {
 				break;
 			}
 		}
-	}
-
-	$stmt = $conn->prepare("SELECT name, min, max, remark FROM tbl_grade_system ORDER BY min DESC");
-	$stmt->execute();
-	$grading = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-	$sql = "SELECT er.student, er.score, st.fname, st.mname, st.lname, st.school_id
-		FROM tbl_exam_results er
-		JOIN tbl_students st ON st.id = er.student
-		WHERE er.class = ? AND er.subject_combination = ? AND er.term = ?";
-	$args = [$class, $subjectCombination, $term];
-	if ($hasExamId && $examId > 0) {
-		$sql .= " AND er.exam_id = ?";
-		$args[] = $examId;
-	}
-	$sql .= " ORDER BY st.fname, st.lname";
-	$stmt = $conn->prepare($sql);
-	$stmt->execute($args);
-	foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-		$gradeName = 'N/A';
-		$remark = 'N/A';
-		$score = (float)$row['score'];
-		foreach ($grading as $grade) {
-			if ($score >= (float)$grade['min'] && $score <= (float)$grade['max']) {
-				$gradeName = (string)$grade['name'];
-				$remark = (string)$grade['remark'];
-				break;
-			}
+		if ($examId < 1) {
+			$error = 'No published exam is available for this class and term.';
 		}
-		$rows[] = [
-			'student_id' => (string)$row['student'],
-			'school_id' => (string)($row['school_id'] ?? ''),
-			'name' => trim(($row['fname'] ?? '') . ' ' . ($row['mname'] ?? '') . ' ' . ($row['lname'] ?? '')),
-			'score' => $score,
-			'grade' => $gradeName,
-			'remark' => $remark,
-		];
+	}
+
+	if ($error === '') {
+		$stmt = $conn->prepare("SELECT name, min, max, remark FROM tbl_grade_system ORDER BY min DESC");
+		$stmt->execute();
+		$grading = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+		$sql = "SELECT er.student, er.score, st.fname, st.mname, st.lname, st.school_id
+			FROM tbl_exam_results er
+			JOIN tbl_students st ON st.id = er.student
+			WHERE er.class = ? AND er.subject_combination = ? AND er.term = ?";
+		$args = [$class, $subjectCombination, $term];
+		if ($hasExamId && $examId > 0) {
+			$sql .= " AND er.exam_id = ?";
+			$args[] = $examId;
+		}
+		$sql .= " ORDER BY st.fname, st.lname";
+		$stmt = $conn->prepare($sql);
+		$stmt->execute($args);
+		foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+			$gradeName = 'N/A';
+			$remark = 'N/A';
+			$score = (float)$row['score'];
+			foreach ($grading as $grade) {
+				if ($score >= (float)$grade['min'] && $score <= (float)$grade['max']) {
+					$gradeName = (string)$grade['name'];
+					$remark = (string)$grade['remark'];
+					break;
+				}
+			}
+			$rows[] = [
+				'student_id' => (string)$row['student'],
+				'school_id' => (string)($row['school_id'] ?? ''),
+				'name' => trim(($row['fname'] ?? '') . ' ' . ($row['mname'] ?? '') . ' ' . ($row['lname'] ?? '')),
+				'score' => $score,
+				'grade' => $gradeName,
+				'remark' => $remark,
+			];
+		}
 	}
 
 	if (!empty($rows)) {
@@ -168,7 +177,7 @@ if ($selectedExam) {
 <div class="col-md-4 col-lg-3">
 <label class="form-label">Exam</label>
 <select class="form-control" name="exam">
-<option value="">Latest visible exam</option>
+<option value="">Latest published exam</option>
 <?php foreach ($examOptions as $exam): ?>
 <option value="<?php echo (int)$exam['id']; ?>" <?php echo ((int)$exam['id'] === $examId) ? 'selected' : ''; ?>><?php echo htmlspecialchars($exam['name'] . ' [' . strtoupper((string)$exam['status']) . ']'); ?></option>
 <?php endforeach; ?>

@@ -74,11 +74,18 @@ try {
 			if ($examId < 1 && !empty($examOptions)) {
 				$examId = (int)$examOptions[0]['id'];
 			}
+			$examAllowed = false;
+			foreach ($examOptions as $option) {
+				if ((int)$option['id'] === $examId) {
+					$examAllowed = true;
+					break;
+				}
+			}
 
 			if (!report_term_is_published($conn, $classId, $termId)) {
 				$card = null;
 			} else {
-				if ($examId > 0) {
+				if ($examId > 0 && $examAllowed) {
 					$examSummary = report_exam_summary($conn, $studentId, $classId, $termId, $examId);
 					$examBreakdown = report_exam_subject_breakdown($conn, $studentId, $classId, $termId, $examId);
 				}
@@ -192,7 +199,7 @@ try {
 <div>
 <label class="form-label">Exam</label>
 <select class="form-control" name="exam">
-<option value="">Latest visible exam</option>
+<option value="">Latest published exam</option>
 <?php foreach (($examOptions ?? []) as $exam): ?>
 <option value="<?php echo (int)$exam['id']; ?>" <?php echo ((int)$exam['id'] === $examId) ? 'selected' : ''; ?>><?php echo htmlspecialchars($exam['name'] . ' [' . strtoupper((string)$exam['status']) . ']'); ?></option>
 <?php endforeach; ?>

@@ -27,6 +27,12 @@ try {
         exit;
     }
 
+    if (!report_term_is_published($conn, (int)$student['class_id'], $termId)) {
+        $_SESSION['reply'] = array(array('warning', 'Results are not published for the selected class and term.'));
+        header('location:report');
+        exit;
+    }
+
     $card = report_ensure_card_generated($conn, $studentId, (int)$student['class_id'], $termId, (int)$account_id);
     if (!$card) {
         $rankData = report_rank_students($conn, (int)$student['class_id'], $termId);
