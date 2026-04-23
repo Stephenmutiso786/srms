@@ -114,7 +114,7 @@ try {
 
 <div class="mb-2">
 <label class="form-label">Select Class</label>
-<select class="form-control select2" name="class_id" required style="width: 100%;">
+<select class="form-control select2" name="class_id" id="genClassSelect" required style="width: 100%;" onchange="loadPublishedExams('genClassSelect','genTermSelect','genExamSelect');">
 <option value="" selected disabled> Select One</option>
 <?php foreach ($classes as $row) { ?>
 <option value="<?php echo (int)$row['id']; ?>"><?php echo htmlspecialchars((string)$row['name']); ?></option>
@@ -124,11 +124,18 @@ try {
 
 <div class="mb-3">
 <label class="form-label">Select Term</label>
-<select class="form-control select2" name="term_id" required style="width: 100%;">
+<select class="form-control select2" name="term_id" id="genTermSelect" required style="width: 100%;" onchange="loadPublishedExams('genClassSelect','genTermSelect','genExamSelect');">
 <option selected disabled value="">Select One</option>
 <?php foreach ($terms as $row) { ?>
 <option value="<?php echo (int)$row['id']; ?>"><?php echo htmlspecialchars((string)$row['name']); ?></option>
 <?php } ?>
+</select>
+</div>
+
+<div class="mb-3">
+<label class="form-label">Select Exam</label>
+<select class="form-control select2" name="exam_id" id="genExamSelect" required style="width: 100%;">
+<option selected disabled value="">Select class and term first</option>
 </select>
 </div>
 
@@ -152,7 +159,7 @@ try {
 
 <div class="mb-2">
 <label class="form-label">Select Class</label>
-<select class="form-control select2" name="student" required style="width: 100%;">
+<select class="form-control select2" name="student" id="sumClassSelect" required style="width: 100%;" onchange="loadPublishedExams('sumClassSelect','sumTermSelect','sumExamSelect');">
 <option value="" selected disabled> Select One</option>
 <?php foreach ($classes as $row) { ?>
 <option value="<?php echo (int)$row['id']; ?>"><?php echo htmlspecialchars((string)$row['name']); ?></option>
@@ -162,11 +169,18 @@ try {
 
 <div class="mb-3">
 <label class="form-label">Select Term</label>
-<select class="form-control select2" name="term" required style="width: 100%;">
+<select class="form-control select2" name="term" id="sumTermSelect" required style="width: 100%;" onchange="loadPublishedExams('sumClassSelect','sumTermSelect','sumExamSelect');">
 <option selected disabled value="">Select One</option>
 <?php foreach ($terms as $row) { ?>
 <option value="<?php echo (int)$row['id']; ?>"><?php echo htmlspecialchars((string)$row['name']); ?></option>
 <?php } ?>
+</select>
+</div>
+
+<div class="mb-3">
+<label class="form-label">Select Exam</label>
+<select class="form-control select2" name="exam" id="sumExamSelect" required style="width: 100%;">
+<option selected disabled value="">Select class and term first</option>
 </select>
 </div>
 
@@ -304,6 +318,23 @@ try {
 <?php require_once('const/check-reply.php'); ?>
 <script>
 $('.select2').select2()
+
+function loadPublishedExams(classSelectId, termSelectId, examSelectId) {
+	var classId = $('#' + classSelectId).val() || '';
+	var termId = $('#' + termSelectId).val() || '';
+	var examSelect = $('#' + examSelectId);
+	if (!examSelect.length) {
+		return;
+	}
+	examSelect.empty();
+	if (classId === '' || termId === '') {
+		examSelect.append('<option selected disabled value="">Select class and term first</option>');
+		return;
+	}
+	$.post('app/ajax/fetch_exams.php', {id: classId, term_id: termId, submit: 1}, function(data){
+		examSelect.html(data);
+	});
+}
 
 function openEmailModal(resultType, resultId, studentName, studentEmail) {
 		document.getElementById('emailResultType').value = resultType;

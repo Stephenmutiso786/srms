@@ -4,6 +4,7 @@ session_start();
 require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
+require_once('const/report_engine.php');
 require_once('tcpdf/tcpdf.php');
 require_once('const/calculations.php');
 require_once('const/pdf_branding.php');
@@ -17,8 +18,9 @@ if (!isset($_SESSION['bulk_result_2'])) {
 
 $class = trim((string)($_SESSION['bulk_result_2']['student'] ?? ''));
 $term = (int)($_SESSION['bulk_result_2']['term'] ?? 0);
-if ($class === '' || $term < 1) {
-	$_SESSION['reply'] = array(array('danger', 'Please select both class and term.'));
+$examId = (int)($_SESSION['bulk_result_2']['exam'] ?? 0);
+if ($class === '' || $term < 1 || $examId < 1) {
+	$_SESSION['reply'] = array(array('danger', 'Please select class, term, and exam.'));
 	header('location:report');
 	exit;
 }
@@ -63,7 +65,22 @@ try {
 		exit;
 	}
 
-	$title = (string)$class_row[1] . ' (' . (string)$term_row[1] . ' Performance Report)';
+	$examName = '';
+	$examOptions = report_term_exam_options($conn, (int)$class, $term);
+	foreach ($examOptions as $option) {
+		if ((int)$option['id'] === $examId) {
+			$examName = (string)$option['name'];
+			break;
+		}
+	}
+	if ($examName === '') {
+		$_SESSION['reply'] = array(array('danger', 'Selected exam is not published for the selected class and term.'));
+		header('location:report');
+		exit;
+	}
+
+	$title = (string)$class_row[1] . ' (' . (string)$term_row[1] . ' - ' . $examName . ' Performance Report)';
+	$useExamId = app_column_exists($conn, 'tbl_exam_results', 'exam_id');
 
 	$stmt = $conn->prepare('SELECT * FROM tbl_subject_combinations LEFT JOIN tbl_subjects ON tbl_subject_combinations.subject = tbl_subjects.id');
 	$stmt->execute();
@@ -80,8 +97,13 @@ try {
 			if (in_array($class, $class_list, true)) {
 				$t_subjects++;
 				$score = 0;
-				$stmt = $conn->prepare('SELECT * FROM tbl_exam_results WHERE class = ? AND subject_combination = ? AND term = ? AND student = ?');
-				$stmt->execute([$class, $row[0], $term, $row2[0]]);
+				if ($useExamId) {
+					$stmt = $conn->prepare('SELECT * FROM tbl_exam_results WHERE class = ? AND subject_combination = ? AND term = ? AND student = ? AND exam_id = ?');
+					$stmt->execute([$class, $row[0], $term, $row2[0], $examId]);
+				} else {
+					$stmt = $conn->prepare('SELECT * FROM tbl_exam_results WHERE class = ? AND subject_combination = ? AND term = ? AND student = ?');
+					$stmt->execute([$class, $row[0], $term, $row2[0]]);
+				}
 				$ex_result = $stmt->fetchAll();
 				if (!empty($ex_result[0][5])) {
 					$score = (float)$ex_result[0][5];

@@ -22,9 +22,10 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $classId = (int)($_POST['class_id'] ?? 0);
 $termId = (int)($_POST['term_id'] ?? 0);
+$examId = (int)($_POST['exam_id'] ?? 0);
 
-if ($classId < 1 || $termId < 1) {
-	$_SESSION['reply'] = array (array("danger", "Select class and term"));
+if ($classId < 1 || $termId < 1 || $examId < 1) {
+	$_SESSION['reply'] = array (array("danger", "Select class, term, and exam"));
 	header("location:../report");
 	exit;
 }
@@ -39,6 +40,20 @@ try {
 		exit;
 	}
 
+	$examOptions = report_term_exam_options($conn, $classId, $termId);
+	$examAllowed = false;
+	foreach ($examOptions as $option) {
+		if ((int)$option['id'] === $examId) {
+			$examAllowed = true;
+			break;
+		}
+	}
+	if (!$examAllowed) {
+		$_SESSION['reply'] = array (array("danger", "Select a published exam for the selected class and term."));
+		header("location:../report");
+		exit;
+	}
+
 	$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_students WHERE class = ?");
 	$stmt->execute([$classId]);
 	$totalStudents = (int)$stmt->fetchColumn();
@@ -46,8 +61,14 @@ try {
 		throw new RuntimeException('This class has no registered students yet.');
 	}
 
-	$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_exam_results WHERE class = ? AND term = ?");
-	$stmt->execute([$classId, $termId]);
+	$useExamId = app_column_exists($conn, 'tbl_exam_results', 'exam_id');
+	if ($useExamId) {
+		$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_exam_results WHERE class = ? AND term = ? AND exam_id = ?");
+		$stmt->execute([$classId, $termId, $examId]);
+	} else {
+		$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_exam_results WHERE class = ? AND term = ?");
+		$stmt->execute([$classId, $termId]);
+	}
 	$totalResults = (int)$stmt->fetchColumn();
 
 	$totalCbc = 0;

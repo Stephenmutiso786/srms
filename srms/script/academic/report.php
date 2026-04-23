@@ -58,7 +58,7 @@ if ($res == "1" && $level == "1") {}else{header("location:../");}
 
 <div class="mb-2">
 <label class="form-label">Select Class</label>
-<select class="form-control select2" name="student" required style="width: 100%;">
+<select class="form-control select2" name="student" id="reportClassSelect" required style="width: 100%;" onchange="loadPublishedExams('reportClassSelect','reportTermSelect','reportExamSelect');">
 <option value="" selected disabled> Select One</option>
 <?php
 try {
@@ -87,7 +87,7 @@ echo "Connection failed.";
 
 <div class="mb-3">
 <label class="form-label">Select Term</label>
-<select class="form-control select2" name="term" required style="width: 100%;">
+<select class="form-control select2" name="term" id="reportTermSelect" required style="width: 100%;" onchange="loadPublishedExams('reportClassSelect','reportTermSelect','reportExamSelect');">
 <option selected disabled value="">Select One</option>
 <?php
 try {
@@ -111,6 +111,13 @@ error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
 echo "Connection failed.";
 }
 ?>
+</select>
+</div>
+
+<div class="mb-3">
+<label class="form-label">Select Exam</label>
+<select class="form-control select2" name="exam" id="reportExamSelect" required style="width: 100%;">
+<option selected disabled value="">Select class and term first</option>
 </select>
 </div>
 
@@ -139,6 +146,23 @@ echo "Connection failed.";
 <?php require_once('const/check-reply.php'); ?>
 <script>
 $('.select2').select2()
+
+function loadPublishedExams(classSelectId, termSelectId, examSelectId) {
+	var classId = $('#' + classSelectId).val() || '';
+	var termId = $('#' + termSelectId).val() || '';
+	var examSelect = $('#' + examSelectId);
+	if (!examSelect.length) {
+		return;
+	}
+	examSelect.empty();
+	if (classId === '' || termId === '') {
+		examSelect.append('<option selected disabled value="">Select class and term first</option>');
+		return;
+	}
+	$.post('app/ajax/fetch_exams.php', {id: classId, term_id: termId, submit: 1}, function(data){
+		examSelect.html(data);
+	});
+}
 </script>
 </body>
 
