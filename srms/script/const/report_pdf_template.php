@@ -168,6 +168,17 @@ function app_report_pick_single_page_scale(TCPDF $pdf, string $html, float $topM
 
 function app_report_subject_table_density(int $subjectCount): array
 {
+    if ($subjectCount > 0 && $subjectCount <= 8) {
+        return [
+            'header_padding' => '3px 4px',
+            'header_font' => '7.6pt',
+            'cell_padding' => '3px 4px',
+            'cell_font' => '7.9pt',
+            'empty_padding' => '7px',
+            'empty_font' => '8.2pt',
+        ];
+    }
+
     if ($subjectCount >= 16) {
         return [
             'header_padding' => '1px 2px',
@@ -285,12 +296,20 @@ function app_report_render_layout(PDO $conn, array $payload, array $rows, string
     $gradingSystemId = report_exam_grading_system_id($conn, (int)($examSummary['exam_id'] ?? 0));
 
     $density = app_report_subject_table_density($subjectCount);
+    $isLowSubjectCount = ($subjectCount > 0 && $subjectCount <= 8);
     $headerStyle = 'border:1px solid #999;padding:' . $density['header_padding'] . ';font-size:' . $density['header_font'] . ';font-weight:bold;text-transform:uppercase;';
     $cellStyle = 'border:1px solid #999;padding:' . $density['cell_padding'] . ';font-size:' . $density['cell_font'] . ';';
     $cellCenterStyle = $cellStyle . 'text-align:center;';
+    $titleFont = $isLowSubjectCount ? '8.2pt' : '8pt';
+    $titleMargin = $isLowSubjectCount ? '3px 0 5px 0' : '2px 0 4px 0';
+    $summaryTableMargin = $isLowSubjectCount ? '5px' : '4px';
+    $statsSpacing = $isLowSubjectCount ? '3px' : '2px';
+    $statsFont = $isLowSubjectCount ? '7.35pt' : '7.2pt';
+    $remarksFont = $isLowSubjectCount ? '7.7pt' : '7.5pt';
+    $chartLimit = $isLowSubjectCount ? 8 : 6;
 
     $chartRows = '';
-    foreach (array_slice($rows, 0, 6) as $row) {
+    foreach (array_slice($rows, 0, $chartLimit) as $row) {
         $studentWidth = max(0, min(100, (float)($row['score'] ?? 0)));
         $classWidth = max(0, min(100, (float)($row['class_mean'] ?? 0)));
         $chartRows .= '<tr>'
@@ -355,9 +374,9 @@ function app_report_render_layout(PDO $conn, array $payload, array $rows, string
                     </td>
                 </tr>
             </table>
-            <div style="background:#00aeef;color:#fff;text-align:center;padding:3px;font-size:8pt;font-weight:bold;margin:2px 0 4px 0;">ACADEMIC REPORT FORM - ' . app_report_html(strtoupper($className)) . ' - ' . app_report_html(strtoupper($examTitle)) . ' - (' . app_report_html(strtoupper($termName)) . ')</div>
+            <div style="background:#00aeef;color:#fff;text-align:center;padding:3px;font-size:' . $titleFont . ';font-weight:bold;margin:' . $titleMargin . ';">ACADEMIC REPORT FORM - ' . app_report_html(strtoupper($className)) . ' - ' . app_report_html(strtoupper($examTitle)) . ' - (' . app_report_html(strtoupper($termName)) . ')</div>
 
-            <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:4px;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:' . $summaryTableMargin . ';">
                 <tr>
                     <td width="16%" style="border:1px solid #d7d7d7;padding:3px;vertical-align:top;">' . $photoHtml . '</td>
                     <td width="49%" style="border:1px solid #d7d7d7;padding:3px;vertical-align:top;">
@@ -373,13 +392,13 @@ function app_report_render_layout(PDO $conn, array $payload, array $rows, string
                 </tr>
             </table>
 
-            <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-spacing:2px 0;margin-bottom:4px;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-spacing:' . $statsSpacing . ' 0;margin-bottom:' . $summaryTableMargin . ';">
                 <tr>
-                    <td style="background:#f4f4f4;border-top:2px solid #00aeef;padding:3px 4px;font-size:7.2pt;text-align:center;">Mean: <b>' . app_report_html($meanGrade) . '</b> <span style="color:' . ($meanDev >= 0 ? '#128a42' : '#da8a00') . ';">' . ($meanDev > 0 ? '+' : '') . number_format($meanDev, 1) . '</span></td>
-                    <td style="background:#f4f4f4;border-top:2px solid #00aeef;padding:3px 4px;font-size:7.2pt;text-align:center;">Total Marks: <b>' . number_format($totalMarks, 0) . '/' . number_format($maxMarks, 0) . '</b> <span style="color:' . ($totalDev >= 0 ? '#128a42' : '#da8a00') . ';">' . ($totalDev > 0 ? '+' : '') . number_format($totalDev, 0) . '</span></td>
-                    <td style="background:#f4f4f4;border-top:2px solid #00aeef;padding:3px 4px;font-size:7.2pt;text-align:center;">Total Points: <b>' . number_format($totalPoints, 1) . '/' . number_format($pointsMax, 0) . '</b> <span style="color:' . ($pointsDev >= 0 ? '#128a42' : '#da8a00') . ';">' . ($pointsDev > 0 ? '+' : '') . number_format($pointsDev, 1) . '</span></td>
-                    <td style="background:#f4f4f4;border-top:2px solid #00aeef;padding:3px 4px;font-size:7.2pt;text-align:center;">Stream Position: <b>' . app_report_html($overallPosition) . '</b></td>
-                    <td style="background:#f4f4f4;border-top:2px solid #00aeef;padding:3px 4px;font-size:7.2pt;text-align:center;">Overall Position: <b>' . app_report_html($overallPosition) . '</b></td>
+                    <td style="background:#f4f4f4;border-top:2px solid #00aeef;padding:3px 4px;font-size:' . $statsFont . ';text-align:center;">Mean: <b>' . app_report_html($meanGrade) . '</b> <span style="color:' . ($meanDev >= 0 ? '#128a42' : '#da8a00') . ';">' . ($meanDev > 0 ? '+' : '') . number_format($meanDev, 1) . '</span></td>
+                    <td style="background:#f4f4f4;border-top:2px solid #00aeef;padding:3px 4px;font-size:' . $statsFont . ';text-align:center;">Total Marks: <b>' . number_format($totalMarks, 0) . '/' . number_format($maxMarks, 0) . '</b> <span style="color:' . ($totalDev >= 0 ? '#128a42' : '#da8a00') . ';">' . ($totalDev > 0 ? '+' : '') . number_format($totalDev, 0) . '</span></td>
+                    <td style="background:#f4f4f4;border-top:2px solid #00aeef;padding:3px 4px;font-size:' . $statsFont . ';text-align:center;">Total Points: <b>' . number_format($totalPoints, 1) . '/' . number_format($pointsMax, 0) . '</b> <span style="color:' . ($pointsDev >= 0 ? '#128a42' : '#da8a00') . ';">' . ($pointsDev > 0 ? '+' : '') . number_format($pointsDev, 1) . '</span></td>
+                    <td style="background:#f4f4f4;border-top:2px solid #00aeef;padding:3px 4px;font-size:' . $statsFont . ';text-align:center;">Stream Position: <b>' . app_report_html($overallPosition) . '</b></td>
+                    <td style="background:#f4f4f4;border-top:2px solid #00aeef;padding:3px 4px;font-size:' . $statsFont . ';text-align:center;">Overall Position: <b>' . app_report_html($overallPosition) . '</b></td>
                 </tr>
             </table>
 
@@ -410,8 +429,8 @@ function app_report_render_layout(PDO $conn, array $payload, array $rows, string
                 <tr>
                     <td width="76%" style="border:1px solid #d8e2eb;background:#fafcfe;padding:5px;vertical-align:top;">
                         <div style="font-size:7.7pt;font-weight:bold;margin-bottom:2px;">Remarks</div>
-                        <div style="font-size:7.5pt;"><b>Class Teacher:</b> ' . $remarksLeft . '</div>
-                        <div style="font-size:7.5pt;margin-top:2px;"><b>Principal:</b> ' . $remarksRight . '</div>
+                        <div style="font-size:' . $remarksFont . ';"><b>Class Teacher:</b> ' . $remarksLeft . '</div>
+                        <div style="font-size:' . $remarksFont . ';margin-top:2px;"><b>Principal:</b> ' . $remarksRight . '</div>
                     </td>
                     <td width="24%" style="border:1px solid #d8e2eb;padding:5px;vertical-align:middle;text-align:center;">
                         <div style="font-size:7pt;font-weight:bold;margin-bottom:3px;">Verification</div>
