@@ -238,6 +238,78 @@ function app_report_school_logo_html(): string
     return '<img src="' . app_report_html($logoPath) . '" style="width:54px;height:54px;object-fit:contain;border:1px solid #d7d7d7;" />';
 }
 
+function app_report_setting_first_non_empty(PDO $conn, array $keys, string $default = ''): string
+{
+    foreach ($keys as $key) {
+        $value = trim((string)app_setting_get($conn, (string)$key, ''));
+        if ($value !== '') {
+            return $value;
+        }
+    }
+
+    return $default;
+}
+
+function app_report_school_dates_html(PDO $conn, string $termName): string
+{
+    $openingDate = app_report_setting_first_non_empty($conn, [
+        'school_opening_date',
+        'public_school_opening_date',
+        'term_opening_date',
+        'opening_date',
+    ]);
+    $closingDate = app_report_setting_first_non_empty($conn, [
+        'school_closing_date',
+        'public_school_closing_date',
+        'term_closing_date',
+        'closing_date',
+    ]);
+
+    $openingValue = $openingDate !== '' ? $openingDate : '________________';
+    $closingValue = $closingDate !== '' ? $closingDate : '________________';
+
+    return '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;height:100%;">'
+        . '<tr><td style="border:1px solid #b0b0b0;padding:6px;vertical-align:top;height:100%;">'
+        . '<div style="font-size:8.8pt;font-weight:bold;text-align:center;line-height:1.1;height:14px;">School Dates</div>'
+        . '<div style="font-size:8pt;line-height:1.25;margin-top:8px;"><b>Opening Date:</b> ' . app_report_html($openingValue) . '</div>'
+        . '<div style="font-size:8pt;line-height:1.25;margin-top:8px;"><b>Closing Date:</b> ' . app_report_html($closingValue) . '</div>'
+        . '<div style="font-size:8pt;line-height:1.25;margin-top:8px;"><b>Term:</b> ' . app_report_html($termName) . '</div>'
+        . '<div style="font-size:7.7pt;line-height:1.15;margin-top:10px;color:#555;">Dates shown here mirror the school calendar used for this report cycle.</div>'
+        . '</td></tr>'
+        . '</table>';
+}
+
+function app_report_performance_over_time_html(float $meanScore, float $classMeanAvg, float $totalMarks, float $maxMarks, float $totalPoints, float $pointsMax): string
+{
+    $bars = [
+        ['label' => 'Current Mean', 'value' => $meanScore, 'max' => 100, 'color' => '#00aeef'],
+        ['label' => 'Class Mean', 'value' => $classMeanAvg, 'max' => 100, 'color' => '#7f8c8d'],
+        ['label' => 'Total Marks', 'value' => $totalMarks, 'max' => $maxMarks, 'color' => '#3e8e7e'],
+        ['label' => 'Total Points', 'value' => $totalPoints, 'max' => $pointsMax, 'color' => '#f39c12'],
+    ];
+
+    $rows = '';
+    foreach ($bars as $bar) {
+        $percent = $bar['max'] > 0 ? max(0, min(100, ($bar['value'] / $bar['max']) * 100)) : 0;
+        $rows .= '<tr style="height:16px;">'
+            . '<td style="width:34%;font-size:7.8pt;padding:1px 3px 1px 0;white-space:nowrap;">' . app_report_html($bar['label']) . '</td>'
+            . '<td style="width:56%;padding:2px 0 2px 0;">'
+            . '<div style="background:#f1f1f1;height:7px;border:1px solid #d4d4d4;">'
+            . '<div style="width:' . number_format($percent, 1, '.', '') . '%;height:5px;margin:1px;background:' . $bar['color'] . ';"></div>'
+            . '</div>'
+            . '</td>'
+            . '<td style="width:10%;font-size:7.6pt;text-align:right;padding-left:3px;">' . number_format($bar['value'], 0) . '</td>'
+            . '</tr>';
+    }
+
+    return '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;height:100%;">'
+        . '<tr><td style="border:1px solid #b0b0b0;padding:6px;vertical-align:top;height:100%;">'
+        . '<div style="font-size:8.8pt;font-weight:bold;text-align:center;line-height:1.1;height:14px;">Performance Over Time</div>'
+        . '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-top:7px;table-layout:fixed;">' . $rows . '</table>'
+        . '</td></tr>'
+        . '</table>';
+}
+
 function app_report_render_layout(PDO $conn, array $payload, array $rows, string $examTitle): string
 {
     $card = is_array($payload['card'] ?? null) ? $payload['card'] : [];
@@ -347,6 +419,8 @@ function app_report_render_layout(PDO $conn, array $payload, array $rows, string
     $remarksRight = app_report_html((string)($card['headteacher_comment'] ?? $card['remark'] ?? ''));
     $verificationCode = app_report_html((string)($card['verification_code'] ?? ''));
     $contactLine = implode(' | ', array_filter([trim($schoolAddress), trim($schoolPhone), trim($schoolEmail)]));
+    $schoolDatesHtml = app_report_school_dates_html($conn, $termName);
+    $performanceOverTimeHtml = app_report_performance_over_time_html($meanScore, $classMeanAvg, $totalMarks, $maxMarks, $totalPoints, $pointsMax);
 
     return '
 <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-family:Segoe UI,Arial,sans-serif;table-layout:fixed;">
@@ -412,18 +486,20 @@ function app_report_render_layout(PDO $conn, array $payload, array $rows, string
                 <tbody>' . $subjectRows . '</tbody>
             </table>
 
-            <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-top:8px;table-layout:fixed;height:84px;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-spacing:4px 0;margin-top:8px;table-layout:fixed;height:108px;">
                 <tr>
-                    <td width="68%" style="border:1px solid #b0b0b0;padding:6px;vertical-align:top;height:84px;">
-                        <div style="font-size:9pt;font-weight:bold;">Remarks</div>
-                        <div style="font-size:8.2pt;line-height:1.2;margin-top:4px;"><b>Class Teacher:</b> ' . $remarksLeft . '</div>
-                        <div style="font-size:8.2pt;line-height:1.2;margin-top:4px;"><b>Principal:</b> ' . $remarksRight . '</div>
-                        <div style="font-size:8pt;line-height:1.1;margin-top:8px;"><b>Parent\'s Signature:</b> ______________________</div>
-                    </td>
-                    <td width="32%" style="border:1px solid #b0b0b0;padding:6px;vertical-align:top;text-align:left;height:84px;">
-                        <div style="font-size:8pt;font-weight:bold;">Verification</div>
-                        <div style="font-size:8pt;line-height:1.2;margin-top:4px;">Scan QR code to verify report online.</div>
-                        <div style="font-size:8.4pt;font-weight:bold;line-height:1.1;margin-top:6px;">Code: ' . $verificationCode . '</div>
+                    <td width="24%" style="padding:0;vertical-align:top;height:108px;">' . $schoolDatesHtml . '</td>
+                    <td width="38%" style="padding:0;vertical-align:top;height:108px;">' . $performanceOverTimeHtml . '</td>
+                    <td width="38%" style="padding:0;vertical-align:top;height:108px;">
+                        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;height:100%;">
+                            <tr><td style="border:1px solid #b0b0b0;padding:6px;vertical-align:top;height:100%;">
+                                <div style="font-size:9pt;font-weight:bold;">Remarks</div>
+                                <div style="font-size:8pt;line-height:1.18;margin-top:4px;"><b>Class Teacher:</b> ' . $remarksLeft . '</div>
+                                <div style="font-size:8pt;line-height:1.18;margin-top:4px;"><b>Principal:</b> ' . $remarksRight . '</div>
+                                <div style="font-size:8pt;line-height:1.1;margin-top:8px;"><b>Parent\'s Signature:</b> ______________________</div>
+                                <div style="font-size:8pt;line-height:1.1;margin-top:4px;">Code: ' . $verificationCode . '</div>
+                            </td></tr>
+                        </table>
                     </td>
                 </tr>
             </table>
