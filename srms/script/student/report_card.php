@@ -28,6 +28,7 @@ $examOptions = [];
 $selectedExam = null;
 $examSummary = null;
 $examBreakdown = [];
+$kcpeScore = '';
 
 try {
 	$conn = app_db();
@@ -54,6 +55,11 @@ try {
 			$stmt = $conn->prepare("SELECT school_id FROM tbl_students WHERE id = ? LIMIT 1");
 			$stmt->execute([$studentId]);
 			$schoolId = (string)$stmt->fetchColumn();
+		}
+		if (app_column_exists($conn, 'tbl_students', 'kcpe')) {
+			$stmt = $conn->prepare("SELECT kcpe FROM tbl_students WHERE id = ? LIMIT 1");
+			$stmt->execute([$studentId]);
+			$kcpeScore = (string)$stmt->fetchColumn();
 		}
 		$payload = idcard_student_payload($conn, $studentId);
 		if ($payload) {
@@ -107,39 +113,259 @@ try {
 <link rel="icon" href="images/icon.ico">
 <link rel="stylesheet" type="text/css" href="cdn.jsdelivr.net/npm/bootstrap-icons%401.10.5/font/bootstrap-icons.css">
 <style>
-.report-shell{display:grid;grid-template-columns:340px 1fr;gap:22px}
-.report-panel,.report-surface{background:#fff;border-radius:24px;box-shadow:0 18px 50px rgba(9,30,66,.08);overflow:hidden}
-.report-panel-header{background:linear-gradient(135deg,#0d64b0,#1ca874);padding:22px;color:#fff}
-.report-panel-body{padding:22px}
-.student-avatar{width:124px;height:140px;border-radius:20px;overflow:hidden;background:#e8eef5;border:4px solid rgba(255,255,255,.35);box-shadow:0 12px 24px rgba(0,0,0,.12)}
-.student-avatar img{width:100%;height:100%;object-fit:cover}
-.student-avatar-fallback{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:2rem;font-weight:800;color:#0d64b0;background:#fff}
-.identity-list{display:grid;gap:12px;margin-top:18px}
-.identity-row{display:flex;justify-content:space-between;gap:16px;border-bottom:1px dashed #d7e0ea;padding-bottom:10px}
-.identity-row .label{font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:#7b8794}
-.identity-row .value{font-weight:700;color:#123}
-.report-surface-header{background:linear-gradient(90deg,#2d9cdb,#0d64b0);color:#fff;padding:14px 22px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
-.metric-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;padding:18px 22px}
-.metric-card{background:#f7fbff;border:1px solid #e4edf7;border-radius:18px;padding:14px}
-.metric-card .label{font-size:.76rem;text-transform:uppercase;color:#678}
-.metric-card .value{font-size:1.35rem;font-weight:800;color:#123}
-.subject-table{width:100%;border-collapse:collapse}
-.subject-table th,.subject-table td{padding:12px 10px;border-bottom:1px solid #edf1f5;font-size:.95rem}
-.subject-table th{font-size:.78rem;text-transform:uppercase;color:#678;letter-spacing:.04em}
-.performance-bar{height:10px;background:#e9eef4;border-radius:999px;overflow:hidden;min-width:120px}
-.performance-bar span{display:block;height:100%;background:linear-gradient(90deg,#6fd34d,#33b249);border-radius:999px}
-.trend-pill{display:inline-flex;align-items:center;gap:6px;font-weight:700}
-.trend-up{color:#1f9d57}.trend-down{color:#e09b17}.trend-steady{color:#6b7280}
-.mini-history{display:flex;align-items:flex-end;gap:10px;height:130px;padding:0 4px}
-.mini-history .bar{flex:1;background:linear-gradient(180deg,#7cc6ff,#2d9cdb);border-radius:12px 12px 4px 4px;position:relative;min-height:14px}
-.mini-history .bar span{position:absolute;bottom:-26px;left:50%;transform:translateX(-50%);font-size:.72rem;color:#678;white-space:nowrap}
-.report-footer-grid{display:grid;grid-template-columns:1.2fr 1fr;gap:18px;padding:0 22px 22px}
-.signature-box{border-top:1px solid #cfd8e3;padding-top:10px;margin-top:18px;text-align:right;font-weight:700}
-@media (max-width: 991px){.report-shell{grid-template-columns:1fr}.metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.report-footer-grid{grid-template-columns:1fr}}
+:root {
+	--report-blue: #00aeef;
+	--report-gray: #f4f4f4;
+	--report-border: #d7d7d7;
+	--report-text: #1b2733;
+}
+.report-container {
+	max-width: 1080px;
+	margin: 0 auto;
+	background: #fff;
+	border-left: 15px solid var(--report-blue);
+	padding: 18px 18px 22px;
+	box-shadow: 0 14px 36px rgba(20, 40, 60, 0.08);
+}
+.report-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	border-bottom: 1px solid #e9eef2;
+	padding-bottom: 10px;
+}
+.logo-wrap {
+	width: 88px;
+	height: 88px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border: 1px solid var(--report-border);
+	background: #fff;
+}
+.logo {
+	max-width: 82px;
+	max-height: 82px;
+	object-fit: contain;
+}
+.school-info {
+	text-align: right;
+	color: var(--report-text);
+}
+.school-info h1 {
+	margin: 0;
+	font-size: 1.5rem;
+	font-weight: 800;
+}
+.school-info p {
+	margin: 4px 0 0;
+	font-size: 0.92rem;
+	color: #4c5b68;
+}
+.report-title {
+	background: var(--report-blue);
+	color: #fff;
+	text-align: center;
+	padding: 10px;
+	font-weight: 700;
+	margin: 16px 0;
+	letter-spacing: 0.01em;
+}
+.student-profile {
+	display: grid;
+	grid-template-columns: 145px 1fr 300px;
+	gap: 16px;
+	border-bottom: 2px solid var(--report-border);
+	padding-bottom: 16px;
+}
+.photo-box {
+	width: 132px;
+	height: 152px;
+	border: 1px solid #c7d0d9;
+	overflow: hidden;
+	background: #f9fbfd;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+.photo-box img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+.photo-fallback {
+	font-size: 1.9rem;
+	font-weight: 700;
+	color: #1f4d75;
+}
+.details p {
+	margin: 6px 0;
+	font-size: 0.94rem;
+	color: #2c3a46;
+}
+.performance-chart {
+	border: 1px solid var(--report-border);
+	padding: 10px;
+	background: #fcfeff;
+}
+.performance-chart p {
+	margin: 0 0 8px;
+	font-size: 0.82rem;
+	font-weight: 700;
+	color: #4c5b68;
+	text-transform: uppercase;
+	letter-spacing: 0.03em;
+}
+.chart-placeholder {
+	display: grid;
+	gap: 6px;
+}
+.chart-row {
+	display: grid;
+	grid-template-columns: 58px 1fr;
+	gap: 8px;
+	align-items: center;
+}
+.chart-row span {
+	font-size: 0.76rem;
+	color: #4f5d68;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.chart-bars {
+	height: 12px;
+	background: #e5ecf2;
+	position: relative;
+	overflow: hidden;
+}
+.chart-bars .student-bar {
+	position: absolute;
+	height: 12px;
+	left: 0;
+	top: 0;
+	background: #1a8fd4;
+	opacity: 0.9;
+}
+.chart-bars .class-bar {
+	position: absolute;
+	height: 6px;
+	left: 0;
+	bottom: 0;
+	background: #38b56a;
+	opacity: 0.75;
+}
+.stats-row {
+	display: grid;
+	grid-template-columns: repeat(5, minmax(0, 1fr));
+	gap: 8px;
+	margin: 16px 0;
+}
+.stat-card {
+	background: var(--report-gray);
+	padding: 10px;
+	text-align: center;
+	border-top: 3px solid var(--report-blue);
+	font-size: 0.88rem;
+	color: #2f3f4c;
+}
+.stat-card strong {
+	display: inline-block;
+	margin-left: 4px;
+	color: #13222d;
+}
+.dev {
+	font-size: 0.78em;
+	margin-left: 5px;
+	font-weight: 700;
+}
+.dev.down { color: #da8a00; }
+.dev.up { color: #128a42; }
+.dev.flat { color: #687886; }
+.report-table {
+	width: 100%;
+	border-collapse: collapse;
+	margin-top: 10px;
+}
+.report-table th,
+.report-table td {
+	border: 1px solid #999;
+	padding: 7px;
+	text-align: left;
+	font-size: 12px;
+	color: #1f2f3a;
+}
+.report-table thead th {
+	background: #fff;
+	font-weight: 700;
+	text-transform: uppercase;
+	font-size: 11px;
+}
+.report-table td.center,
+.report-table th.center {
+	text-align: center;
+}
+.remarks-section {
+	display: flex;
+	justify-content: space-between;
+	gap: 14px;
+	margin-top: 22px;
+	border-top: 1px solid #dde5ec;
+	padding-top: 14px;
+}
+.remarks {
+	flex: 1;
+	background: #fafcfe;
+	border: 1px solid #d8e2eb;
+	padding: 12px;
+}
+.remarks p {
+	margin: 7px 0;
+	font-size: 0.9rem;
+	color: #293843;
+}
+.qr-code {
+	width: 112px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	border: 1px solid #d8e2eb;
+	background: #fff;
+	padding: 8px;
+}
+.qr-code img {
+	width: 92px;
+	height: 92px;
+	object-fit: contain;
+}
+@media (max-width: 991px) {
+	.student-profile {
+		grid-template-columns: 1fr;
+	}
+	.stats-row {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+	.remarks-section {
+		flex-direction: column;
+	}
+	.school-info {
+		text-align: left;
+	}
+}
+@media (max-width: 640px) {
+	.report-header {
+		flex-direction: column;
+		align-items: flex-start;
+	}
+	.stats-row {
+		grid-template-columns: 1fr;
+	}
+}
 @media print{
 	.app-header,.app-sidebar,.app-title,.report-actions,.app-nav,.tile:first-of-type{display:none!important}
 	.app-content{margin-left:0;padding:0}
-	.report-panel,.report-surface{box-shadow:none}
+	.report-container{box-shadow:none;max-width:100%;margin:0;border-left-width:10px}
 }
 </style>
 </head>
@@ -243,114 +469,143 @@ try {
 </div>
 </div>
 <?php else: ?>
-<div class="report-shell">
-<div class="report-panel">
-<div class="report-panel-header d-flex justify-content-between align-items-start gap-3">
-	<div>
-		<div class="small opacity-75">Official Student Report</div>
-		<h3 class="mb-1"><?php echo WBName; ?></h3>
-		<div class="small opacity-75"><?php echo htmlspecialchars($termName); ?> · <?php echo htmlspecialchars($className); ?></div>
-	</div>
-	<span class="report-badge"><i class="bi bi-shield-check"></i> Published</span>
-</div>
-<div class="report-panel-body">
-	<div class="d-flex gap-3 align-items-start">
-		<div class="student-avatar">
-			<?php if ($photoExists) { ?><img src="<?php echo htmlspecialchars($photoPath); ?>" alt="student photo"><?php } else { ?><div class="student-avatar-fallback"><?php echo htmlspecialchars(strtoupper(substr($fname,0,1).substr($lname,0,1))); ?></div><?php } ?>
-		</div>
-		<div class="flex-grow-1">
-			<h4 class="mb-1"><?php echo $fname.' '.$lname; ?></h4>
-			<div class="text-muted"><?php echo htmlspecialchars($schoolId !== '' ? $schoolId : $account_id); ?></div>
-			<div class="mt-2"><span class="badge bg-primary"><?php echo htmlspecialchars($card['grade']); ?></span> <span class="badge bg-success">Position <?php echo $card['position'].'/'.$card['total_students']; ?></span></div>
-		</div>
-	</div>
-	<div class="identity-list">
-		<div class="identity-row"><div><div class="label">Class</div><div class="value"><?php echo htmlspecialchars($className); ?></div></div><div><div class="label">Attendance</div><div class="value"><?php echo $attendance['present'].' / '.$attendance['days_open']; ?></div></div></div>
-		<div class="identity-row"><div><div class="label">Fees Balance</div><div class="value">KES <?php echo number_format((float)$feesBalance, 0); ?></div></div><div><div class="label">Verification</div><div class="value"><?php echo htmlspecialchars($card['verification_code']); ?></div></div></div>
-		<div class="identity-row"><div><div class="label">Trend</div><div class="value"><?php echo htmlspecialchars($card['trend']); ?></div></div><div><div class="label">Remark</div><div class="value"><?php echo htmlspecialchars($card['remark']); ?></div></div></div>
-	</div>
-	<?php if (!empty($history)) { ?>
-	<div class="mt-4">
-		<div class="fw-semibold mb-2">Performance Over Time</div>
-		<div class="mini-history">
-			<?php foreach ($history as $point): $height = max(14, min(110, (float)$point['mean'])); ?>
-			<div class="bar" style="height: <?php echo $height; ?>px"><span><?php echo htmlspecialchars($point['term_name']); ?></span></div>
-			<?php endforeach; ?>
-		</div>
-	</div>
-	<?php } ?>
-	<?php if (!$blockReport): ?>
-	<div class="report-actions mt-4 d-flex flex-wrap gap-2">
-		<a class="btn btn-outline-secondary" href="student/report_card_pdf?term=<?php echo $termId; ?><?php echo $examId > 0 ? '&exam=' . $examId : ''; ?>&print=1" target="_blank"><i class="bi bi-printer me-2"></i>Print</a>
-		<a class="btn btn-primary" href="student/report_card_pdf?term=<?php echo $termId; ?><?php echo $examId > 0 ? '&exam=' . $examId : ''; ?>&download=1" target="_blank"><i class="bi bi-download me-2"></i>Download PDF</a>
-		<a class="btn btn-outline-secondary" href="verify_report?code=<?php echo $card['verification_code']; ?>" target="_blank"><i class="bi bi-qr-code-scan me-2"></i>Verify</a>
-	</div>
-	<?php endif; ?>
-</div>
-</div>
-<div class="report-surface">
+<?php
+$rows = !empty($examBreakdown) ? $examBreakdown : $subjectBreakdown;
+$subjectCount = count($rows);
+$totalMarks = isset($examSummary['total']) ? (float)$examSummary['total'] : (float)($card['total'] ?? 0);
+$meanScore = isset($examSummary['mean']) ? (float)$examSummary['mean'] : (float)($card['mean'] ?? 0);
+$maxMarks = max(100, $subjectCount * 100);
+$classMeanTotal = 0.0;
+$gradePointMap = [
+	'A+' => 12, 'A' => 11, 'A-' => 10, 'B+' => 9, 'B' => 8, 'B-' => 7,
+	'C+' => 6, 'C' => 5, 'C-' => 4, 'D+' => 3, 'D' => 2, 'D-' => 1, 'E' => 0
+];
+$totalPoints = 0.0;
+foreach ($rows as $subjectRow) {
+	$classMeanTotal += (float)($subjectRow['class_mean'] ?? 0);
+	$gradeKey = strtoupper(trim((string)($subjectRow['grade'] ?? '')));
+	$totalPoints += (float)($gradePointMap[$gradeKey] ?? 0);
+}
+$classMeanAvg = $subjectCount > 0 ? $classMeanTotal / $subjectCount : 0.0;
+$pointsMax = max(12, $subjectCount * 12);
+$classPointEstimate = ($classMeanAvg / 100) * $pointsMax;
+$meanDev = $meanScore - $classMeanAvg;
+$totalDev = $totalMarks - $classMeanTotal;
+$pointsDev = $totalPoints - $classPointEstimate;
+$schoolContact = trim(implode(' | ', array_filter([trim((string)WBAddress), trim((string)WBPhone), trim((string)WBEmail)])));
+$logoPath = 'images/logo/' . trim((string)WBLogo);
+$logoExists = trim((string)WBLogo) !== '' && is_file($logoPath);
+?>
 <?php if ($blockReport): ?>
 <div class="alert alert-warning">Report card is temporarily unavailable until the fees balance is cleared.</div>
 <?php endif; ?>
-<div class="report-surface-header">Academic Report Form · <?php echo htmlspecialchars($termName); ?></div>
-<div class="metric-grid">
-<div class="metric-card"><div class="label">Total Marks</div><div class="value"><?php echo $card['total']; ?></div></div>
-<div class="metric-card"><div class="label">Average Score</div><div class="value"><?php echo $card['mean']; ?>%</div></div>
-<div class="metric-card"><div class="label">Mean Points</div><div class="value"><?php echo number_format((float)($card['mean_points'] ?? 0), 2); ?></div></div>
-<div class="metric-card"><div class="label">Overall Grade</div><div class="value"><?php echo $card['grade']; ?></div></div>
-<div class="metric-card"><div class="label">Class Position</div><div class="value"><?php echo $card['position'].'/'.$card['total_students']; ?></div></div>
+<div class="report-actions mb-3 d-flex flex-wrap gap-2">
+	<a class="btn btn-outline-secondary" href="student/report_card_pdf?term=<?php echo $termId; ?><?php echo $examId > 0 ? '&exam=' . $examId : ''; ?>&print=1" target="_blank"><i class="bi bi-printer me-2"></i>Print</a>
+	<a class="btn btn-primary" href="student/report_card_pdf?term=<?php echo $termId; ?><?php echo $examId > 0 ? '&exam=' . $examId : ''; ?>&download=1" target="_blank"><i class="bi bi-download me-2"></i>Download PDF</a>
+	<a class="btn btn-outline-secondary" href="verify_report?code=<?php echo $card['verification_code']; ?>" target="_blank"><i class="bi bi-qr-code-scan me-2"></i>Verify</a>
 </div>
-<div class="px-4 pb-2">
-<div class="fw-semibold mb-3">Subject Performance</div>
-<table class="subject-table">
-<thead>
-<tr>
-<th>Subject</th>
-<th>Performance</th>
-<th>Mean</th>
-<th>Change</th>
-<th>Trend</th>
-<th>Grade</th>
-<th>Teacher</th>
-</tr>
-</thead>
-<tbody>
-<?php foreach ($subjectBreakdown as $subject): ?>
-<tr>
-<td><?php echo htmlspecialchars($subject['subject_name']); ?><div class="small text-muted">Score: <?php echo number_format((float)$subject['score'], 1); ?>%</div></td>
-<td><div class="performance-bar"><span style="width: <?php echo (float)$subject['progress']; ?>%"></span></div></td>
-<td><?php echo number_format((float)$subject['class_mean'], 2); ?>%</td>
-<td><?php echo ($subject['change'] >= 0 ? '+' : '') . number_format((float)$subject['change'], 2); ?></td>
-<td>
-	<?php $trendClass = $subject['trend'] === 'up' ? 'trend-up' : ($subject['trend'] === 'down' ? 'trend-down' : 'trend-steady'); ?>
-	<span class="trend-pill <?php echo $trendClass; ?>">
-		<i class="bi <?php echo $subject['trend'] === 'up' ? 'bi-arrow-up-right' : ($subject['trend'] === 'down' ? 'bi-arrow-down-right' : 'bi-dash'); ?>"></i>
-		<?php echo ucfirst($subject['trend']); ?>
-	</span>
-</td>
-<td><?php echo htmlspecialchars($subject['grade']); ?></td>
-<td><?php echo htmlspecialchars($subject['teacher_name']); ?></td>
-</tr>
-<?php endforeach; ?>
-</tbody>
-</table>
-</div>
-<div class="report-footer-grid">
-	<div class="metric-card">
-		<div class="label">Teacher / Class Teacher Comment</div>
-		<div class="mt-2 fw-semibold"><?php echo htmlspecialchars($card['teacher_comment'] ?? $card['remark']); ?></div>
-		<div class="label mt-3">Headteacher Remark</div>
-		<div class="mt-2"><?php echo htmlspecialchars($card['headteacher_comment'] ?? $card['remark']); ?></div>
-		<div class="signature-box">Signature</div>
+<div class="report-container">
+	<header class="report-header">
+		<div class="logo-wrap">
+			<?php if ($logoExists): ?>
+			<img src="<?php echo htmlspecialchars($logoPath); ?>" alt="School Logo" class="logo">
+			<?php endif; ?>
+		</div>
+		<div class="school-info">
+			<h1><?php echo htmlspecialchars((string)WBName); ?></h1>
+			<p><?php echo htmlspecialchars($schoolContact); ?></p>
+		</div>
+	</header>
+
+	<div class="report-title">
+		ACADEMIC REPORT FORM - <?php echo strtoupper(htmlspecialchars($className)); ?> - <?php echo strtoupper(htmlspecialchars((string)($selectedExam['name'] ?? 'END TERM COMBINED'))); ?> - (<?php echo strtoupper(htmlspecialchars($termName)); ?>)
 	</div>
-	<div class="metric-card">
-		<div class="label">AI Performance Summary</div>
-		<div class="mt-2"><?php echo htmlspecialchars($card['ai_summary'] ?? ''); ?></div>
-		<div class="label mt-3">School Verification</div>
-		<div class="mt-2">Use code <strong><?php echo htmlspecialchars($card['verification_code']); ?></strong> to verify this report online.</div>
-		<div class="mt-3 small text-muted"><?php echo htmlspecialchars(WBAddress); ?><br><?php echo htmlspecialchars(WBEmail); ?></div>
+
+	<section class="student-profile">
+		<div class="photo-box">
+			<?php if ($photoExists): ?>
+			<img src="<?php echo htmlspecialchars($photoPath); ?>" alt="Student Photo">
+			<?php else: ?>
+			<div class="photo-fallback"><?php echo htmlspecialchars(strtoupper(substr($fname, 0, 1) . substr($lname, 0, 1))); ?></div>
+			<?php endif; ?>
+		</div>
+		<div class="details">
+			<p><strong>NAME:</strong> <?php echo htmlspecialchars($fname . ' ' . $lname); ?></p>
+			<p><strong>ADMNO:</strong> <?php echo htmlspecialchars($schoolId !== '' ? $schoolId : $account_id); ?></p>
+			<p><strong>FORM:</strong> <?php echo htmlspecialchars($className); ?></p>
+			<p><strong>KCPE:</strong> <?php echo htmlspecialchars($kcpeScore !== '' ? $kcpeScore : 'N/A'); ?></p>
+		</div>
+		<div class="performance-chart">
+			<p>Subject Performance - Student vs Class</p>
+			<div class="chart-placeholder">
+				<?php foreach (array_slice($rows, 0, 6) as $chartRow): ?>
+				<div class="chart-row">
+					<span><?php echo htmlspecialchars((string)$chartRow['subject_name']); ?></span>
+					<div class="chart-bars">
+						<div class="student-bar" style="width: <?php echo max(0, min(100, (float)($chartRow['score'] ?? 0))); ?>%;"></div>
+						<div class="class-bar" style="width: <?php echo max(0, min(100, (float)($chartRow['class_mean'] ?? 0))); ?>%;"></div>
+					</div>
+				</div>
+				<?php endforeach; ?>
+			</div>
+		</div>
+	</section>
+
+	<div class="stats-row">
+		<div class="stat-card">Mean: <strong><?php echo htmlspecialchars((string)($examSummary['grade'] ?? $card['grade'])); ?></strong> <span class="dev <?php echo $meanDev > 0 ? 'up' : ($meanDev < 0 ? 'down' : 'flat'); ?>"><?php echo ($meanDev > 0 ? '+' : '') . number_format($meanDev, 1); ?></span></div>
+		<div class="stat-card">Total Marks: <strong><?php echo number_format($totalMarks, 0) . '/' . number_format($maxMarks, 0); ?></strong> <span class="dev <?php echo $totalDev > 0 ? 'up' : ($totalDev < 0 ? 'down' : 'flat'); ?>"><?php echo ($totalDev > 0 ? '+' : '') . number_format($totalDev, 0); ?></span></div>
+		<div class="stat-card">Total Points: <strong><?php echo number_format($totalPoints, 1) . '/' . number_format($pointsMax, 0); ?></strong> <span class="dev <?php echo $pointsDev > 0 ? 'up' : ($pointsDev < 0 ? 'down' : 'flat'); ?>"><?php echo ($pointsDev > 0 ? '+' : '') . number_format($pointsDev, 1); ?></span></div>
+		<div class="stat-card">Stream Position: <strong><?php echo htmlspecialchars((string)$card['position'] . '/' . (string)$card['total_students']); ?></strong> <span class="dev flat">0</span></div>
+		<div class="stat-card">Overall Position: <strong><?php echo htmlspecialchars((string)$card['position'] . '/' . (string)$card['total_students']); ?></strong> <span class="dev flat">0</span></div>
 	</div>
-</div>
+
+	<table class="report-table">
+		<thead>
+			<tr>
+				<th>Subject</th>
+				<th class="center">Cat 1</th>
+				<th class="center">Cat 2</th>
+				<th class="center" colspan="2"><?php echo strtoupper(htmlspecialchars((string)($selectedExam['name'] ?? 'END TERM COMBINED'))); ?></th>
+				<th class="center">Rank</th>
+				<th>Comment</th>
+				<th>Teacher</th>
+			</tr>
+			<tr>
+				<th></th><th></th><th></th><th class="center">Marks</th><th class="center">Dev.</th><th></th><th></th><th></th>
+			</tr>
+		</thead>
+		<tbody>
+			<?php foreach ($rows as $subject):
+				$cat1 = $subject['cat1'] ?? ($subject['cat_1'] ?? '-');
+				$cat2 = $subject['cat2'] ?? ($subject['cat_2'] ?? '-');
+				$score = (float)($subject['score'] ?? 0);
+				$classMean = (float)($subject['class_mean'] ?? 0);
+				$dev = $score - $classMean;
+			?>
+			<tr>
+				<td><?php echo htmlspecialchars((string)$subject['subject_name']); ?></td>
+				<td class="center"><?php echo is_numeric($cat1) ? number_format((float)$cat1, 1) . '%' : htmlspecialchars((string)$cat1); ?></td>
+				<td class="center"><?php echo is_numeric($cat2) ? number_format((float)$cat2, 1) . '%' : htmlspecialchars((string)$cat2); ?></td>
+				<td class="center"><?php echo number_format($score, 1); ?>%</td>
+				<td class="center dev <?php echo $dev > 0 ? 'up' : ($dev < 0 ? 'down' : 'flat'); ?>"><?php echo ($dev > 0 ? '+' : '') . number_format($dev, 1); ?></td>
+				<td class="center"><?php echo htmlspecialchars((string)($subject['rank'] ?? '-')); ?></td>
+				<td><?php echo htmlspecialchars((string)($subject['remark'] ?? '')); ?></td>
+				<td><?php echo htmlspecialchars((string)($subject['teacher_name'] ?? '')); ?></td>
+			</tr>
+			<?php endforeach; ?>
+		</tbody>
+	</table>
+
+	<footer class="remarks-section">
+		<div class="remarks">
+			<p><strong>Remarks</strong></p>
+			<p><strong>Class Teacher:</strong> <?php echo htmlspecialchars((string)($card['teacher_comment'] ?? $card['remark'])); ?></p>
+			<p><strong>Principal:</strong> <?php echo htmlspecialchars((string)($card['headteacher_comment'] ?? $card['remark'])); ?></p>
+		</div>
+		<div class="qr-code">
+			<img src="https://api.qrserver.com/v1/create-qr-code/?size=92x92&data=<?php echo urlencode((string)($card['verification_code'] ?? '')); ?>" alt="QR Code">
+		</div>
+	</footer>
 </div>
 <?php endif; ?>
 </main>
