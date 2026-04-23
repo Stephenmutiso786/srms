@@ -6,9 +6,11 @@ require_once('const/school.php');
 require_once('const/check_session.php');
 require_once('const/report_engine.php');
 require_once('const/report_pdf_template.php');
+require_once('const/rbac.php');
 require_once('tcpdf/tcpdf.php');
 
 if ($res !== '1' || $level !== '2') { header('location:../'); exit; }
+app_require_permission('report.view', '../');
 
 $termId = isset($_GET['term']) ? (int)$_GET['term'] : 0;
 $studentId = isset($_GET['student']) ? (string)$_GET['student'] : '';
@@ -90,4 +92,5 @@ try {
     error_log('[teacher/report_card_pdf] ' . $e->getMessage());
     $_SESSION['reply'] = array(array('danger', 'Failed to generate PDF: ' . $e->getMessage()));
     header('location:manage_results');
+    exit;
 }
