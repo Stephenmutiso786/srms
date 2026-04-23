@@ -40,16 +40,14 @@ try {
 		exit;
 	}
 
-	$examOptions = report_term_exam_options($conn, $classId, $termId);
 	$examAllowed = false;
-	foreach ($examOptions as $option) {
-		if ((int)$option['id'] === $examId) {
-			$examAllowed = true;
-			break;
-		}
+	if (app_table_exists($conn, 'tbl_exams')) {
+		$stmt = $conn->prepare("SELECT id FROM tbl_exams WHERE id = ? AND class_id = ? AND term_id = ? LIMIT 1");
+		$stmt->execute([$examId, $classId, $termId]);
+		$examAllowed = ((int)$stmt->fetchColumn() > 0);
 	}
 	if (!$examAllowed) {
-		$_SESSION['reply'] = array (array("danger", "Select a published exam for the selected class and term."));
+		$_SESSION['reply'] = array (array("danger", "Select a valid exam for the selected class and term."));
 		header("location:../report");
 		exit;
 	}

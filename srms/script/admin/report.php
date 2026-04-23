@@ -290,6 +290,12 @@ try {
 <a class="btn btn-sm btn-primary" target="_blank" href="admin/save_pdf?std=<?php echo urlencode((string)$cardRow['student_id']); ?>&term=<?php echo (int)$cardRow['term_id']; ?>&download=1"><i class="bi bi-download me-1"></i>PDF</a>
 <button class="btn btn-sm btn-info" type="button" onclick="openEmailModal('report_card', <?php echo (int)$cardRow['id']; ?>, '<?php echo htmlspecialchars(addslashes($studentName)); ?>', '<?php echo htmlspecialchars(addslashes((string)($cardRow['student_email'] ?? ''))); ?>')" title="Send via Email"><i class="bi bi-envelope me-1"></i>Email</button>
 <a class="btn btn-sm btn-outline-secondary" target="_blank" href="verify_report?code=<?php echo urlencode((string)$cardRow['verification_code']); ?>"><i class="bi bi-shield-check me-1"></i>Verify</a>
+<form method="POST" action="admin/core/delete_report_card" class="d-inline" onsubmit="return confirm('Delete this generated report card? This cannot be undone.');">
+<input type="hidden" name="report_id" value="<?php echo (int)$cardRow['id']; ?>">
+<input type="hidden" name="list_class_id" value="<?php echo (int)$listClassId; ?>">
+<input type="hidden" name="list_term_id" value="<?php echo (int)$listTermId; ?>">
+<button class="btn btn-sm btn-danger" type="submit"><i class="bi bi-trash me-1"></i>Delete</button>
+</form>
 </td>
 </tr>
 <?php endforeach; ?>
@@ -331,8 +337,9 @@ function loadPublishedExams(classSelectId, termSelectId, examSelectId) {
 		examSelect.append('<option selected disabled value="">Select class and term first</option>');
 		return;
 	}
-	$.post('app/ajax/fetch_exams.php', {id: classId, term_id: termId, submit: 1}, function(data){
+	$.post('app/ajax/fetch_exams.php', {id: classId, term_id: termId, include_unpublished: 1, submit: 1}, function(data){
 		examSelect.html(data);
+		examSelect.trigger('change.select2');
 	});
 }
 

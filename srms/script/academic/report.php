@@ -159,8 +159,9 @@ function loadPublishedExams(classSelectId, termSelectId, examSelectId) {
 		examSelect.append('<option selected disabled value="">Select class and term first</option>');
 		return;
 	}
-	$.post('app/ajax/fetch_exams.php', {id: classId, term_id: termId, submit: 1}, function(data){
+	$.post('app/ajax/fetch_exams.php', {id: classId, term_id: termId, include_unpublished: 1, submit: 1}, function(data){
 		examSelect.html(data);
+		examSelect.trigger('change.select2');
 	});
 }
 </script>

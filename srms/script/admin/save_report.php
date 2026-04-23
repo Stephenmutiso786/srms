@@ -50,15 +50,13 @@ try {
 	}
 
 	$examName = '';
-	$examOptions = report_term_exam_options($conn, $classId, $termId);
-	foreach ($examOptions as $option) {
-		if ((int)$option['id'] === $examId) {
-			$examName = (string)$option['name'];
-			break;
-		}
+	if (app_table_exists($conn, 'tbl_exams')) {
+		$stmt = $conn->prepare("SELECT name FROM tbl_exams WHERE id = ? AND class_id = ? AND term_id = ? LIMIT 1");
+		$stmt->execute([$examId, $classId, $termId]);
+		$examName = (string)$stmt->fetchColumn();
 	}
 	if ($examName === '') {
-		throw new RuntimeException('Selected exam is not published for the selected class and term.');
+		throw new RuntimeException('Selected exam is not valid for the selected class and term.');
 	}
 
 	$summaryRows = [];
