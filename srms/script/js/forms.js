@@ -137,6 +137,8 @@ function set_announcement(id) {
 // Performance: Debounce and cache subject fetching
 var subjectAjaxTimeout = null;
 var lastFetchedSubject = { classId: null, termId: null };
+var examAjaxTimeout = null;
+var lastFetchedExam = { classId: null, termId: null };
 
 function fetch_subjects(class_id) {
 	var termId = $('#termSelect').val() || '';
@@ -178,6 +180,49 @@ function fetch_subjects(class_id) {
 			data: 'id=' + class_id + '&term_id=' + termId + '&submit=1',
 			success: function (data) {
 				$('#sub_imp').append(data)
+				$('.app_frm').waitMe('hide');
+			}
+		});
+	}, 200);
+}
+
+function fetch_exams(class_id) {
+	var termId = $('#termSelect').val() || '';
+	var examSelect = $('#examSelect');
+
+	if (!examSelect.length) {
+		return;
+	}
+
+	if (lastFetchedExam.classId === class_id && lastFetchedExam.termId === termId) {
+		return;
+	}
+
+	if (examAjaxTimeout) clearTimeout(examAjaxTimeout);
+
+	$('.app_frm').waitMe({
+		effect: 'ios',
+		text: 'Fetching Exams....',
+		bg: 'rgba(255,255,255,0.6)',
+		color: '#00695c',
+		maxSize: '',
+		waitTime: -1,
+		source: '',
+		textPos: 'vertical',
+		fontSize: '',
+		onClose: function() {}
+	});
+
+	examSelect.find('option').remove();
+
+	examAjaxTimeout = setTimeout(function() {
+		lastFetchedExam = { classId: class_id, termId: termId };
+		$.ajax({
+			type: 'POST',
+			url: 'app/ajax/fetch_exams.php',
+			data: 'id=' + class_id + '&term_id=' + termId + '&submit=1',
+			success: function (data) {
+				examSelect.append(data);
 				$('.app_frm').waitMe('hide');
 			}
 		});

@@ -56,7 +56,7 @@ if ($res == "1" && $level == "2") {}else{header("location:../");}
 
 <div class="mb-2">
 <label class="form-label">Select Term</label>
-<select class="form-control select2" name="term" id="termSelect" required style="width: 100%;">
+<select class="form-control select2" name="term" id="termSelect" required style="width: 100%;" onchange="fetch_subjects($('#classSelect').val() || ''); fetch_exams($('#classSelect').val() || '');">
 <option selected disabled value="">Select Term</option>
 <?php
 try {
@@ -85,7 +85,7 @@ echo "Connection failed.";
 
 <div class="mb-2">
 <label class="form-label">Select Class</label>
-<select onchange="fetch_subjects(this.value);" class="form-control select2" name="class" required style="width: 100%;">
+<select onchange="fetch_subjects(this.value); fetch_exams(this.value);" class="form-control select2" name="class" id="classSelect" required style="width: 100%;">
 <option selected disabled value="">Select Class</option>
 <?php
 try {
@@ -144,6 +144,13 @@ error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
 echo "Connection failed.";
 }
 ?>
+</select>
+</div>
+
+<div class="mb-3">
+<label class="form-label">Select Exam</label>
+<select class="form-control select2" name="exam" id="examSelect" required style="width: 100%;">
+<option selected disabled value="">Select class and term first</option>
 </select>
 </div>
 

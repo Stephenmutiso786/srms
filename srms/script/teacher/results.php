@@ -12,7 +12,7 @@ if (!isset($_SESSION['result__data'])) { header("location:manage_results"); exit
 $term = (int)($_SESSION['result__data']['term'] ?? 0);
 $class = (int)($_SESSION['result__data']['class'] ?? 0);
 $subjectCombination = (int)($_SESSION['result__data']['subject'] ?? 0);
-$examId = isset($_GET['exam']) ? (int)$_GET['exam'] : 0;
+$examId = (int)($_SESSION['result__data']['exam'] ?? ($_GET['exam'] ?? 0));
 $termData = $classData = $subjectData = null;
 $rows = [];
 $examOptions = [];

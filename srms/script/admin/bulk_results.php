@@ -11,7 +11,7 @@ if ($res == "1" && $level == "0") {}else{header("location:../");}
 if (isset($_SESSION['bulk_result'])) {
 $class = $_SESSION['bulk_result']['student'];
 $term = $_SESSION['bulk_result']['term'];
-$examId = isset($_GET['exam']) ? (int)$_GET['exam'] : 0;
+$examId = (int)($_SESSION['bulk_result']['exam'] ?? ($_GET['exam'] ?? 0));
 $examOptions = [];
 $termPublished = false;
 
