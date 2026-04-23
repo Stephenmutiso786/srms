@@ -27,15 +27,28 @@ try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
+	$visibleStatuses = report_visible_exam_statuses();
+	$placeholders = implode(',', array_fill(0, count($visibleStatuses), '?'));
 	$stmt = $conn->prepare("SELECT t.id, t.name
 		FROM tbl_terms t
 		WHERE EXISTS (
 			SELECT 1 FROM tbl_exams e
-			WHERE e.term_id = t.id AND e.class_id = ? AND e.status = 'published'
+			WHERE e.term_id = t.id AND e.class_id = ? AND COALESCE(e.status, 'draft') IN ($placeholders)
 		)
 		ORDER BY t.id DESC");
-	$stmt->execute([$classId]);
+	$stmt->execute(array_merge([$classId], $visibleStatuses));
 	$terms = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	if (empty($terms)) {
+		$stmt = $conn->prepare("SELECT t.id, t.name
+			FROM tbl_terms t
+			WHERE EXISTS (
+				SELECT 1 FROM tbl_exams e
+				WHERE e.term_id = t.id AND e.class_id = ?
+			)
+			ORDER BY t.id DESC");
+		$stmt->execute([$classId]);
+		$terms = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	}
 
 	if ($termId < 1 && !empty($terms)) {
 		$termId = (int)$terms[0]['id'];
@@ -54,20 +67,22 @@ try {
 				break;
 			}
 		}
+		if ($selectedExam) {
+			$examSummary = report_exam_summary($conn, $studentId, $classId, $termId, (int)$selectedExam['id']);
+			if ($examSummary) {
+				$summary = [
+					'mean' => (float)($examSummary['mean'] ?? 0),
+					'grade' => (string)($examSummary['grade'] ?? 'N/A'),
+					'position' => (string)($examSummary['position'] ?? '-'),
+					'total' => (float)($examSummary['total'] ?? 0),
+				];
+				$subjectRows = report_exam_subject_breakdown($conn, $studentId, $classId, $termId, (int)$selectedExam['id']);
+			}
+		}
+
 		if ($isPublished) {
 			$card = report_ensure_card_generated($conn, $studentId, $classId, $termId);
-			if ($selectedExam) {
-				$examSummary = report_exam_summary($conn, $studentId, $classId, $termId, (int)$selectedExam['id']);
-				if ($examSummary) {
-					$summary = [
-						'mean' => (float)($examSummary['mean'] ?? 0),
-						'grade' => (string)($examSummary['grade'] ?? 'N/A'),
-						'position' => (string)($examSummary['position'] ?? '-'),
-						'total' => (float)($examSummary['total'] ?? 0),
-					];
-					$subjectRows = report_exam_subject_breakdown($conn, $studentId, $classId, $termId, (int)$selectedExam['id']);
-				}
-			} elseif ($card) {
+			if (!$selectedExam && $card) {
 				$summary = [
 					'mean' => (float)($card['mean'] ?? 0),
 					'grade' => (string)($card['grade'] ?? 'N/A'),
@@ -138,13 +153,13 @@ try {
 			<div>
 				<div class="small text-uppercase opacity-75">Published Results Center</div>
 				<h2 class="mb-2"><?php echo $fname.' '.$lname; ?></h2>
-				<p class="mb-0">Only published exam results appear here. This keeps your final records clean, verified, and ready for sharing.</p>
+				<p class="mb-0">Choose a term and exam to view that specific performance snapshot. Published term reports remain available in the report card section.</p>
 			</div>
 			<form method="GET" action="student/results" class="d-flex gap-2 align-items-end flex-wrap">
 				<div>
 					<label class="form-label text-white-50">Term</label>
 					<select class="form-control" name="term">
-						<option value="">Select published term</option>
+						<option value="">Select term</option>
 						<?php foreach ($terms as $term): ?>
 						<option value="<?php echo (int)$term['id']; ?>" <?php echo ((int)$term['id'] === $termId) ? 'selected' : ''; ?>><?php echo htmlspecialchars($term['name']); ?></option>
 						<?php endforeach; ?>
@@ -173,8 +188,8 @@ try {
 		</div>
 	</div>
 
-	<?php if ($termId < 1 || !$isPublished) { ?>
-	<div class="tile"><div class="alert alert-info mb-0">No published results are available yet for this class. Once the school publishes them, they will appear here automatically.</div></div>
+	<?php if ($termId < 1 || (empty($subjectRows) && !$isPublished)) { ?>
+	<div class="tile"><div class="alert alert-info mb-0">No exam results are available for the selected term yet. Once teachers publish or release exams for this term, they will appear here.</div></div>
 	<?php } else { ?>
 	<div class="analytics-grid">
 		<div class="panel-card">

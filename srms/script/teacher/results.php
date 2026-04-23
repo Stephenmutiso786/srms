@@ -12,8 +12,11 @@ if (!isset($_SESSION['result__data'])) { header("location:manage_results"); exit
 $term = (int)($_SESSION['result__data']['term'] ?? 0);
 $class = (int)($_SESSION['result__data']['class'] ?? 0);
 $subjectCombination = (int)($_SESSION['result__data']['subject'] ?? 0);
+$examId = isset($_GET['exam']) ? (int)$_GET['exam'] : 0;
 $termData = $classData = $subjectData = null;
 $rows = [];
+$examOptions = [];
+$selectedExam = null;
 $summary = ['count' => 0, 'average' => 0, 'highest' => 0, 'lowest' => 0];
 $error = '';
 
@@ -41,16 +44,36 @@ try {
 	$stmt->execute([$subjectCombination]);
 	$subjectData = $stmt->fetch(PDO::FETCH_ASSOC);
 
+	$hasExamId = app_column_exists($conn, 'tbl_exam_results', 'exam_id');
+	if ($hasExamId) {
+		$examOptions = report_term_exam_options($conn, $class, $term);
+		if ($examId < 1 && !empty($examOptions)) {
+			$examId = (int)$examOptions[0]['id'];
+		}
+		foreach ($examOptions as $option) {
+			if ((int)$option['id'] === $examId) {
+				$selectedExam = $option;
+				break;
+			}
+		}
+	}
+
 	$stmt = $conn->prepare("SELECT name, min, max, remark FROM tbl_grade_system ORDER BY min DESC");
 	$stmt->execute();
 	$grading = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-	$stmt = $conn->prepare("SELECT er.student, er.score, st.fname, st.mname, st.lname, st.school_id
+	$sql = "SELECT er.student, er.score, st.fname, st.mname, st.lname, st.school_id
 		FROM tbl_exam_results er
 		JOIN tbl_students st ON st.id = er.student
-		WHERE er.class = ? AND er.subject_combination = ? AND er.term = ?
-		ORDER BY st.fname, st.lname");
-	$stmt->execute([$class, $subjectCombination, $term]);
+		WHERE er.class = ? AND er.subject_combination = ? AND er.term = ?";
+	$args = [$class, $subjectCombination, $term];
+	if ($hasExamId && $examId > 0) {
+		$sql .= " AND er.exam_id = ?";
+		$args[] = $examId;
+	}
+	$sql .= " ORDER BY st.fname, st.lname";
+	$stmt = $conn->prepare($sql);
+	$stmt->execute($args);
 	foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
 		$gradeName = 'N/A';
 		$remark = 'N/A';
@@ -88,6 +111,9 @@ try {
 }
 
 $title = trim(($subjectData['subject_name'] ?? 'Subject') . ' - ' . ($termData['name'] ?? 'Term') . ' - ' . ($classData['name'] ?? 'Class') . ' Results');
+if ($selectedExam) {
+	$title .= ' - ' . (string)$selectedExam['name'];
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -127,6 +153,9 @@ $title = trim(($subjectData['subject_name'] ?? 'Subject') . ' - ' . ($termData['
 <span class="badge bg-secondary">Average: <?php echo $summary['average']; ?>%</span>
 <span class="badge bg-success">Highest: <?php echo $summary['highest']; ?>%</span>
 <span class="badge bg-danger">Lowest: <?php echo $summary['lowest']; ?>%</span>
+<?php if ($selectedExam): ?>
+<span class="badge bg-dark">Exam: <?php echo htmlspecialchars((string)$selectedExam['name']); ?></span>
+<?php endif; ?>
 </div>
 <div class="d-flex gap-2 flex-wrap">
 <a class="btn btn-outline-secondary btn-sm" href="teacher/manage_results"><i class="bi bi-arrow-left me-2"></i>Back</a>
@@ -134,6 +163,22 @@ $title = trim(($subjectData['subject_name'] ?? 'Subject') . ' - ' . ($termData['
 <button class="btn btn-primary btn-sm" onclick="window.print();"><i class="bi bi-printer me-2"></i>Print Whole Class</button>
 </div>
 </div>
+<?php if (!empty($examOptions)): ?>
+<form method="get" class="row g-2 align-items-end mb-3">
+<div class="col-md-4 col-lg-3">
+<label class="form-label">Exam</label>
+<select class="form-control" name="exam">
+<option value="">Latest visible exam</option>
+<?php foreach ($examOptions as $exam): ?>
+<option value="<?php echo (int)$exam['id']; ?>" <?php echo ((int)$exam['id'] === $examId) ? 'selected' : ''; ?>><?php echo htmlspecialchars($exam['name'] . ' [' . strtoupper((string)$exam['status']) . ']'); ?></option>
+<?php endforeach; ?>
+</select>
+</div>
+<div class="col-auto">
+<button class="btn btn-outline-primary">Load Exam</button>
+</div>
+</form>
+<?php endif; ?>
 <div class="table-responsive">
 <table class="table table-hover table-bordered" id="srmsTable">
 <thead>
@@ -155,7 +200,7 @@ $title = trim(($subjectData['subject_name'] ?? 'Subject') . ' - ' . ($termData['
 <td><?php echo htmlspecialchars($row['grade']); ?></td>
 <td><?php echo htmlspecialchars($row['remark']); ?></td>
 <td class="results-actions">
-<a class="btn btn-outline-primary btn-sm" href="teacher/report_card?term=<?php echo $term; ?>&student=<?php echo urlencode($row['student_id']); ?>"><i class="bi bi-file-earmark-text me-1"></i>Report</a>
+<a class="btn btn-outline-primary btn-sm" href="teacher/report_card?term=<?php echo $term; ?>&student=<?php echo urlencode($row['student_id']); ?><?php echo $examId > 0 ? '&exam=' . $examId : ''; ?>"><i class="bi bi-file-earmark-text me-1"></i>Report</a>
 </td>
 </tr>
 <?php endforeach; ?>

@@ -23,6 +23,7 @@ $photoExists = false;
 $subjectBreakdown = [];
 $history = [];
 $publicationState = 'draft';
+$isPublished = false;
 $examOptions = [];
 $selectedExam = null;
 $examSummary = null;
@@ -60,6 +61,7 @@ try {
 			$photoExists = (bool)$payload['photo_exists'];
 		}
 		$publicationState = report_term_publish_state($conn, (int)$class, $termId);
+		$isPublished = report_term_is_published($conn, (int)$class, $termId);
 		$examOptions = report_term_exam_options($conn, (int)$class, $termId);
 		if ($examId < 1 && !empty($examOptions)) {
 			$examId = (int)$examOptions[0]['id'];
@@ -70,15 +72,15 @@ try {
 				break;
 			}
 		}
+		if ($selectedExam) {
+			$examSummary = report_exam_summary($conn, $studentId, (int)$class, $termId, (int)$selectedExam['id']);
+			$examBreakdown = report_exam_subject_breakdown($conn, $studentId, (int)$class, $termId, (int)$selectedExam['id']);
+		}
 
-		if (!report_term_is_published($conn, (int)$class, $termId)) {
+		if (!$isPublished) {
 			$card = null;
 		} elseif (app_table_exists($conn, 'tbl_report_cards')) {
 			$card = report_ensure_card_generated($conn, $studentId, (int)$class, $termId);
-			if ($selectedExam) {
-				$examSummary = report_exam_summary($conn, $studentId, (int)$class, $termId, (int)$selectedExam['id']);
-				$examBreakdown = report_exam_subject_breakdown($conn, $studentId, (int)$class, $termId, (int)$selectedExam['id']);
-			}
 			if ($card) {
 				$attendance = report_attendance_summary($conn, $studentId, (int)$class, $termId);
 				$feesBalance = report_fees_balance($conn, $studentId, $termId);
