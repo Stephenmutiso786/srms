@@ -3,6 +3,7 @@
 // Populates: $res, $level, $account_id (+ user fields).
 
 $res = "0";
+require_once('const/rbac.php');
 
 function app_requested_staff_module(): string
 {
@@ -172,6 +173,8 @@ try {
 		}
 
 		app_online_touch($conn, $session_key);
+		$portal = app_staff_login_portal($conn, (int)$account_id, (string)$level);
+		app_enforce_portal_route_permission($conn, $portal, (string)$account_id, (string)$level, '../');
 		$res = "1";
 		return;
 	}
@@ -254,6 +257,7 @@ try {
 		}
 
 		app_online_touch($conn, $session_key);
+		app_enforce_portal_route_permission($conn, 'student', (string)$account_id, (string)$level, '../');
 		$res = "1";
 		return;
 	}
@@ -330,6 +334,7 @@ try {
 		}
 
 		app_online_touch($conn, $session_key);
+		app_enforce_portal_route_permission($conn, 'parent', (string)$account_id, (string)$level, '../');
 		$res = "1";
 		return;
 	}

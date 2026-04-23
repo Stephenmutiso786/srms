@@ -2,21 +2,42 @@
 
 function app_default_permissions_for_level(int $level): array
 {
-	if (in_array($level, [0, 1, 9], true)) {
+	if (in_array($level, [9], true)) {
 		return ['*'];
 	}
 
 	switch ($level) {
+		case 0:
+			return [
+				'system.manage', 'audit.view', 'staff.manage', 'students.manage', 'academic.manage',
+				'teacher.allocate', 'classes.assign', 'timetable.manage', 'attendance.manage',
+				'exams.manage', 'marks.review', 'results.approve', 'report.generate', 'report.view',
+				'finance.manage', 'finance.view', 'communication.manage', 'communication.send',
+				'bom.manage', 'bom.view', 'sms.wallet.manage'
+			];
+		case 1:
+			return [
+				'academic.manage', 'teacher.allocate', 'classes.assign', 'timetable.manage',
+				'attendance.manage', 'exams.manage', 'marks.review', 'results.approve',
+				'report.generate', 'report.view', 'students.manage', 'communication.manage',
+				'communication.send'
+			];
 		case 2:
-			return ['attendance.manage','marks.enter','report.view'];
+			return ['attendance.manage', 'marks.enter', 'report.view', 'communication.send'];
+		case 3:
+			return ['report.view', 'finance.view', 'student.leadership.view'];
+		case 4:
+			return ['report.view', 'finance.view'];
 		case 5:
-			return ['finance.manage','finance.view'];
+			return ['finance.manage', 'finance.view', 'sms.wallet.manage'];
 		case 6:
 			return ['staff.manage'];
 		case 7:
 			return ['transport.manage'];
 		case 8:
 			return ['library.manage'];
+		case 10:
+			return ['bom.view', 'bom.manage', 'finance.view'];
 		default:
 			return [];
 	}
@@ -393,6 +414,114 @@ function app_require_permission(string $permission, string $redirect = '../'): v
 		}
 	} catch (Throwable $e) {
 		$_SESSION['reply'] = array (array("danger", "Permission check failed."));
+		$redirect = app_normalize_redirect_target($redirect);
+		header("location:$redirect");
+		exit;
+	}
+}
+
+function app_request_route_from_portal(string $portal): string
+{
+	$portal = strtolower(trim($portal));
+	if ($portal === '') {
+		return '';
+	}
+
+	$path = parse_url((string)($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH);
+	$path = is_string($path) ? trim($path, '/') : '';
+	if ($path === '') {
+		return '';
+	}
+
+	$segments = array_values(array_filter(array_map(static function ($segment): string {
+		return strtolower(trim((string)$segment));
+	}, explode('/', $path)), static function (string $segment): bool {
+		return $segment !== '';
+	}));
+
+	$portalIndex = array_search($portal, $segments, true);
+	if ($portalIndex === false) {
+		return '';
+	}
+
+	$routeSegments = array_slice($segments, (int)$portalIndex);
+	$route = implode('/', $routeSegments);
+	if (str_ends_with($route, '.php')) {
+		$route = substr($route, 0, -4);
+	}
+
+	return trim($route, '/');
+}
+
+function app_route_matches_module_href(string $requestRoute, string $portal, string $href): bool
+{
+	$requestRoute = strtolower(trim($requestRoute, '/'));
+	$portal = strtolower(trim($portal, '/'));
+	$href = strtolower(trim($href, '/'));
+
+	if ($requestRoute === '' || $portal === '' || $href === '') {
+		return false;
+	}
+
+	if (str_ends_with($href, '.php')) {
+		$href = substr($href, 0, -4);
+	}
+
+	$hrefCandidates = [$href];
+	if (strpos($href, '/') === false) {
+		$hrefCandidates[] = $portal . '/' . $href;
+	}
+
+	foreach (array_unique($hrefCandidates) as $candidate) {
+		if ($candidate === $requestRoute) {
+			return true;
+		}
+		if (str_starts_with($requestRoute, $candidate . '/')) {
+			return true;
+		}
+		if ($candidate === $portal && $requestRoute === $portal . '/index') {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+function app_enforce_portal_route_permission(PDO $conn, string $portal, string $staffId, string $level, string $redirect = '../'): void
+{
+	$portal = strtolower(trim($portal));
+	if ($portal === '' || $staffId === '') {
+		return;
+	}
+
+	$requestRoute = app_request_route_from_portal($portal);
+	if ($requestRoute === '') {
+		return;
+	}
+
+	if (strpos($requestRoute, '/core/') !== false || str_ends_with($requestRoute, '/core')) {
+		return;
+	}
+
+	$modules = app_portal_module_catalog($portal);
+	foreach ($modules as $module) {
+		$href = (string)($module['href'] ?? '');
+		if (!app_route_matches_module_href($requestRoute, $portal, $href)) {
+			continue;
+		}
+
+		$requiredPermissions = array_values(array_filter(array_map('strval', (array)($module['permissions'] ?? []))));
+		if (empty($requiredPermissions)) {
+			return;
+		}
+
+		if (app_current_user_has_any_permission($requiredPermissions)) {
+			return;
+		}
+
+		if (session_status() === PHP_SESSION_ACTIVE) {
+			$_SESSION['reply'] = array(array('danger', 'Access denied: missing required permissions for this module.'));
+		}
 		$redirect = app_normalize_redirect_target($redirect);
 		header("location:$redirect");
 		exit;

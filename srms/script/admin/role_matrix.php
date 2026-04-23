@@ -141,6 +141,8 @@ try {
 .staff-table td { vertical-align: top; }
 .filter-bar { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; margin-bottom: 12px; }
 .filter-item { min-width: 220px; }
+.matrix-toggle { border: 0; background: transparent; padding: 0; line-height: 1; }
+.matrix-toggle i { font-size: 1rem; }
 </style>
 </head>
 <body class="app sidebar-mini">
@@ -177,6 +179,7 @@ try {
 <div class="col-md-12">
 <div class="tile">
 <h3 class="tile-title">Role x Permission Grid</h3>
+<div class="small text-muted mb-2">Click any cell to grant or revoke that permission for the selected role.</div>
 <div class="filter-bar">
 <div class="filter-item">
 <label class="form-label mb-1" for="permGroupFilter">Permission Group</label>
@@ -213,7 +216,16 @@ try {
 <?php foreach ($permissions as $permission):
   $hasPermission = !empty($rolePermissionMap[(int)$role['id']][(int)$permission['id']]);
 ?>
-<td class="text-center perm-col" data-group="<?php echo htmlspecialchars((string)$permission['group']); ?>" data-code="<?php echo htmlspecialchars((string)$permission['code']); ?>"><?php echo $hasPermission ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-dash text-muted"></i>'; ?></td>
+<td class="text-center perm-col" data-group="<?php echo htmlspecialchars((string)$permission['group']); ?>" data-code="<?php echo htmlspecialchars((string)$permission['code']); ?>">
+<form method="POST" action="admin/core/toggle_role_permission" class="d-inline">
+<input type="hidden" name="role_id" value="<?php echo (int)$role['id']; ?>">
+<input type="hidden" name="permission_id" value="<?php echo (int)$permission['id']; ?>">
+<input type="hidden" name="return_to" value="../role_matrix">
+<button type="submit" class="matrix-toggle" title="<?php echo $hasPermission ? 'Revoke permission from role' : 'Grant permission to role'; ?>">
+<?php echo $hasPermission ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-plus-circle text-muted"></i>'; ?>
+</button>
+</form>
+</td>
 <?php endforeach; ?>
 </tr>
 <?php endforeach; ?>
