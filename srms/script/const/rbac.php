@@ -157,21 +157,21 @@ function app_staff_role_names(PDO $conn, int $staffId): array
 function app_teacher_portal_module_catalog(): array
 {
 	return [
-		['key' => 'dashboard', 'label' => 'Dashboard', 'href' => 'teacher', 'icon' => 'feather icon-monitor', 'description' => 'Overview and quick actions', 'permissions' => [], 'core' => true],
+		['key' => 'dashboard', 'label' => 'Dashboard', 'href' => 'teacher', 'icon' => 'feather icon-monitor', 'description' => 'Overview and quick actions', 'permissions' => [], 'core' => true, 'routes' => ['teacher/index']],
 		['key' => 'terms', 'label' => 'Academic Terms', 'href' => 'teacher/terms', 'icon' => 'feather icon-folder', 'description' => 'View term structure', 'permissions' => [], 'core' => true],
-		['key' => 'attendance', 'label' => 'Attendance', 'href' => 'teacher/attendance', 'icon' => 'feather icon-check-square', 'description' => 'Class attendance and monitoring', 'permissions' => ['attendance.manage'], 'core' => true],
-		['key' => 'marks_entry', 'label' => 'Marks Entry', 'href' => 'teacher/exam_marks_entry', 'icon' => 'feather icon-edit-3', 'description' => 'Enter exam and CBC marks', 'permissions' => ['marks.enter'], 'core' => true],
-		['key' => 'results', 'label' => 'Results', 'href' => 'teacher/manage_results', 'icon' => 'feather icon-graph', 'description' => 'Review and publish results', 'permissions' => ['report.view', 'report.generate', 'marks.review', 'results.approve'], 'core' => true],
+		['key' => 'attendance', 'label' => 'Attendance', 'href' => 'teacher/attendance', 'icon' => 'feather icon-check-square', 'description' => 'Class attendance and monitoring', 'permissions' => ['attendance.manage'], 'core' => true, 'routes' => ['teacher/attendance_session']],
+		['key' => 'marks_entry', 'label' => 'Marks Entry', 'href' => 'teacher/exam_marks_entry', 'icon' => 'feather icon-edit-3', 'description' => 'Enter exam and CBC marks', 'permissions' => ['marks.enter'], 'core' => true, 'routes' => ['teacher/marks_entry', 'teacher/exam_marks_table', 'teacher/cbc_entry', 'teacher/import_results']],
+		['key' => 'results', 'label' => 'Results', 'href' => 'teacher/manage_results', 'icon' => 'feather icon-graph', 'description' => 'Review and publish results', 'permissions' => ['report.view', 'report.generate', 'marks.review', 'results.approve'], 'core' => true, 'routes' => ['teacher/results', 'teacher/report_card', 'teacher/class_report', 'teacher/published_analytics', 'teacher/print_mark_sheet', 'teacher/report_card_pdf']],
 		['key' => 'discipline', 'label' => 'Discipline', 'href' => 'teacher/discipline', 'icon' => 'feather icon-alert-triangle', 'description' => 'Learner welfare and discipline', 'permissions' => ['student.leadership.manage'], 'core' => true],
-		['key' => 'students', 'label' => 'Students', 'href' => 'teacher/students', 'icon' => 'feather icon-users', 'description' => 'Student directory and class lists', 'permissions' => ['students.manage', 'report.view'], 'core' => true],
+		['key' => 'students', 'label' => 'Students', 'href' => 'teacher/students', 'icon' => 'feather icon-users', 'description' => 'Student directory and class lists', 'permissions' => ['students.manage', 'report.view'], 'core' => true, 'routes' => ['teacher/list_students', 'teacher/export_students', 'teacher/certificates']],
 		['key' => 'staff_attendance', 'label' => 'Staff Attendance', 'href' => 'teacher/staff_attendance', 'icon' => 'feather icon-clock', 'description' => 'Monitor staff attendance', 'permissions' => ['attendance.manage'], 'core' => true],
 		['key' => 'exam_timetable', 'label' => 'Exam Timetable', 'href' => 'teacher/exam_timetable', 'icon' => 'feather icon-calendar', 'description' => 'Exam timetable planning', 'permissions' => ['timetable.manage', 'exams.manage'], 'core' => false],
-		['key' => 'grading_system', 'label' => 'Grading System', 'href' => 'teacher/grading-system', 'icon' => 'feather icon-award', 'description' => 'Grading and assessment setup', 'permissions' => ['exams.manage', 'academic.manage'], 'core' => false],
+		['key' => 'grading_system', 'label' => 'Grading System', 'href' => 'teacher/grading-system', 'icon' => 'feather icon-award', 'description' => 'Grading and assessment setup', 'permissions' => ['exams.manage', 'academic.manage'], 'core' => false, 'routes' => ['teacher/division-system']],
 		['key' => 'elearning', 'label' => 'E-Learning', 'href' => 'teacher/elearning', 'icon' => 'feather icon-book-open', 'description' => 'Digital lessons and content', 'permissions' => ['academic.manage'], 'core' => false],
 		['key' => 'subject_combinations', 'label' => 'Subject Combinations', 'href' => 'teacher/combinations', 'icon' => 'feather icon-book-open', 'description' => 'Subject allocation and combinations', 'permissions' => ['teacher.allocate', 'academic.manage'], 'core' => false],
 		['key' => 'roles', 'label' => 'Roles', 'href' => 'teacher/roles', 'icon' => 'feather icon-shield', 'description' => 'Assign staff roles', 'permissions' => ['staff.manage'], 'core' => false],
 		['key' => 'how_system_works', 'label' => 'How The System Works', 'href' => 'teacher/how_system_works', 'icon' => 'feather icon-help-circle', 'description' => 'Help and guidance', 'permissions' => [], 'core' => true],
-		['key' => 'profile', 'label' => 'Profile', 'href' => 'teacher/profile', 'icon' => 'feather icon-user', 'description' => 'My staff profile', 'permissions' => [], 'core' => true],
+		['key' => 'profile', 'label' => 'Profile', 'href' => 'teacher/profile', 'icon' => 'feather icon-user', 'description' => 'My staff profile', 'permissions' => [], 'core' => true, 'routes' => ['teacher/id_card', 'teacher/id_card_pdf']],
 	];
 }
 
@@ -182,7 +182,7 @@ function app_portal_module_catalog(string $portal): array
 		return [
 			['key' => 'attendance', 'label' => 'Attendance', 'href' => 'student/attendance', 'icon' => 'feather icon-check-square', 'description' => 'Attendance view', 'permissions' => [], 'core' => true, 'active' => ['attendance']],
 			['key' => 'certificates', 'label' => 'Certificates', 'href' => 'student/certificates', 'icon' => 'feather icon-award', 'description' => 'Download certificates', 'permissions' => [], 'core' => true, 'active' => ['certificates']],
-			['key' => 'dashboard', 'label' => 'Dashboard', 'href' => 'student', 'icon' => 'feather icon-monitor', 'description' => 'Student overview', 'permissions' => [], 'core' => true, 'active' => ['index', 'dashboard']],
+			['key' => 'dashboard', 'label' => 'Dashboard', 'href' => 'student', 'icon' => 'feather icon-monitor', 'description' => 'Student overview', 'permissions' => [], 'core' => true, 'active' => ['index', 'dashboard', 'terms']],
 			['key' => 'discipline', 'label' => 'Discipline', 'href' => 'student/discipline', 'icon' => 'feather icon-alert-triangle', 'description' => 'Discipline information', 'permissions' => [], 'core' => true, 'active' => ['discipline']],
 			['key' => 'division_system', 'label' => 'Division System', 'href' => 'student/division-system', 'icon' => 'feather icon-layers', 'description' => 'Division guidance', 'permissions' => [], 'core' => true, 'active' => ['division-system']],
 			['key' => 'elearning', 'label' => 'E-Learning', 'href' => 'student/elearning', 'icon' => 'feather icon-book-open', 'description' => 'Lessons and content', 'permissions' => [], 'core' => true, 'active' => ['elearning']],
@@ -190,11 +190,13 @@ function app_portal_module_catalog(string $portal): array
 			['key' => 'fees', 'label' => 'Fees', 'href' => 'student/fees', 'icon' => 'feather icon-credit-card', 'description' => 'Fee statements', 'permissions' => ['finance.view'], 'core' => true, 'active' => ['fees']],
 			['key' => 'grading_system', 'label' => 'Grading System', 'href' => 'student/grading-system', 'icon' => 'feather icon-award', 'description' => 'Grading rules', 'permissions' => [], 'core' => true, 'active' => ['grading-system']],
 			['key' => 'leadership', 'label' => 'Leadership', 'href' => 'student/leadership', 'icon' => 'feather icon-users', 'description' => 'Student leadership', 'permissions' => ['student.leadership.view'], 'core' => false, 'active' => ['leadership']],
-			['key' => 'profile', 'label' => 'Profile', 'href' => 'student/view', 'icon' => 'feather icon-user', 'description' => 'My profile', 'permissions' => [], 'core' => true, 'active' => ['view', 'profile', 'id_card']],
+			['key' => 'profile', 'label' => 'Profile', 'href' => 'student/view', 'icon' => 'feather icon-user', 'description' => 'My profile', 'permissions' => [], 'core' => true, 'active' => ['view', 'profile', 'id_card', 'id_card_pdf']],
+			['key' => 'portal_help', 'label' => 'Portal Guide', 'href' => 'student/how_portal_works', 'icon' => 'feather icon-help-circle', 'description' => 'How this portal works', 'permissions' => [], 'core' => true, 'active' => ['how_portal_works']],
 			['key' => 'ranking', 'label' => 'Ranking', 'href' => 'student/ranking', 'icon' => 'feather icon-bar-chart-2', 'description' => 'Class ranking', 'permissions' => ['report.view'], 'core' => false, 'active' => ['ranking']],
-			['key' => 'report_card', 'label' => 'Report Card', 'href' => 'student/report_card', 'icon' => 'feather icon-file-text', 'description' => 'Report card and results', 'permissions' => ['report.view'], 'core' => true, 'active' => ['report_card']],
+			['key' => 'report_card', 'label' => 'Report Card', 'href' => 'student/report_card', 'icon' => 'feather icon-file-text', 'description' => 'Report card and results', 'permissions' => ['report.view'], 'core' => true, 'active' => ['report_card', 'report_card_pdf', 'save_pdf']],
 			['key' => 'results', 'label' => 'Results', 'href' => 'student/results', 'icon' => 'feather icon-file-text', 'description' => 'My result summary', 'permissions' => ['report.view'], 'core' => true, 'active' => ['results']],
-			['key' => 'settings', 'label' => 'Settings', 'href' => 'student/settings', 'icon' => 'feather icon-settings', 'description' => 'Account settings', 'permissions' => [], 'core' => true, 'active' => ['settings']],
+			['key' => 'quiz', 'label' => 'Quiz', 'href' => 'student/quiz', 'icon' => 'feather icon-edit-2', 'description' => 'Practice quizzes', 'permissions' => ['report.view'], 'core' => false, 'active' => ['quiz']],
+			['key' => 'settings', 'label' => 'Settings', 'href' => 'student/settings', 'icon' => 'feather icon-settings', 'description' => 'Account settings', 'permissions' => [], 'core' => true, 'active' => ['settings', 'privacy']],
 			['key' => 'subjects', 'label' => 'Subjects', 'href' => 'student/subjects', 'icon' => 'feather icon-book', 'description' => 'Subject list', 'permissions' => [], 'core' => true, 'active' => ['subjects']],
 		];
 	}
@@ -208,7 +210,7 @@ function app_portal_module_catalog(string $portal): array
 			['key' => 'elearning', 'label' => 'E-Learning', 'href' => 'parent/elearning', 'icon' => 'feather icon-laptop', 'description' => 'Learning content', 'permissions' => [], 'core' => true, 'active' => ['elearning']],
 			['key' => 'fees', 'label' => 'Fees', 'href' => 'parent/fees', 'icon' => 'feather icon-credit-card', 'description' => 'Fee statements', 'permissions' => ['finance.view'], 'core' => true, 'active' => ['fees']],
 			['key' => 'how_system_works', 'label' => 'How The System Works', 'href' => 'how_system_works', 'icon' => 'feather icon-help-circle', 'description' => 'Portal guide', 'permissions' => [], 'core' => true, 'active' => ['how_system_works']],
-			['key' => 'report_card', 'label' => 'Report Card', 'href' => 'parent/report_card', 'icon' => 'feather icon-file-text', 'description' => 'Report cards and results', 'permissions' => ['report.view'], 'core' => true, 'active' => ['report_card']],
+			['key' => 'report_card', 'label' => 'Report Card', 'href' => 'parent/report_card', 'icon' => 'feather icon-file-text', 'description' => 'Report cards and results', 'permissions' => ['report.view'], 'core' => true, 'active' => ['report_card', 'report_card_pdf']],
 		];
 	}
 
@@ -224,13 +226,13 @@ function app_portal_module_catalog(string $portal): array
 			['key' => 'school_timetable', 'label' => 'School Timetable', 'href' => 'admin/school_timetable', 'icon' => 'feather icon-calendar', 'description' => 'Timetable planning', 'permissions' => ['timetable.manage', 'academic.manage'], 'core' => true],
 			['key' => 'discipline', 'label' => 'Discipline Cases', 'href' => 'admin/discipline', 'icon' => 'feather icon-alert-triangle', 'description' => 'Student discipline', 'permissions' => ['students.manage'], 'core' => false],
 			['key' => 'import_students', 'label' => 'Import Students', 'href' => 'admin/import_students', 'icon' => 'feather icon-upload', 'description' => 'Bulk student import', 'permissions' => ['students.manage'], 'core' => false],
-			['key' => 'manage_students', 'label' => 'Manage Students', 'href' => 'admin/manage_students', 'icon' => 'feather icon-users', 'description' => 'Student records', 'permissions' => ['students.manage'], 'core' => false],
+			['key' => 'manage_students', 'label' => 'Manage Students', 'href' => 'admin/manage_students', 'icon' => 'feather icon-users', 'description' => 'Student records', 'permissions' => ['students.manage'], 'core' => false, 'routes' => ['admin/students']],
 			['key' => 'register_students', 'label' => 'Register Students', 'href' => 'admin/register_students', 'icon' => 'feather icon-user-plus', 'description' => 'Student registration', 'permissions' => ['students.manage'], 'core' => false],
 			['key' => 'student_leaders', 'label' => 'Student Leadership', 'href' => 'admin/student_leaders', 'icon' => 'feather icon-award', 'description' => 'Student leadership', 'permissions' => ['students.manage'], 'core' => false],
 			['key' => 'parents', 'label' => 'Parents', 'href' => 'admin/parents', 'icon' => 'feather icon-user-plus', 'description' => 'Parent records', 'permissions' => ['students.manage'], 'core' => false],
-			['key' => 'attendance', 'label' => 'Attendance', 'href' => 'admin/attendance', 'icon' => 'feather icon-check-square', 'description' => 'Student attendance', 'permissions' => ['attendance.manage'], 'core' => true],
+			['key' => 'attendance', 'label' => 'Attendance', 'href' => 'admin/attendance', 'icon' => 'feather icon-check-square', 'description' => 'Student attendance', 'permissions' => ['attendance.manage'], 'core' => true, 'routes' => ['admin/attendance_session']],
 			['key' => 'staff_attendance', 'label' => 'Staff Attendance', 'href' => 'admin/staff_attendance', 'icon' => 'feather icon-clock', 'description' => 'Staff attendance', 'permissions' => ['attendance.manage'], 'core' => true],
-			['key' => 'fees', 'label' => 'Fees & Finance', 'href' => 'admin/fees', 'icon' => 'feather icon-credit-card', 'description' => 'Fee and finance tools', 'permissions' => ['finance.manage', 'finance.view'], 'core' => true],
+			['key' => 'fees', 'label' => 'Fees & Finance', 'href' => 'admin/fees', 'icon' => 'feather icon-credit-card', 'description' => 'Fee and finance tools', 'permissions' => ['finance.manage', 'finance.view'], 'core' => true, 'routes' => ['admin/financial_reports', 'admin/installment_plans', 'admin/fee_structure', 'admin/invoices']],
 			['key' => 'import_export', 'label' => 'Import / Export', 'href' => 'admin/import_export', 'icon' => 'feather icon-upload-cloud', 'description' => 'Data import and export', 'permissions' => ['system.manage'], 'core' => false],
 			['key' => 'communication', 'label' => 'Communication', 'href' => 'admin/communication', 'icon' => 'feather icon-message-circle', 'description' => 'Announcements and messages', 'permissions' => ['communication.manage'], 'core' => true],
 			['key' => 'sms_topup', 'label' => 'SMS Tokens', 'href' => 'admin/sms_topup', 'icon' => 'feather icon-credit-card', 'description' => 'SMS wallet', 'permissions' => ['communication.manage', 'finance.manage'], 'core' => false],
@@ -239,14 +241,14 @@ function app_portal_module_catalog(string $portal): array
 			['key' => 'library', 'label' => 'Library', 'href' => 'admin/library', 'icon' => 'feather icon-book', 'description' => 'Library inventory', 'permissions' => ['library.manage'], 'core' => false],
 			['key' => 'inventory', 'label' => 'Inventory', 'href' => 'admin/inventory', 'icon' => 'feather icon-box', 'description' => 'Asset inventory', 'permissions' => ['inventory.manage'], 'core' => false],
 			['key' => 'transport', 'label' => 'Transport', 'href' => 'admin/transport', 'icon' => 'feather icon-truck', 'description' => 'Fleet management', 'permissions' => ['transport.manage'], 'core' => false],
-			['key' => 'exams', 'label' => 'Exams', 'href' => 'admin/exams', 'icon' => 'feather icon-file-text', 'description' => 'Exam setup', 'permissions' => ['exams.manage'], 'core' => true],
+			['key' => 'exams', 'label' => 'Exams', 'href' => 'admin/exams', 'icon' => 'feather icon-file-text', 'description' => 'Exam setup', 'permissions' => ['exams.manage'], 'core' => true, 'routes' => ['admin/edit_exam']],
 			['key' => 'exam_timetable', 'label' => 'Exam Timetable', 'href' => 'admin/exam_timetable', 'icon' => 'feather icon-calendar', 'description' => 'Exam timetable', 'permissions' => ['exams.manage', 'timetable.manage'], 'core' => true],
 			['key' => 'marks_review', 'label' => 'Marks Review', 'href' => 'admin/marks_review', 'icon' => 'feather icon-edit-3', 'description' => 'Marks moderation', 'permissions' => ['marks.review'], 'core' => false],
 			['key' => 'publish_results', 'label' => 'Publish Results', 'href' => 'admin/publish_results', 'icon' => 'feather icon-share-2', 'description' => 'Publish results', 'permissions' => ['results.approve'], 'core' => false],
 			['key' => 'results_analytics', 'label' => 'Results Analytics', 'href' => 'admin/results_analytics', 'icon' => 'feather icon-bar-chart-2', 'description' => 'Result analytics', 'permissions' => ['report.view'], 'core' => false],
 			['key' => 'results_locks', 'label' => 'Results Locks', 'href' => 'admin/results_locks', 'icon' => 'feather icon-lock', 'description' => 'Results locks', 'permissions' => ['results.approve'], 'core' => false],
-			['key' => 'report', 'label' => 'Report Tool', 'href' => 'admin/report', 'icon' => 'feather icon-clipboard', 'description' => 'Report generation', 'permissions' => ['report.generate', 'report.view'], 'core' => false],
-			['key' => 'merit_list', 'label' => 'Merit List', 'href' => 'admin/merit_list', 'icon' => 'feather icon-list', 'description' => 'Merit lists', 'permissions' => ['report.view'], 'core' => false],
+			['key' => 'report', 'label' => 'Report Tool', 'href' => 'admin/report', 'icon' => 'feather icon-clipboard', 'description' => 'Report generation', 'permissions' => ['report.generate', 'report.view'], 'core' => false, 'routes' => ['admin/manage_results', 'admin/individual_results', 'admin/single_results', 'admin/save_report', 'admin/save_pdf', 'admin/bulk_results']],
+			['key' => 'merit_list', 'label' => 'Merit List', 'href' => 'admin/merit_list', 'icon' => 'feather icon-list', 'description' => 'Merit lists', 'permissions' => ['report.view'], 'core' => false, 'routes' => ['admin/merit_list_pdf']],
 			['key' => 'report_settings', 'label' => 'Report Settings', 'href' => 'admin/report_settings', 'icon' => 'feather icon-sliders', 'description' => 'Report settings', 'permissions' => ['report.generate'], 'core' => false],
 			['key' => 'certificates', 'label' => 'Generate Certificates', 'href' => 'admin/certificates', 'icon' => 'feather icon-award', 'description' => 'Certificate generation', 'permissions' => ['certificates.manage'], 'core' => false],
 			['key' => 'promotion_rules', 'label' => 'Promotion Rules', 'href' => 'admin/promotion_rules', 'icon' => 'feather icon-shuffle', 'description' => 'Promotion rules', 'permissions' => ['students.manage'], 'core' => false],
@@ -259,7 +261,8 @@ function app_portal_module_catalog(string $portal): array
 			['key' => 'roles', 'label' => 'Roles & Permissions', 'href' => 'admin/roles', 'icon' => 'feather icon-shield', 'description' => 'Role management', 'permissions' => ['staff.manage'], 'core' => false],
 			['key' => 'role_matrix', 'label' => 'Role Matrix', 'href' => 'admin/role_matrix', 'icon' => 'feather icon-grid', 'description' => 'Role-permission matrix', 'permissions' => ['staff.manage'], 'core' => false],
 			['key' => 'bom', 'label' => 'BOM Management', 'href' => 'admin/bom', 'icon' => 'feather icon-briefcase', 'description' => 'Board management', 'permissions' => ['staff.manage'], 'core' => false],
-			['key' => 'mpesa', 'label' => 'M-Pesa', 'href' => 'admin/mpesa', 'icon' => 'feather icon-smartphone', 'description' => 'M-Pesa integration', 'permissions' => ['finance.manage'], 'core' => false],
+			['key' => 'mpesa', 'label' => 'M-Pesa', 'href' => 'admin/mpesa', 'icon' => 'feather icon-smartphone', 'description' => 'M-Pesa integration', 'permissions' => ['finance.manage'], 'core' => false, 'routes' => ['admin/mpesa_pay']],
+			['key' => 'profile', 'label' => 'Profile', 'href' => 'admin/profile', 'icon' => 'feather icon-user', 'description' => 'Admin profile', 'permissions' => [], 'core' => true],
 			['key' => 'smtp', 'label' => 'SMTP Settings', 'href' => 'admin/smtp', 'icon' => 'feather icon-mail', 'description' => 'Mail settings', 'permissions' => ['system.manage'], 'core' => false],
 			['key' => 'system_diagnostics', 'label' => 'System Diagnostics', 'href' => 'admin/system_diagnostics', 'icon' => 'feather icon-activity', 'description' => 'Diagnostics', 'permissions' => ['system.manage'], 'core' => false],
 			['key' => 'migrations', 'label' => 'Migrations', 'href' => 'admin/migrations', 'icon' => 'feather icon-database', 'description' => 'Database migrations', 'permissions' => ['system.manage'], 'core' => false],
@@ -285,9 +288,9 @@ function app_portal_module_catalog(string $portal): array
 			['key' => 'subjects', 'label' => 'Subjects', 'href' => 'academic/subjects', 'icon' => 'feather icon-book', 'description' => 'Subject setup', 'permissions' => ['academic.manage'], 'core' => true],
 			['key' => 'combinations', 'label' => 'Subject Combinations', 'href' => 'academic/combinations', 'icon' => 'feather icon-book-open', 'description' => 'Teacher-subject allocation', 'permissions' => ['teacher.allocate', 'academic.manage'], 'core' => true],
 			['key' => 'students', 'label' => 'Student Promotion', 'href' => 'academic/promote_students', 'icon' => 'feather icon-users', 'description' => 'Promote and manage learners', 'permissions' => ['students.manage', 'academic.manage'], 'core' => true],
-			['key' => 'results_manage', 'label' => 'Manage Results', 'href' => 'academic/manage_results', 'icon' => 'feather icon-file-text', 'description' => 'Results entry and approval', 'permissions' => ['marks.enter', 'marks.review', 'results.approve'], 'core' => true],
+			['key' => 'results_manage', 'label' => 'Manage Results', 'href' => 'academic/manage_results', 'icon' => 'feather icon-file-text', 'description' => 'Results entry and approval', 'permissions' => ['marks.enter', 'marks.review', 'results.approve'], 'core' => true, 'routes' => ['academic/bulk_results', 'academic/single_results']],
 			['key' => 'individual_results', 'label' => 'Individual Results', 'href' => 'academic/individual_results', 'icon' => 'feather icon-user-check', 'description' => 'Single-student result review', 'permissions' => ['report.view', 'report.generate'], 'core' => true],
-			['key' => 'report_tool', 'label' => 'Report Tool', 'href' => 'academic/report', 'icon' => 'feather icon-bar-chart-2', 'description' => 'Class report analysis', 'permissions' => ['report.generate', 'report.view'], 'core' => true],
+			['key' => 'report_tool', 'label' => 'Report Tool', 'href' => 'academic/report', 'icon' => 'feather icon-bar-chart-2', 'description' => 'Class report analysis', 'permissions' => ['report.generate', 'report.view'], 'core' => true, 'routes' => ['academic/save_pdf', 'academic/save_report']],
 			['key' => 'grading_system', 'label' => 'Grading System', 'href' => 'academic/grading-system', 'icon' => 'feather icon-award', 'description' => 'Grade scale and grading rules', 'permissions' => ['exams.manage', 'academic.manage'], 'core' => true],
 			['key' => 'division_system', 'label' => 'Division System', 'href' => 'academic/division-system', 'icon' => 'feather icon-layers', 'description' => 'Division and performance bands', 'permissions' => ['academic.manage', 'report.generate'], 'core' => true],
 			['key' => 'announcements', 'label' => 'Announcements', 'href' => 'academic/announcement', 'icon' => 'feather icon-bell', 'description' => 'Publish academic notices', 'permissions' => ['communication.manage', 'communication.send'], 'core' => false],
@@ -453,26 +456,68 @@ function app_request_route_from_portal(string $portal): string
 	return trim($route, '/');
 }
 
-function app_route_matches_module_href(string $requestRoute, string $portal, string $href): bool
+function app_module_route_candidates(string $portal, array $module): array
+{
+	$portal = strtolower(trim($portal, '/'));
+	$allRoutes = [];
+
+	$moduleHref = (string)($module['href'] ?? '');
+	if ($moduleHref !== '') {
+		$allRoutes[] = $moduleHref;
+	}
+
+	foreach ((array)($module['routes'] ?? []) as $route) {
+		$route = trim((string)$route);
+		if ($route !== '') {
+			$allRoutes[] = $route;
+		}
+	}
+
+	foreach ((array)($module['active'] ?? []) as $route) {
+		$route = trim((string)$route);
+		if ($route === '') {
+			continue;
+		}
+		if (strpos($route, '/') !== false) {
+			$allRoutes[] = $route;
+			continue;
+		}
+		if ($route === 'dashboard' || $route === 'index') {
+			$allRoutes[] = $portal;
+			$allRoutes[] = $portal . '/index';
+			continue;
+		}
+		$allRoutes[] = $portal . '/' . $route;
+	}
+
+	$candidates = [];
+	foreach ($allRoutes as $route) {
+		$route = strtolower(trim((string)$route, '/'));
+		if ($route === '') {
+			continue;
+		}
+		if (str_ends_with($route, '.php')) {
+			$route = substr($route, 0, -4);
+		}
+		$candidates[] = $route;
+		if (strpos($route, '/') === false) {
+			$candidates[] = $portal . '/' . $route;
+		}
+	}
+
+	return array_values(array_unique(array_filter($candidates)));
+}
+
+function app_route_matches_module(string $requestRoute, string $portal, array $module): bool
 {
 	$requestRoute = strtolower(trim($requestRoute, '/'));
 	$portal = strtolower(trim($portal, '/'));
-	$href = strtolower(trim($href, '/'));
 
-	if ($requestRoute === '' || $portal === '' || $href === '') {
+	if ($requestRoute === '' || $portal === '') {
 		return false;
 	}
 
-	if (str_ends_with($href, '.php')) {
-		$href = substr($href, 0, -4);
-	}
-
-	$hrefCandidates = [$href];
-	if (strpos($href, '/') === false) {
-		$hrefCandidates[] = $portal . '/' . $href;
-	}
-
-	foreach (array_unique($hrefCandidates) as $candidate) {
+	foreach (app_module_route_candidates($portal, $module) as $candidate) {
 		if ($candidate === $requestRoute) {
 			return true;
 		}
@@ -499,16 +544,17 @@ function app_enforce_portal_route_permission(PDO $conn, string $portal, string $
 		return;
 	}
 
-	if (strpos($requestRoute, '/core/') !== false || str_ends_with($requestRoute, '/core')) {
+	if (strpos($requestRoute, '/core/') !== false || str_ends_with($requestRoute, '/core') || strpos($requestRoute, '/partials/') !== false || str_ends_with($requestRoute, '/partials') || strpos($requestRoute, '/api/') !== false || str_ends_with($requestRoute, '/api')) {
 		return;
 	}
 
 	$modules = app_portal_module_catalog($portal);
+	$matchedModule = false;
 	foreach ($modules as $module) {
-		$href = (string)($module['href'] ?? '');
-		if (!app_route_matches_module_href($requestRoute, $portal, $href)) {
+		if (!app_route_matches_module($requestRoute, $portal, $module)) {
 			continue;
 		}
+		$matchedModule = true;
 
 		$requiredPermissions = array_values(array_filter(array_map('strval', (array)($module['permissions'] ?? []))));
 		if (empty($requiredPermissions)) {
@@ -521,6 +567,15 @@ function app_enforce_portal_route_permission(PDO $conn, string $portal, string $
 
 		if (session_status() === PHP_SESSION_ACTIVE) {
 			$_SESSION['reply'] = array(array('danger', 'Access denied: missing required permissions for this module.'));
+		}
+		$redirect = app_normalize_redirect_target($redirect);
+		header("location:$redirect");
+		exit;
+	}
+
+	if (!$matchedModule) {
+		if (session_status() === PHP_SESSION_ACTIVE) {
+			$_SESSION['reply'] = array(array('danger', 'Access denied: this route is not registered as an authorized module.'));
 		}
 		$redirect = app_normalize_redirect_target($redirect);
 		header("location:$redirect");
