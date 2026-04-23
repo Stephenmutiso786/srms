@@ -17,7 +17,13 @@ $photoPath = '';
 $photoExists = false;
 $publishedTerms = [];
 $selectedTermId = (int)($_GET['term'] ?? 0);
+$examId = (int)($_GET['exam'] ?? 0);
 $selectedTermName = '';
+$examOptions = [];
+$selectedExam = null;
+$examSummary = null;
+$examBreakdown = [];
+$dashboardMode = 'term';
 $summary = [
 	'attendance_rate' => 0,
 	'avg_score' => 0,
@@ -128,14 +134,37 @@ try {
 	}
 
 	if ($selectedTermId > 0 && report_term_is_published($conn, $studentClassId, $selectedTermId)) {
+		$examOptions = report_term_exam_options($conn, $studentClassId, $selectedTermId);
+		if ($examId < 1 && !empty($examOptions)) {
+			$examId = (int)$examOptions[0]['id'];
+		}
+		foreach ($examOptions as $option) {
+			if ((int)$option['id'] === $examId) {
+				$selectedExam = $option;
+				break;
+			}
+		}
+
 		$reportCard = report_ensure_card_generated($conn, (string)$account_id, $studentClassId, $selectedTermId);
-		if ($reportCard) {
+		if ($selectedExam) {
+			$examSummary = report_exam_summary($conn, (string)$account_id, $studentClassId, $selectedTermId, (int)$selectedExam['id']);
+			$examBreakdown = report_exam_subject_breakdown($conn, (string)$account_id, $studentClassId, $selectedTermId, (int)$selectedExam['id']);
+			if ($examSummary) {
+				$dashboardMode = 'exam';
+				$summary['avg_score'] = (float)($examSummary['mean'] ?? 0);
+				$summary['grade'] = (string)($examSummary['grade'] ?? 'N/A');
+				$summary['position'] = (string)($examSummary['position'] ?? '-');
+				$summary['total_marks'] = (float)($examSummary['total'] ?? 0);
+				$subjectRows = $examBreakdown;
+			}
+		}
+		if ($dashboardMode !== 'exam' && $reportCard) {
 			$summary['avg_score'] = (float)($reportCard['mean'] ?? 0);
 			$summary['grade'] = (string)($reportCard['grade'] ?? 'N/A');
 			$summary['position'] = isset($reportCard['position'], $reportCard['total_students']) ? ($reportCard['position'].' / '.$reportCard['total_students']) : '-';
 			$summary['total_marks'] = (float)($reportCard['total'] ?? 0);
+			$subjectRows = report_subject_breakdown($conn, (string)$account_id, $studentClassId, $selectedTermId);
 		}
-		$subjectRows = report_subject_breakdown($conn, (string)$account_id, $studentClassId, $selectedTermId);
 		$history = report_student_term_history($conn, (string)$account_id, $studentClassId, 12);
 	}
 
@@ -291,6 +320,7 @@ body.app{background:var(--student-bg)}
 					<div class="small">Use published academic insights to follow performance, subject trends, and improvement over time.</div>
 					<div class="insight-switches mt-3">
 						<span class="insight-switch"><i class="bi bi-calendar2-event me-1"></i><?php echo htmlspecialchars($selectedTermName !== '' ? $selectedTermName : 'Latest published term'); ?></span>
+						<?php if ($selectedExam) { ?><span class="insight-switch"><i class="bi bi-journal-text me-1"></i><?php echo htmlspecialchars((string)$selectedExam['name']); ?></span><?php } ?>
 						<span class="insight-switch"><i class="bi bi-person-badge me-1"></i><?php echo htmlspecialchars($studentClassId > 0 ? 'Class ' . (string)$studentClassId : 'Class not set'); ?></span>
 					</div>
 				</div>
@@ -319,19 +349,28 @@ body.app{background:var(--student-bg)}
 					<div class="panel-body">
 						<div class="section-title">Analysis</div>
 						<div class="small text-muted mb-3">Student exam performance analytics</div>
-						<form method="GET" action="student" class="d-flex justify-content-between align-items-center gap-3 flex-wrap mb-3">
+						<form method="GET" action="student" class="d-flex justify-content-between align-items-end gap-3 flex-wrap mb-3">
 							<div class="mean-ribbon flex-grow-1">
-								<span>Mean Grade</span>
+								<span><?php echo $dashboardMode === 'exam' ? 'Selected Exam Grade' : 'Mean Grade'; ?></span>
 								<span><?php echo htmlspecialchars($summary['grade']); ?></span>
 							</div>
 							<div style="min-width:220px">
-								<select class="form-control form-control-sm" name="term" onchange="this.form.submit()">
+								<select class="form-control form-control-sm" name="term" id="studentTermSelect" onchange="loadStudentExams()">
 									<option value=""><?php echo $publishedTerms ? 'Select published term' : 'No published term'; ?></option>
 									<?php foreach ($publishedTerms as $term): ?>
 									<option value="<?php echo (int)$term['id']; ?>" <?php echo ((int)$term['id'] === $selectedTermId) ? 'selected' : ''; ?>><?php echo htmlspecialchars($term['name']); ?></option>
 									<?php endforeach; ?>
 								</select>
 							</div>
+							<div style="min-width:240px">
+								<select class="form-control form-control-sm" name="exam" id="studentExamSelect">
+									<option value="">Select published exam</option>
+									<?php foreach ($examOptions as $exam): ?>
+									<option value="<?php echo (int)$exam['id']; ?>" <?php echo ((int)$exam['id'] === $examId) ? 'selected' : ''; ?>><?php echo htmlspecialchars($exam['name']); ?></option>
+									<?php endforeach; ?>
+								</select>
+							</div>
+							<div><button class="btn btn-sm btn-primary" type="submit">View</button></div>
 						</form>
 
 						<div class="insight-switches">
@@ -352,8 +391,8 @@ body.app{background:var(--student-bg)}
 								<tr>
 									<th>Name</th>
 									<th>Points</th>
-									<th>Dev Exam</th>
-									<th>Dev Target</th>
+									<th><?php echo $dashboardMode === 'exam' ? 'Exam' : 'Dev Exam'; ?></th>
+									<th><?php echo $dashboardMode === 'exam' ? 'Source' : 'Dev Target'; ?></th>
 									<th>Grade</th>
 									<th>Class Rank</th>
 								</tr>
@@ -365,16 +404,24 @@ body.app{background:var(--student-bg)}
 							<?php foreach ($subjectRows as $row): ?>
 								<tr>
 									<td class="subject-name"><?php echo htmlspecialchars($row['subject_name']); ?></td>
-									<td><?php echo number_format((float)$row['score'], 0); ?></td>
-									<td class="<?php echo $row['trend'] === 'up' ? 'trend-up' : ($row['trend'] === 'down' ? 'trend-down' : 'trend-steady'); ?>">
-										<i class="bi <?php echo $row['trend'] === 'up' ? 'bi-arrow-up-right' : ($row['trend'] === 'down' ? 'bi-arrow-down-right' : 'bi-dash'); ?>"></i>
-										<?php echo ($row['change'] >= 0 ? '+' : '') . number_format((float)$row['change'], 1); ?>
+									<td><?php echo number_format((float)($row['score'] ?? $row['combined_score'] ?? 0), 0); ?></td>
+									<td class="<?php echo $dashboardMode === 'exam' ? '' : ($row['trend'] === 'up' ? 'trend-up' : ($row['trend'] === 'down' ? 'trend-down' : 'trend-steady')); ?>">
+										<?php if ($dashboardMode === 'exam'): ?>
+											<i class="bi bi-journal-text me-1"></i><?php echo htmlspecialchars((string)($selectedExam['name'] ?? 'Selected exam')); ?>
+										<?php else: ?>
+											<i class="bi <?php echo $row['trend'] === 'up' ? 'bi-arrow-up-right' : ($row['trend'] === 'down' ? 'bi-arrow-down-right' : 'bi-dash'); ?>"></i>
+											<?php echo ($row['change'] >= 0 ? '+' : '') . number_format((float)$row['change'], 1); ?>
+										<?php endif; ?>
 									</td>
 									<td>
-										<div class="perf-track"><span style="width: <?php echo (float)$row['progress']; ?>%"></span></div>
+										<?php if ($dashboardMode === 'exam'): ?>
+											<span class="small text-muted"><?php echo htmlspecialchars((string)($row['source'] ?? 'Exam result')); ?></span>
+										<?php else: ?>
+											<div class="perf-track"><span style="width: <?php echo (float)($row['progress'] ?? 0); ?>%"></span></div>
+										<?php endif; ?>
 									</td>
 									<td><?php echo htmlspecialchars($row['grade']); ?></td>
-									<td><?php echo number_format((float)$row['class_mean'], 1); ?>/100</td>
+									<td><?php echo number_format((float)($row['class_mean'] ?? 0), 1); ?>/100</td>
 								</tr>
 							<?php endforeach; ?>
 							</tbody>
@@ -459,6 +506,26 @@ body.app{background:var(--student-bg)}
 <script src="js/jquery-3.7.0.min.js"></script>
 <script src="js/bootstrap.min.js"></script>
 <script src="js/main.js"></script>
+<script>
+function loadStudentExams() {
+	var termId = $('#studentTermSelect').val() || '';
+	var examSelect = $('#studentExamSelect');
+	examSelect.empty();
+	if (!termId) {
+		examSelect.append('<option value="">Select published exam</option>');
+		return;
+	}
+	$.post('app/ajax/fetch_exams.php', {id: <?php echo (int)$studentClassId; ?>, term_id: termId, submit: 1}, function(data) {
+		examSelect.html(data);
+	});
+}
+
+$(function() {
+	if ($('#studentTermSelect').length) {
+		loadStudentExams();
+	}
+});
+</script>
 <script>
 const subjectRows = <?php echo json_encode($subjectRows); ?>;
 const historyRows = <?php echo json_encode($history); ?>;
