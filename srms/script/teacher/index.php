@@ -22,7 +22,6 @@ $rows = [];
 $trendPoints = [];
 $recentDiscipline = [];
 $roleNames = [];
-$permissionCodes = [];
 $visibleModules = [];
 $allocatedModules = [];
 $error = '';
@@ -54,7 +53,6 @@ try {
 	}
 
 	$roleNames = app_staff_role_names($conn, (int)$account_id);
-	$permissionCodes = app_get_permissions($conn, (string)$account_id, (string)$level);
 	$visibleModules = app_teacher_portal_visible_modules($conn, (string)$account_id, (string)$level);
 	$allocatedModules = app_teacher_portal_allocated_modules($conn, (string)$account_id, (string)$level);
 
@@ -227,20 +225,16 @@ body.app{background:#f4f7f6}
 .access-grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:14px}
 .access-card{background:#fff;border:1px solid #e7edf5;border-radius:18px;padding:16px;box-shadow:0 14px 40px rgba(15,95,168,.08)}
 .access-card.roles{grid-column:span 4}
-.access-card.permissions{grid-column:span 4}
-.access-card.modules{grid-column:span 4}
+.access-card.modules{grid-column:span 8}
 .chip-wrap{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
-.access-chip,.module-chip{display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border-radius:999px;font-size:.82rem;font-weight:700}
+.access-chip{display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border-radius:999px;font-size:.82rem;font-weight:700}
 .access-chip{background:#e7f1ef;color:#00695C}
-.module-chip{background:#eef4fb;color:#27405c}
 .module-list{display:grid;gap:10px;margin-top:12px}
 .module-link{display:flex;gap:12px;align-items:flex-start;padding:14px 15px;border:1px solid #e7edf5;border-radius:18px;text-decoration:none;color:#203040;background:linear-gradient(180deg,#ffffff,#f8fbff);box-shadow:0 8px 18px rgba(16,41,38,.04);transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}
 .module-link:hover{border-color:#0b7d6d;background:linear-gradient(180deg,#ffffff,#eefaf7);box-shadow:0 14px 26px rgba(0,105,92,.10);transform:translateY(-1px)}
 .module-icon{width:38px;height:38px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:#e7f1ef;color:#00695C;flex:0 0 auto}
 .module-title{font-weight:800;color:#123;line-height:1.2}
 .module-desc{font-size:.84rem;color:#6f7e8f;margin-top:2px}
-.module-perms{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
-.module-perms span{font-size:.72rem;background:#eef4fb;color:#4d647d;padding:4px 8px;border-radius:999px}
 .module-cta{margin-left:auto;align-self:center;font-size:.75rem;font-weight:800;color:#0b7d6d;background:#e7f1ef;border-radius:999px;padding:7px 10px;white-space:nowrap}
 @media (max-width:1100px){.portal-shell{grid-template-columns:1fr}.portal-side{position:relative;height:auto}.hero-controls,.stats-grid,.grid-two{grid-template-columns:1fr 1fr}}
 
@@ -323,19 +317,6 @@ body.app{background:#f4f7f6}
 						<?php endif; ?>
 					</div>
 				</div>
-				<div class="access-card permissions">
-					<div class="tile-title mb-2">Allocated Permissions</div>
-					<div class="small text-muted">Permission codes currently active on this portal.</div>
-					<div class="chip-wrap">
-						<?php if (!empty($permissionCodes)): ?>
-							<?php foreach ($permissionCodes as $permissionCode): ?>
-								<span class="module-chip"><?php echo htmlspecialchars((string)$permissionCode); ?></span>
-							<?php endforeach; ?>
-						<?php else: ?>
-							<span class="module-chip">No extra permissions</span>
-						<?php endif; ?>
-					</div>
-				</div>
 				<div class="access-card modules">
 					<div class="tile-title mb-2">Allocated Modules</div>
 					<div class="small text-muted">Modules unlocked by the current permission set.</div>
@@ -347,11 +328,6 @@ body.app{background:#f4f7f6}
 									<div>
 										<div class="module-title"><?php echo htmlspecialchars((string)$module['label']); ?></div>
 										<div class="module-desc"><?php echo htmlspecialchars((string)$module['description']); ?></div>
-										<div class="module-perms">
-											<?php foreach ((array)$module['permissions'] as $permission): ?>
-												<span><?php echo htmlspecialchars((string)$permission); ?></span>
-											<?php endforeach; ?>
-										</div>
 									</div>
 									<span class="module-cta">Open</span>
 								</a>
