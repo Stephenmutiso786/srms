@@ -57,6 +57,8 @@ $appSettings = [
 	'public_school_location_map_url' => 'https://maps.app.goo.gl/fqhaetnW4G6hBmHs7',
 	'public_school_phone' => '+25417876564',
 	'public_school_email' => '',
+	'public_school_opening_date' => date('Y-m-d'),
+	'public_school_closing_date' => date('Y-m-d'),
 	'public_about_text' => '',
 	'public_vision_text' => 'To develop responsible, skilled, and confident learners for tomorrow.',
 	'public_mission_text' => 'To deliver inclusive, learner-centered education through strong teaching, mentorship, and community partnership.',
@@ -267,6 +269,14 @@ if (count($cbcGrading) < 1) {
 <div class="col-md-6 mb-3">
 <label class="form-label">Public Email</label>
 <input class="form-control" name="settings[public_school_email]" value="<?php echo htmlspecialchars($appSettings['public_school_email']); ?>">
+</div>
+<div class="col-md-6 mb-3">
+<label class="form-label">School Opening Date</label>
+<input type="date" class="form-control" name="settings[public_school_opening_date]" value="<?php echo htmlspecialchars($appSettings['public_school_opening_date']); ?>">
+</div>
+<div class="col-md-6 mb-3">
+<label class="form-label">School Closing Date</label>
+<input type="date" class="form-control" name="settings[public_school_closing_date]" value="<?php echo htmlspecialchars($appSettings['public_school_closing_date']); ?>">
 </div>
 <div class="col-md-6 mb-3">
 <label class="form-label">Public Location Label</label>
