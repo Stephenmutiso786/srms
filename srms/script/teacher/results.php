@@ -66,9 +66,8 @@ try {
 	}
 
 	if ($error === '') {
-		$stmt = $conn->prepare("SELECT name, min, max, remark FROM tbl_grade_system ORDER BY min DESC");
-		$stmt->execute();
-		$grading = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		$useCbcAssessment = strtolower(trim((string)($selectedExam['assessment_mode'] ?? ''))) === 'cbc';
+		$gradingSystemId = report_exam_grading_system_id($conn, $examId > 0 ? $examId : null);
 
 		$sql = "SELECT er.student, er.score, st.fname, st.mname, st.lname, st.school_id
 			FROM tbl_exam_results er
@@ -83,15 +82,11 @@ try {
 		$stmt = $conn->prepare($sql);
 		$stmt->execute($args);
 		foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-			$gradeName = 'N/A';
-			$remark = 'N/A';
 			$score = (float)$row['score'];
-			foreach ($grading as $grade) {
-				if ($score >= (float)$grade['min'] && $score <= (float)$grade['max']) {
-					$gradeName = (string)$grade['name'];
-					$remark = (string)$grade['remark'];
-					break;
-				}
+			if ($useCbcAssessment) {
+				list($gradeName, $remark) = report_cbc_grade_for_score($conn, $score);
+			} else {
+				list($gradeName, $remark) = report_grade_for_score($conn, $score, $gradingSystemId);
 			}
 			$rows[] = [
 				'student_id' => (string)$row['student'],

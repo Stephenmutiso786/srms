@@ -86,12 +86,40 @@ function report_grading_scales(PDO $conn, ?int $gradingSystemId = null): array
 		}
 	}
 
+	if (app_table_exists($conn, 'tbl_cbc_grading')) {
+		$stmt = $conn->prepare("SELECT level, min_mark, max_mark, points FROM tbl_cbc_grading WHERE active = 1 ORDER BY min_mark DESC, sort_order ASC");
+		$stmt->execute();
+		$rows = [];
+		foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+			$level = strtoupper(trim((string)($row['level'] ?? 'BE')));
+			$remark = $level === 'EE' ? 'Exceeding Expectation' : ($level === 'ME' ? 'Meeting Expectation' : ($level === 'AE' ? 'Approaching Expectation' : 'Below Expectation'));
+			$rows[] = [
+				'name' => $level,
+				'min' => (float)($row['min_mark'] ?? 0),
+				'max' => (float)($row['max_mark'] ?? 100),
+				'remark' => $remark,
+				'points' => (float)($row['points'] ?? 0),
+				'sort_order' => 0,
+				'is_active' => 1,
+			];
+		}
+		if (!empty($rows)) {
+			return $rows;
+		}
+	}
+
 	if (!app_table_exists($conn, 'tbl_grade_system')) {
 		return [];
 	}
 	$stmt = $conn->prepare("SELECT name, min, max, remark, 0 AS points, 0 AS sort_order, 1 AS is_active FROM tbl_grade_system ORDER BY min DESC");
 	$stmt->execute();
 	return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+function report_is_legacy_grade_label(string $grade): bool
+{
+	$label = strtoupper(trim($grade));
+	return in_array($label, ['A+', 'A', 'A-', 'B+', 'B', 'B-', 'C+', 'C', 'C-', 'D+', 'D', 'D-', 'E'], true);
 }
 
 function report_get_settings(PDO $conn): array
@@ -983,21 +1011,6 @@ function report_fetch_scores(PDO $conn, string $studentId, int $classId, int $te
 		} else {
 			list($gradeLabel, $gradeRemark, $gradePoints) = report_grade_for_score($conn, $score, $gradingSystemId);
 		}
-		$storedGrade = $value['grade_label'] ?? null;
-		if (is_string($storedGrade)) {
-			$storedGrade = trim($storedGrade);
-		}
-		if (!is_string($storedGrade) || $storedGrade === '' || strtolower($storedGrade) === 'null') {
-			$storedGrade = $gradeLabel;
-		}
-
-		$storedPoints = $value['grade_points'] ?? null;
-		if (is_string($storedPoints)) {
-			$storedPoints = trim($storedPoints);
-		}
-		if ($storedPoints === null || $storedPoints === '' || (is_string($storedPoints) && strtolower($storedPoints) === 'null')) {
-			$storedPoints = $gradePoints;
-		}
 
 		$scores[] = [
 			'subject_id' => (int)$subject['subject'],
@@ -1006,8 +1019,8 @@ function report_fetch_scores(PDO $conn, string $studentId, int $classId, int $te
 			'teacher_name' => trim(($subject['fname'] ?? '') . ' ' . ($subject['lname'] ?? '')),
 			'score' => $score,
 			'exam_id' => $examId,
-			'grade' => (string)$storedGrade,
-			'grade_points' => (float)$storedPoints,
+			'grade' => (string)$gradeLabel,
+			'grade_points' => (float)$gradePoints,
 			'grade_remark' => $gradeRemark
 		];
 	}
@@ -1702,7 +1715,16 @@ function report_ensure_card_generated(PDO $conn, string $studentId, int $classId
 	if ($reportId > 0) {
 		$card = report_load_card($conn, $reportId);
 		if ($card && !empty($card['subjects'])) {
-			return $card;
+			$hasLegacyGrades = false;
+			foreach ($card['subjects'] as $subjectRow) {
+				if (report_is_legacy_grade_label((string)($subjectRow['grade'] ?? ''))) {
+					$hasLegacyGrades = true;
+					break;
+				}
+			}
+			if (!$hasLegacyGrades) {
+				return $card;
+			}
 		}
 	}
 
