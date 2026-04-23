@@ -10,6 +10,7 @@ if ($res !== '1') { header('location:../'); exit; }
 app_require_permission('bom.view', '../');
 
 $visibleModules = app_current_user_visible_portal_modules('bom');
+$allocatedModules = app_current_user_allocated_portal_modules('bom');
 
 $profile = [];
 $meetings = [];
@@ -51,6 +52,17 @@ try {
 <link rel="stylesheet" type="text/css" href="css/main.css">
 <link rel="icon" href="images/icon.ico">
 <link rel="stylesheet" type="text/css" href="cdn.jsdelivr.net/npm/bootstrap-icons%401.10.5/font/bootstrap-icons.css">
+<style>
+.module-launch-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:0 0 18px}
+.module-launch-tile{display:flex;flex-direction:column;gap:10px;padding:16px 18px;border:1px solid #dfe9e5;border-radius:20px;background:linear-gradient(180deg,#ffffff,#f7fbfa);box-shadow:0 10px 24px rgba(16,41,38,.05);text-decoration:none;color:#21303a;transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}
+.module-launch-tile:hover{transform:translateY(-1px);border-color:#9ecdc3;box-shadow:0 16px 30px rgba(0,105,92,.10)}
+.module-launch-top{display:flex;align-items:flex-start;gap:12px}
+.module-launch-icon{width:42px;height:42px;border-radius:14px;background:#e7f1ef;color:#00695C;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.module-launch-title{font-weight:800;line-height:1.2}
+.module-launch-desc{font-size:.84rem;color:#6f7e8f;line-height:1.5}
+.module-launch-cta{align-self:flex-start;margin-top:auto;font-size:.75rem;font-weight:800;color:#00695C;background:#e7f1ef;border-radius:999px;padding:7px 10px}
+.module-launch-empty{background:#fff;border:1px dashed #cfe0da;border-radius:18px;padding:14px 16px;color:#667788}
+</style>
 </head>
 <body class="app sidebar-mini">
 <header class="app-header"><a class="app-header__logo" href="javascript:void(0);"><?php echo APP_NAME; ?> BOM</a><a class="app-sidebar__toggle" href="#" data-toggle="sidebar" aria-label="Hide Sidebar"></a></header>
@@ -67,6 +79,28 @@ try {
 
 <main class="app-content">
 <div class="app-title"><div><h1>BOM Portal</h1><p>Meetings, approvals, and governance documents.</p></div></div>
+
+<div class="tile mb-3">
+<h3 class="tile-title">Quick Module Access</h3>
+<div class="module-launch-grid">
+<?php if (!empty($allocatedModules)) { ?>
+<?php foreach ($allocatedModules as $module): ?>
+<a class="module-launch-tile" href="<?php echo htmlspecialchars((string)$module['href']); ?>">
+<div class="module-launch-top">
+<div class="module-launch-icon"><i class="<?php echo htmlspecialchars((string)$module['icon']); ?>"></i></div>
+<div>
+<div class="module-launch-title"><?php echo htmlspecialchars((string)$module['label']); ?></div>
+<div class="module-launch-desc"><?php echo htmlspecialchars((string)$module['description']); ?></div>
+</div>
+</div>
+<span class="module-launch-cta">Open</span>
+</a>
+<?php endforeach; ?>
+<?php } else { ?>
+<div class="module-launch-empty">No additional modules are available yet.</div>
+<?php } ?>
+</div>
+</div>
 
 <div class="row">
 <div class="col-md-4"><div class="tile"><h3 class="tile-title">Meetings</h3><h2><?php echo count($meetings); ?></h2></div></div>

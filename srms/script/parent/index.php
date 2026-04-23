@@ -18,6 +18,8 @@ $publishedTerms = [];
 $subjectRows = [];
 $history = [];
 $disciplineCases = [];
+$visibleModules = [];
+$allocatedModules = [];
 $summary = ['children' => 0, 'attendance_rate' => 0, 'avg_score' => 0, 'fees_balance' => 0, 'grade' => 'N/A', 'position' => '-'];
 $error = '';
 
@@ -128,6 +130,9 @@ try {
 		}
 		$notifications = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
+
+	$visibleModules = app_current_user_visible_portal_modules('parent');
+	$allocatedModules = app_current_user_allocated_portal_modules('parent');
 } catch (Throwable $e) {
 	error_log("[".__FILE__.":".__LINE__." Throwable] " . $e->getMessage());
 	$error = "An internal error occurred.";
@@ -173,6 +178,15 @@ body.app{background:linear-gradient(180deg,#eef5f3 0%,#f4f7f6 40%,#eef3f1 100%)}
 .grade-badge{padding:4px 10px;border-radius:999px;background:#e7f1ef;color:#00695C;font-weight:700;font-size:.82rem}
 .note-list{display:grid;gap:10px}
 .note-item{background:#fff;border:1px solid #e9eef5;border-radius:16px;padding:12px 14px;box-shadow:0 8px 18px rgba(16,41,38,.04)}
+.module-launch-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:0 0 18px}
+.module-launch-tile{display:flex;flex-direction:column;gap:10px;padding:16px 18px;border:1px solid #dfe9e5;border-radius:20px;background:linear-gradient(180deg,#ffffff,#f7fbfa);box-shadow:0 10px 24px rgba(16,41,38,.05);text-decoration:none;color:#21303a;transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}
+.module-launch-tile:hover{transform:translateY(-1px);border-color:#9ecdc3;box-shadow:0 16px 30px rgba(0,105,92,.10)}
+.module-launch-top{display:flex;align-items:flex-start;gap:12px}
+.module-launch-icon{width:42px;height:42px;border-radius:14px;background:#e7f1ef;color:#00695C;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.module-launch-title{font-weight:800;line-height:1.2}
+.module-launch-desc{font-size:.84rem;color:#6f7e8f;line-height:1.5}
+.module-launch-cta{align-self:flex-start;margin-top:auto;font-size:.75rem;font-weight:800;color:#00695C;background:#e7f1ef;border-radius:999px;padding:7px 10px}
+.module-launch-empty{background:#fff;border:1px dashed #cfe0da;border-radius:18px;padding:14px 16px;color:#667788}
 @media (max-width:1100px){.parent-shell{grid-template-columns:1fr}.parent-side{position:relative;height:auto}.hero-grid,.grid-two{grid-template-columns:1fr 1fr}}
 @media (max-width:768px){.parent-content{padding:16px}.hero-grid,.grid-two{grid-template-columns:1fr}.parent-top{padding:12px 16px}.hero{padding:20px}}
 	</style>
@@ -192,6 +206,28 @@ body.app{background:linear-gradient(180deg,#eef5f3 0%,#f4f7f6 40%,#eef3f1 100%)}
 
 	<?php include('parent/partials/sidebar.php'); ?>
 	<main class="app-content dashboard">
+		<div class="tile mb-3">
+			<div class="section-title">Quick Module Access</div>
+			<div class="module-launch-grid">
+				<?php if (!empty($allocatedModules)) { ?>
+					<?php foreach ($allocatedModules as $module) { ?>
+						<a class="module-launch-tile" href="<?php echo htmlspecialchars((string)$module['href']); ?>">
+							<div class="module-launch-top">
+								<div class="module-launch-icon"><i class="<?php echo htmlspecialchars((string)$module['icon']); ?>"></i></div>
+								<div>
+									<div class="module-launch-title"><?php echo htmlspecialchars((string)$module['label']); ?></div>
+									<div class="module-launch-desc"><?php echo htmlspecialchars((string)$module['description']); ?></div>
+								</div>
+							</div>
+							<span class="module-launch-cta">Open</span>
+						</a>
+					<?php } ?>
+				<?php } else { ?>
+					<div class="module-launch-empty">No additional modules are available yet.</div>
+				<?php } ?>
+			</div>
+		</div>
+
 			<?php if ($error !== '') { ?>
 			<div class="tile"><div class="alert alert-danger mb-0"><?php echo htmlspecialchars($error); ?></div></div>
 			<?php } else { ?>
