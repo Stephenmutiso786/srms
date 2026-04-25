@@ -438,7 +438,7 @@ function report_exam_subject_breakdown(PDO $conn, string $studentId, int $classI
 			$classMean = isset($classCounts[$subjectId]) && $classCounts[$subjectId] > 0
 				? round((float)$classTotals[$subjectId] / (int)$classCounts[$subjectId], 2)
 				: 0.0;
-			list($gradeLabel) = report_cbc_grade_for_score($conn, $score);
+			list($gradeLabel, $gradeRemark, $gradePoints) = report_cbc_grade_for_score($conn, $score);
 			$deviation = round($score - $classMean, 2);
 			$rankLabel = (string)($subjectRankMaps[$subjectId][$studentId] ?? '-');
 			$rows[] = [
@@ -453,6 +453,8 @@ function report_exam_subject_breakdown(PDO $conn, string $studentId, int $classI
 				'rank' => $rankLabel,
 				'position' => $rankLabel,
 				'grade' => $gradeLabel,
+				'grade_points' => (float)$gradePoints,
+				'remark' => (string)$gradeRemark,
 				'progress' => max(0, min(100, $score)),
 				'source' => 'CBC assessment',
 			];
@@ -550,7 +552,7 @@ function report_exam_subject_breakdown(PDO $conn, string $studentId, int $classI
 		$classMean = isset($classCounts[$combinationId]) && $classCounts[$combinationId] > 0
 			? round((float)$classTotals[$combinationId] / (int)$classCounts[$combinationId], 2)
 			: 0.0;
-		list($gradeLabel) = report_grade_for_score($conn, $score, $gradingSystemId);
+		list($gradeLabel, $gradeRemark, $gradePoints) = report_grade_for_score($conn, $score, $gradingSystemId);
 		$deviation = round($score - $classMean, 2);
 		$rankLabel = (string)($subjectRankMaps[$combinationId][$studentId] ?? '-');
 		$cat1 = isset($scores[0]) ? round((float)$scores[0], 2) : '-';
@@ -567,6 +569,8 @@ function report_exam_subject_breakdown(PDO $conn, string $studentId, int $classI
 			'rank' => $rankLabel,
 			'position' => $rankLabel,
 			'grade' => $gradeLabel,
+			'grade_points' => (float)$gradePoints,
+			'remark' => (string)$gradeRemark,
 			'progress' => max(0, min(100, $score)),
 			'source' => !$hasExamId ? 'Term result (legacy)' : ($assessmentMode === 'consolidated' ? 'Average of selected exams' : 'Exam result'),
 		];

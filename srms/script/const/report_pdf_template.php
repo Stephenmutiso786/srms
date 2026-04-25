@@ -122,8 +122,9 @@ function app_report_pick_single_page_scale(TCPDF $pdf, string $html, float $topM
     $pageHeight = (float)$pdf->getPageHeight();
     $usableHeight = max(1.0, $pageHeight - $topMargin - $bottomMargin);
 
-    $chosenScale = 1.0;
+    $chosenScale = 0.55;
     $bestUtilization = 0.0;
+    $foundOnePageScale = false;
 
     for ($scale = 1.28; $scale >= 0.55; $scale -= 0.03) {
         $trialHtml = app_report_scale_html_font_sizes($html, $scale);
@@ -141,6 +142,7 @@ function app_report_pick_single_page_scale(TCPDF $pdf, string $html, float $topM
         $pdf->rollbackTransaction(true);
 
         if ($fitsOnePage) {
+            $foundOnePageScale = true;
             $chosenScale = $scale;
             $bestUtilization = $utilization;
             if ($utilization >= 0.98) {
@@ -149,7 +151,7 @@ function app_report_pick_single_page_scale(TCPDF $pdf, string $html, float $topM
         }
     }
 
-    if ($bestUtilization < 0.80 && $chosenScale < 1.28) {
+    if ($foundOnePageScale && $bestUtilization < 0.80 && $chosenScale < 1.28) {
         $boostedScale = min(1.28, $chosenScale + 0.06);
         $trialHtml = app_report_scale_html_font_sizes($html, $boostedScale);
         $pdf->startTransaction();
@@ -588,13 +590,18 @@ function app_report_render_layout(PDO $conn, array $payload, array $rows, string
     $gradePointMap = [
         'A+' => 12, 'A' => 11, 'A-' => 10, 'B+' => 9, 'B' => 8, 'B-' => 7,
         'C+' => 6, 'C' => 5, 'C-' => 4, 'D+' => 3, 'D' => 2, 'D-' => 1, 'E' => 0,
+        'EE' => 4, 'ME' => 3, 'AE' => 2, 'BE' => 1,
     ];
     $totalPoints = 0.0;
     $classMeanTotal = 0.0;
     foreach ($examRows as $r) {
         $classMeanTotal += (float)($r['class_mean'] ?? 0);
-        $gradeKey = strtoupper(trim((string)($r['grade'] ?? '')));
-        $totalPoints += (float)($gradePointMap[$gradeKey] ?? 0);
+        if (isset($r['grade_points']) && $r['grade_points'] !== '') {
+            $totalPoints += (float)$r['grade_points'];
+        } else {
+            $gradeKey = strtoupper(trim((string)($r['grade'] ?? '')));
+            $totalPoints += (float)($gradePointMap[$gradeKey] ?? 0);
+        }
     }
     $classMeanAvg = $subjectCount > 0 ? $classMeanTotal / $subjectCount : 0.0;
     $pointsMax = max(12, $subjectCount * 12);
@@ -608,6 +615,9 @@ function app_report_render_layout(PDO $conn, array $payload, array $rows, string
     $pointsDev = $totalPoints - $classPointEstimate;
     $positions = app_report_position_metrics($conn, $studentId, $classId, $termId, $card);
     $streamPosition = (string)($positions['stream'] ?? '-');
+    if (isset($examSummary['position']) && trim((string)$examSummary['position']) !== '' && trim((string)$examSummary['position']) !== '-') {
+        $streamPosition = (string)$examSummary['position'];
+    }
     $overallPosition = (string)($positions['overall'] ?? '-');
     $meanGrade = (string)($examSummary['grade'] ?? ($card['grade'] ?? 'N/A'));
     $density = app_report_subject_table_density($subjectCount);
