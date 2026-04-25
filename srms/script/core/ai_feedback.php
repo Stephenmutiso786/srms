@@ -62,12 +62,12 @@ function app_ai_suffix(string $response): string
 {
 	$response = trim($response);
 	if ($response === '') {
-		return 'ofx_steve';
+		return 'School Assistant';
 	}
-	if (preg_match('/\s+ofx_steve$/i', $response)) {
+	if (preg_match('/\s+School Assistant$/i', $response)) {
 		return $response;
 	}
-	return $response . ' ofx_steve';
+	return $response . ' School Assistant';
 }
 
 function app_feedback_subject_from_message(string $message): string

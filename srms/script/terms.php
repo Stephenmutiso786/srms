@@ -37,7 +37,7 @@ body { background: #f5f5f5; }
 <div class="terms-content">
 
 <h2>1. Acceptance of Terms</h2>
-<p>By accessing and using <strong><?php echo APP_NAME; ?></strong> (powered by Tech Hub, ofx_steve), the school administrator and all authorized users agree to be bound by these Terms & Conditions, our Privacy Policy, and all applicable laws of Kenya.</p>
+<p>By accessing and using <strong><?php echo APP_NAME; ?></strong>, the school administrator and all authorized users agree to be bound by these Terms & Conditions, our Privacy Policy, and all applicable laws of Kenya.</p>
 
 <h2>2. License Grant</h2>
 <p><strong><?php echo APP_NAME; ?> is licensed, not sold.</strong> We grant the school a non-exclusive, non-transferable license to use the system for internal educational operations only.</p>
@@ -111,7 +111,7 @@ body { background: #f5f5f5; }
 <h2>8. Data Ownership & Responsibility</h2>
 <ul>
 <li><strong>The school owns all data</strong> entered into <?php echo APP_NAME; ?></li>
-<li><strong>Tech Hub, ofx_steve acts as a data processor</strong>, not the data controller</li>
+<li><strong>The system provider acts as a data processor</strong>, not the data controller</li>
 <li>The school is responsible for data accuracy, completeness, and legality</li>
 <li>The school must ensure proper consent for collecting student and parent data</li>
 <li>The school must comply with Kenya's Data Protection Act, 2019</li>
@@ -119,7 +119,7 @@ body { background: #f5f5f5; }
 </ul>
 
 <h2>9. Limitation of Liability</h2>
-<p><strong>Tech Hub, ofx_steve is not liable for:</strong></p>
+<p><strong>The system provider is not liable for:</strong></p>
 <ul>
 <li>Data loss due to misuse, negligence, or backup failures</li>
 <li>Financial or operational losses resulting from service downtime</li>
@@ -130,7 +130,7 @@ body { background: #f5f5f5; }
 </ul>
 
 <div class="warning-box">
-<strong>⚠️ Important:</strong> The school assumes all responsibility for maintaining data backups and security. Tech Hub, ofx_steve is not a substitute for proper data management and disaster recovery practices.
+<strong>⚠️ Important:</strong> The school assumes all responsibility for maintaining data backups and security. The system provider is not a substitute for proper data management and disaster recovery practices.
 </div>
 
 <h2>10. Account Termination</h2>
@@ -163,10 +163,10 @@ body { background: #f5f5f5; }
 
 <h2>13. Intellectual Property</h2>
 <ul>
-<li><?php echo APP_NAME; ?> and its code are the intellectual property of Tech Hub, ofx_steve</li>
+<li><?php echo APP_NAME; ?> and its code are the intellectual property of the system provider</li>
 <li>All trademarks, logos, and design elements are protected</li>
 <li>Schools may not modify, reverse-engineer, or extract code</li>
-<li>Custom developments remain the property of Tech Hub, ofx_steve unless otherwise agreed</li>
+<li>Custom developments remain the property of the system provider unless otherwise agreed</li>
 <li>Schools own their own content and data</li>
 </ul>
 
@@ -209,7 +209,7 @@ body { background: #f5f5f5; }
 
 <h2>19. Contact Information</h2>
 <ul>
-<li><strong>Provider:</strong> Tech Hub, ofx_steve</li>
+<li><strong>Provider:</strong> School System Provider</li>
 <li><strong>Email:</strong> ofxsteve.techsolutions@gmail.com</li>
 <li><strong>Phone:</strong> +254717876564</li>
 <li><strong>For disputes:</strong> Legal notices should be sent via registered mail</li>

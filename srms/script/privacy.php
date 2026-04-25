@@ -36,7 +36,7 @@ body { background: #f5f5f5; }
 <div class="privacy-content">
 
 <h2>1. Introduction</h2>
-<p>This Privacy Policy explains how <strong><?php echo APP_NAME; ?></strong> (powered by Tech Hub, ofx_steve) collects, uses, stores, and protects personal data when schools use our system. We are committed to protecting your privacy and ensuring you have a positive experience on our platform.</p>
+<p>This Privacy Policy explains how <strong><?php echo APP_NAME; ?></strong> collects, uses, stores, and protects personal data when schools use our system. We are committed to protecting your privacy and ensuring you have a positive experience on our platform.</p>
 
 <h2>2. Information We Collect</h2>
 <p>We collect the following types of information in the course of system operation:</p>
@@ -154,7 +154,7 @@ body { background: #f5f5f5; }
 <h2>14. Contact Us</h2>
 <p>For privacy concerns or to exercise your rights, contact:</p>
 <ul>
-<li><strong>Provider:</strong> Tech Hub, ofx_steve</li>
+<li><strong>Provider:</strong> School System Provider</li>
 <li><strong>Email:</strong> ofxsteve.techsolutions@gmail.com</li>
 <li><strong>Phone:</strong> +254717876564</li>
 <li><strong>Data Protection Officer:</strong> Available upon request</li>

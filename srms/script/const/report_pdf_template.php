@@ -280,6 +280,71 @@ function app_report_school_dates_html(PDO $conn, string $termName): string
         . '</table>';
 }
 
+function app_report_rank_label(array $scores, string $studentId): string
+{
+    if ($studentId === '' || empty($scores)) {
+        return '-';
+    }
+
+    arsort($scores, SORT_NUMERIC);
+    $rank = 0;
+    $position = 0;
+    $prev = null;
+    $total = count($scores);
+
+    foreach ($scores as $rowStudentId => $score) {
+        $position++;
+        if ($prev === null || (float)$score !== (float)$prev) {
+            $rank = $position;
+            $prev = (float)$score;
+        }
+        if ((string)$rowStudentId === $studentId) {
+            return $rank . '/' . $total;
+        }
+    }
+
+    return '-';
+}
+
+function app_report_position_metrics(PDO $conn, string $studentId, int $classId, int $termId, array $card): array
+{
+    $fallbackPosition = (int)($card['position'] ?? 0);
+    $fallbackTotal = (int)($card['total_students'] ?? 0);
+    $fallbackLabel = ($fallbackPosition > 0 && $fallbackTotal > 0) ? ($fallbackPosition . '/' . $fallbackTotal) : '-';
+
+    if ($studentId === '' || $classId < 1 || $termId < 1 || !app_table_exists($conn, 'tbl_report_cards')) {
+        return ['stream' => $fallbackLabel, 'overall' => $fallbackLabel];
+    }
+
+    $stmt = $conn->prepare('SELECT student_id, mean FROM tbl_report_cards WHERE class_id = ? AND term_id = ?');
+    $stmt->execute([$classId, $termId]);
+    $streamScores = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $sid = (string)($row['student_id'] ?? '');
+        if ($sid !== '') {
+            $streamScores[$sid] = (float)($row['mean'] ?? 0);
+        }
+    }
+
+    $stmt = $conn->prepare('SELECT student_id, mean FROM tbl_report_cards WHERE term_id = ?');
+    $stmt->execute([$termId]);
+    $overallScores = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $sid = (string)($row['student_id'] ?? '');
+        if ($sid !== '') {
+            $overallScores[$sid] = (float)($row['mean'] ?? 0);
+        }
+    }
+
+    $streamLabel = app_report_rank_label($streamScores, $studentId);
+    $overallLabel = app_report_rank_label($overallScores, $studentId);
+
+    return [
+        'stream' => $streamLabel !== '-' ? $streamLabel : $fallbackLabel,
+        'overall' => $overallLabel !== '-' ? $overallLabel : $fallbackLabel,
+    ];
+}
+
 function app_report_subject_history_data(PDO $conn, string $studentId, int $classId, int $limitTerms = 5): array
 {
     $limitTerms = max(2, min(8, $limitTerms));
@@ -541,7 +606,9 @@ function app_report_render_layout(PDO $conn, array $payload, array $rows, string
     $meanDev = $meanScore - $classMeanAvg;
     $totalDev = $totalMarks - $classMeanTotal;
     $pointsDev = $totalPoints - $classPointEstimate;
-    $overallPosition = (string)($card['position'] ?? '-') . '/' . (string)($card['total_students'] ?? 0);
+    $positions = app_report_position_metrics($conn, $studentId, $classId, $termId, $card);
+    $streamPosition = (string)($positions['stream'] ?? '-');
+    $overallPosition = (string)($positions['overall'] ?? '-');
     $meanGrade = (string)($examSummary['grade'] ?? ($card['grade'] ?? 'N/A'));
     $density = app_report_subject_table_density($subjectCount);
     $headerStyle = 'border:1px solid #aaa;padding:' . $density['header_padding'] . ';font-size:' . $density['header_font'] . ';font-weight:bold;text-transform:uppercase;text-align:center;line-height:1.1;height:20px;';
@@ -576,7 +643,7 @@ function app_report_render_layout(PDO $conn, array $payload, array $rows, string
         $cat2 = $row['cat2'] ?? ($row['cat_2'] ?? '-');
         $score = (float)($row['score'] ?? 0);
         $classMean = (float)($row['class_mean'] ?? 0);
-        $dev = $score - $classMean;
+        $dev = isset($row['deviation']) ? (float)$row['deviation'] : ($score - $classMean);
         $devColor = $dev > 0 ? '#128a42' : ($dev < 0 ? '#da8a00' : '#687886');
         $subjectRowsHtml .= '<tr>'
             . '<td style="text-align:left;">' . app_report_html((string)($row['subject_name'] ?? '')) . '</td>'
@@ -595,7 +662,7 @@ function app_report_render_layout(PDO $conn, array $payload, array $rows, string
 
     $schoolDatesHtml = app_report_school_dates_html($conn, $termName);
     $historyChartHtml = app_report_subject_trends_html($conn, $studentId, $classId, $examRows);
-    $verificationText = $schoolId !== '' ? $schoolId . '@fsk' : $studentId . '@fsk';
+    $verificationText = $schoolId !== '' ? $schoolId . '@school' : $studentId . '@school';
 
     return '
 <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-family:Arial,Helvetica,sans-serif;table-layout:fixed;">
@@ -644,7 +711,7 @@ function app_report_render_layout(PDO $conn, array $payload, array $rows, string
                     <td style="background:#dff1fb;border-top:3px solid #37aee3;padding:9px 6px;text-align:center;font-size:8.7pt;line-height:1.05;">Mean<br><strong style="font-size:10pt;">' . app_report_html($meanGrade) . '</strong> <span style="font-size:0.78em;margin-left:5px;font-weight:700;color:' . ($meanDev > 0 ? '#128a42' : ($meanDev < 0 ? '#da8a00' : '#687886')) . ';">' . ($meanDev > 0 ? '+' : '') . number_format($meanDev, 1) . '</span></td>
                     <td style="background:#dff1fb;border-top:3px solid #37aee3;padding:9px 6px;text-align:center;font-size:8.7pt;line-height:1.05;">Total Marks<br><strong style="font-size:10pt;">' . number_format($totalMarks, 0) . '/' . number_format($maxMarks, 0) . '</strong> <span style="font-size:0.78em;margin-left:5px;font-weight:700;color:' . ($totalDev > 0 ? '#128a42' : ($totalDev < 0 ? '#da8a00' : '#687886')) . ';">' . ($totalDev > 0 ? '+' : '') . number_format($totalDev, 0) . '</span></td>
                     <td style="background:#dff1fb;border-top:3px solid #37aee3;padding:9px 6px;text-align:center;font-size:8.7pt;line-height:1.05;">Total Points<br><strong style="font-size:10pt;">' . number_format($totalPoints, 1) . '/' . number_format($pointsMax, 0) . '</strong> <span style="font-size:0.78em;margin-left:5px;font-weight:700;color:' . ($pointsDev > 0 ? '#128a42' : ($pointsDev < 0 ? '#da8a00' : '#687886')) . ';">' . ($pointsDev > 0 ? '+' : '') . number_format($pointsDev, 1) . '</span></td>
-                    <td style="background:#dff1fb;border-top:3px solid #37aee3;padding:9px 6px;text-align:center;font-size:8.7pt;line-height:1.05;">Stream Position<br><strong style="font-size:10pt;">' . app_report_html($overallPosition) . '</strong></td>
+                    <td style="background:#dff1fb;border-top:3px solid #37aee3;padding:9px 6px;text-align:center;font-size:8.7pt;line-height:1.05;">Stream Position<br><strong style="font-size:10pt;">' . app_report_html($streamPosition) . '</strong></td>
                     <td style="background:#dff1fb;border-top:3px solid #37aee3;padding:9px 6px;text-align:center;font-size:8.7pt;line-height:1.05;">Overall Position<br><strong style="font-size:10pt;">' . app_report_html($overallPosition) . '</strong></td>
                 </tr>
             </table>

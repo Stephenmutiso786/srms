@@ -399,6 +399,7 @@ function report_exam_subject_breakdown(PDO $conn, string $studentId, int $classI
 		$studentMatrix = report_cbc_score_matrix($conn, $classId, $termId, $subjects, null);
 		$classTotals = [];
 		$classCounts = [];
+		$subjectRankMaps = [];
 		foreach ($studentMatrix as $subjectScores) {
 			foreach ($subjectScores as $subjectKey => $score) {
 				$subjectId = (int)$subjectKey;
@@ -409,17 +410,48 @@ function report_exam_subject_breakdown(PDO $conn, string $studentId, int $classI
 
 		foreach ($subjects as $subject) {
 			$subjectId = (int)$subject['subject'];
+			$studentScores = [];
+			foreach ($studentMatrix as $rowStudentId => $subjectScores) {
+				if (isset($subjectScores[$subjectId])) {
+					$studentScores[(string)$rowStudentId] = (float)$subjectScores[$subjectId];
+				}
+			}
+			arsort($studentScores, SORT_NUMERIC);
+			$rank = 0;
+			$position = 0;
+			$prev = null;
+			$total = count($studentScores);
+			$subjectRankMaps[$subjectId] = [];
+			foreach ($studentScores as $rowStudentId => $rowScore) {
+				$position++;
+				if ($prev === null || (float)$rowScore !== (float)$prev) {
+					$rank = $position;
+					$prev = (float)$rowScore;
+				}
+				$subjectRankMaps[$subjectId][(string)$rowStudentId] = $rank . '/' . $total;
+			}
+		}
+
+		foreach ($subjects as $subject) {
+			$subjectId = (int)$subject['subject'];
 			$score = (float)($studentMatrix[$studentId][$subjectId] ?? 0);
 			$classMean = isset($classCounts[$subjectId]) && $classCounts[$subjectId] > 0
 				? round((float)$classTotals[$subjectId] / (int)$classCounts[$subjectId], 2)
 				: 0.0;
 			list($gradeLabel) = report_cbc_grade_for_score($conn, $score);
+			$deviation = round($score - $classMean, 2);
+			$rankLabel = (string)($subjectRankMaps[$subjectId][$studentId] ?? '-');
 			$rows[] = [
 				'subject_id' => $subjectId,
 				'subject_name' => (string)$subject['subject_name'],
 				'teacher_name' => trim(($subject['fname'] ?? '') . ' ' . ($subject['lname'] ?? '')),
 				'score' => $score,
+				'cat1' => '-',
+				'cat2' => '-',
 				'class_mean' => $classMean,
+				'deviation' => $deviation,
+				'rank' => $rankLabel,
+				'position' => $rankLabel,
 				'grade' => $gradeLabel,
 				'progress' => max(0, min(100, $score)),
 				'source' => 'CBC assessment',
@@ -473,14 +505,41 @@ function report_exam_subject_breakdown(PDO $conn, string $studentId, int $classI
 
 	$classTotals = [];
 	$classCounts = [];
+	$scoreAverages = [];
 	foreach ($scoreBuckets as $rowStudentId => $subjectScores) {
 		foreach ($subjectScores as $combinationId => $scores) {
 			if (empty($scores)) {
 				continue;
 			}
 			$average = round(array_sum($scores) / count($scores), 2);
+			$scoreAverages[(string)$rowStudentId][(int)$combinationId] = $average;
 			$classTotals[$combinationId] = (float)($classTotals[$combinationId] ?? 0) + $average;
 			$classCounts[$combinationId] = (int)($classCounts[$combinationId] ?? 0) + 1;
+		}
+	}
+
+	$subjectRankMaps = [];
+	foreach ($subjects as $subject) {
+		$combinationId = (int)$subject['combination_id'];
+		$studentScores = [];
+		foreach ($scoreAverages as $rowStudentId => $subjectScores) {
+			if (isset($subjectScores[$combinationId])) {
+				$studentScores[(string)$rowStudentId] = (float)$subjectScores[$combinationId];
+			}
+		}
+		arsort($studentScores, SORT_NUMERIC);
+		$rank = 0;
+		$position = 0;
+		$prev = null;
+		$total = count($studentScores);
+		$subjectRankMaps[$combinationId] = [];
+		foreach ($studentScores as $rowStudentId => $rowScore) {
+			$position++;
+			if ($prev === null || (float)$rowScore !== (float)$prev) {
+				$rank = $position;
+				$prev = (float)$rowScore;
+			}
+			$subjectRankMaps[$combinationId][(string)$rowStudentId] = $rank . '/' . $total;
 		}
 	}
 
@@ -492,12 +551,21 @@ function report_exam_subject_breakdown(PDO $conn, string $studentId, int $classI
 			? round((float)$classTotals[$combinationId] / (int)$classCounts[$combinationId], 2)
 			: 0.0;
 		list($gradeLabel) = report_grade_for_score($conn, $score, $gradingSystemId);
+		$deviation = round($score - $classMean, 2);
+		$rankLabel = (string)($subjectRankMaps[$combinationId][$studentId] ?? '-');
+		$cat1 = isset($scores[0]) ? round((float)$scores[0], 2) : '-';
+		$cat2 = isset($scores[1]) ? round((float)$scores[1], 2) : '-';
 		$rows[] = [
 			'subject_id' => (int)$subject['subject'],
 			'subject_name' => (string)$subject['subject_name'],
 			'teacher_name' => trim(($subject['fname'] ?? '') . ' ' . ($subject['lname'] ?? '')),
+			'cat1' => $cat1,
+			'cat2' => $cat2,
 			'score' => $score,
 			'class_mean' => $classMean,
+			'deviation' => $deviation,
+			'rank' => $rankLabel,
+			'position' => $rankLabel,
 			'grade' => $gradeLabel,
 			'progress' => max(0, min(100, $score)),
 			'source' => !$hasExamId ? 'Term result (legacy)' : ($assessmentMode === 'consolidated' ? 'Average of selected exams' : 'Exam result'),
@@ -1500,6 +1568,8 @@ function report_subject_breakdown(PDO $conn, string $studentId, int $classId, in
 	$weights = report_get_weight_map($conn);
 	$settings = report_get_settings($conn);
 	$rows = [];
+	$subjectRankMaps = [];
+	$normalSubjectScores = [];
 	$combinationIds = array_map(function ($subject) {
 		return (int)$subject['combination_id'];
 	}, $subjects);
@@ -1522,6 +1592,7 @@ function report_subject_breakdown(PDO $conn, string $studentId, int $classId, in
 	if (!empty($combinationIds)) {
 		foreach ($combinationIds as $combinationId) {
 			$currentStudentScores[$combinationId] = (float)($currentMatrix[$studentId][$combinationId]['score'] ?? 0.0);
+			$normalSubjectScores[$combinationId] = [];
 		}
 
 		$subjectTotals = [];
@@ -1530,10 +1601,28 @@ function report_subject_breakdown(PDO $conn, string $studentId, int $classId, in
 			foreach ($subjectRows as $combinationId => $row) {
 				$subjectTotals[$combinationId] = (float)($subjectTotals[$combinationId] ?? 0) + (float)($row['score'] ?? 0);
 				$subjectCounts[$combinationId] = (int)($subjectCounts[$combinationId] ?? 0) + 1;
+				$normalSubjectScores[(int)$combinationId][(string)$sid] = (float)($row['score'] ?? 0);
 			}
 		}
 		foreach ($subjectTotals as $combinationId => $total) {
 			$currentMeans[(int)$combinationId] = round($total / max(1, (int)$subjectCounts[$combinationId]), 2);
+		}
+
+		foreach ($normalSubjectScores as $combinationId => $studentScores) {
+			arsort($studentScores, SORT_NUMERIC);
+			$rank = 0;
+			$position = 0;
+			$prev = null;
+			$total = count($studentScores);
+			$subjectRankMaps[(int)$combinationId] = [];
+			foreach ($studentScores as $rowStudentId => $rowScore) {
+				$position++;
+				if ($prev === null || (float)$rowScore !== (float)$prev) {
+					$rank = $position;
+					$prev = (float)$rowScore;
+				}
+				$subjectRankMaps[(int)$combinationId][(string)$rowStudentId] = $rank . '/' . $total;
+			}
 		}
 
 		if ($prevTermId > 0) {
@@ -1553,18 +1642,37 @@ function report_subject_breakdown(PDO $conn, string $studentId, int $classId, in
 
 	$cbcCurrentStudent = $cbcCurrent[$studentId] ?? [];
 	$cbcCurrentClassMeans = [];
+	$cbcRankMaps = [];
 	if (!empty($cbcCurrent)) {
 		$sum = [];
 		$cnt = [];
+		$scoresBySubject = [];
 		foreach ($cbcCurrent as $sid => $subjectScores) {
 			foreach ($subjectScores as $subjectId => $score) {
 				$sum[$subjectId] = (float)($sum[$subjectId] ?? 0) + (float)$score;
 				$cnt[$subjectId] = (int)($cnt[$subjectId] ?? 0) + 1;
+				$scoresBySubject[(int)$subjectId][(string)$sid] = (float)$score;
 			}
 		}
 		foreach ($sum as $subjectId => $total) {
 			if ((int)$cnt[$subjectId] > 0) {
 				$cbcCurrentClassMeans[$subjectId] = round($total / (int)$cnt[$subjectId], 2);
+			}
+		}
+		foreach ($scoresBySubject as $subjectId => $studentScores) {
+			arsort($studentScores, SORT_NUMERIC);
+			$rank = 0;
+			$position = 0;
+			$prev = null;
+			$total = count($studentScores);
+			$cbcRankMaps[(int)$subjectId] = [];
+			foreach ($studentScores as $rowStudentId => $rowScore) {
+				$position++;
+				if ($prev === null || (float)$rowScore !== (float)$prev) {
+					$rank = $position;
+					$prev = (float)$rowScore;
+				}
+				$cbcRankMaps[(int)$subjectId][(string)$rowStudentId] = $rank . '/' . $total;
 			}
 		}
 	}
@@ -1597,13 +1705,25 @@ function report_subject_breakdown(PDO $conn, string $studentId, int $classId, in
 		$trend = $change > 0 ? 'up' : ($change < 0 ? 'down' : 'steady');
 		$weight = (!empty($settings['use_weights']) && isset($weights[(int)$subject['subject']])) ? (float)$weights[(int)$subject['subject']] : 1.0;
 		list($grade, $remark) = report_grade_for_score($conn, $currentScore);
+		$deviation = round($currentScore - $classMean, 2);
+		$rankLabel = '-';
+		if (isset($subjectRankMaps[$combinationId][$studentId])) {
+			$rankLabel = (string)$subjectRankMaps[$combinationId][$studentId];
+		} elseif (isset($cbcRankMaps[$subjectId][$studentId])) {
+			$rankLabel = (string)$cbcRankMaps[$subjectId][$studentId];
+		}
 
 		$rows[] = [
 			'subject_id' => (int)$subject['subject'],
 			'subject_name' => (string)$subject['subject_name'],
 			'teacher_name' => trim(($subject['fname'] ?? '') . ' ' . ($subject['lname'] ?? '')),
+			'cat1' => '-',
+			'cat2' => '-',
 			'score' => round($currentScore, 2),
 			'class_mean' => $classMean,
+			'deviation' => $deviation,
+			'rank' => $rankLabel,
+			'position' => $rankLabel,
 			'previous_mean' => $previousMean,
 			'change' => $change,
 			'trend' => $trend,
@@ -1613,10 +1733,6 @@ function report_subject_breakdown(PDO $conn, string $studentId, int $classId, in
 			'progress' => max(0, min(100, $classMean)),
 		];
 	}
-
-	usort($rows, function ($a, $b) {
-		return $b['class_mean'] <=> $a['class_mean'];
-	});
 
 	return $rows;
 }

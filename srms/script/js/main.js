@@ -247,7 +247,7 @@
 		var footer = document.createElement('footer');
 		footer.id = 'appFooter';
 		footer.className = 'app-footer';
-		footer.textContent = '@2026 powered by ofx_steve';
+		footer.textContent = '@2026 School Management System';
 		var content = document.querySelector('.app-content');
 		if (content && content.parentNode) {
 			content.parentNode.appendChild(footer);
