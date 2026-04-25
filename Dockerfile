@@ -3,6 +3,8 @@ FROM php:8.3-apache
 RUN apt-get update \
   && apt-get install -y --no-install-recommends libpq-dev \
   && rm -rf /var/lib/apt/lists/* \
+  && (a2dismod mpm_event mpm_worker || true) \
+  && a2enmod mpm_prefork \
   && a2enmod rewrite \
   && docker-php-ext-install -j"$(nproc)" pdo_mysql mysqli pdo_pgsql pgsql
 
