@@ -3,8 +3,6 @@ FROM php:8.3-apache
 RUN apt-get update \
   && apt-get install -y --no-install-recommends libpq-dev \
   && rm -rf /var/lib/apt/lists/* \
-  && (a2dismod mpm_event mpm_worker || true) \
-  && a2enmod mpm_prefork \
   && a2enmod rewrite \
   && docker-php-ext-install -j"$(nproc)" pdo_mysql mysqli pdo_pgsql pgsql
 
@@ -13,10 +11,6 @@ COPY php.ini /usr/local/etc/php/conf.d/99-elimu.ini
 
 # Allow .htaccess overrides (needed for the app routes)
 RUN sed -i 's/AllowOverride None/AllowOverride All/g' /etc/apache2/apache2.conf
-
-# Runtime guard for platforms that can reintroduce conflicting MPM module state.
-COPY docker/apache-start.sh /usr/local/bin/apache-start.sh
-RUN chmod +x /usr/local/bin/apache-start.sh
 
 # Copy the PHP app (for Render and any Docker host)
 WORKDIR /var/www/html
@@ -27,5 +21,3 @@ COPY srms/database/ ./database/
 RUN chown -R www-data:www-data /var/www/html
 
 EXPOSE 80
-
-CMD ["/usr/local/bin/apache-start.sh"]
