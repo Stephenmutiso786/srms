@@ -360,7 +360,7 @@ function app_report_subject_history_data(PDO $conn, string $studentId, int $clas
 
 function app_report_subject_trends_html(PDO $conn, string $studentId, int $classId, array $currentRows): string
 {
-    $history = app_report_subject_history_data($conn, $studentId, $classId, 5);
+    $history = app_report_subject_history_data($conn, $studentId, $classId, 4);
     $terms = is_array($history['terms'] ?? null) ? $history['terms'] : [];
     $subjects = is_array($history['subjects'] ?? null) ? $history['subjects'] : [];
     if (empty($terms) || empty($subjects)) {
@@ -384,7 +384,7 @@ function app_report_subject_trends_html(PDO $conn, string $studentId, int $class
         }
         return strcmp((string)$a['subject_name'], (string)$b['subject_name']);
     });
-    $subjects = array_slice($subjects, 0, 5);
+    $subjects = array_slice($subjects, 0, 4);
 
     $rowsHtml = '';
     foreach ($subjects as $subject) {
@@ -395,18 +395,18 @@ function app_report_subject_trends_html(PDO $conn, string $studentId, int $class
         foreach ($terms as $term) {
             $tid = (int)($term['term_id'] ?? 0);
             $value = (float)($scores[$tid] ?? 0);
-            $h = (int)round(max(4, min(24, ($value / 100) * 24)));
+            $h = (int)round(max(3, min(18, ($value / 100) * 18)));
             $bars .= '<td style="text-align:center;vertical-align:bottom;padding:0 2px;">'
-                . '<div style="height:24px;display:block;position:relative;">'
+                . '<div style="height:18px;display:block;position:relative;">'
                 . '<div style="position:absolute;bottom:0;left:50%;margin-left:-5px;width:10px;height:' . $h . 'px;background:#5ea1d8;border:1px solid #4f84b4;"></div>'
                 . '</div>'
-                . '<div style="font-size:6.8pt;color:#6a7680;line-height:1.05;">' . number_format($value, 0) . '</div>'
+                . '<div style="font-size:6.2pt;color:#6a7680;line-height:1.0;">' . number_format($value, 0) . '</div>'
                 . '</td>';
         }
 
         $rowsHtml .= '<tr>'
-            . '<td style="font-size:7.7pt;padding:3px 4px;white-space:nowrap;">' . $name . '</td>'
-            . '<td style="padding:0 0 3px 0;">'
+            . '<td style="font-size:7.2pt;padding:2px 3px;white-space:nowrap;">' . $name . '</td>'
+            . '<td style="padding:0 0 2px 0;">'
             . '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;"><tr>' . $bars . '</tr></table>'
             . '</td>'
             . '</tr>';
@@ -414,11 +414,11 @@ function app_report_subject_trends_html(PDO $conn, string $studentId, int $class
 
     $labels = '';
     foreach ($terms as $term) {
-        $labels .= '<td style="font-size:6.6pt;color:#6a7680;text-align:center;padding-top:2px;">' . app_report_html((string)($term['label'] ?? '')) . '</td>';
+        $labels .= '<td style="font-size:6pt;color:#6a7680;text-align:center;padding-top:1px;">' . app_report_html((string)($term['label'] ?? '')) . '</td>';
     }
 
     return '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;">'
-        . '<tr><td colspan="2" style="font-size:8.8pt;font-weight:bold;color:#1f2f3a;padding-bottom:4px;">Subject Performance Over Time</td></tr>'
+        . '<tr><td colspan="2" style="font-size:8.2pt;font-weight:bold;color:#1f2f3a;padding-bottom:2px;">Subject Performance Over Time</td></tr>'
         . $rowsHtml
         . '<tr><td></td><td><table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;"><tr>' . $labels . '</tr></table></td></tr>'
         . '</table>';
@@ -776,8 +776,8 @@ function app_report_generic_html(PDO $conn, array $payload): string
 
 function app_output_single_page_report_pdf(PDO $conn, TCPDF $pdf, array $payload): void
 {
-    $topMargin = 6.5;
-    $bottomMargin = 6.5;
+    $topMargin = 5.5;
+    $bottomMargin = 5.5;
 
     $pdf->setPrintHeader(false);
     $pdf->setPrintFooter(false);
@@ -793,8 +793,12 @@ function app_output_single_page_report_pdf(PDO $conn, TCPDF $pdf, array $payload
         ? app_report_combined_cycles_html($conn, $payload)
         : app_report_generic_html($conn, $payload);
 
-    // Keep deterministic output for spec fidelity by disabling adaptive scaling.
-    $scaledHtml = app_report_scale_html_font_sizes($html, 1.0);
+    // Fit to a single page while preserving the same layout geometry.
+    $scale = app_report_pick_single_page_scale($pdf, $html, $topMargin, $bottomMargin);
+    if ($scale <= 0) {
+        $scale = 0.72;
+    }
+    $scaledHtml = app_report_scale_html_font_sizes($html, $scale);
 
     $pdf->SetY($topMargin);
     $pdf->writeHTML($scaledHtml, true, false, true, false, '');
