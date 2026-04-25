@@ -275,7 +275,152 @@ function app_report_school_dates_html(PDO $conn, string $termName): string
         . '<div style="margin:2px 0;"><b>Closing Date:</b> ' . app_report_html($closingValue) . '</div>'
         . '<div style="margin:7px 0 2px 0;"><b>Opening Date:</b> ' . app_report_html($openingValue) . '</div>'
         . '<div style="margin-top:6px;font-size:7.8pt;color:#4d5d68;">' . app_report_html($termName !== '' ? $termName : 'Term details') . '</div>'
+        . '</div>'
         . '</td></tr>'
+        . '</table>';
+}
+
+function app_report_subject_history_data(PDO $conn, string $studentId, int $classId, int $limitTerms = 5): array
+{
+    $limitTerms = max(2, min(8, $limitTerms));
+    if ($studentId === '' || $classId < 1 || !app_table_exists($conn, 'tbl_report_cards') || !app_table_exists($conn, 'tbl_report_card_subjects')) {
+        return ['terms' => [], 'subjects' => []];
+    }
+
+    $stmt = $conn->prepare("SELECT id, term_id
+        FROM tbl_report_cards
+        WHERE student_id = ? AND class_id = ?
+        ORDER BY term_id DESC
+        LIMIT $limitTerms");
+    $stmt->execute([$studentId, $classId]);
+    $cards = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    if (empty($cards)) {
+        return ['terms' => [], 'subjects' => []];
+    }
+
+    $cards = array_reverse($cards);
+    $reportIds = array_map(static function ($row) { return (int)$row['id']; }, $cards);
+    $termByReport = [];
+    $termIds = [];
+    foreach ($cards as $row) {
+        $rid = (int)$row['id'];
+        $tid = (int)$row['term_id'];
+        $termByReport[$rid] = $tid;
+        $termIds[$tid] = true;
+    }
+
+    $termNames = [];
+    if (!empty($termIds) && app_table_exists($conn, 'tbl_terms')) {
+        $ids = array_keys($termIds);
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $conn->prepare("SELECT id, name FROM tbl_terms WHERE id IN ($placeholders)");
+        $stmt->execute($ids);
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+            $termNames[(int)$row['id']] = (string)($row['name'] ?? '');
+        }
+    }
+
+    $placeholders = implode(',', array_fill(0, count($reportIds), '?'));
+    $stmt = $conn->prepare("SELECT rs.report_id, rs.subject_id, rs.score, s.name AS subject_name
+        FROM tbl_report_card_subjects rs
+        LEFT JOIN tbl_subjects s ON s.id = rs.subject_id
+        WHERE rs.report_id IN ($placeholders)
+        ORDER BY s.name, rs.report_id");
+    $stmt->execute($reportIds);
+
+    $subjects = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $rid = (int)($row['report_id'] ?? 0);
+        $sid = (int)($row['subject_id'] ?? 0);
+        if ($rid < 1 || $sid < 1 || !isset($termByReport[$rid])) {
+            continue;
+        }
+        $tid = (int)$termByReport[$rid];
+        if (!isset($subjects[$sid])) {
+            $subjects[$sid] = [
+                'subject_id' => $sid,
+                'subject_name' => (string)($row['subject_name'] ?? ('Subject ' . $sid)),
+                'scores' => [],
+            ];
+        }
+        $subjects[$sid]['scores'][$tid] = (float)($row['score'] ?? 0);
+    }
+
+    $terms = [];
+    foreach ($cards as $row) {
+        $tid = (int)($row['term_id'] ?? 0);
+        $terms[] = [
+            'term_id' => $tid,
+            'label' => (string)($termNames[$tid] ?? ('T' . $tid)),
+        ];
+    }
+
+    return ['terms' => $terms, 'subjects' => array_values($subjects)];
+}
+
+function app_report_subject_trends_html(PDO $conn, string $studentId, int $classId, array $currentRows): string
+{
+    $history = app_report_subject_history_data($conn, $studentId, $classId, 5);
+    $terms = is_array($history['terms'] ?? null) ? $history['terms'] : [];
+    $subjects = is_array($history['subjects'] ?? null) ? $history['subjects'] : [];
+    if (empty($terms) || empty($subjects)) {
+        return '<div style="font-size:8pt;color:#666;">No multi-term subject history available yet.</div>';
+    }
+
+    $priority = [];
+    foreach ($currentRows as $row) {
+        $name = strtolower(trim((string)($row['subject_name'] ?? '')));
+        if ($name !== '') {
+            $priority[$name] = true;
+        }
+    }
+    usort($subjects, static function (array $a, array $b) use ($priority): int {
+        $ak = strtolower((string)($a['subject_name'] ?? ''));
+        $bk = strtolower((string)($b['subject_name'] ?? ''));
+        $ap = isset($priority[$ak]) ? 1 : 0;
+        $bp = isset($priority[$bk]) ? 1 : 0;
+        if ($ap !== $bp) {
+            return $bp <=> $ap;
+        }
+        return strcmp((string)$a['subject_name'], (string)$b['subject_name']);
+    });
+    $subjects = array_slice($subjects, 0, 5);
+
+    $rowsHtml = '';
+    foreach ($subjects as $subject) {
+        $name = app_report_html((string)($subject['subject_name'] ?? 'Subject'));
+        $scores = is_array($subject['scores'] ?? null) ? $subject['scores'] : [];
+
+        $bars = '';
+        foreach ($terms as $term) {
+            $tid = (int)($term['term_id'] ?? 0);
+            $value = (float)($scores[$tid] ?? 0);
+            $h = (int)round(max(4, min(24, ($value / 100) * 24)));
+            $bars .= '<td style="text-align:center;vertical-align:bottom;padding:0 2px;">'
+                . '<div style="height:24px;display:block;position:relative;">'
+                . '<div style="position:absolute;bottom:0;left:50%;margin-left:-5px;width:10px;height:' . $h . 'px;background:#5ea1d8;border:1px solid #4f84b4;"></div>'
+                . '</div>'
+                . '<div style="font-size:6.8pt;color:#6a7680;line-height:1.05;">' . number_format($value, 0) . '</div>'
+                . '</td>';
+        }
+
+        $rowsHtml .= '<tr>'
+            . '<td style="font-size:7.7pt;padding:3px 4px;white-space:nowrap;">' . $name . '</td>'
+            . '<td style="padding:0 0 3px 0;">'
+            . '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;"><tr>' . $bars . '</tr></table>'
+            . '</td>'
+            . '</tr>';
+    }
+
+    $labels = '';
+    foreach ($terms as $term) {
+        $labels .= '<td style="font-size:6.6pt;color:#6a7680;text-align:center;padding-top:2px;">' . app_report_html((string)($term['label'] ?? '')) . '</td>';
+    }
+
+    return '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;">'
+        . '<tr><td colspan="2" style="font-size:8.8pt;font-weight:bold;color:#1f2f3a;padding-bottom:4px;">Subject Performance Over Time</td></tr>'
+        . $rowsHtml
+        . '<tr><td></td><td><table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;"><tr>' . $labels . '</tr></table></td></tr>'
         . '</table>';
 }
 
@@ -358,11 +503,18 @@ function app_report_render_layout(PDO $conn, array $payload, array $rows, string
     $logoHtml = app_report_school_logo_html();
     $kcpe = app_report_student_kcpe($conn, $studentId);
 
-    $subjectCount = count($rows);
+    $examRows = $rows;
+    $classId = (int)($card['class_id'] ?? 0);
+    $termId = (int)($card['term_id'] ?? 0);
+    if (empty($examRows) && $studentId !== '' && $classId > 0 && $termId > 0) {
+        $examRows = report_subject_breakdown($conn, $studentId, $classId, $termId);
+    }
+
+    $subjectCount = count($examRows);
     $totalMarks = isset($examSummary['total']) ? (float)$examSummary['total'] : (float)($card['total'] ?? 0);
     if ($totalMarks <= 0 && $subjectCount > 0) {
         $totalMarks = 0.0;
-        foreach ($rows as $r) {
+        foreach ($examRows as $r) {
             $totalMarks += (float)($r['score'] ?? 0);
         }
     }
@@ -374,7 +526,7 @@ function app_report_render_layout(PDO $conn, array $payload, array $rows, string
     ];
     $totalPoints = 0.0;
     $classMeanTotal = 0.0;
-    foreach ($rows as $r) {
+    foreach ($examRows as $r) {
         $classMeanTotal += (float)($r['class_mean'] ?? 0);
         $gradeKey = strtoupper(trim((string)($r['grade'] ?? '')));
         $totalPoints += (float)($gradePointMap[$gradeKey] ?? 0);
@@ -391,74 +543,14 @@ function app_report_render_layout(PDO $conn, array $payload, array $rows, string
     $pointsDev = $totalPoints - $classPointEstimate;
     $overallPosition = (string)($card['position'] ?? '-') . '/' . (string)($card['total_students'] ?? 0);
     $meanGrade = (string)($examSummary['grade'] ?? ($card['grade'] ?? 'N/A'));
-    $gradingSystemId = report_exam_grading_system_id($conn, (int)($examSummary['exam_id'] ?? 0));
-
     $density = app_report_subject_table_density($subjectCount);
     $headerStyle = 'border:1px solid #aaa;padding:' . $density['header_padding'] . ';font-size:' . $density['header_font'] . ';font-weight:bold;text-transform:uppercase;text-align:center;line-height:1.1;height:20px;';
     $cellStyle = 'border:1px solid #aaa;padding:' . $density['cell_padding'] . ';font-size:' . $density['cell_font'] . ';line-height:1.15;height:19px;';
     $cellCenterStyle = $cellStyle . 'text-align:center;';
 
-    $chartRows = '';
-    foreach (array_slice($rows, 0, 6) as $row) {
-        $studentWidth = max(0, min(100, (float)($row['score'] ?? 0)));
-        $classWidth = max(0, min(100, (float)($row['class_mean'] ?? 0)));
-        $chartRows .= '<tr>'
-            . '<td style="font-size:7pt;padding:1px 0;width:22%;line-height:1.1;height:12px;">' . app_report_html(substr((string)($row['subject_name'] ?? ''), 0, 6)) . '</td>'
-            . '<td style="padding:1px 0 1px 4px;">'
-            . '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">'
-            . '<tr><td style="background:#f0f0f0;height:7px;"><div style="width:' . number_format($studentWidth, 2, '.', '') . '%;height:7px;background:#7cb5ec;"></div></td></tr>'
-            . '<tr><td style="background:#f7f7f7;height:4px;"><div style="width:' . number_format($classWidth, 2, '.', '') . '%;height:4px;background:#b0b0b0;"></div></td></tr>'
-            . '</table>'
-            . '</td>'
-            . '</tr>';
-    }
-    if ($chartRows === '') {
-        $chartRows = '<tr><td style="font-size:7pt;color:#666;" colspan="2">[Chart Placeholder]</td></tr>';
-    }
-
-    $subjectRows = '';
-    foreach ($rows as $row) {
-        $score = (float)($row['score'] ?? 0);
-        $classMean = (float)($row['class_mean'] ?? 0);
-        $dev = $score - $classMean;
-        $devClass = $dev < 0 ? '#f39c12' : '#27ae60';
-        $devArrow = $dev < 0 ? '&#9660;' : '&#9650;';
-        $cat1 = $row['cat1'] ?? ($row['cat_1'] ?? '-');
-        $cat2 = $row['cat2'] ?? ($row['cat_2'] ?? '-');
-        $subjectRows .= '<tr style="height:20px;">'
-            . '<td style="' . $cellStyle . 'text-align:left;font-weight:bold;">' . app_report_html((string)($row['subject_name'] ?? '')) . '</td>'
-            . '<td style="' . $cellCenterStyle . '">' . (is_numeric($cat1) ? number_format((float)$cat1, 0) . '%' : app_report_html((string)$cat1)) . '</td>'
-            . '<td style="' . $cellCenterStyle . '">' . (is_numeric($cat2) ? number_format((float)$cat2, 0) . '%' : app_report_html((string)$cat2)) . '</td>'
-            . '<td style="' . $cellCenterStyle . '"><b>' . number_format($score, 0) . '%</b></td>'
-            . '<td style="' . $cellCenterStyle . 'color:' . $devClass . ';font-weight:bold;">' . ($dev > 0 ? '+' : '') . number_format($dev, 0) . ' ' . $devArrow . '</td>'
-            . '<td style="' . $cellCenterStyle . '"><b>' . app_report_html((string)($row['grade'] ?? '')) . '</b></td>'
-            . '<td style="' . $cellCenterStyle . '">' . app_report_html((string)($row['position'] ?? ($row['rank'] ?? '-'))) . '</td>'
-            . '<td style="' . $cellStyle . 'text-align:left;font-style:italic;">' . app_report_html((string)($row['remark'] ?? '')) . '</td>'
-            . '<td style="' . $cellStyle . '">' . app_report_html((string)($row['teacher_name'] ?? '')) . '</td>'
-            . '</tr>';
-    }
-    if ($subjectRows === '') {
-        $subjectRows = '<tr><td colspan="9" style="border:1px solid #aaa;padding:6px;text-align:center;font-size:8pt;">No subject data available.</td></tr>';
-    }
-
     $remarksLeft = app_report_html((string)($card['teacher_comment'] ?? $card['remark'] ?? ''));
     $remarksRight = app_report_html((string)($card['headteacher_comment'] ?? $card['remark'] ?? ''));
-    $verificationCode = app_report_html((string)($card['verification_code'] ?? ''));
-    $contactLine = implode(' | ', array_filter([trim($schoolAddress), trim($schoolPhone), trim($schoolEmail)]));
-    $classId = (int)($card['class_id'] ?? 0);
-    $termId = (int)($card['term_id'] ?? 0);
-    $historyRows = [];
-    if ($studentId !== '' && $classId > 0) {
-        try {
-            $historyRows = report_student_term_history($conn, $studentId, $classId, 5);
-        } catch (Throwable $e) {
-            $historyRows = [];
-        }
-    }
-    $examRows = $rows;
-    if (empty($examRows) && $studentId !== '' && $classId > 0 && $termId > 0) {
-        $examRows = report_subject_breakdown($conn, $studentId, $classId, $termId);
-    }
+    $verificationCode = (string)($card['verification_code'] ?? '');
 
     $chartRows = '';
     foreach (array_slice($examRows, 0, 6) as $row) {
@@ -502,7 +594,7 @@ function app_report_render_layout(PDO $conn, array $payload, array $rows, string
     }
 
     $schoolDatesHtml = app_report_school_dates_html($conn, $termName);
-    $historyChartHtml = app_report_history_chart_html($conn, $studentId, $classId, $meanScore, $studentName);
+    $historyChartHtml = app_report_subject_trends_html($conn, $studentId, $classId, $examRows);
     $verificationText = $schoolId !== '' ? $schoolId . '@fsk' : $studentId . '@fsk';
 
     return '
@@ -586,8 +678,8 @@ function app_report_render_layout(PDO $conn, array $payload, array $rows, string
                     <td width="42%" style="vertical-align:top;">
                         <div style="border-left:1px solid #1f2f3a;padding-left:12px;min-height:182px;">
                             <div style="font-size:9pt;font-weight:bold;color:#1f2f3a;margin-bottom:6px;">Remarks</div>
-                            <div style="font-size:8.8pt;line-height:1.35;color:#1f2f3a;margin-bottom:7px;"><strong>Mathew Wakoli - Class Teacher</strong><br>' . $remarksLeft . '</div>
-                            <div style="font-size:8.8pt;line-height:1.35;color:#1f2f3a;margin-bottom:10px;"><strong>Paul Waloba - Principal</strong><br>' . $remarksRight . '</div>
+                            <div style="font-size:8.8pt;line-height:1.35;color:#1f2f3a;margin-bottom:7px;"><strong>Class Teacher</strong><br>' . $remarksLeft . '</div>
+                            <div style="font-size:8.8pt;line-height:1.35;color:#1f2f3a;margin-bottom:10px;"><strong>Principal</strong><br>' . $remarksRight . '</div>
                             <div style="font-size:8.8pt;line-height:1.3;color:#1f2f3a;">Parent\'s Signature:</div>
                             <div style="border-bottom:1px solid #222;height:16px;margin:0 0 8px 0;width:80%;"></div>
                             <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;">
@@ -602,7 +694,7 @@ function app_report_render_layout(PDO $conn, array $payload, array $rows, string
                                     </td>
                                 </tr>
                             </table>
-                            <div style="font-size:8.4pt;font-weight:bold;color:#1f2f3a;margin-top:8px;">Verification Code: ' . app_report_html((string)($card['verification_code'] ?? '')) . '</div>
+                            <div style="font-size:8.4pt;font-weight:bold;color:#1f2f3a;margin-top:8px;">Verification Code: ' . app_report_html($verificationCode) . '</div>
                         </div>
                     </td>
                 </tr>
