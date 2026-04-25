@@ -1,0 +1,17 @@
+.git
+.gitignore
+.vscode
+.memories
+memories
+logs/
+uploads/
+docs/
+README.md
+scripts/
+*.log
+*.tmp
+*.sql
+!srms/database/srms_postgres_schema.sql
+!srms/database/srms_mysql_schema_clean.sql
+!srms/database/pg_migrations/
+!srms/database/pg_migrations/*.sql
