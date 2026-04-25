@@ -690,7 +690,7 @@ function app_report_render_layout(PDO $conn, array $payload, array $rows, string
                                         </div>
                                     </td>
                                     <td style="vertical-align:top;padding-left:8px;font-size:8.6pt;line-height:1.25;color:#1f2f3a;">
-                                        Scan to access your interactive student profile on Zeraki Analytics. Your username: ' . app_report_html($verificationText) . '
+                                        Scan to access your interactive student profile on the school portal. Your username: ' . app_report_html($verificationText) . '
                                     </td>
                                 </tr>
                             </table>
