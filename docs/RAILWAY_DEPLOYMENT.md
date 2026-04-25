@@ -1,6 +1,6 @@
-# SRMS Deployment on Railway (Free Tier)
+# SRMS Deployment on Railway (Standard Hosting)
 
-This guide deploys the current PHP monolith using the existing Dockerfile.
+This guide deploys the current PHP monolith using the existing Dockerfile on a normal Railway setup, with a clean path to scale later.
 
 ## 1) Prerequisites
 
@@ -66,25 +66,26 @@ After deploy succeeds, test:
 - Login page
 - Report card generation and PDF output
 
-## 7) Free Tier Expectations
+## 7) Baseline Hosting Expectations
 
-- Service may sleep after inactivity (cold start delay is normal).
-- Keep one web service + one DB service only.
-- Avoid heavy background jobs on free tier.
-- Large uploads should move to object storage later.
+- Use one web service + one DB service to start.
+- Keep app and DB in the same Railway region.
+- Keep uploads small at first; plan object storage as traffic grows.
+- Run report generation tests before switching DNS.
 
-## 8) Performance Tips Before Upgrading
+## 8) Performance Tips (Current Plan)
 
 - Keep app and DB in the same Railway region.
 - Minimize migration/demo imports in production.
 - Use only required environment variables.
 - Avoid repeatedly regenerating heavy PDFs during testing.
 
-## 9) When You Upgrade Later
+## 9) Upgrade Path Later
 
-- Move to paid plan for always-on runtime.
+- Increase web service resources when traffic rises.
 - Add object storage for persistent uploads.
-- Add separate worker service for long tasks.
+- Add a separate worker service for long-running tasks.
+- Add monitoring/alerts and periodic backups.
 
 ## 10) Rollback Plan
 
