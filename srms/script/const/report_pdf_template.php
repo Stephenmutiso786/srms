@@ -562,10 +562,11 @@ function app_report_render_layout(PDO $conn, array $payload, array $rows, string
     $schoolAddress = defined('WBAddress') ? (string)WBAddress : '';
     $schoolPhone = defined('WBPhone') ? (string)WBPhone : '';
     $schoolEmail = defined('WBEmail') ? (string)WBEmail : '';
+    $schoolMotto = defined('WBMotto') ? (string)WBMotto : '';
 
     $photoHtml = app_report_student_photo_html($conn, $studentId);
     if ($photoHtml === '') {
-        $photoHtml = '<div style="width:76px;height:88px;border:1px solid #8ea0b2;text-align:center;line-height:88px;font-size:8pt;color:#555;">PHOTO</div>';
+        $photoHtml = '<div style="width:78px;height:92px;border:1px solid #94a8bb;text-align:center;line-height:92px;font-size:8pt;color:#5a6b78;background:#fff;">PHOTO</div>';
     }
     $logoHtml = app_report_school_logo_html();
     $kcpe = app_report_student_kcpe($conn, $studentId);
@@ -580,7 +581,6 @@ function app_report_render_layout(PDO $conn, array $payload, array $rows, string
     $subjectCount = count($examRows);
     $totalMarks = isset($examSummary['total']) ? (float)$examSummary['total'] : (float)($card['total'] ?? 0);
     if ($totalMarks <= 0 && $subjectCount > 0) {
-        $totalMarks = 0.0;
         foreach ($examRows as $r) {
             $totalMarks += (float)($r['score'] ?? 0);
         }
@@ -608,11 +608,12 @@ function app_report_render_layout(PDO $conn, array $payload, array $rows, string
     $classPointEstimate = ($classMeanAvg / 100) * $pointsMax;
     $meanScore = isset($examSummary['mean']) ? (float)$examSummary['mean'] : (float)($card['mean'] ?? 0);
     if ($meanScore <= 0 && $subjectCount > 0) {
-        $meanScore = $totalMarks / $subjectCount;
+        $meanScore = $subjectCount > 0 ? ($totalMarks / $subjectCount) : 0.0;
     }
     $meanDev = $meanScore - $classMeanAvg;
     $totalDev = $totalMarks - $classMeanTotal;
     $pointsDev = $totalPoints - $classPointEstimate;
+
     $positions = app_report_position_metrics($conn, $studentId, $classId, $termId, $card);
     $streamPosition = (string)($positions['stream'] ?? '-');
     if (isset($examSummary['position']) && trim((string)$examSummary['position']) !== '' && trim((string)$examSummary['position']) !== '-') {
@@ -620,32 +621,12 @@ function app_report_render_layout(PDO $conn, array $payload, array $rows, string
     }
     $overallPosition = (string)($positions['overall'] ?? '-');
     $meanGrade = (string)($examSummary['grade'] ?? ($card['grade'] ?? 'N/A'));
-    $density = app_report_subject_table_density($subjectCount);
-    $headerStyle = 'border:1px solid #aaa;padding:' . $density['header_padding'] . ';font-size:' . $density['header_font'] . ';font-weight:bold;text-transform:uppercase;text-align:center;line-height:1.1;height:20px;';
-    $cellStyle = 'border:1px solid #aaa;padding:' . $density['cell_padding'] . ';font-size:' . $density['cell_font'] . ';line-height:1.15;height:19px;';
-    $cellCenterStyle = $cellStyle . 'text-align:center;';
+    $feesBalance = (float)($payload['fees_balance'] ?? 0);
 
+    $verificationCode = (string)($card['verification_code'] ?? '');
+    $verificationText = $schoolId !== '' ? $schoolId . '@school' : $studentId . '@school';
     $remarksLeft = app_report_html((string)($card['teacher_comment'] ?? $card['remark'] ?? ''));
     $remarksRight = app_report_html((string)($card['headteacher_comment'] ?? $card['remark'] ?? ''));
-    $verificationCode = (string)($card['verification_code'] ?? '');
-
-    $chartRows = '';
-    foreach (array_slice($examRows, 0, 6) as $row) {
-        $studentWidth = max(0, min(100, (float)($row['score'] ?? 0)));
-        $classWidth = max(0, min(100, (float)($row['class_mean'] ?? 0)));
-        $chartRows .= '<div style="display:table;width:100%;margin-bottom:6px;">'
-            . '<div style="display:table-cell;width:55px;font-size:7.6pt;color:#4f5d68;vertical-align:middle;">' . app_report_html(substr((string)($row['subject_name'] ?? ''), 0, 8)) . '</div>'
-            . '<div style="display:table-cell;vertical-align:middle;">'
-            . '<div style="height:12px;background:#e5ecf2;position:relative;">'
-            . '<div style="position:absolute;left:0;top:0;height:12px;background:#1a8fd4;opacity:0.9;width:' . number_format($studentWidth, 2, '.', '') . '%;"></div>'
-            . '<div style="position:absolute;left:0;bottom:0;height:6px;background:#38b56a;opacity:0.75;width:' . number_format($classWidth, 2, '.', '') . '%;"></div>'
-            . '</div>'
-            . '</div>'
-            . '</div>';
-    }
-    if ($chartRows === '') {
-        $chartRows = '<div style="font-size:7pt;color:#666;">No performance data available.</div>';
-    }
 
     $subjectRowsHtml = '';
     foreach ($examRows as $row) {
@@ -654,132 +635,188 @@ function app_report_render_layout(PDO $conn, array $payload, array $rows, string
         $score = (float)($row['score'] ?? 0);
         $classMean = (float)($row['class_mean'] ?? 0);
         $dev = isset($row['deviation']) ? (float)$row['deviation'] : ($score - $classMean);
-        $devColor = $dev > 0 ? '#128a42' : ($dev < 0 ? '#da8a00' : '#687886');
+        $grade = trim((string)($row['grade'] ?? ''));
+        $devColor = $dev > 0 ? '#1a8f4d' : ($dev < 0 ? '#d18b00' : '#6d7a86');
+        $gradeBg = $grade !== '' ? '#eef6ff' : '#f3f4f6';
         $subjectRowsHtml .= '<tr>'
-            . '<td style="text-align:left;">' . app_report_html((string)($row['subject_name'] ?? '')) . '</td>'
+            . '<td style="text-align:left;font-weight:bold;">' . app_report_html((string)($row['subject_name'] ?? '')) . '</td>'
             . '<td style="text-align:center;">' . (is_numeric($cat1) ? number_format((float)$cat1, 1) . '%' : app_report_html((string)$cat1)) . '</td>'
             . '<td style="text-align:center;">' . (is_numeric($cat2) ? number_format((float)$cat2, 1) . '%' : app_report_html((string)$cat2)) . '</td>'
-            . '<td style="text-align:center;">' . number_format($score, 1) . '%</td>'
+            . '<td style="text-align:center;font-weight:bold;">' . number_format($score, 1) . '%</td>'
             . '<td style="text-align:center;color:' . $devColor . ';font-weight:bold;">' . (($dev > 0 ? '+' : '') . number_format($dev, 1)) . '</td>'
+            . '<td style="text-align:center;background:' . $gradeBg . ';font-weight:bold;">' . app_report_html($grade !== '' ? $grade : '-') . '</td>'
             . '<td style="text-align:center;">' . app_report_html((string)($row['rank'] ?? $row['position'] ?? '-')) . '</td>'
-            . '<td style="text-align:left;">' . app_report_html((string)($row['remark'] ?? '')) . '</td>'
-            . '<td style="text-align:left;">' . app_report_html((string)($row['teacher_name'] ?? '')) . '</td>'
             . '</tr>';
     }
     if ($subjectRowsHtml === '') {
-        $subjectRowsHtml = '<tr><td colspan="8" style="text-align:center;">No subject data available.</td></tr>';
+        $subjectRowsHtml = '<tr><td colspan="7" style="text-align:center;">No subject data available.</td></tr>';
     }
 
-    $schoolDatesHtml = app_report_school_dates_html($conn, $termName);
-    $historyChartHtml = app_report_subject_trends_html($conn, $studentId, $classId, $examRows);
-    $verificationText = $schoolId !== '' ? $schoolId . '@school' : $studentId . '@school';
+    $metricStyle = 'border:1px solid #d6dde6;border-top:3px solid #1aa7e8;padding:5px 6px;background:#f6fbff;font-size:8pt;line-height:1.1;text-align:center;vertical-align:top;';
+    $metricValueStyle = 'display:block;font-size:10.5pt;font-weight:bold;color:#1f2f3a;margin-top:3px;';
+    $metricDev = static function (float $value): string {
+        if ($value > 0) {
+            return '#1a8f4d';
+        }
+        if ($value < 0) {
+            return '#d18b00';
+        }
+        return '#6d7a86';
+    };
+
+    $subjectSnapshotHtml = '';
+    foreach (array_slice($examRows, 0, 4) as $row) {
+        $studentWidth = max(0, min(100, (float)($row['score'] ?? 0)));
+        $classWidth = max(0, min(100, (float)($row['class_mean'] ?? 0)));
+        $subjectSnapshotHtml .= '<tr><td style="padding-bottom:6px;font-size:7.2pt;color:#38505e;">' . app_report_html(substr((string)($row['subject_name'] ?? ''), 0, 16)) . '</td><td style="padding-bottom:6px;"><div style="height:10px;background:#dfe8ef;border-radius:10px;position:relative;overflow:hidden;"><div style="position:absolute;left:0;top:0;height:10px;background:#1396d1;width:' . number_format($studentWidth, 2, '.', '') . '%;"></div><div style="position:absolute;left:0;bottom:0;height:5px;background:#18a55c;width:' . number_format($classWidth, 2, '.', '') . '%;"></div></div></td></tr>';
+    }
+    if ($subjectSnapshotHtml === '') {
+        $subjectSnapshotHtml = '<tr><td colspan="2" style="font-size:7.5pt;color:#667680;">No performance data available.</td></tr>';
+    }
 
     return '
-<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-family:Arial,Helvetica,sans-serif;table-layout:fixed;">
+<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-family:Arial,Helvetica,sans-serif;table-layout:fixed;background:#f4f8fb;">
     <tr>
-        <td width="12" style="width:12px;background:#36b44a;"></td>
-        <td style="padding-left:8px;">
-            <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;height:88px;">
+        <td style="padding:0;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;border:1px solid #d6dde6;background:#fff;">
                 <tr>
-                    <td width="84" style="width:84px;vertical-align:top;">
-                        <div style="width:72px;height:72px;border:1px solid #d7d7d7;background:#fff;text-align:center;line-height:72px;">' . $logoHtml . '</div>
-                    </td>
-                    <td style="vertical-align:top;text-align:right;padding-top:2px;">
-                        <div style="font-size:16pt;font-weight:bold;color:#111;line-height:1.1;">' . app_report_html($schoolName) . '</div>
-                        <div style="font-size:9.5pt;font-weight:bold;color:#333;line-height:1.2;margin-top:2px;">' . app_report_html(defined('WBAddress') ? (string)WBAddress : '') . '</div>
-                        <div style="font-size:9.3pt;font-weight:bold;color:#333;line-height:1.2;">' . app_report_html(trim((string)WBPhone !== '' ? (string)WBPhone : $schoolPhone)) . '</div>
-                        <div style="font-size:9.3pt;font-weight:bold;color:#333;line-height:1.2;">' . app_report_html(trim((string)WBEmail !== '' ? (string)WBEmail : $schoolEmail)) . '</div>
+                    <td style="background:linear-gradient(90deg,#113d67 0%,#146c94 45%,#10a37f 100%);padding:12px 14px;color:#fff;">
+                        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;">
+                            <tr>
+                                <td width="72" style="width:72px;vertical-align:top;">' . $logoHtml . '</td>
+                                <td style="vertical-align:top;padding-left:10px;">
+                                    <div style="font-size:18pt;font-weight:bold;line-height:1.05;">' . app_report_html($schoolName) . '</div>
+                                    <div style="font-size:8.8pt;line-height:1.35;opacity:0.96;margin-top:2px;">' . app_report_html($schoolAddress) . '</div>
+                                    <div style="font-size:8.8pt;line-height:1.35;opacity:0.96;">' . app_report_html($schoolPhone) . ($schoolEmail !== '' ? ' | ' . app_report_html($schoolEmail) : '') . '</div>
+                                </td>
+                                <td width="176" style="width:176px;vertical-align:top;text-align:right;">
+                                    <div style="font-size:8.5pt;font-weight:bold;letter-spacing:0.04em;text-transform:uppercase;opacity:0.9;">Academic Report Card</div>
+                                    <div style="font-size:13pt;font-weight:bold;line-height:1.08;margin-top:4px;">' . app_report_html($className) . '</div>
+                                    <div style="font-size:8.7pt;line-height:1.25;margin-top:4px;">' . app_report_html($examTitle) . '</div>
+                                    <div style="font-size:8.4pt;opacity:0.92;">' . app_report_html($termName) . '</div>
+                                </td>
+                            </tr>
+                        </table>
                     </td>
                 </tr>
-            </table>
 
-            <div style="background:#37aee3;color:#fff;text-align:center;padding:7px 10px;font-size:9.2pt;font-weight:bold;margin:9px 0 12px 0;text-transform:uppercase;line-height:1.1;">ACADEMIC REPORT FORM - ' . app_report_html($className) . ' - ' . app_report_html($examTitle) . ' - (' . app_report_html($termName) . ')</div>
-
-            <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:12px;table-layout:fixed;">
                 <tr>
-                    <td width="145" style="width:145px;padding-right:14px;vertical-align:top;">
-                        <div style="width:132px;height:152px;border:1px solid #c7d0d9;background:#f9fbfd;text-align:center;overflow:hidden;">' . $photoHtml . '</div>
+                    <td style="padding:10px 12px 8px 12px;">
+                        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;">
+                            <tr>
+                                <td width="96" style="width:96px;vertical-align:top;">
+                                    <div style="width:84px;height:98px;border:1px solid #c6d1db;border-radius:8px;overflow:hidden;background:#f7fafc;">' . $photoHtml . '</div>
+                                </td>
+                                <td style="vertical-align:top;padding-right:10px;">
+                                    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;">
+                                        <tr>
+                                            <td style="border:1px solid #d6dde6;background:#f7fbff;padding:7px 8px;vertical-align:top;">
+                                                <div style="font-size:7.8pt;text-transform:uppercase;color:#5c6c78;font-weight:bold;">Student</div>
+                                                <div style="font-size:12pt;font-weight:bold;color:#13222d;line-height:1.15;margin-top:2px;">' . app_report_html($studentName) . '</div>
+                                                <div style="font-size:8.5pt;color:#33414c;margin-top:4px;"><b>Adm No:</b> ' . app_report_html($schoolId !== '' ? $schoolId : $studentId) . '</div>
+                                                <div style="font-size:8.5pt;color:#33414c;margin-top:2px;"><b>KCPE:</b> ' . app_report_html($kcpe !== '' ? $kcpe : 'N/A') . '</div>
+                                            </td>
+                                        </tr>
+                                        <tr><td style="height:6px;"></td></tr>
+                                        <tr>
+                                            <td>
+                                                <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-spacing:6px 0;table-layout:fixed;">
+                                                    <tr>
+                                                        <td style="' . $metricStyle . '">Mean<span style="' . $metricValueStyle . '">' . app_report_html($meanGrade) . '</span><span style="color:' . $metricDev($meanDev) . ';font-size:7.6pt;font-weight:bold;">' . ($meanDev > 0 ? '+' : '') . number_format($meanDev, 1) . '</span></td>
+                                                        <td style="' . $metricStyle . '">Total Marks<span style="' . $metricValueStyle . '">' . number_format($totalMarks, 0) . '/' . number_format($maxMarks, 0) . '</span><span style="color:' . $metricDev($totalDev) . ';font-size:7.6pt;font-weight:bold;">' . ($totalDev > 0 ? '+' : '') . number_format($totalDev, 0) . '</span></td>
+                                                        <td style="' . $metricStyle . '">Points<span style="' . $metricValueStyle . '">' . number_format($totalPoints, 1) . '/' . number_format($pointsMax, 0) . '</span><span style="color:' . $metricDev($pointsDev) . ';font-size:7.6pt;font-weight:bold;">' . ($pointsDev > 0 ? '+' : '') . number_format($pointsDev, 1) . '</span></td>
+                                                    </tr>
+                                                </table>
+                                            </td>
+                                        </tr>
+                                        <tr><td style="height:6px;"></td></tr>
+                                        <tr>
+                                            <td>
+                                                <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-spacing:6px 0;table-layout:fixed;">
+                                                    <tr>
+                                                        <td style="' . $metricStyle . '">Stream Position<span style="' . $metricValueStyle . '">' . app_report_html($streamPosition) . '</span></td>
+                                                        <td style="' . $metricStyle . '">Overall Position<span style="' . $metricValueStyle . '">' . app_report_html($overallPosition) . '</span></td>
+                                                        <td style="' . $metricStyle . '">Fees<span style="' . $metricValueStyle . '">' . ($feesBalance > 0 ? 'Balance ' . number_format($feesBalance, 0) : 'Cleared') . '</span></td>
+                                                    </tr>
+                                                </table>
+                                            </td>
+                                        </tr>
+                                    </table>
+                                </td>
+                                <td width="152" style="width:152px;vertical-align:top;">
+                                    <div style="border:1px solid #d6dde6;border-radius:8px;overflow:hidden;background:#fbfdff;">
+                                        <div style="background:#eef8f4;color:#1d5f44;padding:7px 8px;font-size:8.2pt;font-weight:bold;text-transform:uppercase;">Subject Snapshot</div>
+                                        <div style="padding:8px;">
+                                            <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;">
+                                                ' . $subjectSnapshotHtml . '
+                                            </table>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        </table>
                     </td>
-                    <td style="vertical-align:top;padding-right:12px;">
-                        <div style="font-size:9.4pt;font-weight:bold;line-height:1.5;color:#1f2f3a;"><strong>NAME:</strong> ' . app_report_html($studentName) . '</div>
-                        <div style="font-size:9.4pt;font-weight:bold;line-height:1.5;color:#1f2f3a;"><strong>ADMNO:</strong> ' . app_report_html($schoolId !== '' ? $schoolId : $studentId) . '</div>
-                        <div style="font-size:9.4pt;font-weight:bold;line-height:1.5;color:#1f2f3a;"><strong>FORM:</strong> ' . app_report_html($className) . '</div>
-                        <div style="font-size:9.4pt;font-weight:bold;line-height:1.5;color:#1f2f3a;"><strong>KCPE:</strong> ' . app_report_html($kcpe !== '' ? $kcpe : 'N/A') . '</div>
-                        <div style="font-size:9.4pt;font-weight:bold;line-height:1.5;color:#1f2f3a;"><strong>VAP:</strong> ' . (($meanDev > 0 ? '+' : '') . number_format($meanDev, 2)) . '</div>
+                </tr>
+
+                <tr>
+                    <td style="padding:0 12px 10px 12px;">
+                        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;">
+                            <tr>
+                                <td style="background:linear-gradient(90deg,#dff3ff 0%,#edf8ef 100%);padding:8px 10px;border:1px solid #d6dde6;border-right:0;font-size:8.4pt;font-weight:bold;">ACADEMIC PERFORMANCE</td>
+                                <td style="background:linear-gradient(90deg,#dff3ff 0%,#edf8ef 100%);padding:8px 10px;border:1px solid #d6dde6;text-align:right;font-size:8.2pt;color:#49606e;">International school report format</td>
+                            </tr>
+                        </table>
+                        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;">
+                            <thead>
+                                <tr>
+                                    <th style="border:1px solid #8fb8d2;padding:4px 5px;font-size:7.5pt;text-transform:uppercase;background:#1f6f96;color:#fff;">Subject</th>
+                                    <th style="border:1px solid #8fb8d2;padding:4px 5px;font-size:7.5pt;text-transform:uppercase;background:#1f6f96;color:#fff;">CAT 1</th>
+                                    <th style="border:1px solid #8fb8d2;padding:4px 5px;font-size:7.5pt;text-transform:uppercase;background:#1f6f96;color:#fff;">CAT 2</th>
+                                    <th style="border:1px solid #8fb8d2;padding:4px 5px;font-size:7.5pt;text-transform:uppercase;background:#1f6f96;color:#fff;">Score</th>
+                                    <th style="border:1px solid #8fb8d2;padding:4px 5px;font-size:7.5pt;text-transform:uppercase;background:#1f6f96;color:#fff;">Dev.</th>
+                                    <th style="border:1px solid #8fb8d2;padding:4px 5px;font-size:7.5pt;text-transform:uppercase;background:#1f6f96;color:#fff;">Grade</th>
+                                    <th style="border:1px solid #8fb8d2;padding:4px 5px;font-size:7.5pt;text-transform:uppercase;background:#1f6f96;color:#fff;">Rank</th>
+                                </tr>
+                            </thead>
+                            <tbody>' . $subjectRowsHtml . '</tbody>
+                        </table>
                     </td>
-                    <td style="vertical-align:top;">
-                        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;border:1px solid #d7d7d7;background:#fcfeff;">
-                            <tr><td style="padding:10px 10px 8px 10px;font-size:8.2pt;font-weight:bold;text-align:center;color:#4c5b68;">Subject Performance - Student vs Class</td></tr>
-                            <tr><td style="padding:0 10px 10px 10px;">' . $chartRows . '</td></tr>
+                </tr>
+
+                <tr>
+                    <td style="padding:0 12px 12px 12px;">
+                        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;">
+                            <tr>
+                                <td width="66%" style="width:66%;vertical-align:top;padding-right:8px;">
+                                    <div style="border:1px solid #d6dde6;border-radius:8px;padding:8px 10px;background:#fcfdff;min-height:96px;">
+                                        <div style="font-size:8.6pt;font-weight:bold;color:#1f2f3a;margin-bottom:5px;">Remarks</div>
+                                        <div style="font-size:8pt;line-height:1.35;color:#253745;margin-bottom:6px;"><strong>Class Teacher:</strong> ' . $remarksLeft . '</div>
+                                        <div style="font-size:8pt;line-height:1.35;color:#253745;"><strong>Principal:</strong> ' . $remarksRight . '</div>
+                                    </div>
+                                </td>
+                                <td width="34%" style="width:34%;vertical-align:top;">
+                                    <div style="border:1px solid #d6dde6;border-radius:8px;padding:8px 10px;background:#f7fbff;min-height:96px;">
+                                        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;">
+                                            <tr>
+                                                <td width="72" style="width:72px;vertical-align:top;">
+                                                    <div style="width:60px;height:60px;border:1px solid #1aa55a;border-radius:8px;background:linear-gradient(180deg,#e9fff1,#c7f1d7);text-align:center;"></div>
+                                                </td>
+                                                <td style="vertical-align:top;font-size:8pt;line-height:1.3;color:#253745;">
+                                                    Scan to verify this report and access the student portal.<br>
+                                                    <strong>Code:</strong> ' . app_report_html($verificationCode) . '<br>
+                                                    <strong>User:</strong> ' . app_report_html($verificationText) . '
+                                                </td>
+                                            </tr>
+                                        </table>
+                                        <div style="margin-top:6px;">' . app_report_school_dates_html($conn, $termName) . '</div>
+                                        <div style="margin-top:6px;font-size:7.8pt;color:#49606e;">' . app_report_html($schoolMotto) . '</div>
+                                    </div>
+                                </td>
+                            </tr>
                         </table>
                     </td>
                 </tr>
             </table>
-
-            <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-spacing:7px 0;margin-bottom:11px;table-layout:fixed;">
-                <tr>
-                    <td style="background:#dff1fb;border-top:3px solid #37aee3;padding:9px 6px;text-align:center;font-size:8.7pt;line-height:1.05;">Mean<br><strong style="font-size:10pt;">' . app_report_html($meanGrade) . '</strong> <span style="font-size:0.78em;margin-left:5px;font-weight:700;color:' . ($meanDev > 0 ? '#128a42' : ($meanDev < 0 ? '#da8a00' : '#687886')) . ';">' . ($meanDev > 0 ? '+' : '') . number_format($meanDev, 1) . '</span></td>
-                    <td style="background:#dff1fb;border-top:3px solid #37aee3;padding:9px 6px;text-align:center;font-size:8.7pt;line-height:1.05;">Total Marks<br><strong style="font-size:10pt;">' . number_format($totalMarks, 0) . '/' . number_format($maxMarks, 0) . '</strong> <span style="font-size:0.78em;margin-left:5px;font-weight:700;color:' . ($totalDev > 0 ? '#128a42' : ($totalDev < 0 ? '#da8a00' : '#687886')) . ';">' . ($totalDev > 0 ? '+' : '') . number_format($totalDev, 0) . '</span></td>
-                    <td style="background:#dff1fb;border-top:3px solid #37aee3;padding:9px 6px;text-align:center;font-size:8.7pt;line-height:1.05;">Total Points<br><strong style="font-size:10pt;">' . number_format($totalPoints, 1) . '/' . number_format($pointsMax, 0) . '</strong> <span style="font-size:0.78em;margin-left:5px;font-weight:700;color:' . ($pointsDev > 0 ? '#128a42' : ($pointsDev < 0 ? '#da8a00' : '#687886')) . ';">' . ($pointsDev > 0 ? '+' : '') . number_format($pointsDev, 1) . '</span></td>
-                    <td style="background:#dff1fb;border-top:3px solid #37aee3;padding:9px 6px;text-align:center;font-size:8.7pt;line-height:1.05;">Stream Position<br><strong style="font-size:10pt;">' . app_report_html($streamPosition) . '</strong></td>
-                    <td style="background:#dff1fb;border-top:3px solid #37aee3;padding:9px 6px;text-align:center;font-size:8.7pt;line-height:1.05;">Overall Position<br><strong style="font-size:10pt;">' . app_report_html($overallPosition) . '</strong></td>
-                </tr>
-            </table>
-
-            <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;margin-top:8px;">
-                <thead>
-                    <tr>
-                        <th rowspan="2" style="' . $headerStyle . '">SUBJECT</th>
-                        <th rowspan="2" style="' . $headerStyle . '">CAT 1</th>
-                        <th rowspan="2" style="' . $headerStyle . '">CAT 2</th>
-                        <th colspan="3" style="' . $headerStyle . '">' . app_report_html(strtoupper((string)($examTitle !== '' ? $examTitle : 'END TERM COMBINED'))) . '</th>
-                        <th rowspan="2" style="' . $headerStyle . '">RANK</th>
-                        <th rowspan="2" style="' . $headerStyle . '">COMMENT</th>
-                        <th rowspan="2" style="' . $headerStyle . '">TEACHER</th>
-                    </tr>
-                    <tr>
-                        <th style="' . $headerStyle . '">MARKS</th>
-                        <th style="' . $headerStyle . '">DEV.</th>
-                        <th style="' . $headerStyle . '">GR.</th>
-                    </tr>
-                </thead>
-                <tbody>' . $subjectRowsHtml . '</tbody>
-            </table>
-
-            <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-spacing:14px 0;margin-top:12px;table-layout:fixed;">
-                <tr>
-                    <td width="58%" style="vertical-align:top;">
-                        ' . $historyChartHtml . '
-                        <div style="margin-top:10px;">' . $schoolDatesHtml . '</div>
-                    </td>
-                    <td width="42%" style="vertical-align:top;">
-                        <div style="border-left:1px solid #1f2f3a;padding-left:12px;min-height:182px;">
-                            <div style="font-size:9pt;font-weight:bold;color:#1f2f3a;margin-bottom:6px;">Remarks</div>
-                            <div style="font-size:8.8pt;line-height:1.35;color:#1f2f3a;margin-bottom:7px;"><strong>Class Teacher</strong><br>' . $remarksLeft . '</div>
-                            <div style="font-size:8.8pt;line-height:1.35;color:#1f2f3a;margin-bottom:10px;"><strong>Principal</strong><br>' . $remarksRight . '</div>
-                            <div style="font-size:8.8pt;line-height:1.3;color:#1f2f3a;">Parent\'s Signature:</div>
-                            <div style="border-bottom:1px solid #222;height:16px;margin:0 0 8px 0;width:80%;"></div>
-                            <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;">
-                                <tr>
-                                    <td width="70" style="width:70px;vertical-align:top;">
-                                        <div style="width:58px;height:58px;border:1px solid #1db14b;padding:2px;background:#fff;">
-                                            <div style="width:52px;height:52px;background:linear-gradient(180deg,#dff6df,#b6ebb6);border:1px solid #7fc77f;"></div>
-                                        </div>
-                                    </td>
-                                    <td style="vertical-align:top;padding-left:8px;font-size:8.6pt;line-height:1.25;color:#1f2f3a;">
-                                        Scan to access your interactive student profile on the school portal. Your username: ' . app_report_html($verificationText) . '
-                                    </td>
-                                </tr>
-                            </table>
-                            <div style="font-size:8.4pt;font-weight:bold;color:#1f2f3a;margin-top:8px;">Verification Code: ' . app_report_html($verificationCode) . '</div>
-                        </div>
-                    </td>
-                </tr>
-            </table>
-
-            <div style="margin-top:8px;text-align:right;">
-                <span style="display:inline-block;background:#39b54a;color:#fff;font-size:8.4pt;font-weight:bold;padding:4px 10px;">School Motto: ' . app_report_html((string)WBMotto) . '</span>
-            </div>
         </td>
     </tr>
 </table>';
