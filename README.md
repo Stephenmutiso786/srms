@@ -5,7 +5,7 @@ Elimu Hub is a PHP Student Results Management System (MySQL or Postgres).
 ## Setup
 
 - Import the schema:
-  - MySQL: `srms/database/srms_mysql_schema_clean.sql`
+  - MySQL: `srms/database/srms_mysql_schema_clean.sql
   - Postgres: `srms/database/srms_postgres_schema.sql`
 - Configure DB: `srms/script/db/config.php`
 - Web root should be: `srms/script/`

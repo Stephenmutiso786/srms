@@ -5,6 +5,9 @@ if (!headers_sent()) {
 	require_once(__DIR__ . '/../const/http_cache.php');
 }
 
+// Load cache layer for performance
+require_once(__DIR__ . '/../const/cache.php');
+
 // Prefer environment variables for cloud hosting (Render, etc.)
 $driverEnv = strtolower(getenv('DB_DRIVER') ?: '');
 $dsnEnv = getenv('DB_DSN') ?: '';

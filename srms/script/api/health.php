@@ -4,9 +4,11 @@ declare(strict_types=1);
 require_once(__DIR__ . '/../db/config.php');
 
 header('Content-Type: application/json; charset=utf-8');
+header('Cache-Control: public, max-age=10');
 
 $deep = isset($_GET['deep']) && (string)$_GET['deep'] !== '0';
 $started = microtime(true);
+set_time_limit(5);
 
 $payload = [
 	'ok' => true,
@@ -29,11 +31,17 @@ if ($deep) {
 		$dbStarted = microtime(true);
 		$conn = app_db();
 		$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-		$conn->query('SELECT 1');
-		$db['ok'] = true;
-		$db['latency_ms'] = round((microtime(true) - $dbStarted) * 1000, 2);
+		$conn->setAttribute(PDO::ATTR_TIMEOUT, 2);
+		
+		// Simple ping query with timeout
+		$result = @$conn->query('SELECT 1', PDO::FETCH_NUM);
+		if ($result) {
+			$db['ok'] = true;
+			$db['latency_ms'] = round((microtime(true) - $dbStarted) * 1000, 2);
+		}
 	} catch (Throwable $e) {
 		$db['error'] = 'database_unreachable';
+		$db['latency_ms'] = round((microtime(true) - $dbStarted) * 1000, 2);
 		error_log('[api/health] deep check failed: ' . $e->getMessage());
 	}
 
