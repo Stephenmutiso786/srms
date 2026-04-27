@@ -114,9 +114,9 @@ try {
 <link rel="stylesheet" type="text/css" href="cdn.jsdelivr.net/npm/bootstrap-icons%401.10.5/font/bootstrap-icons.css">
 <style>
 :root {
-	--report-navy: #113d67;
-	--report-teal: #10a37f;
-	--report-sky: #1aa7e8;
+	--report-navy: #0f2f4a;
+	--report-gold: #c79a2d;
+	--report-slate: #5c6f80;
 	--report-ink: #13222d;
 	--report-line: #d6dde6;
 	--report-bg: #f4f8fb;
@@ -144,7 +144,7 @@ try {
 }
 
 .report-hero {
-	background: linear-gradient(90deg, var(--report-navy) 0%, #146c94 45%, var(--report-teal) 100%);
+	background: linear-gradient(90deg, #0c2740 0%, var(--report-navy) 58%, #184f73 100%);
 	color: #fff;
 	padding: 18px 18px 16px;
 }
@@ -175,7 +175,7 @@ try {
 }
 
 .report-brand__name {
-	font-size: 1.65rem;
+	font-size: 1.58rem;
 	font-weight: 800;
 	line-height: 1.05;
 	margin: 0;
@@ -188,8 +188,8 @@ try {
 }
 
 .report-tag {
-	background: rgba(255, 255, 255, 0.14);
-	border: 1px solid rgba(255, 255, 255, 0.24);
+	background: rgba(199, 154, 45, 0.16);
+	border: 1px solid rgba(199, 154, 45, 0.42);
 	border-radius: 999px;
 	padding: 7px 12px;
 	font-size: 0.8rem;
@@ -255,8 +255,8 @@ try {
 	font-weight: 800;
 	text-transform: uppercase;
 	letter-spacing: 0.06em;
-	background: linear-gradient(90deg, #eaf7ff 0%, #eefaf2 100%);
-	color: #1d4f66;
+	background: linear-gradient(90deg, #f4f7fa 0%, #eef2f6 100%);
+	color: var(--report-navy);
 }
 
 .identity-card__body,
@@ -270,7 +270,7 @@ try {
 	padding: 12px;
 	border: 1px solid var(--report-line);
 	border-radius: 18px;
-	background: var(--report-soft);
+	background: linear-gradient(180deg, #fcfdff 0%, var(--report-soft) 100%);
 	height: 100%;
 }
 
@@ -343,7 +343,7 @@ try {
 	height: 12px;
 	left: 0;
 	top: 0;
-	background: linear-gradient(90deg, #1a8fd4, #22b0ea);
+	background: linear-gradient(90deg, #184f73, #2f77a1);
 	opacity: 0.9;
 }
 
@@ -352,7 +352,7 @@ try {
 	height: 6px;
 	left: 0;
 	bottom: 0;
-	background: linear-gradient(90deg, #38b56a, #19a55a);
+	background: linear-gradient(90deg, #b48b27, #d2aa4a);
 	opacity: 0.75;
 }
 
@@ -364,7 +364,7 @@ try {
 }
 
 .stat-card {
-	background: linear-gradient(180deg, #f7fbff 0%, #eef8f4 100%);
+	background: linear-gradient(180deg, #fcfdff 0%, #f0f4f8 100%);
 	padding: 10px 8px;
 	text-align: center;
 	border: 1px solid var(--report-line);
@@ -387,7 +387,7 @@ try {
 }
 
 .dev.down { color: #d18b00; }
-.dev.up { color: #1a8f4d; }
+.dev.up { color: #0f6a46; }
 .dev.flat { color: #6d7a86; }
 
 .performance-wrap {
@@ -399,7 +399,7 @@ try {
 }
 
 .performance-head {
-	background: linear-gradient(90deg, #1f6f96, #12a37f);
+	background: linear-gradient(90deg, #0f2f4a, #1b4c73);
 	color: #fff;
 	padding: 10px 12px;
 	font-size: 0.82rem;
@@ -422,7 +422,7 @@ try {
 	color: #1f2f3a;
 }
 .report-table thead th {
-	background: #eef7fb;
+	background: #f2f6fa;
 	font-weight: 700;
 	text-transform: uppercase;
 	font-size: 0.72rem;
@@ -443,7 +443,7 @@ try {
 	flex: 1;
 	border: 1px solid var(--report-line);
 	border-radius: 18px;
-	background: #fff;
+	background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
 	overflow: hidden;
 }
 .remarks p {
@@ -456,7 +456,7 @@ try {
 	width: 320px;
 	border: 1px solid var(--report-line);
 	border-radius: 18px;
-	background: #fff;
+	background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
 	overflow: hidden;
 }
 
@@ -469,7 +469,7 @@ try {
 
 .verifier__badge {
 	display: inline-block;
-	background: linear-gradient(90deg, #1aa55a, #13b0a3);
+	background: linear-gradient(90deg, #0f2f4a, #184f73);
 	color: #fff;
 	border-radius: 999px;
 	padding: 6px 10px;
@@ -483,8 +483,8 @@ try {
 	width: 86px;
 	height: 86px;
 	border-radius: 16px;
-	background: linear-gradient(180deg, #e7fff1, #ccf2da);
-	border: 1px solid #9cd6ad;
+	background: linear-gradient(180deg, #f4f7fa, #e6edf4);
+	border: 1px solid #b9c8d6;
 	margin-bottom: 10px;
 }
 
@@ -650,7 +650,7 @@ $overallPosition = (string)($card['position'] ?? '-') . '/' . (string)($card['to
 				<h2 class="report-brand__name mb-1"><?php echo htmlspecialchars((string)WBName); ?></h2>
 				<div class="report-brand__meta"><?php echo htmlspecialchars($schoolContact); ?></div>
 			</div>
-			<div class="report-tag">International School Report</div>
+			<div class="report-tag">Official Academic Report</div>
 		</div>
 	</header>
 
