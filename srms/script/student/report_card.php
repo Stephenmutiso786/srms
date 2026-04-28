@@ -124,7 +124,7 @@ try {
 }
 
 .report-toolbar {
-	width: min(100%, 1380px);
+	width: min(100%, 1500px);
 	margin: 0 auto 16px;
 	background: #fff;
 	border: 1px solid var(--report-line);
@@ -134,7 +134,7 @@ try {
 }
 
 .report-sheet {
-	width: min(100%, 1380px);
+	width: min(100%, 1500px);
 	margin: 0 auto;
 	background: #fff;
 	border: 1px solid var(--report-line);
@@ -144,24 +144,24 @@ try {
 }
 
 .report-hero {
-	background: linear-gradient(90deg, #0c2740 0%, var(--report-navy) 58%, #184f73 100%);
+	background: linear-gradient(90deg, #092032 0%, #0f2f4a 58%, #173f61 100%);
 	color: #fff;
-	padding: 18px 18px 16px;
+	padding: 14px 18px 13px;
 }
 
 .report-brand {
 	display: grid;
-	grid-template-columns: 76px 1fr auto;
+	grid-template-columns: 68px 1fr auto;
 	gap: 14px;
 	align-items: center;
 }
 
 .report-brand__logo {
-	width: 76px;
-	height: 76px;
-	border-radius: 16px;
-	background: rgba(255, 255, 255, 0.12);
-	border: 1px solid rgba(255, 255, 255, 0.24);
+	width: 68px;
+	height: 68px;
+	border-radius: 11px;
+	background: rgba(255, 255, 255, 0.10);
+	border: 1px solid rgba(255, 255, 255, 0.18);
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -169,52 +169,52 @@ try {
 }
 
 .report-brand__logo img {
-	max-width: 66px;
-	max-height: 66px;
+	max-width: 60px;
+	max-height: 60px;
 	object-fit: contain;
 }
 
 .report-brand__name {
-	font-size: 1.58rem;
+	font-size: 1.32rem;
 	font-weight: 800;
 	line-height: 1.05;
 	margin: 0;
 }
 
 .report-brand__meta {
-	font-size: 0.88rem;
+	font-size: 0.79rem;
 	line-height: 1.45;
-	opacity: 0.95;
+	opacity: 0.92;
 }
 
 .report-tag {
-	background: rgba(199, 154, 45, 0.16);
-	border: 1px solid rgba(199, 154, 45, 0.42);
+	background: rgba(199, 154, 45, 0.12);
+	border: 1px solid rgba(199, 154, 45, 0.35);
 	border-radius: 999px;
-	padding: 7px 12px;
-	font-size: 0.8rem;
+	padding: 6px 13px;
+	font-size: 0.74rem;
 	font-weight: 700;
 	text-transform: uppercase;
 	letter-spacing: 0.04em;
 }
 
 .report-section {
-	padding: 22px;
+	padding: 24px;
 	border-bottom: 1px solid var(--report-line);
 	background: linear-gradient(180deg, #fff 0%, #fbfdff 100%);
 }
 
 .student-grid {
 	display: grid;
-	grid-template-columns: 132px minmax(0, 1.25fr) minmax(0, 1.15fr);
-	gap: 16px;
+	grid-template-columns: 176px minmax(0, 1.4fr) minmax(0, 1.05fr);
+	gap: 18px;
 	align-items: stretch;
 }
 
 .student-photo {
-	width: 132px;
-	height: 156px;
-	border-radius: 20px;
+	width: 176px;
+	height: 204px;
+	border-radius: 18px;
 	border: 1px solid var(--report-line);
 	background: linear-gradient(180deg, #f9fcff 0%, #eef6fb 100%);
 	overflow: hidden;
@@ -263,11 +263,11 @@ try {
 .snapshot-card__body,
 .remarks-card__body,
 .data-card__body {
-	padding: 14px;
+	padding: 18px 20px;
 }
 
 .student-details {
-	padding: 16px;
+	padding: 22px 24px;
 	border: 1px solid var(--report-line);
 	border-radius: 20px;
 	background: linear-gradient(180deg, #fcfdff 0%, var(--report-soft) 100%);
@@ -276,49 +276,49 @@ try {
 
 .student-details h2 {
 	margin: 0 0 6px;
-	font-size: 1.3rem;
+	font-size: 1.42rem;
 	color: var(--report-ink);
 }
 
 .student-details p {
 	margin: 5px 0;
-	font-size: 0.92rem;
+	font-size: 0.95rem;
 	color: #324450;
 }
 
 .pill-row {
 	display: grid;
 	grid-template-columns: repeat(3, minmax(0, 1fr));
-	gap: 8px;
-	margin-top: 10px;
+	gap: 12px;
+	margin-top: 14px;
 }
 
 .pill {
 	border-radius: 14px;
-	padding: 10px 10px;
+	padding: 11px 10px;
 	background: #fff;
 	border: 1px solid var(--report-line);
-	font-size: 0.84rem;
+	font-size: 0.82rem;
 	line-height: 1.2;
 	text-align: center;
 }
 
 .pill strong {
 	display: block;
-	font-size: 1.1rem;
+	font-size: 1.06rem;
 	margin-top: 4px;
 	color: var(--report-ink);
 }
 
 .snapshot-list {
 	display: grid;
-	gap: 8px;
+	gap: 11px;
 }
 
 .snapshot-row {
 	display: grid;
-	grid-template-columns: 96px 1fr;
-	gap: 8px;
+	grid-template-columns: 112px 1fr;
+	gap: 10px;
 	align-items: center;
 }
 
@@ -359,13 +359,13 @@ try {
 .stats-grid {
 	display: grid;
 	grid-template-columns: repeat(6, minmax(0, 1fr));
-	gap: 10px;
-	margin-top: 14px;
+	gap: 12px;
+	margin-top: 16px;
 }
 
 .stat-card {
 	background: linear-gradient(180deg, #fcfdff 0%, #f0f4f8 100%);
-	padding: 12px 10px;
+	padding: 14px 11px;
 	text-align: center;
 	border: 1px solid var(--report-line);
 	border-radius: 14px;
@@ -375,7 +375,7 @@ try {
 .stat-card strong {
 	display: block;
 	margin-top: 5px;
-	font-size: 1.05rem;
+	font-size: 1.06rem;
 	color: var(--report-ink);
 }
 
@@ -391,7 +391,7 @@ try {
 .dev.flat { color: #6d7a86; }
 
 .performance-wrap {
-	margin-top: 14px;
+	margin-top: 18px;
 	border: 1px solid var(--report-line);
 	border-radius: 20px;
 	overflow: hidden;
@@ -401,7 +401,7 @@ try {
 .performance-head {
 	background: linear-gradient(90deg, #0f2f4a, #1b4c73);
 	color: #fff;
-	padding: 11px 14px;
+	padding: 12px 16px;
 	font-size: 0.82rem;
 	font-weight: 800;
 	text-transform: uppercase;
@@ -416,7 +416,7 @@ try {
 .report-table th,
 .report-table td {
 	border: 1px solid #cad7e2;
-	padding: 8px 7px;
+	padding: 11px 8px;
 	text-align: left;
 	font-size: 0.86rem;
 	color: #1f2f3a;
@@ -435,8 +435,9 @@ try {
 
 .footer-grid {
 	display: flex;
-	gap: 14px;
+	gap: 12px;
 	margin-top: 14px;
+	align-items: stretch;
 }
 
 .remarks {
@@ -453,7 +454,7 @@ try {
 }
 
 .verifier {
-	width: 360px;
+	width: 388px;
 	border: 1px solid var(--report-line);
 	border-radius: 20px;
 	background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
@@ -743,15 +744,6 @@ $overallPosition = (string)($card['position'] ?? '-') . '/' . (string)($card['to
 		</div>
 
 		<div class="footer-grid">
-			<div class="remarks">
-				<div class="remarks-card__head">Remarks</div>
-				<div class="remarks-card__body">
-					<p><strong>Class Teacher:</strong> <?php echo htmlspecialchars((string)($card['teacher_comment'] ?? $card['remark'])); ?></p>
-					<p><strong>Principal:</strong> <?php echo htmlspecialchars((string)($card['headteacher_comment'] ?? $card['remark'])); ?></p>
-					<p><strong>School Motto:</strong> <?php echo htmlspecialchars((string)WBMotto); ?></p>
-				</div>
-			</div>
-
 			<div class="verifier">
 				<div class="remarks-card__head">Verification</div>
 				<div class="verifier__body">
@@ -760,6 +752,15 @@ $overallPosition = (string)($card['position'] ?? '-') . '/' . (string)($card['to
 					<div><strong>Code:</strong> <?php echo htmlspecialchars((string)($card['verification_code'] ?? '')); ?></div>
 					<div><strong>Portal User:</strong> <?php echo htmlspecialchars((string)($schoolId !== '' ? $schoolId : $account_id)); ?></div>
 					<div class="mt-2 text-muted">Verify this report through the school portal or the PDF download.</div>
+				</div>
+			</div>
+
+			<div class="remarks">
+				<div class="remarks-card__head">Remarks</div>
+				<div class="remarks-card__body">
+					<p><strong>Class Teacher:</strong> <?php echo htmlspecialchars((string)($card['teacher_comment'] ?? $card['remark'])); ?></p>
+					<p><strong>Principal:</strong> <?php echo htmlspecialchars((string)($card['headteacher_comment'] ?? $card['remark'])); ?></p>
+					<p><strong>School Motto:</strong> <?php echo htmlspecialchars((string)WBMotto); ?></p>
 				</div>
 			</div>
 		</div>
