@@ -124,7 +124,7 @@ try {
 }
 
 .report-toolbar {
-	max-width: 1180px;
+	width: min(100%, 1380px);
 	margin: 0 auto 16px;
 	background: #fff;
 	border: 1px solid var(--report-line);
@@ -134,7 +134,7 @@ try {
 }
 
 .report-sheet {
-	max-width: 1180px;
+	width: min(100%, 1380px);
 	margin: 0 auto;
 	background: #fff;
 	border: 1px solid var(--report-line);
@@ -199,22 +199,22 @@ try {
 }
 
 .report-section {
-	padding: 18px;
+	padding: 22px;
 	border-bottom: 1px solid var(--report-line);
 	background: linear-gradient(180deg, #fff 0%, #fbfdff 100%);
 }
 
 .student-grid {
 	display: grid;
-	grid-template-columns: 112px minmax(0, 1.15fr) minmax(0, 1.1fr);
-	gap: 14px;
+	grid-template-columns: 132px minmax(0, 1.25fr) minmax(0, 1.15fr);
+	gap: 16px;
 	align-items: stretch;
 }
 
 .student-photo {
-	width: 112px;
-	height: 132px;
-	border-radius: 18px;
+	width: 132px;
+	height: 156px;
+	border-radius: 20px;
 	border: 1px solid var(--report-line);
 	background: linear-gradient(180deg, #f9fcff 0%, #eef6fb 100%);
 	overflow: hidden;
@@ -241,7 +241,7 @@ try {
 .remarks-card,
 .data-card {
 	border: 1px solid var(--report-line);
-	border-radius: 18px;
+	border-radius: 20px;
 	background: #fff;
 	overflow: hidden;
 }
@@ -263,20 +263,20 @@ try {
 .snapshot-card__body,
 .remarks-card__body,
 .data-card__body {
-	padding: 12px;
+	padding: 14px;
 }
 
 .student-details {
-	padding: 12px;
+	padding: 16px;
 	border: 1px solid var(--report-line);
-	border-radius: 18px;
+	border-radius: 20px;
 	background: linear-gradient(180deg, #fcfdff 0%, var(--report-soft) 100%);
 	height: 100%;
 }
 
 .student-details h2 {
 	margin: 0 0 6px;
-	font-size: 1.15rem;
+	font-size: 1.3rem;
 	color: var(--report-ink);
 }
 
@@ -295,7 +295,7 @@ try {
 
 .pill {
 	border-radius: 14px;
-	padding: 9px 10px;
+	padding: 10px 10px;
 	background: #fff;
 	border: 1px solid var(--report-line);
 	font-size: 0.84rem;
@@ -359,13 +359,13 @@ try {
 .stats-grid {
 	display: grid;
 	grid-template-columns: repeat(6, minmax(0, 1fr));
-	gap: 8px;
-	margin-top: 12px;
+	gap: 10px;
+	margin-top: 14px;
 }
 
 .stat-card {
 	background: linear-gradient(180deg, #fcfdff 0%, #f0f4f8 100%);
-	padding: 10px 8px;
+	padding: 12px 10px;
 	text-align: center;
 	border: 1px solid var(--report-line);
 	border-radius: 14px;
@@ -391,9 +391,9 @@ try {
 .dev.flat { color: #6d7a86; }
 
 .performance-wrap {
-	margin-top: 12px;
+	margin-top: 14px;
 	border: 1px solid var(--report-line);
-	border-radius: 18px;
+	border-radius: 20px;
 	overflow: hidden;
 	background: #fff;
 }
@@ -401,7 +401,7 @@ try {
 .performance-head {
 	background: linear-gradient(90deg, #0f2f4a, #1b4c73);
 	color: #fff;
-	padding: 10px 12px;
+	padding: 11px 14px;
 	font-size: 0.82rem;
 	font-weight: 800;
 	text-transform: uppercase;
@@ -416,9 +416,9 @@ try {
 .report-table th,
 .report-table td {
 	border: 1px solid #cad7e2;
-	padding: 7px 6px;
+	padding: 8px 7px;
 	text-align: left;
-	font-size: 0.84rem;
+	font-size: 0.86rem;
 	color: #1f2f3a;
 }
 .report-table thead th {
@@ -435,14 +435,14 @@ try {
 
 .footer-grid {
 	display: flex;
-	gap: 12px;
-	margin-top: 12px;
+	gap: 14px;
+	margin-top: 14px;
 }
 
 .remarks {
 	flex: 1;
 	border: 1px solid var(--report-line);
-	border-radius: 18px;
+	border-radius: 20px;
 	background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
 	overflow: hidden;
 }
@@ -453,16 +453,16 @@ try {
 }
 
 .verifier {
-	width: 320px;
+	width: 360px;
 	border: 1px solid var(--report-line);
-	border-radius: 18px;
+	border-radius: 20px;
 	background: linear-gradient(180deg, #ffffff 0%, #fbfcfe 100%);
 	overflow: hidden;
 }
 
 .verifier__body {
-	padding: 12px;
-	font-size: 0.85rem;
+	padding: 14px;
+	font-size: 0.86rem;
 	line-height: 1.45;
 	color: #31414d;
 }
@@ -480,9 +480,9 @@ try {
 }
 
 .verifier__qr {
-	width: 86px;
-	height: 86px;
-	border-radius: 16px;
+	width: 94px;
+	height: 94px;
+	border-radius: 18px;
 	background: linear-gradient(180deg, #f4f7fa, #e6edf4);
 	border: 1px solid #b9c8d6;
 	margin-bottom: 10px;

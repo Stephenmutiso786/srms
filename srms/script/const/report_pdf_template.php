@@ -652,8 +652,8 @@ function app_report_render_layout(PDO $conn, array $payload, array $rows, string
         $subjectRowsHtml = '<tr><td colspan="7" style="text-align:center;">No subject data available.</td></tr>';
     }
 
-    $metricStyle = 'border:1px solid #d6dde6;border-top:3px solid #c79a2d;padding:5px 6px;background:#f8fafc;font-size:8pt;line-height:1.1;text-align:center;vertical-align:top;';
-    $metricValueStyle = 'display:block;font-size:10.5pt;font-weight:bold;color:#1f2f3a;margin-top:3px;';
+    $metricStyle = 'border:1px solid #d6dde6;border-top:3px solid #c79a2d;padding:6px 7px;background:#f8fafc;font-size:8.1pt;line-height:1.1;text-align:center;vertical-align:top;';
+    $metricValueStyle = 'display:block;font-size:11pt;font-weight:bold;color:#1f2f3a;margin-top:3px;';
     $metricDev = static function (float $value): string {
         if ($value > 0) {
             return '#0f6a46';
@@ -680,7 +680,7 @@ function app_report_render_layout(PDO $conn, array $payload, array $rows, string
         <td style="padding:0;">
             <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;border:1px solid #d6dde6;background:#fff;">
                 <tr>
-                    <td style="background:linear-gradient(90deg,#0c2740 0%,#0f2f4a 58%,#184f73 100%);padding:12px 14px;color:#fff;">
+                    <td style="background:linear-gradient(90deg,#091c2d 0%,#0f2f4a 64%,#153f61 100%);padding:12px 14px;color:#fff;">
                         <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;">
                             <tr>
                                 <td width="72" style="width:72px;vertical-align:top;">' . $logoHtml . '</td>
@@ -690,10 +690,10 @@ function app_report_render_layout(PDO $conn, array $payload, array $rows, string
                                     <div style="font-size:8.8pt;line-height:1.35;opacity:0.96;">' . app_report_html($schoolPhone) . ($schoolEmail !== '' ? ' | ' . app_report_html($schoolEmail) : '') . '</div>
                                 </td>
                                 <td width="176" style="width:176px;vertical-align:top;text-align:right;">
-                                    <div style="font-size:8.5pt;font-weight:bold;letter-spacing:0.04em;text-transform:uppercase;opacity:0.9;">Official Academic Report</div>
-                                    <div style="font-size:13pt;font-weight:bold;line-height:1.08;margin-top:4px;">' . app_report_html($className) . '</div>
-                                    <div style="font-size:8.7pt;line-height:1.25;margin-top:4px;">' . app_report_html($examTitle) . '</div>
-                                    <div style="font-size:8.4pt;opacity:0.92;">' . app_report_html($termName) . '</div>
+                                    <div style="font-size:8.2pt;font-weight:bold;letter-spacing:0.06em;text-transform:uppercase;opacity:0.88;">Official Academic Report</div>
+                                    <div style="font-size:13.2pt;font-weight:bold;line-height:1.04;margin-top:4px;">' . app_report_html($className) . '</div>
+                                    <div style="font-size:8.5pt;line-height:1.25;margin-top:4px;opacity:0.95;">' . app_report_html($examTitle) . '</div>
+                                    <div style="font-size:8.2pt;opacity:0.90;">' . app_report_html($termName) . '</div>
                                 </td>
                             </tr>
                         </table>
@@ -713,8 +713,8 @@ function app_report_render_layout(PDO $conn, array $payload, array $rows, string
                                             <td style="border:1px solid #d6dde6;background:#f7fbff;padding:7px 8px;vertical-align:top;">
                                                 <div style="font-size:7.8pt;text-transform:uppercase;color:#5c6c78;font-weight:bold;">Student Profile</div>
                                                 <div style="font-size:12pt;font-weight:bold;color:#13222d;line-height:1.15;margin-top:2px;">' . app_report_html($studentName) . '</div>
-                                                <div style="font-size:8.5pt;color:#33414c;margin-top:4px;"><b>Adm No:</b> ' . app_report_html($schoolId !== '' ? $schoolId : $studentId) . '</div>
-                                                <div style="font-size:8.5pt;color:#33414c;margin-top:2px;"><b>KCPE:</b> ' . app_report_html($kcpe !== '' ? $kcpe : 'N/A') . '</div>
+                                                <div style="font-size:8.3pt;color:#33414c;margin-top:4px;"><b>Adm No:</b> ' . app_report_html($schoolId !== '' ? $schoolId : $studentId) . '</div>
+                                                <div style="font-size:8.3pt;color:#33414c;margin-top:2px;"><b>KCPE:</b> ' . app_report_html($kcpe !== '' ? $kcpe : 'N/A') . '</div>
                                             </td>
                                         </tr>
                                         <tr><td style="height:6px;"></td></tr>
@@ -787,14 +787,7 @@ function app_report_render_layout(PDO $conn, array $payload, array $rows, string
                     <td style="padding:0 12px 12px 12px;">
                         <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;">
                             <tr>
-                                <td width="66%" style="width:66%;vertical-align:top;padding-right:8px;">
-                                    <div style="border:1px solid #d6dde6;border-radius:8px;padding:8px 10px;background:#fcfdff;min-height:96px;">
-                                        <div style="font-size:8.6pt;font-weight:bold;color:#1f2f3a;margin-bottom:5px;">Remarks</div>
-                                        <div style="font-size:8pt;line-height:1.35;color:#253745;margin-bottom:6px;"><strong>Class Teacher:</strong> ' . $remarksLeft . '</div>
-                                        <div style="font-size:8pt;line-height:1.35;color:#253745;"><strong>Principal:</strong> ' . $remarksRight . '</div>
-                                    </div>
-                                </td>
-                                <td width="34%" style="width:34%;vertical-align:top;">
+                                <td width="34%" style="width:34%;vertical-align:top;padding-right:8px;">
                                     <div style="border:1px solid #d6dde6;border-radius:8px;padding:8px 10px;background:#f7fbff;min-height:96px;">
                                         <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;">
                                             <tr>
@@ -810,6 +803,13 @@ function app_report_render_layout(PDO $conn, array $payload, array $rows, string
                                         </table>
                                         <div style="margin-top:6px;">' . app_report_school_dates_html($conn, $termName) . '</div>
                                         <div style="margin-top:6px;font-size:7.8pt;color:#49606e;">' . app_report_html($schoolMotto) . '</div>
+                                    </div>
+                                </td>
+                                <td width="66%" style="width:66%;vertical-align:top;padding-left:8px;">
+                                    <div style="border:1px solid #d6dde6;border-radius:8px;padding:8px 10px;background:#fcfdff;min-height:96px;">
+                                        <div style="font-size:8.6pt;font-weight:bold;color:#1f2f3a;margin-bottom:5px;">Remarks</div>
+                                        <div style="font-size:8pt;line-height:1.35;color:#253745;margin-bottom:6px;"><strong>Class Teacher:</strong> ' . $remarksLeft . '</div>
+                                        <div style="font-size:8pt;line-height:1.35;color:#253745;"><strong>Principal:</strong> ' . $remarksRight . '</div>
                                     </div>
                                 </td>
                             </tr>
@@ -921,9 +921,9 @@ function app_output_single_page_report_pdf(PDO $conn, TCPDF $pdf, array $payload
     if ($verifyUrl !== '') {
         $pdf->lastPage();
         $margins = $pdf->getMargins();
-        $qrSize = 18;
-        $x = (float)$margins['left'] + 112;
-        $y = $pdf->getPageHeight() - (float)$margins['bottom'] - 74;
+        $qrSize = 20;
+        $x = (float)$margins['left'] + 4;
+        $y = $pdf->getPageHeight() - (float)$margins['bottom'] - 24;
         $pdf->write2DBarcode($verifyUrl, 'QRCODE,H', $x, $y, $qrSize, $qrSize);
     }
 }
