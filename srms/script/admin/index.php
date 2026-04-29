@@ -152,7 +152,7 @@ try {
 <script src="loader/waitMe.js"></script>
 <script src="js/forms.js"></script>
 <script src="js/sweetalert2@11.js"></script>
-<script src="cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
 
 <script type="text/javascript">
 (function () {
