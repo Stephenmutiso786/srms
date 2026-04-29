@@ -104,7 +104,7 @@ try {
 
 </div>
 <div class="row">
-<div class="col-md-5 center_form">
+<div class="col-md-6 mb-4">
 <div class="tile">
 <div class="tile-body">
 <div class="table-responsive">
@@ -149,7 +149,7 @@ try {
 </div>
 </div>
 
-<div class="col-md-5 center_form">
+<div class="col-md-6 mb-4">
 <div class="tile">
 <div class="tile-body">
 <div class="table-responsive">
