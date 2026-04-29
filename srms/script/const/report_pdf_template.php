@@ -73,15 +73,15 @@ function app_report_grade_descriptors_html(PDO $conn, ?int $gradingSystemId): st
 
     $cells = '';
     foreach ($rows as $row) {
-        $cells .= '<td style="border:1px solid #555;padding:4px 5px;vertical-align:top;font-size:7.4pt;">'
-            . '<div style="font-weight:bold;">' . app_report_html((string)($row['name'] ?? '')) . '</div>'
-            . '<div>' . number_format((float)($row['min'] ?? 0), 0) . '% - ' . number_format((float)($row['max'] ?? 0), 0) . '%</div>'
-            . '<div>' . app_report_html((string)($row['remark'] ?? '')) . '</div>'
+        $cells .= '<td style="border:1px solid #8fb8d2;padding:5px 6px;vertical-align:top;font-size:7.5pt;background:#f8fafc;">'
+            . '<div style="font-weight:bold;color:#0f2f4a;">' . app_report_html((string)($row['name'] ?? '')) . '</div>'
+            . '<div style="margin-top:2px;color:#4d5d68;">' . number_format((float)($row['min'] ?? 0), 0) . '% - ' . number_format((float)($row['max'] ?? 0), 0) . '%</div>'
+            . '<div style="margin-top:1px;color:#5a6a77;">' . app_report_html((string)($row['remark'] ?? '')) . '</div>'
             . '</td>';
     }
 
     return '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">'
-        . '<tr><td colspan="' . count($rows) . '" style="padding:3px 0 4px 0;font-size:8pt;font-weight:bold;">Grade Descriptors</td></tr>'
+        . '<tr><td colspan="' . count($rows) . '" style="padding:4px 0 6px 0;font-size:8.2pt;font-weight:bold;color:#1f2f3a;">Grade Descriptors</td></tr>'
         . '<tr>' . $cells . '</tr>'
         . '</table>';
 }
@@ -639,17 +639,17 @@ function app_report_render_layout(PDO $conn, array $payload, array $rows, string
         $devColor = $dev > 0 ? '#1a8f4d' : ($dev < 0 ? '#d18b00' : '#6d7a86');
         $gradeBg = $grade !== '' ? '#eef6ff' : '#f3f4f6';
         $subjectRowsHtml .= '<tr>'
-            . '<td style="text-align:left;font-weight:bold;">' . app_report_html((string)($row['subject_name'] ?? '')) . '</td>'
-            . '<td style="text-align:center;">' . (is_numeric($cat1) ? number_format((float)$cat1, 1) . '%' : app_report_html((string)$cat1)) . '</td>'
-            . '<td style="text-align:center;">' . (is_numeric($cat2) ? number_format((float)$cat2, 1) . '%' : app_report_html((string)$cat2)) . '</td>'
-            . '<td style="text-align:center;font-weight:bold;">' . number_format($score, 1) . '%</td>'
-            . '<td style="text-align:center;color:' . $devColor . ';font-weight:bold;">' . (($dev > 0 ? '+' : '') . number_format($dev, 1)) . '</td>'
-            . '<td style="text-align:center;background:' . $gradeBg . ';font-weight:bold;">' . app_report_html($grade !== '' ? $grade : '-') . '</td>'
-            . '<td style="text-align:center;">' . app_report_html((string)($row['rank'] ?? $row['position'] ?? '-')) . '</td>'
+            . '<td style="text-align:left;font-weight:bold;padding:5px 6px;">' . app_report_html((string)($row['subject_name'] ?? '')) . '</td>'
+            . '<td style="text-align:center;padding:5px 6px;">' . (is_numeric($cat1) ? number_format((float)$cat1, 1) . '%' : app_report_html((string)$cat1)) . '</td>'
+            . '<td style="text-align:center;padding:5px 6px;">' . (is_numeric($cat2) ? number_format((float)$cat2, 1) . '%' : app_report_html((string)$cat2)) . '</td>'
+            . '<td style="text-align:center;font-weight:bold;padding:5px 6px;">' . number_format($score, 1) . '%</td>'
+            . '<td style="text-align:center;color:' . $devColor . ';font-weight:bold;padding:5px 6px;">' . (($dev > 0 ? '+' : '') . number_format($dev, 1)) . '</td>'
+            . '<td style="text-align:center;background:' . $gradeBg . ';font-weight:bold;padding:5px 6px;">' . app_report_html($grade !== '' ? $grade : '-') . '</td>'
+            . '<td style="text-align:center;padding:5px 6px;">' . app_report_html((string)($row['rank'] ?? $row['position'] ?? '-')) . '</td>'
             . '</tr>';
     }
     if ($subjectRowsHtml === '') {
-        $subjectRowsHtml = '<tr><td colspan="7" style="text-align:center;">No subject data available.</td></tr>';
+        $subjectRowsHtml = '<tr><td colspan="7" style="text-align:center;padding:8px;">No subject data available.</td></tr>';
     }
 
     $metricStyle = 'border:1px solid #d6dde6;border-top:3px solid #c79a2d;padding:6px 7px;background:#f8fafc;font-size:8.1pt;line-height:1.1;text-align:center;vertical-align:top;';
@@ -680,14 +680,14 @@ function app_report_render_layout(PDO $conn, array $payload, array $rows, string
         <td style="padding:0;">
             <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;border:1px solid #d6dde6;background:#fff;">
                 <tr>
-                    <td style="background:linear-gradient(90deg,#091c2d 0%,#0f2f4a 64%,#153f61 100%);padding:11px 13px;color:#fff;">
+                    <td style="background:linear-gradient(90deg,#091c2d 0%,#0f2f4a 64%,#153f61 100%);padding:13px 15px;color:#fff;">
                         <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;">
                             <tr>
                                 <td width="66" style="width:66px;vertical-align:top;">' . $logoHtml . '</td>
-                                <td style="vertical-align:top;padding-left:10px;">
+                                <td style="vertical-align:top;padding-left:12px;">
                                     <div style="font-size:17pt;font-weight:bold;line-height:1.05;">' . app_report_html($schoolName) . '</div>
-                                    <div style="font-size:8.4pt;line-height:1.3;opacity:0.96;margin-top:2px;">' . app_report_html($schoolAddress) . '</div>
-                                    <div style="font-size:8.4pt;line-height:1.3;opacity:0.96;">' . app_report_html($schoolPhone) . ($schoolEmail !== '' ? ' | ' . app_report_html($schoolEmail) : '') . '</div>
+                                    <div style="font-size:8.4pt;line-height:1.35;opacity:0.96;margin-top:2px;">' . app_report_html($schoolAddress) . '</div>
+                                    <div style="font-size:8.4pt;line-height:1.35;opacity:0.96;">' . app_report_html($schoolPhone) . ($schoolEmail !== '' ? ' | ' . app_report_html($schoolEmail) : '') . '</div>
                                 </td>
                                 <td width="176" style="width:176px;vertical-align:top;text-align:right;">
                                     <div style="font-size:8.2pt;font-weight:bold;letter-spacing:0.06em;text-transform:uppercase;opacity:0.88;">Official Academic Report</div>
@@ -701,52 +701,52 @@ function app_report_render_layout(PDO $conn, array $payload, array $rows, string
                 </tr>
 
                 <tr>
-                    <td style="padding:10px 12px 8px 12px;">
+                    <td style="padding:12px 14px 10px 14px;">
                         <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;">
                             <tr>
-                                <td width="96" style="width:96px;vertical-align:top;">
-                                    <div style="width:84px;height:98px;border:1px solid #c6d1db;border-radius:8px;overflow:hidden;background:#f7fafc;">' . $photoHtml . '</div>
+                                <td width="110" style="width:110px;vertical-align:top;padding-right:12px;">
+                                    <div style="width:94px;height:108px;border:1px solid #c6d1db;border-radius:8px;overflow:hidden;background:#f7fafc;">' . $photoHtml . '</div>
                                 </td>
-                                <td style="vertical-align:top;padding-right:10px;">
+                                <td style="vertical-align:top;padding-right:14px;">
                                     <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;">
                                         <tr>
-                                            <td style="border:1px solid #d6dde6;background:#f7fbff;padding:7px 8px;vertical-align:top;">
+                                            <td style="border:1px solid #d6dde6;background:#f7fbff;padding:9px 10px;vertical-align:top;">
                                                 <div style="font-size:7.8pt;text-transform:uppercase;color:#5c6c78;font-weight:bold;">Student Profile</div>
-                                                <div style="font-size:12pt;font-weight:bold;color:#13222d;line-height:1.15;margin-top:2px;">' . app_report_html($studentName) . '</div>
-                                                <div style="font-size:8.3pt;color:#33414c;margin-top:4px;"><b>Adm No:</b> ' . app_report_html($schoolId !== '' ? $schoolId : $studentId) . '</div>
-                                                <div style="font-size:8.3pt;color:#33414c;margin-top:2px;"><b>KCPE:</b> ' . app_report_html($kcpe !== '' ? $kcpe : 'N/A') . '</div>
+                                                <div style="font-size:12pt;font-weight:bold;color:#13222d;line-height:1.15;margin-top:3px;">' . app_report_html($studentName) . '</div>
+                                                <div style="font-size:8.3pt;color:#33414c;margin-top:5px;"><b>Adm No:</b> ' . app_report_html($schoolId !== '' ? $schoolId : $studentId) . '</div>
+                                                <div style="font-size:8.3pt;color:#33414c;margin-top:3px;"><b>KCPE:</b> ' . app_report_html($kcpe !== '' ? $kcpe : 'N/A') . '</div>
                                             </td>
                                         </tr>
-                                        <tr><td style="height:6px;"></td></tr>
+                                        <tr><td style="height:8px;"></td></tr>
                                         <tr>
                                             <td>
-                                                <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-spacing:6px 0;table-layout:fixed;">
+                                                <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-spacing:8px 0;table-layout:fixed;">
                                                     <tr>
-                                                        <td style="' . $metricStyle . 'padding:7px 7px;">Mean<span style="' . $metricValueStyle . '">' . app_report_html($meanGrade) . '</span><span style="color:' . $metricDev($meanDev) . ';font-size:7.6pt;font-weight:bold;">' . ($meanDev > 0 ? '+' : '') . number_format($meanDev, 1) . '</span></td>
-                                                        <td style="' . $metricStyle . 'padding:7px 7px;">Total Marks<span style="' . $metricValueStyle . '">' . number_format($totalMarks, 0) . '/' . number_format($maxMarks, 0) . '</span><span style="color:' . $metricDev($totalDev) . ';font-size:7.6pt;font-weight:bold;">' . ($totalDev > 0 ? '+' : '') . number_format($totalDev, 0) . '</span></td>
-                                                        <td style="' . $metricStyle . 'padding:7px 7px;">Points<span style="' . $metricValueStyle . '">' . number_format($totalPoints, 1) . '/' . number_format($pointsMax, 0) . '</span><span style="color:' . $metricDev($pointsDev) . ';font-size:7.6pt;font-weight:bold;">' . ($pointsDev > 0 ? '+' : '') . number_format($pointsDev, 1) . '</span></td>
+                                                        <td style="' . $metricStyle . 'padding:9px 8px;">Mean<span style="' . $metricValueStyle . '">' . app_report_html($meanGrade) . '</span><span style="color:' . $metricDev($meanDev) . ';font-size:7.6pt;font-weight:bold;">' . ($meanDev > 0 ? '+' : '') . number_format($meanDev, 1) . '</span></td>
+                                                        <td style="' . $metricStyle . 'padding:9px 8px;">Total Marks<span style="' . $metricValueStyle . '">' . number_format($totalMarks, 0) . '/' . number_format($maxMarks, 0) . '</span><span style="color:' . $metricDev($totalDev) . ';font-size:7.6pt;font-weight:bold;">' . ($totalDev > 0 ? '+' : '') . number_format($totalDev, 0) . '</span></td>
+                                                        <td style="' . $metricStyle . 'padding:9px 8px;">Points<span style="' . $metricValueStyle . '">' . number_format($totalPoints, 1) . '/' . number_format($pointsMax, 0) . '</span><span style="color:' . $metricDev($pointsDev) . ';font-size:7.6pt;font-weight:bold;">' . ($pointsDev > 0 ? '+' : '') . number_format($pointsDev, 1) . '</span></td>
                                                     </tr>
                                                 </table>
                                             </td>
                                         </tr>
-                                        <tr><td style="height:6px;"></td></tr>
+                                        <tr><td style="height:8px;"></td></tr>
                                         <tr>
                                             <td>
-                                                <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-spacing:6px 0;table-layout:fixed;">
+                                                <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-spacing:8px 0;table-layout:fixed;">
                                                     <tr>
-                                                        <td style="' . $metricStyle . 'padding:7px 7px;">Stream Position<span style="' . $metricValueStyle . '">' . app_report_html($streamPosition) . '</span></td>
-                                                        <td style="' . $metricStyle . 'padding:7px 7px;">Overall Position<span style="' . $metricValueStyle . '">' . app_report_html($overallPosition) . '</span></td>
-                                                        <td style="' . $metricStyle . 'padding:7px 7px;">Fees<span style="' . $metricValueStyle . '">' . ($feesBalance > 0 ? 'Balance ' . number_format($feesBalance, 0) : 'Cleared') . '</span></td>
+                                                        <td style="' . $metricStyle . 'padding:9px 8px;">Stream Position<span style="' . $metricValueStyle . '">' . app_report_html($streamPosition) . '</span></td>
+                                                        <td style="' . $metricStyle . 'padding:9px 8px;">Overall Position<span style="' . $metricValueStyle . '">' . app_report_html($overallPosition) . '</span></td>
+                                                        <td style="' . $metricStyle . 'padding:9px 8px;">Fees<span style="' . $metricValueStyle . '">' . ($feesBalance > 0 ? 'Balance ' . number_format($feesBalance, 0) : 'Cleared') . '</span></td>
                                                     </tr>
                                                 </table>
                                             </td>
                                         </tr>
                                     </table>
                                 </td>
-                                <td width="152" style="width:152px;vertical-align:top;">
+                                <td width="170" style="width:170px;vertical-align:top;">
                                     <div style="border:1px solid #d6dde6;border-radius:8px;overflow:hidden;background:#fbfdff;">
-                                        <div style="background:#f3f6f9;color:#0f2f4a;padding:7px 8px;font-size:8.2pt;font-weight:bold;text-transform:uppercase;">Subject Snapshot</div>
-                                        <div style="padding:8px;">
+                                        <div style="background:#f3f6f9;color:#0f2f4a;padding:9px 10px;font-size:8.2pt;font-weight:bold;text-transform:uppercase;">Subject Snapshot</div>
+                                        <div style="padding:10px;">
                                             <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;">
                                                 ' . $subjectSnapshotHtml . '
                                             </table>
@@ -759,23 +759,23 @@ function app_report_render_layout(PDO $conn, array $payload, array $rows, string
                 </tr>
 
                 <tr>
-                    <td style="padding:0 12px 10px 12px;">
+                    <td style="padding:0 14px 12px 14px;">
                         <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;">
                             <tr>
-                                <td style="background:linear-gradient(90deg,#f5f7fa 0%,#edf1f5 100%);padding:8px 10px;border:1px solid #d6dde6;border-right:0;font-size:8.4pt;font-weight:bold;">ACADEMIC PERFORMANCE</td>
-                                <td style="background:linear-gradient(90deg,#f5f7fa 0%,#edf1f5 100%);padding:8px 10px;border:1px solid #d6dde6;text-align:right;font-size:8.2pt;color:#49606e;">Official school record</td>
+                                <td style="background:linear-gradient(90deg,#f5f7fa 0%,#edf1f5 100%);padding:10px 12px;border:1px solid #d6dde6;border-right:0;font-size:8.4pt;font-weight:bold;">ACADEMIC PERFORMANCE</td>
+                                <td style="background:linear-gradient(90deg,#f5f7fa 0%,#edf1f5 100%);padding:10px 12px;border:1px solid #d6dde6;text-align:right;font-size:8.2pt;color:#49606e;">Official school record</td>
                             </tr>
                         </table>
                         <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;">
                             <thead>
                                 <tr>
-                                    <th style="border:1px solid #8fb8d2;padding:4px 5px;font-size:7.5pt;text-transform:uppercase;background:#0f2f4a;color:#fff;">Subject</th>
-                                    <th style="border:1px solid #8fb8d2;padding:4px 5px;font-size:7.5pt;text-transform:uppercase;background:#0f2f4a;color:#fff;">CAT 1</th>
-                                    <th style="border:1px solid #8fb8d2;padding:4px 5px;font-size:7.5pt;text-transform:uppercase;background:#0f2f4a;color:#fff;">CAT 2</th>
-                                    <th style="border:1px solid #8fb8d2;padding:4px 5px;font-size:7.5pt;text-transform:uppercase;background:#0f2f4a;color:#fff;">Score</th>
-                                    <th style="border:1px solid #8fb8d2;padding:4px 5px;font-size:7.5pt;text-transform:uppercase;background:#0f2f4a;color:#fff;">Dev.</th>
-                                    <th style="border:1px solid #8fb8d2;padding:4px 5px;font-size:7.5pt;text-transform:uppercase;background:#0f2f4a;color:#fff;">Grade</th>
-                                    <th style="border:1px solid #8fb8d2;padding:4px 5px;font-size:7.5pt;text-transform:uppercase;background:#0f2f4a;color:#fff;">Rank</th>
+                                    <th style="border:1px solid #8fb8d2;padding:8px 9px;font-size:7.6pt;text-transform:uppercase;background:#0f2f4a;color:#fff;font-weight:bold;">Subject</th>
+                                    <th style="border:1px solid #8fb8d2;padding:8px 9px;font-size:7.6pt;text-transform:uppercase;background:#0f2f4a;color:#fff;font-weight:bold;">CAT 1</th>
+                                    <th style="border:1px solid #8fb8d2;padding:8px 9px;font-size:7.6pt;text-transform:uppercase;background:#0f2f4a;color:#fff;font-weight:bold;">CAT 2</th>
+                                    <th style="border:1px solid #8fb8d2;padding:8px 9px;font-size:7.6pt;text-transform:uppercase;background:#0f2f4a;color:#fff;font-weight:bold;">Score</th>
+                                    <th style="border:1px solid #8fb8d2;padding:8px 9px;font-size:7.6pt;text-transform:uppercase;background:#0f2f4a;color:#fff;font-weight:bold;">Dev.</th>
+                                    <th style="border:1px solid #8fb8d2;padding:8px 9px;font-size:7.6pt;text-transform:uppercase;background:#0f2f4a;color:#fff;font-weight:bold;">Grade</th>
+                                    <th style="border:1px solid #8fb8d2;padding:8px 9px;font-size:7.6pt;text-transform:uppercase;background:#0f2f4a;color:#fff;font-weight:bold;">Rank</th>
                                 </tr>
                             </thead>
                             <tbody>' . $subjectRowsHtml . '</tbody>
@@ -784,32 +784,31 @@ function app_report_render_layout(PDO $conn, array $payload, array $rows, string
                 </tr>
 
                 <tr>
-                    <td style="padding:0 12px 12px 12px;">
+                    <td style="padding:0 14px 14px 14px;">
                         <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;">
                             <tr>
-                                <td width="40%" style="width:40%;vertical-align:top;padding-right:8px;">
-                                    <div style="border:1px solid #d6dde6;border-radius:8px;padding:8px 10px;background:#f7fbff;min-height:96px;">
+                                <td width="40%" style="width:40%;vertical-align:top;padding-right:10px;">
+                                    <div style="border:1px solid #d6dde6;border-radius:8px;padding:10px 12px;background:#f7fbff;min-height:100px;">
                                         <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;">
                                             <tr>
                                                 <td width="72" style="width:72px;vertical-align:top;">
                                                     <div style="width:66px;height:66px;border:1px solid #b9c8d6;border-radius:8px;background:linear-gradient(180deg,#f4f7fa,#e7edf3);text-align:center;"></div>
                                                 </td>
-                                                <td style="vertical-align:top;font-size:8pt;line-height:1.3;color:#253745;">
-                                                    Scan to verify this report and access the student portal.<br>
+                                                <td style="vertical-align:top;font-size:8pt;line-height:1.4;color:#253745;padding-left:8px;">
+                                                    Verify this certificate and access the student portal via QR code.<br>
                                                     <strong>Code:</strong> ' . app_report_html($verificationCode) . '<br>
-                                                    <strong>User:</strong> ' . app_report_html($verificationText) . '
+                                                    <strong>ID:</strong> ' . app_report_html($verificationText) . '
                                                 </td>
                                             </tr>
                                         </table>
-                                        <div style="margin-top:6px;">' . app_report_school_dates_html($conn, $termName) . '</div>
-                                        <div style="margin-top:6px;font-size:7.8pt;color:#49606e;">' . app_report_html($schoolMotto) . '</div>
+                                        <div style="margin-top:8px;font-size:7.8pt;color:#4d5d68;font-style:italic;">' . app_report_html($schoolMotto) . '</div>
                                     </div>
                                 </td>
-                                <td width="60%" style="width:60%;vertical-align:top;padding-left:8px;">
-                                    <div style="border:1px solid #d6dde6;border-radius:8px;padding:8px 10px;background:#fcfdff;min-height:96px;">
-                                        <div style="font-size:8.6pt;font-weight:bold;color:#1f2f3a;margin-bottom:5px;">Remarks</div>
-                                        <div style="font-size:8pt;line-height:1.35;color:#253745;margin-bottom:6px;"><strong>Class Teacher:</strong> ' . $remarksLeft . '</div>
-                                        <div style="font-size:8pt;line-height:1.35;color:#253745;"><strong>Principal:</strong> ' . $remarksRight . '</div>
+                                <td width="60%" style="width:60%;vertical-align:top;padding-left:12px;">
+                                    <div style="border:1px solid #c8d9e6;border-radius:8px;padding:12px 14px;background:#fcfdfe;min-height:110px;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
+                                        <div style="font-size:9pt;font-weight:bold;color:#0f2f4a;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.03em;">Remarks & Feedback</div>
+                                        <div style="font-size:8.1pt;line-height:1.5;color:#253745;margin-bottom:10px;"><strong>Class Teacher:</strong> ' . $remarksLeft . '</div>
+                                        <div style="font-size:8.1pt;line-height:1.5;color:#253745;"><strong>Principal/Headmaster:</strong> ' . $remarksRight . '</div>
                                     </div>
                                 </td>
                             </tr>
@@ -922,8 +921,9 @@ function app_output_single_page_report_pdf(PDO $conn, TCPDF $pdf, array $payload
         $pdf->lastPage();
         $margins = $pdf->getMargins();
         $qrSize = 22;
-        $x = (float)$margins['left'] + 4;
-        $y = $pdf->getPageHeight() - (float)$margins['bottom'] - 26;
+        $pageWidth = $pdf->getPageWidth();
+        $x = $pageWidth - (float)$margins['right'] - $qrSize - 4;
+        $y = $pdf->getPageHeight() - (float)$margins['bottom'] - $qrSize - 4;
         $pdf->write2DBarcode($verifyUrl, 'QRCODE,H', $x, $y, $qrSize, $qrSize);
     }
 }
