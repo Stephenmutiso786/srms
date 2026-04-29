@@ -922,10 +922,11 @@ function app_output_single_page_report_pdf(PDO $conn, TCPDF $pdf, array $payload
         $pdf->lastPage();
         
         // Save current state
-        $current_alpha = $pdf->getAlpha()['ca'] ?? 1.0;
-        $current_font = $pdf->getFontFamily();
-        $current_font_style = $pdf->getFontStyle();
-        $current_font_size = $pdf->FontSizePt;
+        $current_alpha = ($pdf->getAlpha()['ca'] ?? 1.0);
+        $current_font = method_exists($pdf, 'getFontFamily') ? $pdf->getFontFamily() : '';
+        $current_font_style = method_exists($pdf, 'getFontStyle') ? $pdf->getFontStyle() : '';
+        // Use accessor to get current font size in points
+        $current_font_size = method_exists($pdf, 'getFontSizePt') ? $pdf->getFontSizePt() : ($pdf->getFontSize() ?? 0);
         
         // Set watermark font properties
         $pdf->SetFont('helvetica', '', 80);
