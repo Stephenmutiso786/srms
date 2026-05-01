@@ -77,7 +77,19 @@ function app_get_permissions(PDO $conn, string $staffId, string $level): array
 		if (!$rows || count($rows) === 0) {
 			return $defaults;
 		}
-		return array_values(array_unique(array_map('strval', $rows)));
+		$rolePermissions = array_values(array_unique(array_filter(array_map(static function ($code): string {
+			return strtolower(trim((string)$code));
+		}, $rows), static function (string $code): bool {
+			return $code !== '';
+		})));
+
+		$defaultPermissions = array_values(array_unique(array_filter(array_map(static function ($code): string {
+			return strtolower(trim((string)$code));
+		}, $defaults), static function (string $code): bool {
+			return $code !== '';
+		})));
+
+		return array_values(array_unique(array_merge($defaultPermissions, $rolePermissions)));
 	} catch (Throwable $e) {
 		return $defaults;
 	}
@@ -193,6 +205,39 @@ function app_role_permission_codes(PDO $conn, int $roleId): array
 	}
 }
 
+function app_role_effective_permission_codes(PDO $conn, int $roleId): array
+{
+	if ($roleId < 1 || !app_table_exists($conn, 'tbl_roles')) {
+		return [];
+	}
+
+	$roleLevel = null;
+	try {
+		$stmt = $conn->prepare('SELECT level FROM tbl_roles WHERE id = ? LIMIT 1');
+		$stmt->execute([$roleId]);
+		$levelValue = $stmt->fetchColumn();
+		if ($levelValue !== false && $levelValue !== null && $levelValue !== '') {
+			$roleLevel = (int)$levelValue;
+		}
+	} catch (Throwable $e) {
+		$roleLevel = null;
+	}
+
+	$defaultPermissions = [];
+	if ($roleLevel !== null) {
+		$defaultPermissions = app_default_permissions_for_level((int)$roleLevel);
+	}
+	$defaultPermissions = array_values(array_unique(array_filter(array_map(static function ($code): string {
+		return strtolower(trim((string)$code));
+	}, $defaultPermissions), static function (string $code): bool {
+		return $code !== '';
+	})));
+
+	$explicitPermissions = app_role_permission_codes($conn, $roleId);
+
+	return array_values(array_unique(array_merge($defaultPermissions, $explicitPermissions)));
+}
+
 function app_auto_allocate_normal_modules_for_portal(PDO $conn, string $portal): void
 {
 	$portal = strtolower(trim($portal));
@@ -246,7 +291,7 @@ function app_auto_allocate_normal_modules_for_portal(PDO $conn, string $portal):
 				continue;
 			}
 
-			$permissionCodes = app_role_permission_codes($conn, (int)$roleId);
+			$permissionCodes = app_role_effective_permission_codes($conn, (int)$roleId);
 			if (empty($permissionCodes)) {
 				continue;
 			}
