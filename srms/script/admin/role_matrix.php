@@ -13,6 +13,10 @@ $permissions = [];
 $rolePermissionMap = [];
 $staffRows = [];
 $permissionGroups = [];
+$moduleAllocationsByRole = [];
+$allocatableModules = [];
+$portalOptions = [];
+$selectedPortal = 'admin';
 $error = '';
 
 try {
@@ -46,6 +50,35 @@ try {
 	$permissionGroups = array_keys($permissionGroups);
 	sort($permissionGroups);
 
+	$availablePortals = ['admin', 'academic', 'teacher', 'accountant', 'student', 'parent', 'bom'];
+	foreach ($availablePortals as $portalKey) {
+		$catalog = app_portal_module_catalog($portalKey);
+		if (!empty($catalog)) {
+			$portalOptions[] = $portalKey;
+		}
+	}
+	if (empty($portalOptions)) {
+		$portalOptions = ['admin'];
+	}
+
+	$selectedPortalRequest = strtolower(trim((string)($_GET['portal'] ?? 'admin')));
+	if (!in_array($selectedPortalRequest, $portalOptions, true)) {
+		$selectedPortalRequest = 'admin';
+	}
+	if (!in_array($selectedPortalRequest, $portalOptions, true)) {
+		$selectedPortalRequest = (string)($portalOptions[0] ?? 'admin');
+	}
+	$selectedPortal = $selectedPortalRequest;
+
+	foreach (app_portal_module_catalog($selectedPortal) as $module) {
+		$moduleKey = strtolower(trim((string)($module['key'] ?? '')));
+		$modulePermissions = array_values(array_filter(array_map('strval', (array)($module['permissions'] ?? []))));
+		if ($moduleKey === '' || empty($modulePermissions)) {
+			continue;
+		}
+		$allocatableModules[] = $module;
+	}
+
 	$stmt = $conn->prepare("SELECT role_id, permission_id FROM tbl_role_permissions");
 	$stmt->execute();
 	foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
@@ -53,6 +86,18 @@ try {
 		$permId = (int)($row['permission_id'] ?? 0);
 		if ($roleId > 0 && $permId > 0) {
 			$rolePermissionMap[$roleId][$permId] = true;
+		}
+	}
+
+	if (app_ensure_role_module_allocations_table($conn) && !empty($allocatableModules)) {
+		$stmt = $conn->prepare('SELECT role_id, module_key FROM tbl_role_module_allocations WHERE portal = ?');
+		$stmt->execute([$selectedPortal]);
+		foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+			$roleId = (int)($row['role_id'] ?? 0);
+			$moduleKey = strtolower(trim((string)($row['module_key'] ?? '')));
+			if ($roleId > 0 && $moduleKey !== '') {
+				$moduleAllocationsByRole[$roleId][$moduleKey] = true;
+			}
 		}
 	}
 
@@ -218,6 +263,69 @@ try {
 </tbody>
 </table>
 </div>
+</div>
+</div>
+</div>
+
+<div class="row">
+<div class="col-md-12">
+<div class="tile">
+<h3 class="tile-title">Role x Sidebar Module Allocation</h3>
+<div class="small text-muted mb-2">Allocate which permission-based modules should appear on the selected portal sidebar for each role.</div>
+<form method="GET" action="admin/role_matrix" class="filter-bar">
+<div class="filter-item">
+<label class="form-label mb-1" for="portalFilter">Portal</label>
+<select class="form-control" id="portalFilter" name="portal" onchange="this.form.submit()">
+<?php foreach ($portalOptions as $portalOption): ?>
+<option value="<?php echo htmlspecialchars((string)$portalOption); ?>" <?php echo $selectedPortal === $portalOption ? 'selected' : ''; ?>><?php echo htmlspecialchars(ucfirst((string)$portalOption)); ?></option>
+<?php endforeach; ?>
+</select>
+</div>
+</form>
+
+<?php if (empty($allocatableModules)): ?>
+<div class="alert alert-info mb-0">No permission-based modules found for this portal.</div>
+<?php else: ?>
+<div class="matrix-wrap">
+<table class="table table-bordered table-sm matrix-table">
+<thead>
+<tr>
+<th class="matrix-role-col">Role</th>
+<?php foreach ($allocatableModules as $module): ?>
+<?php $moduleLabel = (string)($module['label'] ?? ($module['key'] ?? 'Module')); ?>
+<?php $moduleKey = strtolower(trim((string)($module['key'] ?? ''))); ?>
+<th title="<?php echo htmlspecialchars((string)($module['description'] ?? '')); ?>"><?php echo htmlspecialchars($moduleLabel); ?><div class="text-muted small"><?php echo htmlspecialchars($moduleKey); ?></div></th>
+<?php endforeach; ?>
+</tr>
+</thead>
+<tbody>
+<?php foreach ($roles as $role): ?>
+<tr>
+<td class="matrix-role-col">
+<div class="fw-semibold"><?php echo htmlspecialchars((string)$role['name']); ?></div>
+<div class="text-muted small">Level <?php echo (int)$role['level']; ?></div>
+</td>
+<?php foreach ($allocatableModules as $module): ?>
+<?php $moduleKey = strtolower(trim((string)($module['key'] ?? ''))); ?>
+<?php $allocated = !empty($moduleAllocationsByRole[(int)$role['id']][$moduleKey]); ?>
+<td class="text-center">
+<form method="POST" action="admin/core/toggle_role_module" class="d-inline">
+<input type="hidden" name="role_id" value="<?php echo (int)$role['id']; ?>">
+<input type="hidden" name="portal" value="<?php echo htmlspecialchars($selectedPortal); ?>">
+<input type="hidden" name="module_key" value="<?php echo htmlspecialchars($moduleKey); ?>">
+<input type="hidden" name="return_to" value="../role_matrix?portal=<?php echo urlencode($selectedPortal); ?>">
+<button type="submit" class="matrix-toggle" title="<?php echo $allocated ? 'Remove module from role sidebar allocation' : 'Allocate module to role sidebar'; ?>">
+<?php echo $allocated ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-plus-circle text-muted"></i>'; ?>
+</button>
+</form>
+</td>
+<?php endforeach; ?>
+</tr>
+<?php endforeach; ?>
+</tbody>
+</table>
+</div>
+<?php endif; ?>
 </div>
 </div>
 </div>

@@ -154,6 +154,114 @@ function app_staff_role_names(PDO $conn, int $staffId): array
 	}
 }
 
+function app_ensure_role_module_allocations_table(PDO $conn): bool
+{
+	if (app_table_exists($conn, 'tbl_role_module_allocations')) {
+		return true;
+	}
+
+	try {
+		$conn->exec("CREATE TABLE IF NOT EXISTS tbl_role_module_allocations (
+			role_id INT NOT NULL,
+			portal VARCHAR(50) NOT NULL,
+			module_key VARCHAR(120) NOT NULL,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (role_id, portal, module_key)
+		)");
+		return app_table_exists($conn, 'tbl_role_module_allocations');
+	} catch (Throwable $e) {
+		return false;
+	}
+}
+
+function app_staff_role_module_allocation(PDO $conn, string $portal, string $staffId): array
+{
+	static $cache = [];
+	$portal = strtolower(trim($portal));
+	$staffIdInt = (int)$staffId;
+	$cacheKey = $portal . '|' . $staffIdInt;
+	if (isset($cache[$cacheKey])) {
+		return $cache[$cacheKey];
+	}
+
+	$result = [
+		'active' => false,
+		'module_keys' => [],
+	];
+
+	if ($portal === '' || $staffIdInt < 1) {
+		$cache[$cacheKey] = $result;
+		return $cache[$cacheKey];
+	}
+
+	if (!app_table_exists($conn, 'tbl_user_roles')) {
+		$cache[$cacheKey] = $result;
+		return $cache[$cacheKey];
+	}
+
+	if (!app_ensure_role_module_allocations_table($conn)) {
+		$cache[$cacheKey] = $result;
+		return $cache[$cacheKey];
+	}
+
+	try {
+		$stmt = $conn->prepare('SELECT role_id FROM tbl_user_roles WHERE staff_id = ?');
+		$stmt->execute([$staffIdInt]);
+		$roleIds = array_values(array_unique(array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN))));
+		$roleIds = array_values(array_filter($roleIds, static function (int $roleId): bool {
+			return $roleId > 0;
+		}));
+
+		if (empty($roleIds)) {
+			$cache[$cacheKey] = $result;
+			return $cache[$cacheKey];
+		}
+
+		$placeholders = implode(',', array_fill(0, count($roleIds), '?'));
+		$params = $roleIds;
+		$params[] = $portal;
+
+		$stmt = $conn->prepare("SELECT module_key FROM tbl_role_module_allocations WHERE role_id IN ($placeholders) AND portal = ?");
+		$stmt->execute($params);
+		$moduleKeys = array_values(array_unique(array_filter(array_map(static function ($moduleKey): string {
+			return strtolower(trim((string)$moduleKey));
+		}, $stmt->fetchAll(PDO::FETCH_COLUMN)), static function (string $moduleKey): bool {
+			return $moduleKey !== '';
+		})));
+
+		$result['active'] = !empty($moduleKeys);
+		$result['module_keys'] = array_fill_keys($moduleKeys, true);
+	} catch (Throwable $e) {
+		$result = [
+			'active' => false,
+			'module_keys' => [],
+		];
+	}
+
+	$cache[$cacheKey] = $result;
+	return $cache[$cacheKey];
+}
+
+function app_staff_module_allocation_allows(PDO $conn, string $portal, string $staffId, array $module): bool
+{
+	$allocation = app_staff_role_module_allocation($conn, $portal, $staffId);
+	if (empty($allocation['active'])) {
+		return true;
+	}
+
+	$modulePermissions = array_values(array_filter(array_map('strval', (array)($module['permissions'] ?? []))));
+	if (empty($modulePermissions)) {
+		return true;
+	}
+
+	$moduleKey = strtolower(trim((string)($module['key'] ?? '')));
+	if ($moduleKey === '') {
+		return true;
+	}
+
+	return !empty($allocation['module_keys'][$moduleKey]);
+}
+
 function app_teacher_portal_module_catalog(): array
 {
 	return [
@@ -218,7 +326,7 @@ function app_portal_module_catalog(string $portal): array
 		return [
 			['key' => 'dashboard', 'label' => 'Dashboard', 'href' => 'admin', 'icon' => 'feather icon-monitor', 'description' => 'Admin overview', 'permissions' => [], 'core' => true],
 			['key' => 'academic', 'label' => 'Academic Account', 'href' => 'admin/academic', 'icon' => 'feather icon-user', 'description' => 'Academic leadership account', 'permissions' => ['academic.manage', 'staff.manage'], 'core' => true],
-			['key' => 'teachers', 'label' => 'Teachers', 'href' => 'admin/teachers', 'icon' => 'feather icon-user', 'description' => 'Teacher records and access', 'permissions' => ['staff.manage'], 'core' => true],
+			['key' => 'teachers', 'label' => 'Teachers', 'href' => 'admin/teachers', 'icon' => 'feather icon-user', 'description' => 'Teacher records and access', 'permissions' => ['staff.manage', 'academic.manage'], 'core' => true],
 			['key' => 'classes', 'label' => 'Class Management', 'href' => 'admin/classes', 'icon' => 'feather icon-home', 'description' => 'Class setup', 'permissions' => ['academic.manage'], 'core' => true],
 			['key' => 'terms', 'label' => 'Terms & Sessions', 'href' => 'admin/terms', 'icon' => 'feather icon-folder', 'description' => 'Terms and sessions', 'permissions' => ['academic.manage'], 'core' => true],
 			['key' => 'subjects', 'label' => 'Subject Catalog', 'href' => 'admin/subjects', 'icon' => 'feather icon-book', 'description' => 'Subject master data', 'permissions' => ['academic.manage'], 'core' => true],
@@ -237,7 +345,7 @@ function app_portal_module_catalog(string $portal): array
 			['key' => 'communication', 'label' => 'Communication', 'href' => 'admin/communication', 'icon' => 'feather icon-message-circle', 'description' => 'Announcements and messages', 'permissions' => ['communication.manage'], 'core' => true],
 			['key' => 'sms_topup', 'label' => 'SMS Tokens', 'href' => 'admin/sms_topup', 'icon' => 'feather icon-credit-card', 'description' => 'SMS wallet', 'permissions' => ['communication.manage', 'finance.manage'], 'core' => false],
 			['key' => 'elearning', 'label' => 'E-Learning', 'href' => 'admin/elearning', 'icon' => 'feather icon-book-open', 'description' => 'Digital learning', 'permissions' => ['academic.manage'], 'core' => true],
-			['key' => 'feedback', 'label' => 'AI & Feedback', 'href' => 'admin/feedback', 'icon' => 'feather icon-message-square', 'description' => 'AI feedback tools', 'permissions' => ['academic.manage'], 'core' => false],
+			['key' => 'feedback', 'label' => 'Edu Bot & Feedback', 'href' => 'admin/feedback', 'icon' => 'feather icon-message-square', 'description' => 'Memory-backed school assistant and feedback tools', 'permissions' => ['academic.manage'], 'core' => false],
 			['key' => 'library', 'label' => 'Library', 'href' => 'admin/library', 'icon' => 'feather icon-book', 'description' => 'Library inventory', 'permissions' => ['library.manage'], 'core' => false],
 			['key' => 'inventory', 'label' => 'Inventory', 'href' => 'admin/inventory', 'icon' => 'feather icon-box', 'description' => 'Asset inventory', 'permissions' => ['inventory.manage'], 'core' => false],
 			['key' => 'transport', 'label' => 'Transport', 'href' => 'admin/transport', 'icon' => 'feather icon-truck', 'description' => 'Fleet management', 'permissions' => ['transport.manage'], 'core' => false],
@@ -286,6 +394,7 @@ function app_portal_module_catalog(string $portal): array
 			['key' => 'terms', 'label' => 'Academic Terms', 'href' => 'academic/terms', 'icon' => 'feather icon-folder', 'description' => 'Manage academic terms', 'permissions' => ['academic.manage'], 'core' => true],
 			['key' => 'classes', 'label' => 'Classes', 'href' => 'academic/classes', 'icon' => 'feather icon-home', 'description' => 'Class setup and structure', 'permissions' => ['classes.assign', 'academic.manage'], 'core' => true],
 			['key' => 'subjects', 'label' => 'Subjects', 'href' => 'academic/subjects', 'icon' => 'feather icon-book', 'description' => 'Subject setup', 'permissions' => ['academic.manage'], 'core' => true],
+			['key' => 'teacher_control', 'label' => 'Teachers', 'href' => 'admin/teachers', 'icon' => 'feather icon-user', 'description' => 'Manage and impersonate teacher accounts', 'permissions' => ['academic.manage', 'staff.manage'], 'core' => true],
 			['key' => 'combinations', 'label' => 'Subject Combinations', 'href' => 'academic/combinations', 'icon' => 'feather icon-book-open', 'description' => 'Teacher-subject allocation', 'permissions' => ['teacher.allocate', 'academic.manage'], 'core' => true],
 			['key' => 'students', 'label' => 'Student Promotion', 'href' => 'academic/promote_students', 'icon' => 'feather icon-users', 'description' => 'Promote and manage learners', 'permissions' => ['students.manage', 'academic.manage'], 'core' => true],
 			['key' => 'results_manage', 'label' => 'Manage Results', 'href' => 'academic/manage_results', 'icon' => 'feather icon-file-text', 'description' => 'Results entry and approval', 'permissions' => ['marks.enter', 'marks.review', 'results.approve'], 'core' => true, 'routes' => ['academic/bulk_results', 'academic/single_results']],
@@ -325,7 +434,9 @@ function app_portal_visible_modules(PDO $conn, string $portal, string $staffId, 
 
 		foreach ($permissions as $permission) {
 			if (app_has_permission($conn, $staffId, $level, $permission)) {
-				$visible[] = $module;
+				if (app_staff_module_allocation_allows($conn, $portal, $staffId, $module)) {
+					$visible[] = $module;
+				}
 				break;
 			}
 		}
@@ -345,35 +456,26 @@ function app_current_user_visible_portal_modules(string $portal): array
 {
 	static $cache = [];
 	$portal = strtolower(trim($portal));
-	if (isset($cache[$portal])) {
-		return $cache[$portal];
+	$cacheKey = $portal . '|' . (string)($GLOBALS['account_id'] ?? '') . '|' . (string)($GLOBALS['level'] ?? '');
+	if (isset($cache[$cacheKey])) {
+		return $cache[$cacheKey];
 	}
 
 	$modules = app_portal_module_catalog($portal);
-	$permissions = app_current_user_permission_codes();
-	if (in_array('*', $permissions, true)) {
-		$cache[$portal] = $modules;
-		return $cache[$portal];
+	if (!isset($GLOBALS['account_id'], $GLOBALS['level']) || (string)$GLOBALS['account_id'] === '' || (string)$GLOBALS['level'] === '') {
+		$cache[$cacheKey] = $modules;
+		return $cache[$cacheKey];
 	}
 
-	$visible = [];
-	foreach ($modules as $module) {
-		$modulePermissions = array_values(array_filter(array_map('strval', (array)($module['permissions'] ?? []))));
-		if (empty($modulePermissions)) {
-			$visible[] = $module;
-			continue;
-		}
-
-		foreach ($modulePermissions as $permission) {
-			if (in_array($permission, $permissions, true)) {
-				$visible[] = $module;
-				break;
-			}
-		}
+	try {
+		$conn = app_db();
+		$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+		$cache[$cacheKey] = app_portal_visible_modules($conn, $portal, (string)$GLOBALS['account_id'], (string)$GLOBALS['level']);
+		return $cache[$cacheKey];
+	} catch (Throwable $e) {
+		$cache[$cacheKey] = $modules;
+		return $cache[$cacheKey];
 	}
-
-	$cache[$portal] = $visible;
-	return $cache[$portal];
 }
 
 function app_current_user_allocated_portal_modules(string $portal): array
@@ -562,7 +664,16 @@ function app_enforce_portal_route_permission(PDO $conn, string $portal, string $
 		}
 
 		if (app_current_user_has_any_permission($requiredPermissions)) {
-			return;
+			if (app_staff_module_allocation_allows($conn, $portal, $staffId, $module)) {
+				return;
+			}
+
+			if (session_status() === PHP_SESSION_ACTIVE) {
+				$_SESSION['reply'] = array(array('danger', 'Access denied: module not allocated to your role.'));
+			}
+			$redirect = app_normalize_redirect_target($redirect);
+			header("location:$redirect");
+			exit;
 		}
 
 		if (session_status() === PHP_SESSION_ACTIVE) {
