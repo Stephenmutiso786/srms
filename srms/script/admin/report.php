@@ -101,7 +101,9 @@ try {
 <div>
 <h1>Report Tool</h1>
 </div>
-
+<div>
+<a href="admin/downloads_center" class="btn btn-primary btn-sm"><i class="bi bi-download me-1"></i> Downloads Hub</a>
+</div>
 </div>
 <div class="row">
 <div class="col-md-6 mb-4">
@@ -210,6 +212,18 @@ try {
 <div class="tile">
 <div class="tile-body d-flex justify-content-between align-items-center flex-wrap gap-2">
 <div>
+<h3 class="tile-title mb-1">Bulk Results</h3>
+<p class="text-muted mb-0">Open the class results view, print all results, or export the bulk sheet for a selected class and term.</p>
+</div>
+<a class="btn btn-danger" href="admin/bulk_results"><i class="bi bi-printer me-2"></i>Open Bulk Results</a>
+</div>
+</div>
+</div>
+
+<div class="col-12 mt-3">
+<div class="tile">
+<div class="tile-body d-flex justify-content-between align-items-center flex-wrap gap-2">
+<div>
 <h3 class="tile-title mb-1">Result Delivery</h3>
 <p class="text-muted mb-0">Publish exam results and send SMS or email notifications from one place.</p>
 </div>
@@ -226,6 +240,9 @@ try {
 <div>
 <h3 class="tile-title mb-1">Generated Report Cards</h3>
 <p class="text-muted mb-0">View generated report cards and download PDFs directly from this report tool.</p>
+</div>
+<div>
+<a class="btn btn-secondary" href="admin/core/download_all_reports?list_class_id=<?php echo (int)$listClassId; ?>&list_term_id=<?php echo (int)$listTermId; ?>"><i class="bi bi-download me-2"></i>Download All Reports</a>
 </div>
 </div>
 
@@ -261,7 +278,7 @@ try {
 <th>Student</th>
 <th>Class</th>
 <th>Term</th>
-<th>Mean</th>
+<th>Mean Band</th>
 <th>Grade</th>
 <th>Position</th>
 <th>Generated</th>
@@ -281,7 +298,7 @@ try {
 </td>
 <td><?php echo htmlspecialchars((string)($cardRow['class_name'] ?? '')); ?></td>
 <td><?php echo htmlspecialchars((string)($cardRow['term_name'] ?? '')); ?></td>
-<td><?php echo number_format((float)$cardRow['mean'], 2); ?>%</td>
+<td><?php echo htmlspecialchars((string)$cardRow['grade']); ?></td>
 <td><span class="badge bg-primary"><?php echo htmlspecialchars((string)$cardRow['grade']); ?></span></td>
 <td><?php echo (int)$cardRow['position']; ?> / <?php echo (int)$cardRow['total_students']; ?></td>
 <td><?php echo htmlspecialchars((string)$cardRow['generated_at']); ?></td>
@@ -289,7 +306,7 @@ try {
 <td>
 <a class="btn btn-sm btn-primary" target="_blank" href="admin/save_pdf?std=<?php echo urlencode((string)$cardRow['student_id']); ?>&term=<?php echo (int)$cardRow['term_id']; ?>&download=1"><i class="bi bi-download me-1"></i>PDF</a>
 <button class="btn btn-sm btn-info" type="button" onclick="openEmailModal('report_card', <?php echo (int)$cardRow['id']; ?>, '<?php echo htmlspecialchars(addslashes($studentName)); ?>', '<?php echo htmlspecialchars(addslashes((string)($cardRow['student_email'] ?? ''))); ?>')" title="Send via Email"><i class="bi bi-envelope me-1"></i>Email</button>
-<a class="btn btn-sm btn-outline-secondary" target="_blank" href="verify_report?code=<?php echo urlencode((string)$cardRow['verification_code']); ?>"><i class="bi bi-shield-check me-1"></i>Verify</a>
+<!-- Verify button removed as requested -->
 <form method="POST" action="admin/core/delete_report_card" class="d-inline" onsubmit="return confirm('Delete this generated report card? This cannot be undone.');">
 <input type="hidden" name="report_id" value="<?php echo (int)$cardRow['id']; ?>">
 <input type="hidden" name="list_class_id" value="<?php echo (int)$listClassId; ?>">

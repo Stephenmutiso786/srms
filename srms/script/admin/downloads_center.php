@@ -1,0 +1,290 @@
+<?php
+chdir('../');
+session_start();
+require_once('db/config.php');
+require_once('const/school.php');
+require_once('const/check_session.php');
+require_once('const/rbac.php');
+
+if ($res !== '1' || $level !== '0') { header('location:../'); exit; }
+app_require_permission('report.generate', 'admin');
+
+$classes = [];
+$terms = [];
+$selectedClass = (int)($_GET['class'] ?? 0);
+$selectedTerm = (int)($_GET['term'] ?? 0);
+$selectedType = (string)($_GET['type'] ?? 'all');
+
+try {
+    $conn = app_db();
+    $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+    // Fetch classes and terms
+    $stmt = $conn->prepare("SELECT id, name FROM tbl_classes ORDER BY id");
+    $stmt->execute();
+    $classes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $stmt = $conn->prepare("SELECT id, name FROM tbl_terms ORDER BY id DESC");
+    $stmt->execute();
+    $terms = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Throwable $e) {
+    error_log('[admin/downloads_center] ' . $e->getMessage());
+}
+?>
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Downloads Center</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        .download-card {
+            transition: transform 0.2s, box-shadow 0.2s;
+            border-left: 5px solid #1a7ab8;
+        }
+        .download-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        .download-card.account { border-left-color: #0d6efd; }
+        .download-card.results { border-left-color: #198754; }
+        .download-card.merit { border-left-color: #ffc107; }
+        .download-card.financial { border-left-color: #dc3545; }
+        .download-icon {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+        .filter-section {
+            background: #f8f9fa;
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            margin-bottom: 2rem;
+        }
+        .badge-status {
+            font-size: 0.75rem;
+            padding: 0.3rem 0.6rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container mt-4 mb-4">
+        <div class="row mb-4">
+            <div class="col-md-8">
+                <h1 class="mb-1"><i class="bi bi-download"></i> Downloads Center</h1>
+                <p class="text-muted">Access all your reports, summaries, and exports in one place</p>
+            </div>
+            <div class="col-md-4 text-end">
+                <a href="report" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i> Back to Report</a>
+            </div>
+        </div>
+
+        <!-- Filter Section -->
+        <div class="filter-section">
+            <form class="row g-2" method="GET">
+                <input type="hidden" name="type" value="<?php echo htmlspecialchars($selectedType); ?>">
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Select Class</label>
+                    <select name="class" class="form-select" id="filterClass">
+                        <option value="0">-- All Classes --</option>
+                        <?php foreach ($classes as $c): ?>
+                            <option value="<?php echo (int)$c['id']; ?>" <?php echo $selectedClass === (int)$c['id'] ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($c['name']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold">Select Term</label>
+                    <select name="term" class="form-select" id="filterTerm">
+                        <option value="0">-- All Terms --</option>
+                        <?php foreach ($terms as $t): ?>
+                            <option value="<?php echo (int)$t['id']; ?>" <?php echo $selectedTerm === (int)$t['id'] ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($t['name']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary w-100"><i class="bi bi-funnel me-1"></i> Filter</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Download Options Grid -->
+        <div class="row g-4">
+            
+            <!-- Individual Report Cards -->
+            <div class="col-md-6 col-lg-4">
+                <div class="card download-card account h-100">
+                    <div class="card-body">
+                        <div class="download-icon text-primary"><i class="bi bi-file-earmark-pdf"></i></div>
+                        <h5 class="card-title">Individual Report Cards</h5>
+                        <p class="card-text text-muted small">Download PDF report cards for individual students with full academic details, grades, and comments.</p>
+                        <div class="mt-3 mb-3">
+                            <span class="badge bg-light text-dark badge-status">Per Student</span>
+                            <span class="badge bg-light text-dark badge-status">Full Details</span>
+                        </div>
+                        <a href="report<?php echo ($selectedClass > 0 || $selectedTerm > 0) ? '?list_class_id=' . $selectedClass . '&list_term_id=' . $selectedTerm : ''; ?>" 
+                           class="btn btn-primary btn-sm w-100">
+                            <i class="bi bi-download me-1"></i> Go to Reports
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Class Reports (All Students) -->
+            <div class="col-md-6 col-lg-4">
+                <div class="card download-card results h-100">
+                    <div class="card-body">
+                        <div class="download-icon text-success"><i class="bi bi-file-pdf"></i></div>
+                        <h5 class="card-title">Class Reports (Bulk PDF)</h5>
+                        <p class="card-text text-muted small">Download all student report cards for an entire class as a single merged PDF document.</p>
+                        <div class="mt-3 mb-3">
+                            <span class="badge bg-light text-dark badge-status">All Students</span>
+                            <span class="badge bg-light text-dark badge-status">Single PDF</span>
+                        </div>
+                        <?php if ($selectedClass > 0 && $selectedTerm > 0): ?>
+                            <a href="class_report_pdf?class=<?php echo $selectedClass; ?>&term=<?php echo $selectedTerm; ?>&download=1" 
+                               target="_blank" class="btn btn-success btn-sm w-100">
+                                <i class="bi bi-download me-1"></i> Download PDF
+                            </a>
+                        <?php else: ?>
+                            <button class="btn btn-success btn-sm w-100" disabled>
+                                <i class="bi bi-download me-1"></i> Select Class & Term
+                            </button>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Merit Lists -->
+            <div class="col-md-6 col-lg-4">
+                <div class="card download-card merit h-100">
+                    <div class="card-body">
+                        <div class="download-icon text-warning"><i class="bi bi-medal"></i></div>
+                        <h5 class="card-title">Class Merit Lists</h5>
+                        <p class="card-text text-muted small">Download unranked class results showing student names, total points, and grades by ranking.</p>
+                        <div class="mt-3 mb-3">
+                            <span class="badge bg-light text-dark badge-status">Rankings</span>
+                            <span class="badge bg-light text-dark badge-status">Performance</span>
+                        </div>
+                        <?php if ($selectedClass > 0 && $selectedTerm > 0): ?>
+                            <a href="merit_list_pdf?class_id=<?php echo $selectedClass; ?>&term_id=<?php echo $selectedTerm; ?>" 
+                               target="_blank" class="btn btn-warning btn-sm w-100">
+                                <i class="bi bi-download me-1"></i> Download Merit List
+                            </a>
+                        <?php else: ?>
+                            <button class="btn btn-warning btn-sm w-100" disabled>
+                                <i class="bi bi-download me-1"></i> Select Class & Term
+                            </button>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bulk Report Download (ZIP) -->
+            <div class="col-md-6 col-lg-4">
+                <div class="card download-card results h-100">
+                    <div class="card-body">
+                        <div class="download-icon text-info"><i class="bi bi-archive"></i></div>
+                        <h5 class="card-title">Download All Reports (ZIP)</h5>
+                        <p class="card-text text-muted small">Download all student reports as individual PDFs in a compressed ZIP archive for batch processing.</p>
+                        <div class="mt-3 mb-3">
+                            <span class="badge bg-light text-dark badge-status">ZIP Archive</span>
+                            <span class="badge bg-light text-dark badge-status">Individual Files</span>
+                        </div>
+                        <?php if ($selectedClass > 0 || $selectedTerm > 0): ?>
+                            <a href="core/download_all_reports?list_class_id=<?php echo $selectedClass; ?>&list_term_id=<?php echo $selectedTerm; ?>" 
+                               class="btn btn-info btn-sm w-100">
+                                <i class="bi bi-download me-1"></i> Download ZIP
+                            </a>
+                        <?php else: ?>
+                            <button class="btn btn-info btn-sm w-100" disabled>
+                                <i class="bi bi-download me-1"></i> Select Filters
+                            </button>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Class Results/Bulk Results -->
+            <div class="col-md-6 col-lg-4">
+                <div class="card download-card results h-100">
+                    <div class="card-body">
+                        <div class="download-icon text-success"><i class="bi bi-table"></i></div>
+                        <h5 class="card-title">Class Results Overview</h5>
+                        <p class="card-text text-muted small">View detailed class results with subject breakdowns, print sheets, or export bulk results data.</p>
+                        <div class="mt-3 mb-3">
+                            <span class="badge bg-light text-dark badge-status">Detailed View</span>
+                            <span class="badge bg-light text-dark badge-status">Print Ready</span>
+                        </div>
+                        <a href="bulk_results<?php echo ($selectedClass > 0 || $selectedTerm > 0) ? '?class=' . $selectedClass . '&term=' . $selectedTerm : ''; ?>" 
+                           class="btn btn-success btn-sm w-100">
+                            <i class="bi bi-arrow-right me-1"></i> Open Results View
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Financial Reports -->
+            <div class="col-md-6 col-lg-4">
+                <div class="card download-card financial h-100">
+                    <div class="card-body">
+                        <div class="download-icon text-danger"><i class="bi bi-cash-coin"></i></div>
+                        <h5 class="card-title">Financial Reports</h5>
+                        <p class="card-text text-muted small">Export financial summaries, fee collections, payment methods, aging analysis, and defaulters reports.</p>
+                        <div class="mt-3 mb-3">
+                            <span class="badge bg-light text-dark badge-status">CSV Export</span>
+                            <span class="badge bg-light text-dark badge-status">Analytics</span>
+                        </div>
+                        <a href="fees" class="btn btn-danger btn-sm w-100">
+                            <i class="bi bi-arrow-right me-1"></i> View Financial
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analytics & CSV Exports -->
+            <div class="col-md-6 col-lg-4">
+                <div class="card download-card results h-100">
+                    <div class="card-body">
+                        <div class="download-icon text-secondary"><i class="bi bi-graph-up"></i></div>
+                        <h5 class="card-title">Results Analytics</h5>
+                        <p class="card-text text-muted small">View detailed performance analytics by subject and class, with CSV export capabilities.</p>
+                        <div class="mt-3 mb-3">
+                            <span class="badge bg-light text-dark badge-status">Analytics</span>
+                            <span class="badge bg-light text-dark badge-status">CSV Export</span>
+                        </div>
+                        <a href="results_analytics" class="btn btn-secondary btn-sm w-100">
+                            <i class="bi bi-arrow-right me-1"></i> View Analytics
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Quick Summary -->
+        <div class="row mt-5 mb-4">
+            <div class="col-md-12">
+                <div class="alert alert-info alert-dismissible fade show" role="alert">
+                    <i class="bi bi-info-circle me-2"></i>
+                    <strong>How to use Downloads Center:</strong>
+                    <ul class="mb-0 mt-2">
+                        <li>Select a <strong>Class</strong> and <strong>Term</strong> to filter available downloads</li>
+                        <li><strong>Individual Reports</strong>: Download single student PDFs from the Reports page</li>
+                        <li><strong>Bulk Downloads</strong>: Download entire class as one merged PDF or ZIP of individual files</li>
+                        <li><strong>Merit Lists</strong>: View ranked students by performance</li>
+                        <li><strong>Financial</strong>: Export fee collections, aging, and payment data</li>
+                    </ul>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
