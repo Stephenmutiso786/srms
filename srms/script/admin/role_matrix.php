@@ -304,6 +304,8 @@ try {
 <td class="matrix-role-col">
 <div class="fw-semibold"><?php echo htmlspecialchars((string)$role['name']); ?></div>
 <div class="text-muted small">Level <?php echo (int)$role['level']; ?></div>
+<?php $allocatedCount = count((array)($moduleAllocationsByRole[(int)$role['id']] ?? [])); ?>
+<div class="small mt-1"><span class="badge bg-info text-dark">Allocated: <?php echo (int)$allocatedCount; ?></span></div>
 </td>
 <?php foreach ($allocatableModules as $module): ?>
 <?php $moduleKey = strtolower(trim((string)($module['key'] ?? ''))); ?>
