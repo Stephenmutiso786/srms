@@ -90,6 +90,7 @@ try {
 	}
 
 	if (app_ensure_role_module_allocations_table($conn) && !empty($allocatableModules)) {
+		app_auto_allocate_normal_modules_for_portal($conn, $selectedPortal);
 		$stmt = $conn->prepare('SELECT role_id, module_key FROM tbl_role_module_allocations WHERE portal = ?');
 		$stmt->execute([$selectedPortal]);
 		foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {

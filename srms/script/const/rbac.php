@@ -174,6 +174,110 @@ function app_ensure_role_module_allocations_table(PDO $conn): bool
 	}
 }
 
+function app_role_permission_codes(PDO $conn, int $roleId): array
+{
+	if ($roleId < 1 || !app_table_exists($conn, 'tbl_role_permissions') || !app_table_exists($conn, 'tbl_permissions')) {
+		return [];
+	}
+
+	try {
+		$stmt = $conn->prepare('SELECT p.code FROM tbl_role_permissions rp JOIN tbl_permissions p ON p.id = rp.permission_id WHERE rp.role_id = ?');
+		$stmt->execute([$roleId]);
+		return array_values(array_unique(array_filter(array_map(static function ($code): string {
+			return strtolower(trim((string)$code));
+		}, $stmt->fetchAll(PDO::FETCH_COLUMN)), static function (string $code): bool {
+			return $code !== '';
+		})));
+	} catch (Throwable $e) {
+		return [];
+	}
+}
+
+function app_auto_allocate_normal_modules_for_portal(PDO $conn, string $portal): void
+{
+	$portal = strtolower(trim($portal));
+	if ($portal === '') {
+		return;
+	}
+
+	if (!app_table_exists($conn, 'tbl_roles') || !app_table_exists($conn, 'tbl_role_permissions') || !app_table_exists($conn, 'tbl_permissions')) {
+		return;
+	}
+
+	if (!app_ensure_role_module_allocations_table($conn)) {
+		return;
+	}
+
+	$allocatableModules = [];
+	foreach (app_portal_module_catalog($portal) as $module) {
+		$moduleKey = strtolower(trim((string)($module['key'] ?? '')));
+		$modulePermissions = array_values(array_filter(array_map('strval', (array)($module['permissions'] ?? []))));
+		if ($moduleKey === '' || empty($modulePermissions)) {
+			continue;
+		}
+		$allocatableModules[] = [
+			'key' => $moduleKey,
+			'permissions' => array_values(array_unique(array_map(static function (string $permission): string {
+				return strtolower(trim($permission));
+			}, $modulePermissions))),
+		];
+	}
+
+	if (empty($allocatableModules)) {
+		return;
+	}
+
+	try {
+		$stmt = $conn->prepare('SELECT id FROM tbl_roles');
+		$stmt->execute();
+		$roleIds = array_values(array_filter(array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN)), static function (int $roleId): bool {
+			return $roleId > 0;
+		}));
+		if (empty($roleIds)) {
+			return;
+		}
+
+		$isPgsql = (defined('DBDriver') && DBDriver === 'pgsql');
+		foreach ($roleIds as $roleId) {
+			$checkStmt = $conn->prepare('SELECT COUNT(*) FROM tbl_role_module_allocations WHERE role_id = ? AND portal = ?');
+			$checkStmt->execute([$roleId, $portal]);
+			$existingCount = (int)$checkStmt->fetchColumn();
+			if ($existingCount > 0) {
+				continue;
+			}
+
+			$permissionCodes = app_role_permission_codes($conn, (int)$roleId);
+			if (empty($permissionCodes)) {
+				continue;
+			}
+			$permissionLookup = array_fill_keys($permissionCodes, true);
+
+			foreach ($allocatableModules as $module) {
+				$allowed = false;
+				foreach ((array)$module['permissions'] as $permission) {
+					if (!empty($permissionLookup[(string)$permission])) {
+						$allowed = true;
+						break;
+					}
+				}
+
+				if (!$allowed) {
+					continue;
+				}
+
+				if ($isPgsql) {
+					$insertStmt = $conn->prepare('INSERT INTO tbl_role_module_allocations (role_id, portal, module_key) VALUES (?, ?, ?) ON CONFLICT DO NOTHING');
+				} else {
+					$insertStmt = $conn->prepare('INSERT IGNORE INTO tbl_role_module_allocations (role_id, portal, module_key) VALUES (?, ?, ?)');
+				}
+				$insertStmt->execute([$roleId, $portal, (string)$module['key']]);
+			}
+		}
+	} catch (Throwable $e) {
+		// Non-fatal: keep manual allocation flow available.
+	}
+}
+
 function app_staff_role_module_allocation(PDO $conn, string $portal, string $staffId): array
 {
 	static $cache = [];
