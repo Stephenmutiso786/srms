@@ -186,6 +186,25 @@ function app_ensure_role_module_allocations_table(PDO $conn): bool
 	}
 }
 
+function app_ensure_role_module_seed_state_table(PDO $conn): bool
+{
+	if (app_table_exists($conn, 'tbl_role_module_seed_state')) {
+		return true;
+	}
+
+	try {
+		$conn->exec("CREATE TABLE IF NOT EXISTS tbl_role_module_seed_state (
+			role_id INT NOT NULL,
+			portal VARCHAR(50) NOT NULL,
+			seeded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (role_id, portal)
+		)");
+		return app_table_exists($conn, 'tbl_role_module_seed_state');
+	} catch (Throwable $e) {
+		return false;
+	}
+}
+
 function app_role_permission_codes(PDO $conn, int $roleId): array
 {
 	if ($roleId < 1 || !app_table_exists($conn, 'tbl_role_permissions') || !app_table_exists($conn, 'tbl_permissions')) {
@@ -252,6 +271,9 @@ function app_auto_allocate_normal_modules_for_portal(PDO $conn, string $portal):
 	if (!app_ensure_role_module_allocations_table($conn)) {
 		return;
 	}
+	if (!app_ensure_role_module_seed_state_table($conn)) {
+		return;
+	}
 
 	$allocatableModules = [];
 	foreach (app_portal_module_catalog($portal) as $module) {
@@ -284,10 +306,10 @@ function app_auto_allocate_normal_modules_for_portal(PDO $conn, string $portal):
 
 		$isPgsql = (defined('DBDriver') && DBDriver === 'pgsql');
 		foreach ($roleIds as $roleId) {
-			$checkStmt = $conn->prepare('SELECT COUNT(*) FROM tbl_role_module_allocations WHERE role_id = ? AND portal = ?');
-			$checkStmt->execute([$roleId, $portal]);
-			$existingCount = (int)$checkStmt->fetchColumn();
-			if ($existingCount > 0) {
+			$seedStateStmt = $conn->prepare('SELECT 1 FROM tbl_role_module_seed_state WHERE role_id = ? AND portal = ? LIMIT 1');
+			$seedStateStmt->execute([$roleId, $portal]);
+			$alreadySeeded = (bool)$seedStateStmt->fetchColumn();
+			if ($alreadySeeded) {
 				continue;
 			}
 
@@ -317,6 +339,13 @@ function app_auto_allocate_normal_modules_for_portal(PDO $conn, string $portal):
 				}
 				$insertStmt->execute([$roleId, $portal, (string)$module['key']]);
 			}
+
+			if ($isPgsql) {
+				$markSeededStmt = $conn->prepare('INSERT INTO tbl_role_module_seed_state (role_id, portal) VALUES (?, ?) ON CONFLICT DO NOTHING');
+			} else {
+				$markSeededStmt = $conn->prepare('INSERT IGNORE INTO tbl_role_module_seed_state (role_id, portal) VALUES (?, ?)');
+			}
+			$markSeededStmt->execute([$roleId, $portal]);
 		}
 	} catch (Throwable $e) {
 		// Non-fatal: keep manual allocation flow available.
