@@ -59,7 +59,8 @@ try {
 	foreach ($catalog as $module) {
 		$catalogKey = strtolower(trim((string)($module['key'] ?? '')));
 		$modulePermissions = array_values(array_filter(array_map('strval', (array)($module['permissions'] ?? []))));
-		if ($catalogKey === $moduleKey && !empty($modulePermissions)) {
+		$isCore = !empty($module['core']);
+		if ($catalogKey === $moduleKey && !empty($modulePermissions) && !$isCore) {
 			$allocatable = true;
 			break;
 		}

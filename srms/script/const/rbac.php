@@ -279,7 +279,8 @@ function app_auto_allocate_normal_modules_for_portal(PDO $conn, string $portal):
 	foreach (app_portal_module_catalog($portal) as $module) {
 		$moduleKey = strtolower(trim((string)($module['key'] ?? '')));
 		$modulePermissions = array_values(array_filter(array_map('strval', (array)($module['permissions'] ?? []))));
-		if ($moduleKey === '' || empty($modulePermissions)) {
+		$isCore = !empty($module['core']);
+		if ($moduleKey === '' || empty($modulePermissions) || $isCore) {
 			continue;
 		}
 		$allocatableModules[] = [
@@ -429,6 +430,10 @@ function app_staff_module_allocation_allows(PDO $conn, string $portal, string $s
 
 	$modulePermissions = array_values(array_filter(array_map('strval', (array)($module['permissions'] ?? []))));
 	if (empty($modulePermissions)) {
+		return true;
+	}
+
+	if (!empty($module['core'])) {
 		return true;
 	}
 
