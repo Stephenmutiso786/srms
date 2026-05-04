@@ -70,7 +70,7 @@ try {
 </head>
 <body class="app sidebar-mini">
 
-<header class="app-header"><a class="app-header__logo" href="javascript:void(0);"><?php echo APP_NAME; ?></a>
+<header class="app-header"><a class="app-header__logo" href="javascript:void(0);">ELIMU HUB</a>
 <a class="app-sidebar__toggle" href="#" data-toggle="sidebar" aria-label="Hide Sidebar"></a>
 <ul class="app-nav">
 <li class="dropdown"><a class="app-nav__item" href="#" data-bs-toggle="dropdown" aria-label="Open Profile Menu"><i class="bi bi-person fs-4"></i></a>
@@ -158,16 +158,22 @@ try {
 		  <th>Student</th>
 		  <th>Class</th>
 		  <th>Balance</th>
+		  <th style="width:180px;" class="text-center">Action</th>
 		</tr>
 	  </thead>
 	  <tbody>
 	  <?php if (count($topDefaulters) < 1) { ?>
-		<tr><td colspan="3" class="text-muted">No outstanding balances found.</td></tr>
+		<tr><td colspan="4" class="text-muted">No outstanding balances found.</td></tr>
 	  <?php } else { foreach ($topDefaulters as $d) { ?>
 		<tr>
 		  <td><?php echo htmlspecialchars((string)$d['student_id'].' — '.$d['student_name']); ?></td>
 		  <td><?php echo htmlspecialchars((string)($d['class_name'] ?? '')); ?></td>
 		  <td><b><?php echo number_format((float)$d['balance'], 2); ?></b></td>
+		  <td class="text-center">
+			<button class="btn btn-sm btn-success" onclick="recordPaymentFor(<?php echo (int)$d['student_id']; ?>, '<?php echo htmlspecialchars((string)$d['student_name']); ?>')">
+			  <i class="bi bi-cash-coin me-1"></i>Record
+			</button>
+		  </td>
 		</tr>
 	  <?php } } ?>
 	  </tbody>
@@ -223,6 +229,18 @@ try {
 <script src="js/bootstrap.min.js"></script>
 <script src="js/main.js"></script>
 <script>
+// Pre-fill and open modal when clicking Record button
+function recordPaymentFor(studentId, studentName) {
+	document.getElementById('selectedStudentId').value = studentId;
+	document.getElementById('studentSearch').value = studentName;
+	document.getElementById('paymentAmount').value = '';
+	document.getElementById('paymentMethod').value = '';
+	document.getElementById('paymentStatus').innerHTML = '';
+	
+	const modal = new bootstrap.Modal(document.getElementById('quickPaymentModal'));
+	modal.show();
+}
+
 // Student search with live filtering
 document.getElementById('studentSearch').addEventListener('input', async function() {
 	const query = this.value.trim();
