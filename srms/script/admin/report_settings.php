@@ -19,6 +19,7 @@ $weights = [];
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	app_ensure_current_mode_mysql_schema($conn);
 
 	if (app_table_exists($conn, 'tbl_result_settings')) {
 		$stmt = $conn->prepare("SELECT best_of, use_weights, require_fees_clear FROM tbl_result_settings ORDER BY id DESC LIMIT 1");

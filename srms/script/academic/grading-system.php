@@ -10,7 +10,7 @@ if ($res == "1" && $level == "1") {}else{header("location:../");}
 <html lang="en">
 <meta http-equiv="content-type" content="text/html;charset=utf-8" />
 <head>
-<title><?php echo APP_NAME; ?> - Grading System</title>
+<title><?php echo APP_NAME; ?> - CBC Grading System</title>
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -41,79 +41,8 @@ if ($res == "1" && $level == "1") {}else{header("location:../");}
 <main class="app-content">
 <div class="app-title">
 <div>
-<h1>Grading System</h1>
-</div>
-<ul class="app-breadcrumb breadcrumb">
-<li class="breadcrumb-item"><button class="btn btn-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#addModal">Add</button></li>
-</ul>
-</div>
-
-<div class="modal fade" id="addModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="addModalLabel" aria-hidden="true">
-<div class="modal-dialog">
-<div class="modal-content">
-<div class="modal-header">
-<h5 class="modal-title" id="addModalLabel">Add Grades</h5>
-</div>
-<div class="modal-body">
-<form class="app_frm" method="POST" autocomplete="OFF" action="academic/core/new_grade">
-<div class="mb-2">
-<label class="form-label">Grade Name</label>
-<input required type="text" name="grade_name" class="form-control txt-cap" placeholder="Enter grade name">
-</div>
-<div class="mb-2">
-<label class="form-label">Minimum Percentage</label>
-<input required type="number" name="min" class="form-control txt-cap" placeholder="Enter minimum percentage">
-</div>
-<div class="mb-2">
-<label class="form-label">Maximum Percentage</label>
-<input required type="number" name="max" class="form-control txt-cap" placeholder="Enter maximum percentage">
-</div>
-<div class="mb-3">
-<label class="form-label">Remark</label>
-<input required type="text" name="remark" class="form-control txt-cap" placeholder="Enter Grade Remark">
-</div>
-
-<button type="submit" name="submit" value="1" class="btn btn-primary app_btn">Add</button>
-<button type="button" class="btn btn-danger" data-bs-dismiss="modal">Close</button>
-</form>
-</div>
-
-</div>
-</div>
-</div>
-
-<div class="modal fade" id="editModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="editModalLabel" aria-hidden="true">
-<div class="modal-dialog">
-<div class="modal-content">
-<div class="modal-header">
-<h5 class="modal-title" id="editModalLabel">Edit Grade</h5>
-</div>
-<div class="modal-body">
-<form class="app_frm" method="POST" autocomplete="OFF" action="academic/core/update_grade">
-<div class="mb-2">
-<label class="form-label">Grade Name</label>
-<input id="grade" required type="text" name="grade_name" class="form-control txt-cap" placeholder="Enter grade name">
-</div>
-<div class="mb-2">
-<label class="form-label">Minimum Percentage</label>
-<input id="min" required type="number" name="min" class="form-control txt-cap" placeholder="Enter minimum percentage">
-</div>
-<div class="mb-2">
-<label class="form-label">Maximum Percentage</label>
-<input id="max" required type="number" name="max" class="form-control txt-cap" placeholder="Enter maximum percentage">
-</div>
-<div class="mb-3">
-<label class="form-label">Remark</label>
-<input id="remark" required type="text" name="remark" class="form-control txt-cap" placeholder="Enter Grade Remark">
-</div>
-
-<input type="hidden" name="id" id="id">
-<button type="submit" name="submit" value="1" class="btn btn-primary app_btn">Save</button>
-<button type="button" class="btn btn-danger" data-bs-dismiss="modal">Close</button>
-</form>
-</div>
-
-</div>
+<h1>CBC Grading System</h1>
+<p class="text-muted">Competency-Based Curriculum (CBC) grading bands - these are standardized and cannot be modified.</p>
 </div>
 </div>
 
@@ -122,15 +51,16 @@ if ($res == "1" && $level == "1") {}else{header("location:../");}
 <div class="tile">
 <div class="tile-body">
 <div class="table-responsive">
-<h3 class="tile-title">Grading System</h3>
+<h3 class="tile-title">CBC Grading Bands (National Standard)</h3>
 <table class="table table-hover table-bordered" id="srmsTable">
 <thead>
 <tr>
-<th>Grade Name</th>
+<th>Grade Level</th>
 <th>Minimum Score</th>
 <th>Maximum Score</th>
+<th>Points</th>
 <th>Remark</th>
-<th width="120"></th>
+<th>Status</th>
 </tr>
 </thead>
 <tbody>
@@ -140,30 +70,33 @@ try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-$stmt = $conn->prepare("SELECT * FROM tbl_grade_system");
-$stmt->execute();
-$result = $stmt->fetchAll();
+// Use the CBC grading system from report_engine.php
+require_once('const/report_engine.php');
+$gradingSystemId = report_default_grading_system_id($conn, 'marks');
+$grades = report_grading_scales($conn, $gradingSystemId);
 
-foreach($result as $row)
+// If no grades found in new system, show the default CBC grades
+if (empty($grades)) {
+$grades = [
+['name' => 'EE', 'min' => 90, 'max' => 100, 'points' => 4, 'remark' => 'Exceeding Expectation', 'is_active' => 1],
+['name' => 'ME', 'min' => 75, 'max' => 89, 'points' => 3, 'remark' => 'Meeting Expectation', 'is_active' => 1],
+['name' => 'AE', 'min' => 50, 'max' => 74, 'points' => 2, 'remark' => 'Approaching Expectation', 'is_active' => 1],
+['name' => 'BE', 'min' => 0, 'max' => 49, 'points' => 1, 'remark' => 'Below Expectation', 'is_active' => 1],
+];
+}
+
+foreach($grades as $row)
 {
+$isActive = (int)($row['is_active'] ?? 1);
+$statusBadge = $isActive ? '<span class="badge bg-success">Active</span>' : '<span class="badge bg-secondary">Inactive</span>';
 ?>
 <tr>
-<td><?php echo $row[1]; ?></td>
-<td><?php echo $row[2]; ?></td>
-<td><?php echo $row[3]; ?></td>
-<td align="center"><?php echo $row[4]; ?></td>
-
-<td align="center">
-
-<textarea style="display:none;" id="grade_<?php echo $row[0]; ?>"><?php echo $row[1]; ?></textarea>
-<textarea style="display:none;" id="min_<?php echo $row[0]; ?>"><?php echo $row[2]; ?></textarea>
-<textarea style="display:none;" id="max_<?php echo $row[0]; ?>"><?php echo $row[3]; ?></textarea>
-<textarea style="display:none;" id="remark_<?php echo $row[0]; ?>"><?php echo $row[4]; ?></textarea>
-
-
-<a onclick="set_grade('<?php echo $row[0]; ?>');" class="btn btn-primary btn-sm" href="javascript:void(0);" data-bs-toggle="modal" data-bs-target="#editModal">Edit</a>
-<a onclick="del('academic/core/drop_grade?id=<?php echo $row[0]; ?>', 'Delete Grade?');" class="btn btn-danger btn-sm" href="javascript:void(0);">Delete</a>
-</td>
+<td><strong><?php echo htmlspecialchars((string)($row['name'] ?? '')); ?></strong></td>
+<td><?php echo number_format((float)($row['min'] ?? 0), 2); ?>%</td>
+<td><?php echo number_format((float)($row['max'] ?? 100), 2); ?>%</td>
+<td><?php echo number_format((float)($row['points'] ?? 0), 2); ?></td>
+<td><?php echo htmlspecialchars((string)($row['remark'] ?? '')); ?></td>
+<td><?php echo $statusBadge; ?></td>
 </tr>
 <?php
 }
@@ -171,13 +104,53 @@ foreach($result as $row)
 }catch(PDOException $e)
 {
 error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
-echo "Connection failed.";
+// Show default CBC grades if database fails
+$defaultGrades = [
+['name' => 'EE', 'min' => 90, 'max' => 100, 'points' => 4, 'remark' => 'Exceeding Expectation'],
+['name' => 'ME', 'min' => 75, 'max' => 89, 'points' => 3, 'remark' => 'Meeting Expectation'],
+['name' => 'AE', 'min' => 50, 'max' => 74, 'points' => 2, 'remark' => 'Approaching Expectation'],
+['name' => 'BE', 'min' => 0, 'max' => 49, 'points' => 1, 'remark' => 'Below Expectation'],
+];
+foreach($defaultGrades as $grade)
+{
+?>
+<tr>
+<td><strong><?php echo $grade['name']; ?></strong></td>
+<td><?php echo $grade['min']; ?>%</td>
+<td><?php echo $grade['max']; ?>%</td>
+<td><?php echo $grade['points']; ?></td>
+<td><?php echo $grade['remark']; ?></td>
+<td><span class="badge bg-success">Active</span></td>
+</tr>
+<?php
+}
 }
 
 ?>
 
 </tbody>
 </table>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="row mt-4">
+<div class="col-md-12">
+<div class="tile">
+<div class="tile-body">
+<h4 class="tile-title">About CBC Grading</h4>
+<p>The Competency-Based Curriculum (CBC) uses a standards-referenced grading system that focuses on what learners can do rather than how they compare to others.</p>
+<ul class="mt-3">
+<li><strong>EE (Exceeding Expectation):</strong> The learner has exceeded the expected learning outcomes and demonstrates advanced understanding.</li>
+<li><strong>ME (Meeting Expectation):</strong> The learner has met the expected learning outcomes and demonstrates competent understanding.</li>
+<li><strong>AE (Approaching Expectation):</strong> The learner is approaching the expected learning outcomes and demonstrates partial understanding.</li>
+<li><strong>BE (Below Expectation):</strong> The learner has not yet met the expected learning outcomes and needs additional support.</li>
+</ul>
+<div class="alert alert-info mt-3">
+<i class="bi bi-info-circle me-2"></i>
+<strong>Note:</strong> CBC grading bands are standardized nationally and cannot be modified in this system. This ensures consistency with national education standards.
 </div>
 </div>
 </div>

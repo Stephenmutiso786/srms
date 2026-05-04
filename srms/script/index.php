@@ -159,6 +159,9 @@ try {
 <div class="mb-3 btn-container d-grid">
 <a href="status" class="btn btn-outline-secondary btn-block" style="font-weight:700;"><i class="bi bi-heart-pulse me-2 fs-5"></i>system status</a>
 </div>
+<div class="mb-2 btn-container d-grid">
+<button type="button" id="installBtnLogin" class="btn btn-success btn-block" style="display:inline-flex;font-weight:700;"><i class="bi bi-download me-2 fs-5"></i>install app</button>
+</div>
 </form>
 
 <form class="forget-form app_frm" action="core/forgot_pw" method="POST" autocomplete="OFF">
@@ -185,6 +188,15 @@ try {
 <script src="loader/waitMe.js"></script>
 <script src="js/forms.js"></script>
 <script src="js/sweetalert2@11.js"></script>
+<script>
+window.SRMS_PWA_INSTALL_CONFIG = {
+  buttonId: 'installBtnLogin',
+  autoPrompt: true,
+  promptDelayMs: 1200,
+  sessionKey: 'srms_pwa_prompt_login'
+};
+</script>
+<script src="js/pwa-install.js"></script>
 <script type="text/javascript">
 $('.login-content [data-toggle="flip"]').click(function() {
 $('.login-box').toggleClass('flipped');

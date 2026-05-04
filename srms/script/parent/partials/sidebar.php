@@ -30,6 +30,7 @@ function parent_menu_is_active(array $module): string
 function parent_sidebar_group_label(string $moduleKey): string
 {
   $groupMap = [
+    'dashboard' => 'Overview',
     'attendance' => 'Child Progress',
     'report_card' => 'Child Progress',
     'discipline' => 'Child Progress',
@@ -37,6 +38,7 @@ function parent_sidebar_group_label(string $moduleKey): string
     'fees' => 'Account',
     'certificates' => 'Account',
     'how_system_works' => 'Support',
+    'profile' => 'Account',
   ];
 
   return $groupMap[$moduleKey] ?? 'General';

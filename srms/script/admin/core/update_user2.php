@@ -2,20 +2,33 @@
 chdir('../../');
 session_start();
 require_once('db/config.php');
+require_once('const/check_session.php');
+require_once('const/rbac.php');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($res !== "1" || ((int)$level !== 1 && !app_current_user_has_any_permission(['staff.manage', 'academic.manage']))) {
+	$_SESSION['reply'] = array (array("danger",'Access denied.'));
+	header("location:../teachers");
+	exit;
+}
 
-$fname = ucfirst($_POST['fname']);
-$lname = ucfirst($_POST['lname']);
-$email = $_POST['email'];
-$gender = $_POST['gender'];
+$fname = ucfirst(trim((string)($_POST['fname'] ?? '')));
+$lname = ucfirst(trim((string)($_POST['lname'] ?? '')));
+$email = trim((string)($_POST['email'] ?? ''));
+$gender = trim((string)($_POST['gender'] ?? ''));
 $role = (string)($_POST['role'] ?? '2');
 $allowedRoles = ['2', '5'];
 if (!in_array($role, $allowedRoles, true)) {
 	$role = '2';
 }
-$id = $_POST['id'];
-$status = $_POST['status'];
+$id = (int)($_POST['id'] ?? 0);
+$status = (string)($_POST['status'] ?? '1');
+
+if ($id < 1 || $fname === '' || $lname === '' || $email === '') {
+	$_SESSION['reply'] = array (array("danger",'A valid staff record is required.'));
+	header("location:../teachers");
+	exit;
+}
 
 try {
 $conn = app_db();

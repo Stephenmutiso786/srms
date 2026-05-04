@@ -51,15 +51,7 @@ function api_json($payload, int $status = 200): void
 
 function api_backend_base_url(): string
 {
-	if (APP_URL !== '') {
-		return APP_URL;
-	}
-	$scheme = strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? $_SERVER['REQUEST_SCHEME'] ?? 'http'));
-	$host = (string)($_SERVER['HTTP_X_FORWARDED_HOST'] ?? $_SERVER['HTTP_HOST'] ?? '');
-	if ($host === '') {
-		return '';
-	}
-	return rtrim($scheme . '://' . $host, '/');
+	return app_base_url();
 }
 
 function api_backend_url(string $path = ''): string

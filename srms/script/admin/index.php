@@ -181,7 +181,7 @@ try {
   var chartPaymentsByMethod = initChart('chartPaymentsByMethod');
   var chartAvgScoreByTerm = initChart('chartAvgScoreByTerm');
 
-  fetchJson('admin/api/dashboard_stats')
+  fetchJson('admin/api/dashboard_stats.php')
     .then(function (data) {
       if (!data || data.error) return;
 

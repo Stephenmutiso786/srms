@@ -150,6 +150,7 @@ function app_results_temp_report_pdf(PDO $conn, array $ctx): ?array
             'attendance' => $ctx['attendance'],
             'fees_balance' => $ctx['fees_balance'],
             'card' => $ctx['card'],
+            'exam_summary' => is_array($ctx['exam_summary'] ?? null) ? $ctx['exam_summary'] : null,
         ]);
         $pdf->Output($tmpPath, 'F');
 
@@ -278,7 +279,7 @@ function app_results_send_notifications(PDO $conn, int $examId, string $channel 
     $settings = report_get_settings($conn);
     $requireFeesClear = ((int)($settings['require_fees_clear'] ?? 0) === 1);
 
-    $portalBase = defined('APP_URL') && APP_URL !== '' ? rtrim((string)APP_URL, '/') : '';
+    $portalBase = rtrim(app_base_url(), '/');
     $schoolName = defined('WBName') ? (string)WBName : (defined('APP_NAME') ? (string)APP_NAME : 'School');
 
     $sentSms = 0;
@@ -337,7 +338,14 @@ function app_results_send_notifications(PDO $conn, int $examId, string $channel 
             'attendance' => $attendance,
             'fees_balance' => $feesBalance,
             'card' => $card,
+            'exam_summary' => [
+                'exam_id' => (int)($exam['id'] ?? 0),
+                'exam_name' => (string)($exam['name'] ?? ''),
+                'assessment_mode' => (string)($exam['assessment_mode'] ?? 'normal'),
+                'status' => (string)($exam['status'] ?? ''),
+            ],
         ];
+
 
         $smsTargets = [];
         $emailTargets = [];

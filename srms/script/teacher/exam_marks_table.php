@@ -4,6 +4,7 @@ session_start();
 require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
+require_once('const/report_engine.php');
 if ($res == "1" && $level == "2") {}else{header("location:../");}
 
 if (!isset($_SESSION['exam_entry'])) {
@@ -26,10 +27,12 @@ $isLocked = false;
 $submissionStatus = 'draft';
 $avgScore = 0;
 $error = '';
+$gradingScales = [];
 
 try {
   $conn = app_db();
   $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+  app_ensure_exam_grading_schema($conn);
 
   $stmt = $conn->prepare("SELECT e.*, c.name AS class_name, t.name AS term_name
     FROM tbl_exams e
@@ -86,6 +89,9 @@ try {
   if (count($scores) > 0) {
     $avgScore = array_sum(array_map('floatval', $scores)) / count($scores);
   }
+
+  $gradingSystemId = report_exam_grading_system_id($conn, $examId);
+  $gradingScales = report_grading_scales($conn, $gradingSystemId);
 
   $isLocked = app_results_locked($conn, $classId, $termId, $examId);
   $submissionStatus = app_exam_submission_status($conn, $examId, $subjectComb);
@@ -165,16 +171,7 @@ try {
   $scoreVal = $scores[$sid] ?? '';
   $gradeVal = '';
   if ($scoreVal !== '' && $scoreVal !== null) {
-    $scoreFloat = (float)$scoreVal;
-    if ($scoreFloat >= 90.0) {
-      $gradeVal = 'EE';
-    } elseif ($scoreFloat >= 75.0) {
-      $gradeVal = 'ME';
-    } elseif ($scoreFloat >= 50.0) {
-      $gradeVal = 'AE';
-    } else {
-      $gradeVal = 'BE';
-    }
+    list($gradeVal) = report_grade_for_score($conn, (float)$scoreVal, $gradingSystemId ?? null);
   }
 ?>
 <tr>
@@ -219,12 +216,16 @@ const basePayload = {
   subject_combination: <?php echo (int)$subjectComb; ?>
 };
 
-const gradeBands = [
-  { min: 90, max: 100, grade: 'EE' },
-  { min: 75, max: 89.99, grade: 'ME' },
-  { min: 50, max: 74.99, grade: 'AE' },
-  { min: 0, max: 49.99, grade: 'BE' }
-];
+const gradeBands = <?php
+  $gradeBandRows = array_map(function ($row) {
+    return [
+      'min' => (float)($row['min'] ?? 0),
+      'max' => (float)($row['max'] ?? 0),
+      'grade' => (string)($row['name'] ?? '--'),
+    ];
+  }, $gradingScales);
+  echo json_encode($gradeBandRows, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+?>;
 
 function gradeForScore(score) {
   for (const band of gradeBands) {
@@ -244,9 +245,9 @@ function updateGradeBadge(studentId, grade) {
     badge.classList.add('bg-secondary');
     return;
   }
-  if (grade === 'EE') badge.classList.add('bg-success');
-  else if (grade === 'ME') badge.classList.add('bg-primary');
-  else if (grade === 'AE') badge.classList.add('bg-warning');
+  if (String(grade).startsWith('A') || grade === 'EE') badge.classList.add('bg-success');
+  else if (String(grade).startsWith('B') || grade === 'ME') badge.classList.add('bg-primary');
+  else if (String(grade).startsWith('C') || grade === 'AE') badge.classList.add('bg-warning');
   else badge.classList.add('bg-danger');
 }
 

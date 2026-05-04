@@ -36,6 +36,10 @@ try {
     $stmt = $conn->prepare('SELECT DISTINCT academic_year FROM tbl_exams ORDER BY academic_year DESC');
     $stmt->execute();
     $years = array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'academic_year');
+    if (empty($years)) {
+        $currentYear = (int)date('Y');
+        $years = [$currentYear . '/' . ($currentYear + 1)];
+    }
 
     // Get promotion batches
     $stmt = $conn->prepare("

@@ -5,51 +5,77 @@ require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
 require_once('const/report_engine.php');
-require_once('const/calculations.php');
-if ($res == "1" && $level == "0") {}else{header("location:../");}
-
-if (isset($_SESSION['bulk_result'])) {
-$class = $_SESSION['bulk_result']['student'];
-$term = $_SESSION['bulk_result']['term'];
-$examId = (int)($_SESSION['bulk_result']['exam'] ?? ($_GET['exam'] ?? 0));
-$examOptions = [];
-$termPublished = false;
-
-$stmt = $conn->prepare("SELECT * FROM tbl_grade_system");
-$stmt->execute();
-$grading = $stmt->fetchAll();
-
-try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-$stmt = $conn->prepare("SELECT * FROM tbl_students WHERE class = ?");
-$stmt->execute([$class]);
-$std_data = $stmt->fetchAll();
+$classesList = [];
+$termsList = [];
+$grading = [];
+$std_data = [];
+$term_data = [];
+$class_data = [];
+$examOptions = [];
+$termPublished = false;
+$class = (int)($_GET['class_id'] ?? ($_SESSION['bulk_result']['student'] ?? 0));
+$term = (int)($_GET['term_id'] ?? ($_SESSION['bulk_result']['term'] ?? 0));
+$examId = (int)($_GET['exam_id'] ?? ($_SESSION['bulk_result']['exam'] ?? ($_GET['exam'] ?? 0)));
+$hasSelection = ($class > 0 && $term > 0);
+$tit = 'Bulk Results';
 
-$stmt = $conn->prepare("SELECT * FROM tbl_terms WHERE id = ?");
-$stmt->execute([$term]);
-$term_data = $stmt->fetchAll();
-
-$stmt = $conn->prepare("SELECT * FROM tbl_classes WHERE id = ?");
-$stmt->execute([$std_data[0][6]]);
-$class_data = $stmt->fetchAll();
-
-$termPublished = report_term_is_published($conn, (int)$class, (int)$term);
-$examOptions = report_term_exam_options($conn, (int)$class, (int)$term);
-if ($examId < 1 && !empty($examOptions)) {
-	$examId = (int)$examOptions[0]['id'];
+if ($hasSelection) {
+	$_SESSION['bulk_result'] = [
+		'student' => $class,
+		'term' => $term,
+		'exam' => $examId,
+	];
 }
 
-$tit = ''.$class_data[0][1].' ('.$term_data[0][1].' Results)';
-}catch(PDOException $e)
-{
-error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
-echo "Connection failed.";
-}
+try {
+	// Use CBC grading system instead of legacy tbl_grade_system
+	$gradingSystemId = report_default_grading_system_id($conn, 'marks');
+	$grading = report_grading_scales($conn, $gradingSystemId);
+	if (empty($grading)) {
+		$grading = [
+			['name' => 'EE', 'min' => 90, 'max' => 100, 'points' => 4, 'remark' => 'Exceeding Expectation'],
+			['name' => 'ME', 'min' => 75, 'max' => 89, 'points' => 3, 'remark' => 'Meeting Expectation'],
+			['name' => 'AE', 'min' => 50, 'max' => 74, 'points' => 2, 'remark' => 'Approaching Expectation'],
+			['name' => 'BE', 'min' => 0, 'max' => 49, 'points' => 1, 'remark' => 'Below Expectation'],
+		];
+	}
 
-}else{
-header("location:./");
+	$stmt = $conn->prepare("SELECT * FROM tbl_classes ORDER BY id");
+	$stmt->execute();
+	$classesList = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+	$stmt = $conn->prepare("SELECT * FROM tbl_terms WHERE status = '1' ORDER BY id DESC");
+	$stmt->execute();
+	$termsList = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+	if ($hasSelection) {
+		$stmt = $conn->prepare("SELECT * FROM tbl_students WHERE class = ?");
+		$stmt->execute([$class]);
+		$std_data = $stmt->fetchAll();
+
+		$stmt = $conn->prepare("SELECT * FROM tbl_terms WHERE id = ?");
+		$stmt->execute([$term]);
+		$term_data = $stmt->fetchAll();
+
+		if (!empty($std_data)) {
+			$stmt = $conn->prepare("SELECT * FROM tbl_classes WHERE id = ?");
+			$stmt->execute([(int)$std_data[0][6]]);
+			$class_data = $stmt->fetchAll();
+		}
+
+		$termPublished = report_term_is_published($conn, (int)$class, (int)$term);
+		$examOptions = report_term_exam_options($conn, (int)$class, (int)$term);
+
+		if (!empty($class_data) && !empty($term_data)) {
+			$tit = (string)($class_data[0][1] ?? 'Results') . ' (' . (string)($term_data[0][1] ?? 'Term') . ' Results)';
+		}
+	}
+} catch (PDOException $e) {
+	error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
+	echo "Connection failed.";
 }
 
 ?>
@@ -92,18 +118,40 @@ header("location:./");
 <h1><?php echo $tit; ?></h1>
 </div>
 <div class="no-print">
-<form method="get" class="d-flex flex-wrap gap-2 align-items-end">
+<form method="get" class="d-flex flex-wrap gap-2 align-items-end app_frm">
 	<div>
-		<label class="form-label mb-1">Exam</label>
-		<select class="form-control" name="exam">
-			<option value="">Latest published exam</option>
-			<?php foreach (($examOptions ?? []) as $exam): ?>
-			<option value="<?php echo (int)$exam['id']; ?>" <?php echo ((int)$exam['id'] === $examId) ? 'selected' : ''; ?>><?php echo htmlspecialchars($exam['name'] . ' [' . strtoupper((string)$exam['status']) . ']'); ?></option>
+		<label class="form-label mb-1">Class</label>
+		<select class="form-control select2" name="class_id" id="classSelect" required onchange="fetch_exams(this.value);">
+			<option value="">Select class</option>
+			<?php foreach (($classesList ?? []) as $classRow): ?>
+			<option value="<?php echo (int)$classRow['id']; ?>" <?php echo ((int)$classRow['id'] === (int)$class) ? 'selected' : ''; ?>><?php echo htmlspecialchars((string)$classRow['name']); ?></option>
 			<?php endforeach; ?>
 		</select>
 	</div>
-	<div><button class="btn btn-primary" type="submit">Apply</button></div>
+	<div>
+		<label class="form-label mb-1">Term</label>
+		<select class="form-control select2" name="term_id" id="termSelect" required onchange="fetch_exams($('#classSelect').val() || '');">
+			<option value="">Select term</option>
+			<?php foreach (($termsList ?? []) as $termRow): ?>
+			<option value="<?php echo (int)$termRow['id']; ?>" <?php echo ((int)$termRow['id'] === (int)$term) ? 'selected' : ''; ?>><?php echo htmlspecialchars((string)$termRow['name']); ?></option>
+			<?php endforeach; ?>
+		</select>
+	</div>
+	<div>
+		<label class="form-label mb-1">Exam</label>
+		<select class="form-control select2" name="exam_id" id="examSelect" required>
+			<option value="">Select class and term first</option>
+			<?php foreach (($examOptions ?? []) as $exam): ?>
+			<option value="<?php echo (int)$exam['id']; ?>" <?php echo ((int)$exam['id'] === (int)$examId) ? 'selected' : ''; ?>><?php echo htmlspecialchars($exam['name'] . ' [' . strtoupper((string)$exam['status']) . ']'); ?></option>
+			<?php endforeach; ?>
+		</select>
+	</div>
+	<div><button class="btn btn-primary" type="submit">Load</button></div>
+	<div><a class="btn btn-outline-primary<?php echo ($class > 0 && $term > 0 && $examId > 0) ? '' : ' disabled'; ?>" href="<?php echo ($class > 0 && $term > 0 && $examId > 0) ? 'admin/class_report_cards_pdf?class_id=' . (int)$class . '&term_id=' . (int)$term . '&exam=' . (int)$examId : 'javascript:void(0)'; ?>" target="_blank"><i class="bi bi-download me-2"></i>Class PDF</a></div>
 </form>
+<div class="mt-2">
+<button class="btn btn-primary btn-sm" type="button" onclick="window.print();"><i class="bi bi-printer me-2"></i>Print All</button>
+</div>
 </div>
 </div>
 
@@ -113,10 +161,14 @@ header("location:./");
 <div class="tile">
 <div class="tile-body">
 
-<?php if (!$termPublished): ?>
+<?php if (!$hasSelection): ?>
+<div class="alert alert-info">Select a class, term, and exam above to load results for printing.</div>
+<?php elseif (!$termPublished): ?>
 <div class="alert alert-warning">Results are not published for this class and term yet.</div>
 <?php elseif (empty($examOptions)): ?>
 <div class="alert alert-warning">No published exam is available for this class and term.</div>
+<?php elseif ($examId < 1): ?>
+<div class="alert alert-info">Select an exam before printing or downloading the class PDF.</div>
 <?php endif; ?>
 
 <div class="table-responsive">
@@ -214,16 +266,17 @@ $av = '0';
 $av = round($tscore/$t_subjects);
 }
 
-foreach($grading as $grade)
-{
-
-if ($av >= $grade[2] && $av <= $grade[3]) {
-
-$grd = $grade[1];
-$rm = $grade[4];
-
-}
-
+// Determine grade using CBC grading system
+$grd = 'BE';
+$rm = 'Below Expectation';
+foreach($grading as $grade) {
+	$min = (float)($grade['min'] ?? 0);
+	$max = (float)($grade['max'] ?? 100);
+	if ($av >= $min && $av <= $max) {
+		$grd = (string)($grade['name'] ?? 'BE');
+		$rm = (string)($grade['remark'] ?? 'Below Expectation');
+		break;
+	}
 }
 ?>
 
@@ -251,7 +304,7 @@ if ($row2[9] == "DEFAULT") {
 
 <td align="center" width="120">
 <a href="admin/core/edit_result?std=<?php echo $row2[0]; ?>&term=<?php echo $term;?>" class="btn btn-primary btn-sm" href="javascript:void(0);">Edit</a>
-<a href="admin/save_pdf?std=<?php echo $row2[0]; ?>&term=<?php echo $term;?><?php echo $examId > 0 ? '&exam=' . $examId : ''; ?>&download=1" class="btn btn-primary btn-sm" href="javascript:void(0);">Report</a>
+<a href="<?php echo ($examId > 0) ? 'admin/save_pdf?std=' . urlencode((string)$row2[0]) . '&term=' . (int)$term . '&exam=' . (int)$examId . '&download=1' : 'javascript:void(0);'; ?>" class="btn btn-primary btn-sm<?php echo $examId > 0 ? '' : ' disabled'; ?>">Report</a>
 </td>
 
 </tr>

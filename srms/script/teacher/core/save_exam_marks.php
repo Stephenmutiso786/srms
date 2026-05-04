@@ -27,6 +27,7 @@ if ($examId < 1 || $classId < 1 || $termId < 1 || $subjectComb < 1) {
 try {
   $conn = app_db();
   $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+  app_ensure_exam_grading_schema($conn);
 
   if (app_results_locked($conn, $classId, $termId, $examId)) {
     throw new RuntimeException("Results are locked for this class/term.");

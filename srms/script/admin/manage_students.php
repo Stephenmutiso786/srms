@@ -66,7 +66,7 @@ $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
 
 $stmt = $conn->prepare("SELECT * FROM tbl_classes");
-$stmt->execute($myclasses);
+$stmt->execute();
 $result = $stmt->fetchAll();
 
 foreach($result as $row)

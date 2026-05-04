@@ -74,6 +74,11 @@ try {
 <link rel="stylesheet" type="text/css" href="css/main.css">
 <link rel="icon" href="images/icon.ico">
 <link rel="stylesheet" type="text/css" href="cdn.jsdelivr.net/npm/bootstrap-icons%401.10.5/font/bootstrap-icons.css">
+<style>
+.subject-picker {
+	min-height: 220px;
+}
+</style>
 </head>
 <body class="app sidebar-mini">
 
@@ -102,7 +107,7 @@ try {
 <div class="tile mb-3">
 <div class="tile-body">
 <div class="alert alert-info mb-0">
-<strong>How this fits together:</strong> first set up the class, stream, class teacher, and subjects in <a href="admin/classes">Class Management</a>. Then use this page to attach subject teachers to that structure. One teacher can still teach multiple subjects in one class and multiple classes across the school.
+<strong>How this fits together:</strong> first set up the class, stream, class teacher, and subjects in <a href="admin/classes">Class Management</a>. Then use this page to attach subject teachers to that structure. One teacher can now be assigned multiple subjects for the same class in one save.
 </div>
 </div>
 </div>
@@ -111,7 +116,7 @@ try {
 <div class="col-md-5">
 <div class="tile">
 <div class="tile-body">
-<h3 class="tile-title">Assign Subject Teacher</h3>
+<h3 class="tile-title">Assign Teacher Subjects</h3>
 <form class="app_frm" method="POST" action="admin/core/teacher_assignment_save">
 <input type="hidden" name="assignment_id" id="assignment_id" value="0">
 <div class="mb-2">
@@ -134,15 +139,15 @@ try {
 <div class="form-text">Only subjects already linked to this class in Class Management will remain available below.</div>
 </div>
 <div class="mb-2">
-<label class="form-label">Subject</label>
-<select class="form-control" name="subject_id" id="subject_id" required>
-<option value="">Select subject</option>
+<label class="form-label">Subjects</label>
+<select class="form-control subject-picker" name="subject_ids[]" id="subject_ids" multiple required>
 <?php foreach ($subjects as $row): $classesMap = $subjectClassMap[(int)$row['id']] ?? []; ?>
 <option value="<?php echo $row['id']; ?>" data-classes="<?php echo htmlspecialchars(json_encode($classesMap)); ?>">
 	<?php echo htmlspecialchars($row['name']); ?>
 </option>
 <?php endforeach; ?>
 </select>
+<div class="form-text" id="subjectHelpText">Choose one or more subjects for this teacher. In edit mode, keep one subject selected.</div>
 </div>
 <div class="mb-2">
 <label class="form-label">Term</label>
@@ -157,8 +162,9 @@ try {
 <label class="form-label">Year</label>
 <input class="form-control" type="number" name="year" id="year" value="<?php echo $year; ?>" required>
 </div>
+<div class="small text-muted mb-3" id="subjectSelectionCount">No subjects selected.</div>
 <div class="d-flex gap-2">
-<button class="btn btn-primary">Save Allocation</button>
+<button class="btn btn-primary" id="allocationSubmitBtn">Save Allocations</button>
 <button type="button" class="btn btn-light" id="resetForm">Reset</button>
 </div>
 </form>
@@ -221,42 +227,86 @@ try {
 <script src="js/sweetalert2@11.js"></script>
 <?php require_once('const/check-reply.php'); ?>
 <script>
+function getSelectedSubjectValues() {
+	return Array.from(document.getElementById('subject_ids').selectedOptions).map(function(option) {
+		return option.value;
+	});
+}
+
+function updateSelectionSummary() {
+	const selectedCount = getSelectedSubjectValues().length;
+	const countLabel = document.getElementById('subjectSelectionCount');
+	if (countLabel) {
+		countLabel.textContent = selectedCount > 0
+			? selectedCount + ' subject' + (selectedCount === 1 ? '' : 's') + ' selected.'
+			: 'No subjects selected.';
+	}
+}
+
+function applySubjectFilter(preserveSelection) {
+	const classId = parseInt($('#class_id').val(), 10);
+	const selectedValues = preserveSelection ? getSelectedSubjectValues() : [];
+	$('#subject_ids option').each(function () {
+		const allowed = $(this).data('classes');
+		let visible = true;
+		if (classId && Array.isArray(allowed) && allowed.length > 0) {
+			visible = allowed.includes(classId);
+		}
+		$(this).prop('hidden', !visible);
+		if (!visible) {
+			$(this).prop('selected', false);
+		}
+	});
+	if (preserveSelection && selectedValues.length) {
+		$('#subject_ids option').each(function () {
+			if (selectedValues.includes($(this).val()) && !$(this).prop('hidden')) {
+				$(this).prop('selected', true);
+			}
+		});
+	}
+	updateSelectionSummary();
+}
+
+function setFormMode(isEditing) {
+	const helpText = document.getElementById('subjectHelpText');
+	const submitBtn = document.getElementById('allocationSubmitBtn');
+	if (helpText) {
+		helpText.textContent = isEditing
+			? 'Edit mode updates one existing allocation, so leave only one subject selected.'
+			: 'Choose one or more subjects for this teacher in a single save.';
+	}
+	if (submitBtn) {
+		submitBtn.textContent = isEditing ? 'Update Allocation' : 'Save Allocations';
+	}
+}
+
 $('.edit-assignment').on('click', function () {
 	$('#assignment_id').val($(this).data('id'));
 	$('#teacher_id').val($(this).data('teacher'));
 	$('#class_id').val($(this).data('class'));
-	$('#subject_id').val($(this).data('subject'));
+	$('#subject_ids option').prop('selected', false);
+	$('#subject_ids option[value="' + $(this).data('subject') + '"]').prop('selected', true);
 	$('#term_id').val($(this).data('term'));
 	$('#year').val($(this).data('year'));
+	applySubjectFilter(true);
+	setFormMode(true);
 });
 $('#resetForm').on('click', function () {
 	$('#assignment_id').val('0');
 	$('#teacher_id').val('');
 	$('#class_id').val('');
-	$('#subject_id').val('');
+	$('#subject_ids option').prop('selected', false);
 	$('#term_id').val('');
 	$('#year').val('<?php echo $year; ?>');
+	applySubjectFilter(false);
+	setFormMode(false);
 });
 $('#class_id').on('change', function () {
-	const classId = parseInt($(this).val(), 10);
-	$('#subject_id option').each(function () {
-		const allowed = $(this).data('classes');
-		if (!allowed) {
-			$(this).show();
-			return;
-		}
-		if (!classId) {
-			$(this).show();
-			return;
-		}
-		if (Array.isArray(allowed) && allowed.length > 0) {
-			$(this).toggle(allowed.includes(classId));
-		} else {
-			$(this).show();
-		}
-	});
-	$('#subject_id').val('');
+	applySubjectFilter(false);
 });
+$('#subject_ids').on('change', updateSelectionSummary);
+applySubjectFilter(false);
+setFormMode(false);
 </script>
 </body>
 </html>

@@ -1,0 +1,26 @@
+[req]
+default_bits = 2048
+prompt = no
+default_md = sha256
+distinguished_name = dn
+req_extensions = req_ext
+x509_extensions = req_ext
+
+[dn]
+C = TZ
+ST = Dar es Salaam
+L = Dar es Salaam
+O = SRMS Local
+OU = Development
+CN = 192.168.100.107
+
+[req_ext]
+subjectAltName = @alt_names
+basicConstraints = CA:FALSE
+keyUsage = digitalSignature, keyEncipherment
+extendedKeyUsage = serverAuth
+
+[alt_names]
+IP.1 = 192.168.100.107
+DNS.1 = localhost
+DNS.2 = srms.local

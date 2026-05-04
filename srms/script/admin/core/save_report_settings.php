@@ -23,12 +23,7 @@ $requireFees = (int)($_POST['require_fees_clear'] ?? 0);
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-	if (!app_table_exists($conn, 'tbl_result_settings')) {
-		$_SESSION['reply'] = array (array("danger", "Result settings table missing. Run migration 007."));
-		header("location:".$returnTo);
-		exit;
-	}
+	app_ensure_current_mode_mysql_schema($conn);
 
 	$stmt = $conn->prepare("INSERT INTO tbl_result_settings (best_of, use_weights, require_fees_clear) VALUES (?,?,?)");
 	$stmt->execute([$bestOf, $useWeights, $requireFees]);

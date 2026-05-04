@@ -21,7 +21,8 @@ RUN sed -i 's/AllowOverride None/AllowOverride All/g' /etc/apache2/apache2.conf
 RUN echo '\nSetEnvIf Request_URI "^/images/" CACHE_PUBLIC\nSetEnvIf Request_URI "^/css/" CACHE_PUBLIC\nSetEnvIf Request_URI "^/js/" CACHE_PUBLIC\nSetEnvIf Request_URI "^/cdn" CACHE_PUBLIC\nHeader set Cache-Control "public, max-age=86400" env=CACHE_PUBLIC' >> /etc/apache2/apache2.conf
 
 # Create cache directory
-RUN mkdir -p /var/www/html/cache && chmod 777 /var/www/html/cache
+RUN mkdir -p /var/www/html/cache && chmod 77
+7 /var/www/html/cache
 
 # Copy the PHP app
 WORKDIR /var/www/html

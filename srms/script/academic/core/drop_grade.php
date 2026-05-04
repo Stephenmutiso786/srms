@@ -1,20 +1,13 @@
 <?php
-chdir('../../');
 session_start();
+chdir('../../');
 require_once('db/config.php');
+require_once('const/check_session.php');
 
-if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
-	header("location:../");
-	exit;
-}
+// CBC-ONLY: Legacy grade system is deprecated. CBC grading is standardized and cannot be modified.
+// Redirect to grading system page with error message.
 
-$id = (int)($_GET['id'] ?? 0);
-try {
-	$conn = app_db();
-	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-	$stmt = $conn->prepare("DELETE FROM tbl_grade_system WHERE id = ?");
-	$stmt->execute([$id]);
-	app_reply_redirect('success', 'Grade deleted.', '../grading-system');
-} catch (Throwable $e) {
-	app_reply_redirect('danger', 'Unable to delete grade. It may still be used by existing reports.', '../grading-system');
-}
+$_SESSION['reply'] = array(array("warning", "The legacy grading system is deprecated. CBC uses standardized national grading bands (EE, ME, AE, BE) that cannot be modified. Please use the CBC Grading System page to view the current grading standards."));
+header("location:../grading-system");
+exit;
+?>

@@ -14359,6 +14359,19 @@ body.has-top-banner .app-content {
     stroke-dasharray: 1, 200;
     stroke-dashoffset: 0;
   }
+
+/* Helpers for scaling wide classroom mark sheets and class lists */
+.fit-scale-wrapper{overflow:hidden;width:100%;}
+.sheet-table{transform-origin:0 0;will-change:transform;}
+
+/* When printing, allow the wrapper to expand so scaled content prints fully */
+@media print {
+  .fit-scale-wrapper{overflow:visible}
+}
+
+/* Small print fallback: if font becomes too small after scaling, allow users to reduce columns */
+.sheet-table--too-small td, .sheet-table--too-small th { font-size:10px !important; }
+
   50% {
     stroke-dasharray: 89, 200;
     stroke-dashoffset: -35px;

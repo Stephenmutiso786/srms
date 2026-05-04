@@ -29,12 +29,13 @@ try {
 		$classId = (int)$classRow['id'];
 		$classSubjectMap[$classId] = app_class_subject_ids($conn, $classId);
 		$classTeacherMap[$classId] = app_class_subject_teacher_rows($conn, $classId);
-		$parts = app_class_name_parts((string)$classRow['name']);
+		$parts = app_class_display_parts((string)$classRow['name']);
 		$gradeKey = $parts['grade'] !== '' ? $parts['grade'] : (string)$classRow['name'];
 		$streamGroups[$gradeKey][] = [
 			'id' => $classId,
-			'stream' => $parts['stream'] !== '' ? $parts['stream'] : 'Main',
+			'stream' => $parts['stream'] !== '' ? $parts['stream'] : ($parts['is_independent'] ? '' : 'Main'),
 			'name' => (string)$classRow['name'],
+			'is_independent' => (bool)($parts['is_independent'] ?? false),
 		];
 	}
 } catch (Throwable $e) {
@@ -88,7 +89,7 @@ try {
 <div class="col-md-12">
 <div class="tile">
 <div class="tile-body">
-<h3 class="tile-title">Class → Streams Overview</h3>
+<h3 class="tile-title">Classes Overview</h3>
 <div class="row">
 <?php foreach ($streamGroups as $gradeName => $streams): ?>
 <div class="col-md-4 mb-3">
@@ -96,7 +97,7 @@ try {
 <div class="d-flex justify-content-between align-items-start mb-2">
 <div>
 <div class="fw-bold"><?php echo htmlspecialchars($gradeName); ?></div>
-<div class="small text-muted"><?php echo count($streams); ?> stream(s)</div>
+<div class="small text-muted"><?php echo count($streams); ?> <?php echo count($streams) === 1 && !empty($streams[0]['is_independent']) ? 'class' : 'stream(s)'; ?></div>
 </div>
 <button
 	type="button"
@@ -107,7 +108,7 @@ try {
 </div>
 <ul class="mb-0 ps-3">
 <?php foreach ($streams as $stream): ?>
-<li><?php echo htmlspecialchars($stream['name']); ?></li>
+<li><?php echo htmlspecialchars(!empty($stream['is_independent']) ? $stream['name'] : $stream['name']); ?></li>
 <?php endforeach; ?>
 </ul>
 </div>
@@ -175,7 +176,7 @@ try {
 
 <div class="row"><div class="col-md-12"><div class="tile"><div class="tile-body"><div class="table-responsive">
 <h3 class="tile-title">Classes, Subjects, and Teachers</h3>
-<p class="text-muted">Every row below is one stream. That means `Grade 6 East` and `Grade 6 West` are managed independently while still rolling up under the same grade in the overview above.</p>
+<p class="text-muted">Each CBC grade such as `PP1`, `PP2`, `Grade 1`, and `Grade 2` can stand on its own as a full class. Only names like `Grade 6 East` and `Grade 6 West` are treated as streams under the same grade.</p>
 <table class="table table-hover table-bordered" id="srmsTable">
 <thead><tr><th>Grade</th><th>Stream</th><th>Saved Class Name</th><th>Class Teacher</th><th>Subjects</th><th>Subject Teachers</th><th>Added On</th><th width="140"></th></tr></thead>
 <tbody>
@@ -190,7 +191,7 @@ try {
 		ORDER BY c.name");
 	$stmt->execute();
 	foreach($stmt->fetchAll() as $row) {
-		$parts = app_class_name_parts((string)$row[1]);
+		$parts = app_class_display_parts((string)$row[1]);
 		$subjectIds = $classSubjectMap[(int)$row[0]] ?? [];
 		$subjectNames = [];
 		foreach ($subjects as $subject) {

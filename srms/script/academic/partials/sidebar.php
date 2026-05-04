@@ -25,9 +25,11 @@ function academic_sidebar_is_active(array $module): string
 function academic_sidebar_group_label(string $moduleKey): string
 {
 	$groupMap = [
+		'dashboard' => 'Overview',
 		'terms' => 'Academic',
 		'classes' => 'Academic',
 		'subjects' => 'Academic',
+		'teacher_control' => 'Teachers',
 		'combinations' => 'Academic',
 		'grading_system' => 'Academic',
 		'division_system' => 'Academic',

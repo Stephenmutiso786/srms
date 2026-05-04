@@ -30,12 +30,7 @@ if ($module === '') {
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-	if (!app_table_exists($conn, 'tbl_module_locks')) {
-		$_SESSION['reply'] = array(array("error", "Module locks table missing. Run migration 012."));
-		header("location:../module_locks");
-		exit;
-	}
+	app_ensure_current_mode_mysql_schema($conn);
 
 	$isPgsql = (defined('DBDriver') && DBDriver === 'pgsql');
 	if ($isPgsql) {

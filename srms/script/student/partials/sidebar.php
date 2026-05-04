@@ -37,6 +37,7 @@ function student_menu_is_active(array $module): string
 function student_sidebar_group_label(string $moduleKey): string
 {
   $groupMap = [
+    'dashboard' => 'Overview',
     'subjects' => 'Learning',
     'elearning' => 'Learning',
     'exam_timetable' => 'Learning',
@@ -51,6 +52,8 @@ function student_sidebar_group_label(string $moduleKey): string
     'certificates' => 'Account',
     'profile' => 'Account',
     'settings' => 'Account',
+    'portal_help' => 'Support',
+    'quiz' => 'Learning',
   ];
 
   return $groupMap[$moduleKey] ?? 'General';

@@ -303,27 +303,25 @@ try {
 <tbody>
 <?php foreach ($roles as $role): ?>
 <tr>
+<form method="POST" action="admin/core/save_role_allocations" class="w-100">
 <td class="matrix-role-col">
 <div class="fw-semibold"><?php echo htmlspecialchars((string)$role['name']); ?></div>
 <div class="text-muted small">Level <?php echo (int)$role['level']; ?></div>
 <?php $allocatedCount = count((array)($moduleAllocationsByRole[(int)$role['id']] ?? [])); ?>
 <div class="small mt-1"><span class="badge bg-info text-dark">Allocated: <?php echo (int)$allocatedCount; ?></span></div>
+<input type="hidden" name="role_id" value="<?php echo (int)$role['id']; ?>">
+<input type="hidden" name="portal" value="<?php echo htmlspecialchars($selectedPortal); ?>">
+<input type="hidden" name="return_to" value="../role_matrix?portal=<?php echo urlencode($selectedPortal); ?>">
+<div class="mt-2"><button type="submit" class="btn btn-sm btn-primary">Save allocations</button></div>
 </td>
 <?php foreach ($allocatableModules as $module): ?>
 <?php $moduleKey = strtolower(trim((string)($module['key'] ?? ''))); ?>
 <?php $allocated = !empty($moduleAllocationsByRole[(int)$role['id']][$moduleKey]); ?>
 <td class="text-center">
-<form method="POST" action="admin/core/toggle_role_module" class="d-inline">
-<input type="hidden" name="role_id" value="<?php echo (int)$role['id']; ?>">
-<input type="hidden" name="portal" value="<?php echo htmlspecialchars($selectedPortal); ?>">
-<input type="hidden" name="module_key" value="<?php echo htmlspecialchars($moduleKey); ?>">
-<input type="hidden" name="return_to" value="../role_matrix?portal=<?php echo urlencode($selectedPortal); ?>">
-<button type="submit" class="matrix-toggle" title="<?php echo $allocated ? 'Remove module from role sidebar allocation' : 'Allocate module to role sidebar'; ?>">
-<?php echo $allocated ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-plus-circle text-muted"></i>'; ?>
-</button>
-</form>
+	<input type="checkbox" name="module_keys[]" value="<?php echo htmlspecialchars($moduleKey); ?>" <?php echo $allocated ? 'checked' : ''; ?>>
 </td>
 <?php endforeach; ?>
+</form>
 </tr>
 <?php endforeach; ?>
 </tbody>

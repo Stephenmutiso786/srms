@@ -34,6 +34,7 @@ $componentExamIds = is_array($componentExamIds) ? array_values(array_unique(arra
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	app_ensure_exam_grading_schema($conn);
 	app_ensure_overall_grading_defaults($conn);
 	app_ensure_exam_type($conn);
 	app_ensure_exam_weights_table($conn);

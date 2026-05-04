@@ -107,8 +107,9 @@ try {
             renderLeavingCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verifyUrl);
             break;
         case 'merit':
-            renderMeritCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verifyUrl);
-            break;
+          // CBC-ONLY: Legacy merit certificates now use general template (no merit grade/position shown)
+          renderGeneralCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verifyUrl);
+          break;
         default:
             renderGeneralCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verifyUrl);
     }
@@ -162,10 +163,6 @@ function renderPrimaryCompletionCertificate($pdf, $cert, $studentPhoto, $logoHtm
           <p style="font-size:10pt;margin:0;"><strong>OVERALL PERFORMANCE:</strong></p>
           <p style="font-size:11pt;margin:2px 0;"><strong>Mean Score:</strong> ' . 
             ($cert['mean_score'] !== null ? number_format((float)$cert['mean_score'], 2) . '%' : 'N/A') . '</p>
-          <p style="font-size:11pt;margin:2px 0;"><strong>Grade:</strong> ' . 
-            ($cert['merit_grade'] ? htmlspecialchars($cert['merit_grade']) . ' - ' . app_merit_grade_label($cert['merit_grade']) : 'N/A') . '</p>
-          ' . (isset($cert['position_in_class']) && $cert['position_in_class'] ? 
-          '<p style="font-size:11pt;margin:2px 0;"><strong>Class Position:</strong> ' . (int)$cert['position_in_class'] . '</p>' : '') . '
         </td>
         <td width="40%" style="text-align:center;vertical-align:middle;">
           ' . $studentPhoto . '
@@ -491,52 +488,7 @@ function renderTransferCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verif
 /**
  * Render Merit Certificate
  */
-function renderMeritCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verifyUrl) {
-    $pdf->SetFont('helvetica', '', 12);
-    $meritDesc = $cert['merit_grade'] ? app_merit_grade_description($cert['merit_grade']) : 'Exceptional achievement';
-  $brandingHeader = app_pdf_brand_header_html(null, 'MERIT CERTIFICATE', 'Issued for outstanding academic excellence and achievement', 56);
-    
-  $html = $brandingHeader . '
-    <div style="text-align:center;margin-top:20px;">
-      <div style="font-size:24pt;font-weight:bold;color:#d4af37;">★ MERIT CERTIFICATE ★</div>
-      <div style="font-size:12pt;color:#666;margin-bottom:15px;">In Recognition of Academic Excellence</div>
-    </div>
-    
-    <table width="100%" cellpadding="5" cellspacing="0" style="margin-top:15px;">
-      <tr>
-        <td width="60%">
-          <p style="font-size:11pt;">This certificate is proudly awarded to</p>
-          <div style="font-size:16pt;font-weight:bold;color:#1a3a52;margin:8px 0;">
-            ' . htmlspecialchars((string)$cert['student_name']) . '
-          </div>
-          <p style="font-size:10pt;">For outstanding academic performance</p>
-          <p style="font-size:12pt;font-weight:bold;margin:8px 0;">Mean Score: ' . 
-            ($cert['mean_score'] ? number_format((float)$cert['mean_score'], 2) . '% (Grade ' . htmlspecialchars($cert['merit_grade']) . ')' : 'Excellent') . '</p>
-          <p style="font-size:10pt;color:#666;margin:8px 0;">' . htmlspecialchars($meritDesc) . '</p>
-        </td>
-        <td width="40%" style="text-align:center;">
-          ' . $studentPhoto . '
-        </td>
-      </tr>
-    </table>
-    
-    <div style="text-align:center;margin-top:20px;">
-      <p><strong>Issued: </strong>' . htmlspecialchars((string)$cert['issue_date']) . '</p>
-    </div>
-    
-    <table width="100%" cellpadding="8" cellspacing="0" style="margin-top:15px;">
-      <tr>
-        <td width="50%" style="text-align:center;border-top:1px solid #000;padding-top:15px;">
-          <strong>Headteacher</strong>
-        </td>
-        <td width="50%" style="text-align:center;border-top:1px solid #000;padding-top:15px;">
-          <strong>Chairman, Board of Governors</strong>
-        </td>
-      </tr>
-    </table>';
-    
-    $pdf->writeHTML($html, true, false, true, false, '');
-}
+// CBC-ONLY: Merit certificate template removed
 
 /**
  * Render General / Default Certificate

@@ -179,6 +179,17 @@ try {
 			<button class="btn btn-primary" type="submit">Load</button>
 		</div>
 	</form>
+	<?php if ($termId > 0) { ?>
+	<div class="d-flex flex-wrap gap-2 mt-3">
+		<a class="btn btn-outline-success" href="admin/core/export_school_timetable?term_id=<?php echo (int)$termId; ?><?php echo $classId > 0 ? '&class_id=' . (int)$classId : ''; ?>&format=csv">
+			<i class="bi bi-filetype-csv me-1"></i>Download CSV
+		</a>
+		<a class="btn btn-outline-primary" href="admin/core/export_school_timetable?term_id=<?php echo (int)$termId; ?><?php echo $classId > 0 ? '&class_id=' . (int)$classId : ''; ?>&format=pdf" target="_blank" rel="noopener">
+			<i class="bi bi-file-earmark-pdf me-1"></i>Download PDF
+		</a>
+	</div>
+	<p class="text-muted mt-2 mb-0">Download the loaded timetable for the selected term<?php echo $classId > 0 ? ' and class' : ' across all generated classes'; ?>.</p>
+	<?php } ?>
 </div>
 
 <?php if ($termId > 0) { ?>

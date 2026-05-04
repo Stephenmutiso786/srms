@@ -6,7 +6,7 @@ require_once('const/check_session.php');
 require_once('const/rbac.php');
 
 if ($res != "1" || $level != "0") { header("location:../../"); exit; }
-app_require_permission('academic.manage', '../system');
+app_require_permission('system.manage', '../system');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 	header("location:../system");
@@ -47,9 +47,7 @@ if ($sessionStartDate !== '' && $sessionEndDate !== '' && strtotime($sessionStar
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-	if (!app_table_exists($conn, 'tbl_app_settings')) {
-		throw new RuntimeException('Application settings support is not installed. Run migration 030.');
-	}
+	app_ensure_current_mode_mysql_schema($conn);
 	if ($currentTermId !== '') {
 		$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_terms WHERE id = ?");
 		$stmt->execute([(int)$currentTermId]);

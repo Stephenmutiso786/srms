@@ -21,6 +21,7 @@ $error = '';
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	app_ensure_results_locks_table($conn);
 
 	if (!app_table_exists($conn, 'tbl_results_locks')) {
 		throw new RuntimeException("Results lock module is not installed. Run migration 004_results_locking.sql.");

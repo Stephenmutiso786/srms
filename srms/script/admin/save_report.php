@@ -76,9 +76,17 @@ try {
 			throw new RuntimeException('No learners have saved scores for the selected exam.');
 		}
 
-		$stmt = $conn->prepare("SELECT name, min, max FROM tbl_grade_system ORDER BY min DESC");
-		$stmt->execute();
-		$grading = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		// Use CBC grading system instead of legacy tbl_grade_system
+		$gradingSystemId = report_default_grading_system_id($conn, 'marks');
+		$grading = report_grading_scales($conn, $gradingSystemId);
+		if (empty($grading)) {
+			$grading = [
+				['name' => 'EE', 'min' => 90, 'max' => 100],
+				['name' => 'ME', 'min' => 75, 'max' => 89],
+				['name' => 'AE', 'min' => 50, 'max' => 74],
+				['name' => 'BE', 'min' => 0, 'max' => 49],
+			];
+		}
 
 		$position = 1;
 		foreach ($rows as $row) {
@@ -157,29 +165,27 @@ try {
 		$pdf->writeHTML('<h4>Grade Distribution</h4><table border="1" cellpadding="4"><tr style="background-color:#f3f7fb;"><td><b>Grade</b></td><td><b>Learners</b></td></tr>' . $rows . '</table><br>', true, false, true, false, '');
 	}
 
-	$tableRows = '';
-	foreach ($summaryRows as $row) {
-		$tableRows .= '<tr>
-			<td>' . htmlspecialchars((string)$row['school_id']) . '</td>
-			<td>' . htmlspecialchars((string)$row['student_name']) . '</td>
-			<td>' . (int)($row['position'] ?? 0) . '/' . (int)($row['total_students'] ?? 0) . '</td>
-			<td>' . number_format((float)($row['total'] ?? 0), 2) . '</td>
-			<td>' . number_format((float)($row['mean'] ?? 0), 2) . '</td>
-			<td>' . htmlspecialchars((string)($row['grade'] ?? '')) . '</td>
-			<td>' . htmlspecialchars((string)($row['trend'] ?? '')) . '</td>
-		</tr>';
-	}
+	   $tableRows = '';
+	   foreach ($summaryRows as $row) {
+		   $tableRows .= '<tr>
+			   <td>' . htmlspecialchars((string)$row['school_id']) . '</td>
+			   <td>' . htmlspecialchars((string)$row['student_name']) . '</td>
+			   <td>' . number_format((float)($row['total'] ?? 0), 2) . '</td>
+			   <td>' . number_format((float)($row['mean'] ?? 0), 2) . '</td>
+			   <td>' . htmlspecialchars((string)($row['grade'] ?? '')) . '</td>
+			   <td>' . htmlspecialchars((string)($row['trend'] ?? '')) . '</td>
+		   </tr>';
+	   }
 
-	$pdf->writeHTML('<h4>Learner Summary</h4><table border="1" cellpadding="4" cellspacing="0">
-		<tr style="background-color:#f3f7fb;">
-			<td width="14%"><b>Adm/ID</b></td>
-			<td width="28%"><b>Learner</b></td>
-			<td width="12%"><b>Position</b></td>
-			<td width="14%"><b>Total</b></td>
-			<td width="12%"><b>Mean</b></td>
-			<td width="8%"><b>Grade</b></td>
-			<td width="12%"><b>Trend</b></td>
-		</tr>' . $tableRows . '</table>', true, false, true, false, '');
+	   $pdf->writeHTML('<h4>Learner Summary</h4><table border="1" cellpadding="4" cellspacing="0">
+		   <tr style="background-color:#f3f7fb;">
+			   <td width="18%"><b>Adm/ID</b></td>
+			   <td width="32%"><b>Learner</b></td>
+			   <td width="14%"><b>Total</b></td>
+			   <td width="14%"><b>Mean</b></td>
+			   <td width="10%"><b>Grade</b></td>
+			   <td width="12%"><b>Trend</b></td>
+		   </tr>' . $tableRows . '</table>', true, false, true, false, '');
 
 	$pdf->Output($className . '-' . $termName . '-' . $examName . '-performance-summary.pdf', 'I');
 } catch (Throwable $e) {

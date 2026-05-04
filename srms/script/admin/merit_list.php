@@ -50,11 +50,11 @@ try {
 		$rows = $list['rows'];
 		$summary['students'] = (int)$list['total_students'];
 		if (!empty($rows)) {
-			$summary['best'] = (float)$rows[0]['mean'];
-			$summary['worst'] = (float)$rows[count($rows) - 1]['mean'];
+			$summary['best'] = (float)($rows[0]['mean_points'] ?? 0);
+			$summary['worst'] = (float)($rows[count($rows) - 1]['mean_points'] ?? 0);
 			$sum = 0;
 			foreach ($rows as $row) {
-				$sum += (float)$row['mean'];
+				$sum += (float)($row['mean_points'] ?? 0);
 			}
 			$summary['avg'] = round($sum / max(1, count($rows)), 2);
 		}
@@ -104,8 +104,8 @@ try {
 <main class="app-content">
 <div class="app-title">
 <div>
-<h1>Merit List</h1>
-<p class="mb-0 text-muted">Rank learners for a class and term, then export a printable merit list.</p>
+<h1>Class Results</h1>
+<p class="mb-0 text-muted">CBC class results for a class and term. Ranking/merit is hidden for CBC compliance.</p>
 </div>
 </div>
 
@@ -127,9 +127,9 @@ try {
 
 <div class="merit-grid">
   <div class="merit-stat"><div class="label">Learners</div><div class="value"><?php echo (int)$summary['students']; ?></div></div>
-  <div class="merit-stat"><div class="label">Average</div><div class="value"><?php echo number_format((float)$summary['avg'], 2); ?>%</div></div>
-  <div class="merit-stat"><div class="label">Best</div><div class="value"><?php echo number_format((float)$summary['best'], 2); ?>%</div></div>
-  <div class="merit-stat"><div class="label">Lowest</div><div class="value"><?php echo number_format((float)$summary['worst'], 2); ?>%</div></div>
+  <div class="merit-stat"><div class="label">Average Points</div><div class="value"><?php echo number_format((float)$summary['avg'], 2); ?></div></div>
+  <div class="merit-stat"><div class="label">Best Mean</div><div class="value"><?php echo number_format((float)$summary['best'], 2); ?></div></div>
+  <div class="merit-stat"><div class="label">Lowest Mean</div><div class="value"><?php echo number_format((float)$summary['worst'], 2); ?></div></div>
 </div>
 
 <div class="tile filter-card mb-3">
@@ -154,26 +154,26 @@ try {
 </select>
 </div>
 <div>
-<button class="btn btn-primary" type="submit">Generate Merit List</button>
+<button class="btn btn-primary" type="submit">Show Class Results</button>
 </div>
 </form>
 </div>
 </div>
 
 <?php if ($classId > 0 && $termId > 0 && !$locked): ?>
-<div class="alert alert-warning">Results are not locked yet. The merit list can be previewed, but the final class ranking should be locked before publishing.</div>
+<div class="alert alert-warning">Results are not locked yet. CBC class results can be previewed, but ranking/merit is hidden for CBC compliance.</div>
 <?php endif; ?>
 
 <div class="merit-card">
-  <div class="table-responsive">
-    <table class="table table-hover align-middle mb-0">
+  <div class="sheet-wrap">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0 sheet-table">
       <thead>
         <tr>
-          <th>Rank</th>
           <th>School ID</th>
           <th>Student</th>
-          <th>Total</th>
-          <th>Mean</th>
+          <th>Total Points</th>
+          <th>Mean Points</th>
           <th>Grade</th>
           <th>Trend</th>
           <th>Verification</th>
@@ -181,15 +181,14 @@ try {
       </thead>
       <tbody>
       <?php if (!$rows) { ?>
-        <tr><td colspan="8" class="text-muted">Select a class and term to generate the merit list.</td></tr>
+        <tr><td colspan="7" class="text-muted">Select a class and term to show class results.</td></tr>
       <?php } ?>
       <?php foreach ($rows as $row): ?>
         <tr>
-          <td><strong>#<?php echo (int)$row['position']; ?></strong></td>
           <td><?php echo htmlspecialchars((string)($row['school_id'] !== '' ? $row['school_id'] : $row['student_id'])); ?></td>
           <td><?php echo htmlspecialchars((string)$row['student_name']); ?></td>
-          <td><?php echo number_format((float)$row['total'], 2); ?></td>
-          <td><?php echo number_format((float)$row['mean'], 2); ?>%</td>
+          <td><?php echo number_format((float)($row['total_points'] ?? 0), 1); ?></td>
+          <td><?php echo number_format((float)($row['mean_points'] ?? 0), 2); ?></td>
           <td><span class="badge bg-primary"><?php echo htmlspecialchars((string)$row['grade']); ?></span></td>
           <td><?php echo htmlspecialchars((string)$row['trend']); ?></td>
           <td class="text-muted small"><?php echo htmlspecialchars((string)$row['verification_code']); ?></td>
@@ -197,6 +196,7 @@ try {
       <?php endforeach; ?>
       </tbody>
     </table>
+    </div>
   </div>
 </div>
 

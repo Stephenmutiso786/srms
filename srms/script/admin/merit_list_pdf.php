@@ -37,11 +37,13 @@ try {
 	$pdf->AddPage();
 	$pdf->SetFont('helvetica', '', 10);
 
-	$brandingHeader = app_pdf_brand_header_html($conn, 'MERIT LIST', 'Official ranked merit report for class and term review', 40);
-	$html = $brandingHeader . '<div style="font-size:10pt;margin:6px 0 8px 0;"><strong>Merit List:</strong> ' . htmlspecialchars($className) . ' - ' . htmlspecialchars($termName) . '</div>';
-	$html .= '<table width="100%" border="1" cellpadding="4"><thead><tr style="background-color:#f3f8f7;"><th width="10%">Rank</th><th width="18%">School ID</th><th width="32%">Student</th><th width="12%">Total</th><th width="12%">Mean</th><th width="8%">Grade</th><th width="8%">Trend</th></tr></thead><tbody>';
+	// Produce an unranked class results PDF (CBC-only display)
+	$brandingHeader = app_pdf_brand_header_html($conn, 'CLASS RESULTS', 'Class results (unranked) for term review', 40);
+	$html = $brandingHeader . '<div style="font-size:10pt;margin:6px 0 8px 0;"><strong>Class Results:</strong> ' . htmlspecialchars($className) . ' - ' . htmlspecialchars($termName) . '</div>';
+	$html .= '<table width="100%" border="1" cellpadding="4"><thead><tr style="background-color:#f3f8f7;"><th width="18%">School ID</th><th width="38%">Student</th><th width="14%">Total Points</th><th width="14%">Mean Points</th><th width="16%">Grade</th></tr></thead><tbody>';
 	foreach ($rows as $row) {
-		$html .= '<tr><td>' . (int)$row['position'] . '</td><td>' . htmlspecialchars((string)($row['school_id'] !== '' ? $row['school_id'] : $row['student_id'])) . '</td><td>' . htmlspecialchars((string)$row['student_name']) . '</td><td>' . number_format((float)$row['total'], 2) . '</td><td>' . number_format((float)$row['mean'], 2) . '%</td><td>' . htmlspecialchars((string)$row['grade']) . '</td><td>' . htmlspecialchars((string)$row['trend']) . '</td></tr>';
+		$cbcBand = isset($row['cbc_band']) ? htmlspecialchars((string)$row['cbc_band']) : (isset($row['grade']) ? htmlspecialchars((string)$row['grade']) : '-');
+		$html .= '<tr><td>' . htmlspecialchars((string)($row['school_id'] !== '' ? $row['school_id'] : $row['student_id'])) . '</td><td>' . htmlspecialchars((string)$row['student_name']) . '</td><td>' . number_format((float)($row['total_points'] ?? 0), 1) . '</td><td>' . number_format((float)($row['mean_points'] ?? 0), 2) . '</td><td>' . $cbcBand . '</td></tr>';
 	}
 	$html .= '</tbody></table>';
 

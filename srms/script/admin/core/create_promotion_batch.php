@@ -54,15 +54,6 @@ try {
         throw new RuntimeException('Promotion batch already exists for this class/year/cycle combination.');
     }
 
-    // Get students in the class.
-    $stmt = $conn->prepare('SELECT id FROM tbl_students WHERE class = ? AND status = \'active\'');
-    $stmt->execute([(int)$classId]);
-    $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    if (empty($students)) {
-        throw new RuntimeException('No active students found in this class.');
-    }
-
     // Get promotion rule for this grade.
     $rule = app_promotion_rule_for_grade($conn, $currentGrade);
     $needsHeadteacherReview = (bool)($rule['require_headteacher_approval'] ?? true);
@@ -85,47 +76,76 @@ try {
     $stmt->execute($batchValues);
     $batchId = $conn->lastInsertId();
 
-    // Generate students promotion records.
-    $reportJoin = '';
-    $reportFields = '0::DECIMAL(5,2) AS mean_score, FALSE AS report_finalized';
-    if (app_table_exists($conn, 'tbl_report_cards')) {
-        $reportJoin = '
-        LEFT JOIN LATERAL (
-            SELECT COALESCE(r.mean_score, 0) AS mean_score, COALESCE(r.finalized, FALSE) AS finalized
-            FROM tbl_report_cards r
-            WHERE r.student_id = st.id
-            ORDER BY r.id DESC
-            LIMIT 1
-        ) rc ON TRUE';
-        $reportFields = 'COALESCE(rc.mean_score, 0) AS mean_score, COALESCE(rc.finalized, FALSE) AS report_finalized';
+    $studentStatusFilter = '';
+    if (app_column_exists($conn, 'tbl_students', 'status')) {
+        $statusType = '';
+        if (DBDriver === 'pgsql') {
+            $statusTypeStmt = $conn->prepare("SELECT data_type FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'tbl_students' AND column_name = 'status' LIMIT 1");
+            $statusTypeStmt->execute();
+            $statusType = strtolower(trim((string)$statusTypeStmt->fetchColumn()));
+        } else {
+            $statusTypeStmt = $conn->prepare("SELECT data_type FROM information_schema.columns WHERE table_schema = ? AND table_name = 'tbl_students' AND column_name = 'status' LIMIT 1");
+            $statusTypeStmt->execute([DBName]);
+            $statusType = strtolower(trim((string)$statusTypeStmt->fetchColumn()));
+        }
+
+        $studentStatusFilter = in_array($statusType, ['character varying', 'varchar', 'text', 'char'], true)
+            ? " AND COALESCE(LOWER(TRIM(status)), '') IN ('1', 'active', 'enabled')"
+            : ' AND COALESCE(status, 1) = 1';
     }
 
-    $feesJoin = '';
-    $feesField = '0::DECIMAL(10,2) AS fees_balance';
+    // Generate student promotion records using schema-tolerant subqueries.
+    $reportMeanExpr = '0';
+    $reportFinalizedExpr = 'FALSE';
+    if (app_table_exists($conn, 'tbl_report_cards')) {
+        $reportMeanColumn = app_column_exists($conn, 'tbl_report_cards', 'mean_score') ? 'mean_score' : (app_column_exists($conn, 'tbl_report_cards', 'mean') ? 'mean' : '');
+        if ($reportMeanColumn !== '') {
+            $reportMeanExpr = 'COALESCE((SELECT r.' . $reportMeanColumn . ' FROM tbl_report_cards r WHERE r.student_id = st.id ORDER BY r.id DESC LIMIT 1), 0)';
+        }
+
+        if (app_column_exists($conn, 'tbl_report_cards', 'finalized')) {
+            $reportFinalizedExpr = 'COALESCE((SELECT r.finalized FROM tbl_report_cards r WHERE r.student_id = st.id ORDER BY r.id DESC LIMIT 1), FALSE)';
+        } else {
+            $reportFinalizedExpr = 'CASE WHEN EXISTS (SELECT 1 FROM tbl_report_cards r WHERE r.student_id = st.id) THEN TRUE ELSE FALSE END';
+        }
+    }
+
+    $feesBalanceExpr = '0';
     if (app_table_exists($conn, 'tbl_fees_charged') && app_table_exists($conn, 'tbl_fees_paid')) {
-        $feesJoin = '
-        LEFT JOIN LATERAL (
-            SELECT
-                COALESCE((SELECT SUM(cf.amount) FROM tbl_fees_charged cf WHERE cf.student_id = st.id), 0)
-                -
-                COALESCE((SELECT SUM(cp.amount) FROM tbl_fees_paid cp WHERE cp.student_id = st.id), 0)
-                AS balance
-        ) fc ON TRUE';
-        $feesField = 'COALESCE(fc.balance, 0) AS fees_balance';
+        $feesBalanceExpr = 'COALESCE((SELECT SUM(cf.amount) FROM tbl_fees_charged cf WHERE cf.student_id = st.id), 0) - COALESCE((SELECT SUM(cp.amount) FROM tbl_fees_paid cp WHERE cp.student_id = st.id), 0)';
+    } elseif (app_table_exists($conn, 'tbl_invoices') && app_table_exists($conn, 'tbl_invoice_lines')) {
+        $feesBalanceExpr = 'COALESCE((
+            SELECT COALESCE(SUM(l.amount), 0)
+            FROM tbl_invoices i
+            INNER JOIN tbl_invoice_lines l ON l.invoice_id = i.id
+            WHERE i.student_id = st.id AND i.status <> \'void\'
+        ), 0)';
+
+        if (app_table_exists($conn, 'tbl_payments')) {
+            $feesBalanceExpr .= ' - COALESCE((
+                SELECT COALESCE(SUM(p.amount), 0)
+                FROM tbl_invoices i2
+                INNER JOIN tbl_payments p ON p.invoice_id = i2.id
+                WHERE i2.student_id = st.id AND i2.status <> \'void\'
+            ), 0)';
+        }
     }
 
     $stmt = $conn->prepare('
         SELECT
             st.id, st.fname, st.mname, st.lname,
-            ' . $reportFields . ',
-            ' . $feesField . '
+            ' . $reportMeanExpr . ' AS mean_score,
+            ' . $reportFinalizedExpr . ' AS report_finalized,
+            ' . $feesBalanceExpr . ' AS fees_balance
         FROM tbl_students st
-        ' . $reportJoin . '
-        ' . $feesJoin . '
-        WHERE st.class = ? AND st.status = \'active\'
+        WHERE st.class = ?' . $studentStatusFilter . '
     ');
     $stmt->execute([(int)$classId]);
     $studentDetails = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    if (empty($studentDetails)) {
+        throw new RuntimeException('No active students found in this class.');
+    }
 
     // Insert promotion records.
     $totalFeesBalance = 0.0;

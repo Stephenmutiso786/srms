@@ -5,6 +5,61 @@
 $res = "0";
 require_once('const/rbac.php');
 
+/**
+ * Handle impersonation session setup for the current request.
+ * This function consolidates the duplicate impersonation logic used for staff, students, and parents.
+ *
+ * @param PDO $conn Database connection
+ * @param array|null $impersonationRow The impersonation session row from database
+ * @param string $targetType The type of target (staff, student, parent)
+ * @param string $targetId The ID of the target user
+ * @param string $targetLevel The level/role of the target user
+ * @param string $targetName The display name of the target user
+ * @param string $targetRole The role title of the target user
+ * @param string $exitPath The path to stop impersonation
+ * @return void
+ */
+function app_handle_impersonation_setup(PDO $conn, ?array $impersonationRow, string $targetType, string $targetId, string $targetLevel, string $targetName, string $targetRole, string $exitPath): void
+{
+	if (!$impersonationRow) {
+		if (session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['impersonation'])) {
+			unset($_SESSION['impersonation']);
+		}
+		app_clear_impersonation_banner_cookie();
+		return;
+	}
+
+	$adminId = (string)($impersonationRow['admin_staff_id'] ?? '');
+	$adminName = trim((string)($impersonationRow['admin_fname'] ?? '') . ' ' . (string)($impersonationRow['admin_lname'] ?? ''));
+	$_SESSION['impersonation'] = [
+		'active' => true,
+		'admin_id' => $adminId,
+		'admin_name' => $adminName,
+		'target_type' => $targetType,
+		'target_id' => $targetId,
+		'target_level' => $targetLevel,
+		'target_name' => $targetName,
+		'session_id' => (string)($impersonationRow['id'] ?? ''),
+		'started_at' => (string)($impersonationRow['started_at'] ?? ''),
+	];
+	app_set_impersonation_banner_cookie([
+		'active' => true,
+		'target_name' => $targetName,
+		'target_role' => $targetRole,
+		'exit_path' => $exitPath,
+	]);
+
+	if (app_impersonation_blocks_current_request()) {
+		app_audit_log($conn, 'staff', $adminId, 'impersonation.blocked_action', 'request', '', [
+			'path' => (string)($_SERVER['REQUEST_URI'] ?? ''),
+			'method' => (string)($_SERVER['REQUEST_METHOD'] ?? 'GET'),
+		]);
+		http_response_code(403);
+		echo 'Action not allowed during impersonation.';
+		exit;
+	}
+}
+
 function app_requested_staff_module(): string
 {
 	$path = parse_url((string)($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH);
@@ -136,41 +191,8 @@ try {
 			$level = "0";
 		}
 
-		if ($impersonationRow) {
-			$adminId = (string)($impersonationRow['admin_staff_id'] ?? '');
-			$adminName = trim((string)($impersonationRow['admin_fname'] ?? '') . ' ' . (string)($impersonationRow['admin_lname'] ?? ''));
-			$_SESSION['impersonation'] = [
-				'active' => true,
-				'admin_id' => $adminId,
-				'admin_name' => $adminName,
-				'target_type' => 'staff',
-				'target_id' => (string)$account_id,
-				'target_level' => (string)$level,
-				'target_name' => trim($fname . ' ' . $lname),
-				'session_id' => (string)($impersonationRow['id'] ?? ''),
-				'started_at' => (string)($impersonationRow['started_at'] ?? ''),
-			];
-			app_set_impersonation_banner_cookie([
-				'active' => true,
-				'target_name' => trim($fname . ' ' . $lname),
-				'target_role' => $designation,
-				'exit_path' => 'admin/core/stop_impersonation',
-			]);
-			if (app_impersonation_blocks_current_request()) {
-				app_audit_log($conn, 'staff', $adminId, 'impersonation.blocked_action', 'request', (string)$session_key, [
-					'path' => (string)($_SERVER['REQUEST_URI'] ?? ''),
-					'method' => (string)($_SERVER['REQUEST_METHOD'] ?? 'GET'),
-				]);
-				http_response_code(403);
-				echo 'Action not allowed during impersonation.';
-				exit;
-			}
-		} else {
-			if (session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['impersonation'])) {
-				unset($_SESSION['impersonation']);
-			}
-			app_clear_impersonation_banner_cookie();
-		}
+		// Use consolidated impersonation handler
+		app_handle_impersonation_setup($conn, $impersonationRow, 'staff', (string)$account_id, (string)$level, trim($fname . ' ' . $lname), $designation, 'admin/core/stop_impersonation');
 
 		app_online_touch($conn, $session_key);
 		$portal = app_staff_login_portal($conn, (int)$account_id, (string)$level);
@@ -220,41 +242,8 @@ try {
 		$stmt->execute([$class]);
 		$act_class = (string)($stmt->fetchColumn() ?: '');
 
-		if ($impersonationRow) {
-			$adminId = (string)($impersonationRow['admin_staff_id'] ?? '');
-			$adminName = trim((string)($impersonationRow['admin_fname'] ?? '') . ' ' . (string)($impersonationRow['admin_lname'] ?? ''));
-			$_SESSION['impersonation'] = [
-				'active' => true,
-				'admin_id' => $adminId,
-				'admin_name' => $adminName,
-				'target_type' => 'student',
-				'target_id' => (string)$account_id,
-				'target_level' => (string)$level,
-				'target_name' => trim($fname . ' ' . $lname),
-				'session_id' => (string)($impersonationRow['id'] ?? ''),
-				'started_at' => (string)($impersonationRow['started_at'] ?? ''),
-			];
-			app_set_impersonation_banner_cookie([
-				'active' => true,
-				'target_name' => trim($fname . ' ' . $lname),
-				'target_role' => 'Student',
-				'exit_path' => 'admin/core/stop_impersonation',
-			]);
-			if (app_impersonation_blocks_current_request()) {
-				app_audit_log($conn, 'staff', $adminId, 'impersonation.blocked_action', 'request', (string)$session_key, [
-					'path' => (string)($_SERVER['REQUEST_URI'] ?? ''),
-					'method' => (string)($_SERVER['REQUEST_METHOD'] ?? 'GET'),
-				]);
-				http_response_code(403);
-				echo 'Action not allowed during impersonation.';
-				exit;
-			}
-		} else {
-			if (session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['impersonation'])) {
-				unset($_SESSION['impersonation']);
-			}
-			app_clear_impersonation_banner_cookie();
-		}
+		// Use consolidated impersonation handler
+		app_handle_impersonation_setup($conn, $impersonationRow, 'student', (string)$account_id, (string)$level, trim($fname . ' ' . $lname), 'Student', 'admin/core/stop_impersonation');
 
 		app_online_touch($conn, $session_key);
 		app_enforce_portal_route_permission($conn, 'student', (string)$account_id, (string)$level, '../');
@@ -297,41 +286,8 @@ try {
 		$level = "4";
 		$designation = 'Parent';
 
-		if ($impersonationRow) {
-			$adminId = (string)($impersonationRow['admin_staff_id'] ?? '');
-			$adminName = trim((string)($impersonationRow['admin_fname'] ?? '') . ' ' . (string)($impersonationRow['admin_lname'] ?? ''));
-			$_SESSION['impersonation'] = [
-				'active' => true,
-				'admin_id' => $adminId,
-				'admin_name' => $adminName,
-				'target_type' => 'parent',
-				'target_id' => (string)$account_id,
-				'target_level' => (string)$level,
-				'target_name' => trim($fname . ' ' . $lname),
-				'session_id' => (string)($impersonationRow['id'] ?? ''),
-				'started_at' => (string)($impersonationRow['started_at'] ?? ''),
-			];
-			app_set_impersonation_banner_cookie([
-				'active' => true,
-				'target_name' => trim($fname . ' ' . $lname),
-				'target_role' => 'Parent',
-				'exit_path' => 'admin/core/stop_impersonation',
-			]);
-			if (app_impersonation_blocks_current_request()) {
-				app_audit_log($conn, 'staff', $adminId, 'impersonation.blocked_action', 'request', (string)$session_key, [
-					'path' => (string)($_SERVER['REQUEST_URI'] ?? ''),
-					'method' => (string)($_SERVER['REQUEST_METHOD'] ?? 'GET'),
-				]);
-				http_response_code(403);
-				echo 'Action not allowed during impersonation.';
-				exit;
-			}
-		} else {
-			if (session_status() === PHP_SESSION_ACTIVE && isset($_SESSION['impersonation'])) {
-				unset($_SESSION['impersonation']);
-			}
-			app_clear_impersonation_banner_cookie();
-		}
+		// Use consolidated impersonation handler
+		app_handle_impersonation_setup($conn, $impersonationRow, 'parent', (string)$account_id, (string)$level, trim($fname . ' ' . $lname), 'Parent', 'admin/core/stop_impersonation');
 
 		app_online_touch($conn, $session_key);
 		app_enforce_portal_route_permission($conn, 'parent', (string)$account_id, (string)$level, '../');

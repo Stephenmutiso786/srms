@@ -52,17 +52,23 @@ try {
     $examSummary = null;
     $examBreakdown = [];
     $examOptions = report_term_exam_options($conn, (int)$student['class_id'], $termId);
-    if ($examId < 1 && !empty($examOptions)) {
-        $examId = (int)$examOptions[0]['id'];
+    if ($examId < 1) {
+        $_SESSION['reply'] = array(array('warning', 'Please select an exam before generating the report PDF.'));
+        header('location:report?term=' . $termId . '&std=' . urlencode($studentId));
+        exit;
     }
-    if ($examId > 0) {
-        foreach ($examOptions as $option) {
-            if ((int)$option['id'] === $examId) {
-                $examSummary = report_exam_summary($conn, $studentId, (int)$student['class_id'], $termId, $examId);
-                $examBreakdown = report_exam_subject_breakdown($conn, $studentId, (int)$student['class_id'], $termId, $examId);
-                break;
-            }
+    foreach ($examOptions as $option) {
+        if ((int)$option['id'] === $examId) {
+            $examSummary = report_exam_summary($conn, $studentId, (int)$student['class_id'], $termId, $examId);
+            $examBreakdown = report_exam_subject_breakdown($conn, $studentId, (int)$student['class_id'], $termId, $examId);
+            break;
         }
+    }
+
+    if (!$examSummary) {
+        $_SESSION['reply'] = array(array('warning', 'The selected exam is not valid for this class and term.'));
+        header('location:report?term=' . $termId . '&std=' . urlencode($studentId));
+        exit;
     }
 
     $stmt = $conn->prepare('SELECT name FROM tbl_terms WHERE id = ? LIMIT 1');

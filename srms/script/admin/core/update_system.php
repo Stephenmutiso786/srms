@@ -2,6 +2,11 @@
 chdir('../../');
 session_start();
 require_once('db/config.php');
+require_once('const/check_session.php');
+require_once('const/rbac.php');
+
+if ($res != "1" || $level != "0") { header("location:../../"); exit; }
+app_require_permission('system.manage', '../system');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
@@ -9,6 +14,7 @@ if($_FILES['company_logo']['name'] == "")  {
 try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+app_ensure_current_mode_mysql_schema($conn);
 
 // Start explicit transaction
 $conn->beginTransaction();
@@ -69,6 +75,7 @@ if (is_file($unlink)) {
 try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+app_ensure_current_mode_mysql_schema($conn);
 
 // Start explicit transaction
 $conn->beginTransaction();

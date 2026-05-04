@@ -3,115 +3,45 @@
 require_once(__DIR__ . '/report_engine.php');
 require_once(__DIR__ . '/school.php');
 require_once(__DIR__ . '/pdf_branding.php');
+require_once(__DIR__ . '/report_card_layout.php');
+require_once(__DIR__ . '/id_card_engine.php');
 
 function app_report_verify_url(string $verificationCode): string
 {
-    $host = $_SERVER['HTTP_HOST'] ?? '';
-    if (defined('APP_URL') && APP_URL !== '') {
-        return rtrim((string)APP_URL, '/') . '/verify_report?code=' . urlencode($verificationCode);
-    }
-
-    return 'http://' . $host . '/verify_report?code=' . urlencode($verificationCode);
+    return rtrim(app_base_url(), '/') . '/verify_report?code=' . urlencode($verificationCode);
 }
 
-function app_report_html(string $value): string
+function app_report_student_photo_html(PDO $conn, string $studentId): array
 {
-    return htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
-}
-
-function app_report_student_photo_html(PDO $conn, string $studentId): string
-{
-    try {
-        $hasDisplayImage = app_column_exists($conn, 'tbl_students', 'display_image');
-        $hasLegacyImage = app_column_exists($conn, 'tbl_students', 'image');
-
-        $columns = ['gender'];
-        if ($hasDisplayImage) {
-            $columns[] = 'display_image';
+    $photoPath = '';
+    $photoExists = false;
+    if (function_exists('idcard_student_payload')) {
+        $payload = idcard_student_payload($conn, $studentId);
+        if ($payload) {
+            $photoPath = (string)($payload['photo_path'] ?? '');
+            $photoExists = (bool)($payload['photo_exists'] ?? false);
         }
-        if ($hasLegacyImage) {
-            $columns[] = 'image';
-        }
-
-        $stmt = $conn->prepare('SELECT ' . implode(', ', $columns) . ' FROM tbl_students WHERE id = ? LIMIT 1');
-        $stmt->execute([$studentId]);
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        if (!$row) {
-            return '';
-        }
-
-        $image = trim((string)($row['display_image'] ?? ''));
-        if ($image === '' || strtoupper($image) === 'DEFAULT') {
-            $image = trim((string)($row['image'] ?? ''));
-        }
-
-        $gender = trim((string)($row['gender'] ?? 'male'));
-        $path = ($image !== '' && strtoupper($image) !== 'DEFAULT')
-            ? 'images/students/' . $image
-            : 'images/students/' . $gender . '.png';
-
-        if (!is_file($path)) {
-            return '';
-        }
-
-            return '<img src="' . htmlspecialchars($path, ENT_QUOTES, 'UTF-8') . '" style="width:82px;height:94px;object-fit:cover;border:1px solid #8ea0b2;" />';
-    } catch (Throwable $e) {
-        return '';
-    }
-}
-
-function app_report_grade_descriptors_html(PDO $conn, ?int $gradingSystemId): string
-{
-    if ($gradingSystemId === null || $gradingSystemId < 1) {
-        return '';
     }
 
-    $rows = report_grading_scales($conn, $gradingSystemId);
-    if (empty($rows)) {
-        return '';
-    }
-
-    $cells = '';
-    foreach ($rows as $row) {
-        $cells .= '<td style="border:1px solid #8fb8d2;padding:6px 7px;vertical-align:top;font-size:8pt;background:#f8fafc;">'
-            . '<div style="font-weight:bold;color:#0f2f4a;">' . app_report_html((string)($row['name'] ?? '')) . '</div>'
-            . '<div style="margin-top:2px;color:#4d5d68;">' . number_format((float)($row['min'] ?? 0), 0) . '% - ' . number_format((float)($row['max'] ?? 0), 0) . '%</div>'
-            . '<div style="margin-top:1px;color:#5a6a77;">' . app_report_html((string)($row['remark'] ?? '')) . '</div>'
-            . '</td>';
-    }
-
-    return '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">'
-        . '<tr><td colspan="' . count($rows) . '" style="padding:4px 0 6px 0;font-size:8.8pt;font-weight:bold;color:#1f2f3a;">Grade Descriptors</td></tr>'
-        . '<tr>' . $cells . '</tr>'
-        . '</table>';
-}
-
-function app_report_summary_box(string $title, string $value, string $subtitle = ''): string
-{
-    return '<td style="border:1px solid #888;padding:5px 6px;font-size:8pt;vertical-align:top;">'
-        . '<div style="text-transform:uppercase;">' . app_report_html($title) . '</div>'
-            . '<div style="font-size:13.2pt;font-weight:bold;line-height:1.06;">' . app_report_html($value) . '</div>'
-        . ($subtitle !== '' ? '<div>' . app_report_html($subtitle) . '</div>' : '')
-        . '</td>';
-}
-
-function app_report_metric_box(string $title, string $value): string
-{
-    return '<td style="border:1px solid #888;padding:5px 6px;font-size:8pt;vertical-align:top;text-align:center;">'
-        . '<div style="text-transform:uppercase;">' . app_report_html($title) . '</div>'
-            . '<div style="font-size:12.8pt;font-weight:bold;line-height:1.08;">' . app_report_html($value) . '</div>'
-        . '</td>';
+    return [$photoPath, $photoExists];
 }
 
 function app_report_scale_html_font_sizes(string $html, float $scale): string
 {
-    $safeScale = max(0.55, min(1.30, $scale));
+    $safeScale = max(0.45, min(1.30, $scale));
     return (string)preg_replace_callback(
-        '/font-size\s*:\s*([0-9]+(?:\.[0-9]+)?)pt/i',
-        static function (array $m) use ($safeScale): string {
-            $base = (float)$m[1];
-            $scaled = max(6.4, min(16.0, round($base * $safeScale, 2)));
-            return 'font-size:' . rtrim(rtrim(number_format($scaled, 2, '.', ''), '0'), '.') . 'pt';
+        '/font-size\s*:\s*([0-9]+(?:\.[0-9]+)?)((?:rem|pt))/i',
+        static function (array $matches) use ($safeScale): string {
+            $base = (float)$matches[1];
+            $unit = strtolower($matches[2]);
+            $scaled = round($base * $safeScale, 3);
+            if ($unit === 'pt') {
+                $scaled = max(5.0, min(16.0, $scaled));
+            }
+            if ($unit === 'rem') {
+                $scaled = max(0.5, min(1.6, $scaled));
+            }
+            return 'font-size:' . rtrim(rtrim(number_format($scaled, 3, '.', ''), '0'), '.') . $unit;
         },
         $html
     );
@@ -121,843 +51,585 @@ function app_report_pick_single_page_scale(TCPDF $pdf, string $html, float $topM
 {
     $pageHeight = (float)$pdf->getPageHeight();
     $usableHeight = max(1.0, $pageHeight - $topMargin - $bottomMargin);
+    $chosenScale = 0.66;
 
-    $chosenScale = 0.55;
-    $bestUtilization = 0.0;
-    $foundOnePageScale = false;
-
-    for ($scale = 1.28; $scale >= 0.55; $scale -= 0.03) {
+    for ($scale = 1.0; $scale >= 0.45; $scale -= 0.02) {
         $trialHtml = app_report_scale_html_font_sizes($html, $scale);
         $pdf->startTransaction();
         $startPage = (int)$pdf->getPage();
         $pdf->SetY($topMargin);
         $pdf->writeHTML($trialHtml, true, false, true, false, '');
-
         $endPage = (int)$pdf->getPage();
         $endY = (float)$pdf->GetY();
-        $fitsOnePage = ($endPage === $startPage);
-        $usedHeight = max(0.0, $endY - $topMargin);
-        $utilization = min(1.0, $usedHeight / $usableHeight);
-
         $pdf->rollbackTransaction(true);
 
-        if ($fitsOnePage) {
-            $foundOnePageScale = true;
+        if ($endPage === $startPage) {
+            $usedHeight = max(0.0, $endY - $topMargin);
             $chosenScale = $scale;
-            $bestUtilization = $utilization;
-            if ($utilization >= 0.98) {
+            if (($usedHeight / $usableHeight) >= 0.95) {
                 break;
             }
-        }
-    }
-
-    if ($foundOnePageScale && $bestUtilization < 0.80 && $chosenScale < 1.28) {
-        $boostedScale = min(1.28, $chosenScale + 0.06);
-        $trialHtml = app_report_scale_html_font_sizes($html, $boostedScale);
-        $pdf->startTransaction();
-        $startPage = (int)$pdf->getPage();
-        $pdf->SetY($topMargin);
-        $pdf->writeHTML($trialHtml, true, false, true, false, '');
-        $fitsOnePage = ((int)$pdf->getPage() === $startPage);
-        $pdf->rollbackTransaction(true);
-        if ($fitsOnePage) {
-            return $boostedScale;
         }
     }
 
     return $chosenScale;
 }
 
-function app_report_subject_table_density(int $subjectCount): array
+function app_report_card_pdf_html(PDO $conn, array $payload): string
 {
-    if ($subjectCount > 0 && $subjectCount <= 8) {
-        return [
-            'header_padding' => '3px 4px',
-            'header_font' => '7.6pt',
-            'cell_padding' => '3px 4px',
-            'cell_font' => '7.9pt',
-            'empty_padding' => '7px',
-            'empty_font' => '8.2pt',
-        ];
-    }
-
-    if ($subjectCount >= 16) {
-        return [
-            'header_padding' => '1px 2px',
-            'header_font' => '6.8pt',
-            'cell_padding' => '1px 2px',
-            'cell_font' => '6.8pt',
-            'empty_padding' => '4px',
-            'empty_font' => '7.4pt',
-        ];
-    }
-
-    if ($subjectCount >= 12) {
-        return [
-            'header_padding' => '1px 2px',
-            'header_font' => '7pt',
-            'cell_padding' => '1px 2px',
-            'cell_font' => '7.1pt',
-            'empty_padding' => '5px',
-            'empty_font' => '7.8pt',
-        ];
-    }
-
-    return [
-        'header_padding' => '2px 3px',
-        'header_font' => '7.3pt',
-        'cell_padding' => '2px 3px',
-        'cell_font' => '7.5pt',
-        'empty_padding' => '6px',
-        'empty_font' => '8pt',
-    ];
-}
-
-function app_report_student_kcpe(PDO $conn, string $studentId): string
-{
-    try {
-        if (!app_column_exists($conn, 'tbl_students', 'kcpe')) {
-            return '';
-        }
-        $stmt = $conn->prepare('SELECT kcpe FROM tbl_students WHERE id = ? LIMIT 1');
-        $stmt->execute([$studentId]);
-        return trim((string)$stmt->fetchColumn());
-    } catch (Throwable $e) {
-        return '';
-    }
-}
-
-function app_report_school_logo_html(): string
-{
-    $logoFile = defined('WBLogo') ? trim((string)WBLogo) : '';
-    if ($logoFile === '') {
-        return '';
-    }
-    $logoPath = 'images/logo/' . $logoFile;
-    if (!is_file($logoPath)) {
-        return '';
-    }
-    return '<img src="' . app_report_html($logoPath) . '" style="width:54px;height:54px;object-fit:contain;border:1px solid #d7d7d7;" />';
-}
-
-function app_report_setting_first_non_empty(PDO $conn, array $keys, string $default = ''): string
-{
-    foreach ($keys as $key) {
-        $value = trim((string)app_setting_get($conn, (string)$key, ''));
-        if ($value !== '') {
-            return $value;
-        }
-    }
-
-    return $default;
-}
-
-function app_report_school_dates_html(PDO $conn, string $termName): string
-{
-    $openingDate = app_report_setting_first_non_empty($conn, [
-        'school_opening_date',
-        'public_school_opening_date',
-        'term_opening_date',
-        'opening_date',
-    ]);
-    $closingDate = app_report_setting_first_non_empty($conn, [
-        'school_closing_date',
-        'public_school_closing_date',
-        'term_closing_date',
-        'closing_date',
-    ]);
-
-    $openingValue = $openingDate !== '' ? $openingDate : '________________';
-    $closingValue = $closingDate !== '' ? $closingDate : '________________';
-
-    return '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;height:100%;">'
-        . '<tr><td style="padding:0;vertical-align:top;height:100%;">'
-        . '<div style="background:#1db14b;color:#fff;padding:5px 8px;font-size:9pt;font-weight:bold;text-transform:uppercase;line-height:1.1;">School Dates</div>'
-        . '<div style="border:1px solid #8fbc8f;border-top:0;padding:8px 10px 10px 10px;font-size:8.4pt;line-height:1.35;color:#1f2f3a;">'
-        . '<div style="margin:2px 0;"><b>Closing Date:</b> ' . app_report_html($closingValue) . '</div>'
-        . '<div style="margin:7px 0 2px 0;"><b>Opening Date:</b> ' . app_report_html($openingValue) . '</div>'
-        . '<div style="margin-top:6px;font-size:7.8pt;color:#4d5d68;">' . app_report_html($termName !== '' ? $termName : 'Term details') . '</div>'
-        . '</div>'
-        . '</td></tr>'
-        . '</table>';
-}
-
-function app_report_rank_label(array $scores, string $studentId): string
-{
-    if ($studentId === '' || empty($scores)) {
-        return '-';
-    }
-
-    arsort($scores, SORT_NUMERIC);
-    $rank = 0;
-    $position = 0;
-    $prev = null;
-    $total = count($scores);
-
-    foreach ($scores as $rowStudentId => $score) {
-        $position++;
-        if ($prev === null || (float)$score !== (float)$prev) {
-            $rank = $position;
-            $prev = (float)$score;
-        }
-        if ((string)$rowStudentId === $studentId) {
-            return $rank . '/' . $total;
-        }
-    }
-
-    return '-';
-}
-
-function app_report_position_metrics(PDO $conn, string $studentId, int $classId, int $termId, array $card): array
-{
-    $fallbackPosition = (int)($card['position'] ?? 0);
-    $fallbackTotal = (int)($card['total_students'] ?? 0);
-    $fallbackLabel = ($fallbackPosition > 0 && $fallbackTotal > 0) ? ($fallbackPosition . '/' . $fallbackTotal) : '-';
-
-    if ($studentId === '' || $classId < 1 || $termId < 1 || !app_table_exists($conn, 'tbl_report_cards')) {
-        return ['stream' => $fallbackLabel, 'overall' => $fallbackLabel];
-    }
-
-    $stmt = $conn->prepare('SELECT student_id, mean FROM tbl_report_cards WHERE class_id = ? AND term_id = ?');
-    $stmt->execute([$classId, $termId]);
-    $streamScores = [];
-    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-        $sid = (string)($row['student_id'] ?? '');
-        if ($sid !== '') {
-            $streamScores[$sid] = (float)($row['mean'] ?? 0);
-        }
-    }
-
-    $stmt = $conn->prepare('SELECT student_id, mean FROM tbl_report_cards WHERE term_id = ?');
-    $stmt->execute([$termId]);
-    $overallScores = [];
-    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-        $sid = (string)($row['student_id'] ?? '');
-        if ($sid !== '') {
-            $overallScores[$sid] = (float)($row['mean'] ?? 0);
-        }
-    }
-
-    $streamLabel = app_report_rank_label($streamScores, $studentId);
-    $overallLabel = app_report_rank_label($overallScores, $studentId);
-
-    return [
-        'stream' => $streamLabel !== '-' ? $streamLabel : $fallbackLabel,
-        'overall' => $overallLabel !== '-' ? $overallLabel : $fallbackLabel,
-    ];
-}
-
-function app_report_subject_history_data(PDO $conn, string $studentId, int $classId, int $limitTerms = 5): array
-{
-    $limitTerms = max(2, min(8, $limitTerms));
-    if ($studentId === '' || $classId < 1 || !app_table_exists($conn, 'tbl_report_cards') || !app_table_exists($conn, 'tbl_report_card_subjects')) {
-        return ['terms' => [], 'subjects' => []];
-    }
-
-    $stmt = $conn->prepare("SELECT id, term_id
-        FROM tbl_report_cards
-        WHERE student_id = ? AND class_id = ?
-        ORDER BY term_id DESC
-        LIMIT $limitTerms");
-    $stmt->execute([$studentId, $classId]);
-    $cards = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    if (empty($cards)) {
-        return ['terms' => [], 'subjects' => []];
-    }
-
-    $cards = array_reverse($cards);
-    $reportIds = array_map(static function ($row) { return (int)$row['id']; }, $cards);
-    $termByReport = [];
-    $termIds = [];
-    foreach ($cards as $row) {
-        $rid = (int)$row['id'];
-        $tid = (int)$row['term_id'];
-        $termByReport[$rid] = $tid;
-        $termIds[$tid] = true;
-    }
-
-    $termNames = [];
-    if (!empty($termIds) && app_table_exists($conn, 'tbl_terms')) {
-        $ids = array_keys($termIds);
-        $placeholders = implode(',', array_fill(0, count($ids), '?'));
-        $stmt = $conn->prepare("SELECT id, name FROM tbl_terms WHERE id IN ($placeholders)");
-        $stmt->execute($ids);
-        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-            $termNames[(int)$row['id']] = (string)($row['name'] ?? '');
-        }
-    }
-
-    $placeholders = implode(',', array_fill(0, count($reportIds), '?'));
-    $stmt = $conn->prepare("SELECT rs.report_id, rs.subject_id, rs.score, s.name AS subject_name
-        FROM tbl_report_card_subjects rs
-        LEFT JOIN tbl_subjects s ON s.id = rs.subject_id
-        WHERE rs.report_id IN ($placeholders)
-        ORDER BY s.name, rs.report_id");
-    $stmt->execute($reportIds);
-
-    $subjects = [];
-    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-        $rid = (int)($row['report_id'] ?? 0);
-        $sid = (int)($row['subject_id'] ?? 0);
-        if ($rid < 1 || $sid < 1 || !isset($termByReport[$rid])) {
-            continue;
-        }
-        $tid = (int)$termByReport[$rid];
-        if (!isset($subjects[$sid])) {
-            $subjects[$sid] = [
-                'subject_id' => $sid,
-                'subject_name' => (string)($row['subject_name'] ?? ('Subject ' . $sid)),
-                'scores' => [],
-            ];
-        }
-        $subjects[$sid]['scores'][$tid] = (float)($row['score'] ?? 0);
-    }
-
-    $terms = [];
-    foreach ($cards as $row) {
-        $tid = (int)($row['term_id'] ?? 0);
-        $terms[] = [
-            'term_id' => $tid,
-            'label' => (string)($termNames[$tid] ?? ('T' . $tid)),
-        ];
-    }
-
-    return ['terms' => $terms, 'subjects' => array_values($subjects)];
-}
-
-function app_report_subject_trends_html(PDO $conn, string $studentId, int $classId, array $currentRows): string
-{
-    $history = app_report_subject_history_data($conn, $studentId, $classId, 4);
-    $terms = is_array($history['terms'] ?? null) ? $history['terms'] : [];
-    $subjects = is_array($history['subjects'] ?? null) ? $history['subjects'] : [];
-    if (empty($terms) || empty($subjects)) {
-        return '<div style="font-size:8pt;color:#666;">No multi-term subject history available yet.</div>';
-    }
-
-    $priority = [];
-    foreach ($currentRows as $row) {
-        $name = strtolower(trim((string)($row['subject_name'] ?? '')));
-        if ($name !== '') {
-            $priority[$name] = true;
-        }
-    }
-    usort($subjects, static function (array $a, array $b) use ($priority): int {
-        $ak = strtolower((string)($a['subject_name'] ?? ''));
-        $bk = strtolower((string)($b['subject_name'] ?? ''));
-        $ap = isset($priority[$ak]) ? 1 : 0;
-        $bp = isset($priority[$bk]) ? 1 : 0;
-        if ($ap !== $bp) {
-            return $bp <=> $ap;
-        }
-        return strcmp((string)$a['subject_name'], (string)$b['subject_name']);
-    });
-    $subjects = array_slice($subjects, 0, 4);
-
-    $rowsHtml = '';
-    foreach ($subjects as $subject) {
-        $name = app_report_html((string)($subject['subject_name'] ?? 'Subject'));
-        $scores = is_array($subject['scores'] ?? null) ? $subject['scores'] : [];
-
-        $bars = '';
-        foreach ($terms as $term) {
-            $tid = (int)($term['term_id'] ?? 0);
-            $value = (float)($scores[$tid] ?? 0);
-            $h = (int)round(max(3, min(18, ($value / 100) * 18)));
-            $bars .= '<td style="text-align:center;vertical-align:bottom;padding:0 2px;">'
-                . '<div style="height:18px;display:block;position:relative;">'
-                . '<div style="position:absolute;bottom:0;left:50%;margin-left:-5px;width:10px;height:' . $h . 'px;background:#5ea1d8;border:1px solid #4f84b4;"></div>'
-                . '</div>'
-                . '<div style="font-size:6.2pt;color:#6a7680;line-height:1.0;">' . number_format($value, 0) . '</div>'
-                . '</td>';
-        }
-
-        $rowsHtml .= '<tr>'
-            . '<td style="font-size:7.2pt;padding:2px 3px;white-space:nowrap;">' . $name . '</td>'
-            . '<td style="padding:0 0 2px 0;">'
-            . '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;"><tr>' . $bars . '</tr></table>'
-            . '</td>'
-            . '</tr>';
-    }
-
-    $labels = '';
-    foreach ($terms as $term) {
-        $labels .= '<td style="font-size:6pt;color:#6a7680;text-align:center;padding-top:1px;">' . app_report_html((string)($term['label'] ?? '')) . '</td>';
-    }
-
-    return '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;">'
-        . '<tr><td colspan="2" style="font-size:8.2pt;font-weight:bold;color:#1f2f3a;padding-bottom:2px;">Subject Performance Over Time</td></tr>'
-        . $rowsHtml
-        . '<tr><td></td><td><table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;"><tr>' . $labels . '</tr></table></td></tr>'
-        . '</table>';
-}
-
-function app_report_history_chart_html(PDO $conn, string $studentId, int $classId, float $fallbackMean, string $studentName): string
-{
-    $history = [];
-    try {
-        if ($studentId !== '' && $classId > 0) {
-            $history = report_student_term_history($conn, $studentId, $classId, 5);
-        }
-    } catch (Throwable $e) {
-        $history = [];
-    }
-
-    $series = [];
-    foreach ($history as $item) {
-        $series[] = [
-            'label' => (string)($item['term_name'] ?? ''),
-            'value' => (float)($item['mean'] ?? 0),
-        ];
-    }
-    if (empty($series)) {
-        $series[] = ['label' => 'Current', 'value' => $fallbackMean];
-    }
-
-    $maxValue = 100.0;
-    foreach ($series as $item) {
-        $maxValue = max($maxValue, (float)$item['value']);
-    }
-
-    $barCells = '';
-    foreach ($series as $item) {
-        $value = max(0, (float)$item['value']);
-        $height = (int)round(max(10, min(72, ($value / max(1.0, $maxValue)) * 72)));
-        $safeLabel = app_report_html((string)$item['label']);
-        $barCells .= '<td style="width:' . number_format(100 / max(1, count($series)), 2, '.', '') . '%;vertical-align:bottom;text-align:center;padding:0 2px;">'
-            . '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;">'
-            . '<tr><td style="height:72px;vertical-align:bottom;text-align:center;">'
-            . '<div style="width:20px;height:' . $height . 'px;background:#5ea1d8;border:1px solid #4f84b4;margin:0 auto;"></div>'
-            . '</td></tr>'
-            . '<tr><td style="font-size:6.8pt;line-height:1.1;margin-top:3px;color:#6a7680;text-align:center;">' . $safeLabel . '</td></tr>'
-            . '</table>'
-            . '</td>';
-    }
-
-    return '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;height:100%;">'
-        . '<tr><td style="padding:0;vertical-align:top;height:100%;">'
-        . '<div style="font-size:8.8pt;font-weight:bold;color:#1f2f3a;margin-bottom:6px;">' . app_report_html($studentName) . '&#8217;s Performance over Time</div>'
-        . '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;height:86px;border-bottom:1px solid #d6dce2;">'
-        . '<tr><td width="18" style="font-size:7pt;color:#76838f;text-align:right;vertical-align:top;padding-right:4px;">90</td><td style="border-bottom:1px solid #eef2f5;"></td></tr>'
-        . '<tr><td width="18" style="font-size:7pt;color:#76838f;text-align:right;vertical-align:middle;padding-right:4px;">70</td><td style="vertical-align:bottom;padding-top:10px;">'
-        . '<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;">'
-        . '<tr>' . $barCells . '</tr>'
-        . '</table>'
-        . '</td></tr>'
-        . '</table>'
-        . '</td></tr>'
-        . '</table>';
-}
-
-function app_report_render_layout(PDO $conn, array $payload, array $rows, string $examTitle): string
-{
-    $card = is_array($payload['card'] ?? null) ? $payload['card'] : [];
-    $examSummary = is_array($payload['exam_summary'] ?? null) ? $payload['exam_summary'] : null;
+    $schoolName = defined('WBName') ? (string)WBName : (defined('APP_NAME') ? (string)APP_NAME : 'School');
+    $schoolMotto = defined('WBMotto') ? trim((string)WBMotto) : '';
+    $schoolContact = trim(implode(' | ', array_filter([trim((string)WBAddress), trim((string)WBPhone), trim((string)WBEmail)])));
+    $logoPath = 'images/logo/' . trim((string)WBLogo);
+    $logoExists = trim((string)WBLogo) !== '' && app_pdf_image_path_is_safe($logoPath);
+    list($photoPath, $photoExists) = app_report_student_photo_html($conn, (string)($payload['student_id'] ?? ''));
+    $photoExists = $photoExists && app_pdf_image_path_is_safe($photoPath);
 
     $studentName = (string)($payload['student_name'] ?? '');
+    $studentId = (string)($payload['student_id'] ?? '');
     $schoolId = (string)($payload['school_id'] ?? '');
     $className = (string)($payload['class_name'] ?? '');
     $termName = (string)($payload['term_name'] ?? '');
-    $studentId = (string)($payload['student_id'] ?? '');
-    $schoolName = defined('WBName') ? (string)WBName : (defined('APP_NAME') ? (string)APP_NAME : 'School');
-    $schoolAddress = defined('WBAddress') ? (string)WBAddress : '';
-    $schoolPhone = defined('WBPhone') ? (string)WBPhone : '';
-    $schoolEmail = defined('WBEmail') ? (string)WBEmail : '';
-    $schoolMotto = defined('WBMotto') ? (string)WBMotto : '';
+    $examName = (string)($payload['exam_summary']['exam_name'] ?? 'END TERM COMBINED');
+    $overallGrade = (string)($payload['exam_summary']['grade'] ?? $payload['card']['grade'] ?? 'N/A');
+    $attendance = $payload['attendance'] ?? [];
+    $feesBalance = $payload['fees_balance'] ?? null;
+    $kcpeScore = (string)($payload['kcpe_score'] ?? 'N/A');
+    $card = is_array($payload['card'] ?? null) ? $payload['card'] : [];
+    $rows = is_array($payload['exam_breakdown'] ?? null) && !empty($payload['exam_breakdown']) ? $payload['exam_breakdown'] : (is_array($card['subjects'] ?? null) ? $card['subjects'] : []);
+    // Show all subjects in the PDF; don't hide any rows.
+    $displayRows = $rows;
+    $hiddenRows = 0;
 
-    $photoHtml = app_report_student_photo_html($conn, $studentId);
-    if ($photoHtml === '') {
-        $photoHtml = '<div style="width:78px;height:92px;border:1px solid #b9c8d6;text-align:center;line-height:92px;font-size:8pt;color:#5a6b78;background:#fff;">PHOTO</div>';
-    }
-    $logoHtml = app_report_school_logo_html();
-    $kcpe = app_report_student_kcpe($conn, $studentId);
-
-    $examRows = $rows;
-    $classId = (int)($card['class_id'] ?? 0);
-    $termId = (int)($card['term_id'] ?? 0);
-    if (empty($examRows) && $studentId !== '' && $classId > 0 && $termId > 0) {
-        $examRows = report_subject_breakdown($conn, $studentId, $classId, $termId);
-    }
-
-    $subjectCount = count($examRows);
-    $totalMarks = isset($examSummary['total']) ? (float)$examSummary['total'] : (float)($card['total'] ?? 0);
-    if ($totalMarks <= 0 && $subjectCount > 0) {
-        foreach ($examRows as $r) {
-            $totalMarks += (float)($r['score'] ?? 0);
-        }
-    }
-    $maxMarks = max(100, $subjectCount * 100);
-
-    $gradePointMap = [
-        'A+' => 12, 'A' => 11, 'A-' => 10, 'B+' => 9, 'B' => 8, 'B-' => 7,
-        'C+' => 6, 'C' => 5, 'C-' => 4, 'D+' => 3, 'D' => 2, 'D-' => 1, 'E' => 0,
-        'EE' => 4, 'ME' => 3, 'AE' => 2, 'BE' => 1,
-    ];
     $totalPoints = 0.0;
-    $classMeanTotal = 0.0;
-    foreach ($examRows as $r) {
-        $classMeanTotal += (float)($r['class_mean'] ?? 0);
-        if (isset($r['grade_points']) && $r['grade_points'] !== '') {
-            $totalPoints += (float)$r['grade_points'];
-        } else {
-            $gradeKey = strtoupper(trim((string)($r['grade'] ?? '')));
-            $totalPoints += (float)($gradePointMap[$gradeKey] ?? 0);
+    $subjectCount = count($rows);
+    foreach ($rows as $subjectRow) {
+        $totalPoints += report_grade_points_from_label((string)($subjectRow['grade'] ?? ''));
+    }
+    $meanPoints = $subjectCount > 0 ? ($totalPoints / $subjectCount) : 0.0;
+    $attendanceText = '';
+    if (is_array($attendance)) {
+        $attendanceText = trim((string)($attendance['rate_text'] ?? $attendance['attendance_rate_text'] ?? $attendance['percentage'] ?? ''));
+        if ($attendanceText === '') {
+            $present = (string)($attendance['present'] ?? '');
+            $total = (string)($attendance['total'] ?? '');
+            if ($present !== '' && $total !== '') {
+                $attendanceText = $present . '/' . $total;
+            }
         }
     }
-    $classMeanAvg = $subjectCount > 0 ? $classMeanTotal / $subjectCount : 0.0;
-    $pointsMax = max(12, $subjectCount * 12);
-    $classPointEstimate = ($classMeanAvg / 100) * $pointsMax;
-    $meanScore = isset($examSummary['mean']) ? (float)$examSummary['mean'] : (float)($card['mean'] ?? 0);
-    if ($meanScore <= 0 && $subjectCount > 0) {
-        $meanScore = $subjectCount > 0 ? ($totalMarks / $subjectCount) : 0.0;
+    if ($attendanceText === '') {
+        $attendanceText = 'N/A';
     }
-    $meanDev = $meanScore - $classMeanAvg;
-    $totalDev = $totalMarks - $classMeanTotal;
-    $pointsDev = $totalPoints - $classPointEstimate;
-
-    $positions = app_report_position_metrics($conn, $studentId, $classId, $termId, $card);
-    $streamPosition = (string)($positions['stream'] ?? '-');
-    if (isset($examSummary['position']) && trim((string)$examSummary['position']) !== '' && trim((string)$examSummary['position']) !== '-') {
-        $streamPosition = (string)$examSummary['position'];
+    $feesText = 'N/A';
+    if (is_numeric($feesBalance)) {
+        $feesText = number_format((float)$feesBalance, 2);
+    } elseif (is_string($feesBalance) && trim($feesBalance) !== '') {
+        $feesText = trim($feesBalance);
     }
-    $overallPosition = (string)($positions['overall'] ?? '-');
-    $meanGrade = (string)($examSummary['grade'] ?? ($card['grade'] ?? 'N/A'));
-    $feesBalance = (float)($payload['fees_balance'] ?? 0);
 
-    $verificationCode = (string)($card['verification_code'] ?? '');
-    $verificationText = $schoolId !== '' ? $schoolId . '@school' : $studentId . '@school';
-    $remarksLeft = app_report_html((string)($card['teacher_comment'] ?? $card['remark'] ?? ''));
-    $remarksRight = app_report_html((string)($card['headteacher_comment'] ?? $card['remark'] ?? ''));
+    $photoHtml = $photoExists && $photoPath !== ''
+        ? '<img src="' . htmlspecialchars($photoPath, ENT_QUOTES, 'UTF-8') . '" alt="Student Photo">'
+        : '<div style="font-size:18px;font-weight:700;color:#1f4d75;">' . htmlspecialchars(strtoupper(substr($studentName !== '' ? $studentName : $studentId, 0, 1)), ENT_QUOTES, 'UTF-8') . '</div>';
 
-    $subjectRowsHtml = '';
-    foreach ($examRows as $row) {
-        $cat1 = $row['cat1'] ?? ($row['cat_1'] ?? '-');
-        $cat2 = $row['cat2'] ?? ($row['cat_2'] ?? '-');
-        $score = (float)($row['score'] ?? 0);
-        $classMean = (float)($row['class_mean'] ?? 0);
-        $dev = isset($row['deviation']) ? (float)$row['deviation'] : ($score - $classMean);
-        $grade = trim((string)($row['grade'] ?? ''));
-        $devColor = $dev > 0 ? '#1a8f4d' : ($dev < 0 ? '#d18b00' : '#6d7a86');
-        $gradeBg = $grade !== '' ? '#eef6ff' : '#f3f4f6';
-        $subjectRowsHtml .= '<tr>'
-            . '<td style="text-align:left;font-weight:bold;padding:6px 7px;font-size:8pt;">' . app_report_html((string)($row['subject_name'] ?? '')) . '</td>'
-            . '<td style="text-align:center;padding:6px 7px;font-size:8pt;">' . (is_numeric($cat1) ? number_format((float)$cat1, 1) . '%' : app_report_html((string)$cat1)) . '</td>'
-            . '<td style="text-align:center;padding:6px 7px;font-size:8pt;">' . (is_numeric($cat2) ? number_format((float)$cat2, 1) . '%' : app_report_html((string)$cat2)) . '</td>'
-            . '<td style="text-align:center;font-weight:bold;padding:6px 7px;font-size:8pt;">' . number_format($score, 1) . '%</td>'
-            . '<td style="text-align:center;color:' . $devColor . ';font-weight:bold;padding:6px 7px;font-size:8pt;">' . (($dev > 0 ? '+' : '') . number_format($dev, 1)) . '</td>'
-            . '<td style="text-align:center;background:' . $gradeBg . ';font-weight:bold;padding:6px 7px;font-size:8pt;">' . app_report_html($grade !== '' ? $grade : '-') . '</td>'
-            . '<td style="text-align:center;padding:6px 7px;font-size:8pt;">' . app_report_html((string)($row['rank'] ?? $row['position'] ?? '-')) . '</td>'
+    $logoHtml = $logoExists && $logoPath !== ''
+        ? '<img src="' . htmlspecialchars($logoPath, ENT_QUOTES, 'UTF-8') . '" alt="School Logo" style="max-width:100%;max-height:100%;object-fit:contain;">'
+        : '';
+
+    $subjectRows = '';
+    foreach ($displayRows as $subject) {
+        $subjectName = (string)($subject['subject_name'] ?? '');
+        $score = (string)($subject['score'] ?? '');
+        $grade = (string)($subject['grade'] ?? '');
+        $subjectRows .= '<tr>'
+            . '<td style="padding:4px 5px;border:1px solid #88939c;">' . htmlspecialchars($subjectName, ENT_QUOTES, 'UTF-8') . '</td>'
+            . '<td style="padding:4px 5px;border:1px solid #88939c;text-align:center;">' . htmlspecialchars($score, ENT_QUOTES, 'UTF-8') . '</td>'
+            . '<td style="padding:4px 5px;border:1px solid #88939c;text-align:center;">' . htmlspecialchars($grade, ENT_QUOTES, 'UTF-8') . '</td>'
             . '</tr>';
     }
-    if ($subjectRowsHtml === '') {
-        $subjectRowsHtml = '<tr><td colspan="7" style="text-align:center;padding:10px;font-size:8.2pt;">No subject data available.</td></tr>';
+    if ($subjectRows === '') {
+        $subjectRows = '<tr><td colspan="3" style="padding:4px 5px;border:1px solid #88939c;text-align:center;">No subject data available.</td></tr>';
     }
+    // no hidden row indicator when showing all subjects
 
-    $metricStyle = 'border:1px solid #d6dde6;border-top:3px solid #c79a2d;padding:7px 8px;background:#f8fafc;font-size:8.6pt;line-height:1.12;text-align:center;vertical-align:top;';
-    $metricValueStyle = 'display:block;font-size:12.2pt;font-weight:bold;color:#1f2f3a;margin-top:3px;';
-    $metricDev = static function (float $value): string {
-        if ($value > 0) {
-            return '#0f6a46';
-        }
-        if ($value < 0) {
-            return '#d18b00';
-        }
-        return '#6d7a86';
-    };
-
-    $subjectSnapshotHtml = '';
-    foreach (array_slice($examRows, 0, 4) as $row) {
-        $studentWidth = max(0, min(100, (float)($row['score'] ?? 0)));
-        $classWidth = max(0, min(100, (float)($row['class_mean'] ?? 0)));
-        $subjectSnapshotHtml .= '<tr><td style="padding-bottom:6px;font-size:7.8pt;color:#38505e;">' . app_report_html(substr((string)($row['subject_name'] ?? ''), 0, 16)) . '</td><td style="padding-bottom:6px;"><div style="height:11px;background:#dfe8ef;border-radius:10px;position:relative;overflow:hidden;"><div style="position:absolute;left:0;top:0;height:11px;background:#1b4c73;width:' . number_format($studentWidth, 2, '.', '') . '%;"></div><div style="position:absolute;left:0;bottom:0;height:5px;background:#c79a2d;width:' . number_format($classWidth, 2, '.', '') . '%;"></div></div></td></tr>';
-    }
-    if ($subjectSnapshotHtml === '') {
-        $subjectSnapshotHtml = '<tr><td colspan="2" style="font-size:8pt;color:#667680;">No performance data available.</td></tr>';
-    }
-
-    return '
-<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-family:Arial,Helvetica,sans-serif;table-layout:fixed;background:#f4f8fb;">
-    <tr>
-        <td style="padding:0;">
-            <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;border:1px solid #d6dde6;background:#fff;">
-                <tr>
-                    <td style="background:linear-gradient(90deg,#091c2d 0%,#0f2f4a 64%,#153f61 100%);padding:13px 15px;color:#fff;">
-                        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;">
-                            <tr>
-                                <td width="66" style="width:66px;vertical-align:top;">' . $logoHtml . '</td>
-                                <td style="vertical-align:top;padding-left:12px;">
-                                    <div style="font-size:18pt;font-weight:bold;line-height:1.03;">' . app_report_html($schoolName) . '</div>
-                                    <div style="font-size:8.9pt;line-height:1.32;opacity:0.96;margin-top:2px;">' . app_report_html($schoolAddress) . '</div>
-                                    <div style="font-size:8.9pt;line-height:1.32;opacity:0.96;">' . app_report_html($schoolPhone) . ($schoolEmail !== '' ? ' | ' . app_report_html($schoolEmail) : '') . '</div>
-                                </td>
-                                <td width="176" style="width:176px;vertical-align:top;text-align:right;">
-                                    <div style="font-size:8.8pt;font-weight:bold;letter-spacing:0.06em;text-transform:uppercase;opacity:0.88;">Official Academic Report</div>
-                                    <div style="font-size:13pt;font-weight:bold;line-height:1.03;margin-top:4px;">' . app_report_html($className) . '</div>
-                                    <div style="font-size:9pt;line-height:1.22;margin-top:4px;opacity:0.95;">' . app_report_html($examTitle) . '</div>
-                                    <div style="font-size:8.8pt;opacity:0.90;">' . app_report_html($termName) . '</div>
-                                </td>
-                            </tr>
-                        </table>
-                    </td>
-                </tr>
-
-                <tr>
-                    <td style="padding:12px 14px 10px 14px;">
-                        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;">
-                            <tr>
-                                <td width="114" style="width:114px;vertical-align:top;padding-right:12px;">
-                                    <div style="width:98px;height:112px;border:1px solid #c6d1db;border-radius:8px;overflow:hidden;background:#f7fafc;">' . $photoHtml . '</div>
-                                </td>
-                                <td style="vertical-align:top;padding-right:14px;">
-                                    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;">
-                                        <tr>
-                                            <td style="border:1px solid #d6dde6;background:#f7fbff;padding:10px 11px;vertical-align:top;">
-                                                <div style="font-size:8.2pt;text-transform:uppercase;color:#5c6c78;font-weight:bold;">Student Profile</div>
-                                                <div style="font-size:13pt;font-weight:bold;color:#13222d;line-height:1.12;margin-top:3px;">' . app_report_html($studentName) . '</div>
-                                                <div style="font-size:8.8pt;color:#33414c;margin-top:5px;"><b>Adm No:</b> ' . app_report_html($schoolId !== '' ? $schoolId : $studentId) . '</div>
-                                                <div style="font-size:8.8pt;color:#33414c;margin-top:3px;"><b>KCPE:</b> ' . app_report_html($kcpe !== '' ? $kcpe : 'N/A') . '</div>
-                                            </td>
-                                        </tr>
-                                        <tr><td style="height:8px;"></td></tr>
-                                        <tr>
-                                            <td>
-                                                <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-spacing:7px 0;table-layout:fixed;">
-                                                    <tr>
-                                                        <td style="' . $metricStyle . 'padding:9px 8px;">Mean<span style="' . $metricValueStyle . '">' . app_report_html($meanGrade) . '</span><span style="color:' . $metricDev($meanDev) . ';font-size:7.6pt;font-weight:bold;">' . ($meanDev > 0 ? '+' : '') . number_format($meanDev, 1) . '</span></td>
-                                                        <td style="' . $metricStyle . 'padding:9px 8px;">Total Marks<span style="' . $metricValueStyle . '">' . number_format($totalMarks, 0) . '/' . number_format($maxMarks, 0) . '</span><span style="color:' . $metricDev($totalDev) . ';font-size:7.6pt;font-weight:bold;">' . ($totalDev > 0 ? '+' : '') . number_format($totalDev, 0) . '</span></td>
-                                                        <td style="' . $metricStyle . 'padding:9px 8px;">Points<span style="' . $metricValueStyle . '">' . number_format($totalPoints, 1) . '/' . number_format($pointsMax, 0) . '</span><span style="color:' . $metricDev($pointsDev) . ';font-size:7.6pt;font-weight:bold;">' . ($pointsDev > 0 ? '+' : '') . number_format($pointsDev, 1) . '</span></td>
-                                                    </tr>
-                                                </table>
-                                            </td>
-                                        </tr>
-                                        <tr><td style="height:8px;"></td></tr>
-                                        <tr>
-                                            <td>
-                                                <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;border-spacing:7px 0;table-layout:fixed;">
-                                                    <tr>
-                                                        <td style="' . $metricStyle . 'padding:9px 8px;">Stream Position<span style="' . $metricValueStyle . '">' . app_report_html($streamPosition) . '</span></td>
-                                                        <td style="' . $metricStyle . 'padding:9px 8px;">Overall Position<span style="' . $metricValueStyle . '">' . app_report_html($overallPosition) . '</span></td>
-                                                        <td style="' . $metricStyle . 'padding:9px 8px;">Fees<span style="' . $metricValueStyle . '">' . ($feesBalance > 0 ? 'Balance ' . number_format($feesBalance, 0) : 'Cleared') . '</span></td>
-                                                    </tr>
-                                                </table>
-                                            </td>
-                                        </tr>
-                                    </table>
-                                </td>
-                                <td width="172" style="width:172px;vertical-align:top;">
-                                    <div style="border:1px solid #d6dde6;border-radius:8px;overflow:hidden;background:#fbfdff;">
-                                        <div style="background:#f3f6f9;color:#0f2f4a;padding:10px 11px;font-size:8.8pt;font-weight:bold;text-transform:uppercase;">Subject Snapshot</div>
-                                        <div style="padding:10px 11px;">
-                                            <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;">
-                                                ' . $subjectSnapshotHtml . '
-                                            </table>
-                                        </div>
-                                    </div>
-                                </td>
-                            </tr>
-                        </table>
-                    </td>
-                </tr>
-
-                <tr>
-                    <td style="padding:0 14px 12px 14px;">
-                        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;">
-                            <tr>
-                                <td style="background:linear-gradient(90deg,#f5f7fa 0%,#edf1f5 100%);padding:10px 12px;border:1px solid #d6dde6;border-right:0;font-size:8.9pt;font-weight:bold;">ACADEMIC PERFORMANCE</td>
-                                <td style="background:linear-gradient(90deg,#f5f7fa 0%,#edf1f5 100%);padding:10px 12px;border:1px solid #d6dde6;text-align:right;font-size:8.8pt;color:#49606e;">Official school record</td>
-                            </tr>
-                        </table>
-                        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;">
-                            <thead>
-                                <tr>
-                                    <th style="border:1px solid #8fb8d2;padding:9px 10px;font-size:8.2pt;text-transform:uppercase;background:#0f2f4a;color:#fff;font-weight:bold;">Subject</th>
-                                    <th style="border:1px solid #8fb8d2;padding:9px 10px;font-size:8.2pt;text-transform:uppercase;background:#0f2f4a;color:#fff;font-weight:bold;">CAT 1</th>
-                                    <th style="border:1px solid #8fb8d2;padding:9px 10px;font-size:8.2pt;text-transform:uppercase;background:#0f2f4a;color:#fff;font-weight:bold;">CAT 2</th>
-                                    <th style="border:1px solid #8fb8d2;padding:9px 10px;font-size:8.2pt;text-transform:uppercase;background:#0f2f4a;color:#fff;font-weight:bold;">Score</th>
-                                    <th style="border:1px solid #8fb8d2;padding:9px 10px;font-size:8.2pt;text-transform:uppercase;background:#0f2f4a;color:#fff;font-weight:bold;">Dev.</th>
-                                    <th style="border:1px solid #8fb8d2;padding:9px 10px;font-size:8.2pt;text-transform:uppercase;background:#0f2f4a;color:#fff;font-weight:bold;">Grade</th>
-                                    <th style="border:1px solid #8fb8d2;padding:9px 10px;font-size:8.2pt;text-transform:uppercase;background:#0f2f4a;color:#fff;font-weight:bold;">Rank</th>
-                                </tr>
-                            </thead>
-                            <tbody>' . $subjectRowsHtml . '</tbody>
-                        </table>
-                    </td>
-                </tr>
-
-                <tr>
-                    <td style="padding:0 14px 14px 14px;">
-                        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;">
-                            <tr>
-                                <td width="40%" style="width:40%;vertical-align:top;padding-right:10px;">
-                                    <div style="border:1px solid #d6dde6;border-radius:8px;padding:11px 12px;background:#f7fbff;min-height:104px;">
-                                        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;table-layout:fixed;">
-                                            <tr>
-                                                <td width="72" style="width:72px;vertical-align:top;">
-                                                    <div style="width:66px;height:66px;border:1px solid #b9c8d6;border-radius:8px;background:linear-gradient(180deg,#f4f7fa,#e7edf3);text-align:center;"></div>
-                                                </td>
-                                                <td style="vertical-align:top;font-size:8.6pt;line-height:1.38;color:#253745;padding-left:8px;">
-                                                    Verify this certificate and access the student portal via QR code.<br>
-                                                    <strong>Code:</strong> ' . app_report_html($verificationCode) . '<br>
-                                                    <strong>ID:</strong> ' . app_report_html($verificationText) . '
-                                                </td>
-                                            </tr>
-                                        </table>
-                                        <div style="margin-top:8px;font-size:8.3pt;color:#4d5d68;font-style:italic;">' . app_report_html($schoolMotto) . '</div>
-                                    </div>
-                                </td>
-                                <td width="60%" style="width:60%;vertical-align:top;padding-left:12px;">
-                                    <div style="border:1px solid #c8d9e6;border-radius:8px;padding:13px 15px;background:#fcfdfe;min-height:114px;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
-                                        <div style="font-size:9.5pt;font-weight:bold;color:#0f2f4a;margin-bottom:10px;text-transform:uppercase;letter-spacing:0.03em;">Remarks & Feedback</div>
-                                        <div style="font-size:8.6pt;line-height:1.46;color:#253745;margin-bottom:10px;"><strong>Class Teacher:</strong> ' . $remarksLeft . '</div>
-                                        <div style="font-size:8.6pt;line-height:1.46;color:#253745;"><strong>Principal/Headmaster:</strong> ' . $remarksRight . '</div>
-                                    </div>
-                                </td>
-                            </tr>
-                        </table>
-                    </td>
-                </tr>
-            </table>
-        </td>
-    </tr>
-</table>';
-}
-
-function app_report_combined_cycles_html(PDO $conn, array $payload): string
-{
-    $card = is_array($payload['card'] ?? null) ? $payload['card'] : [];
-    $examSummary = is_array($payload['exam_summary'] ?? null) ? $payload['exam_summary'] : null;
-    $breakdownData = report_consolidated_cycle_breakdown(
-        $conn,
-        (string)($payload['student_id'] ?? ''),
-        (int)($card['class_id'] ?? 0),
-        (int)($card['term_id'] ?? 0),
-        (int)($examSummary['exam_id'] ?? 0)
-    );
-
-    $rows = is_array($breakdownData['rows'] ?? null) ? $breakdownData['rows'] : [];
-    if (empty($rows)) {
-        return app_report_generic_html($conn, $payload);
-    }
-    $cycleLabels = array_values(array_filter(array_map('strval', $breakdownData['cycle_labels'] ?? [])));
-    $cycleTitle = !empty($cycleLabels) ? implode(' / ', $cycleLabels) : 'COMBINED CYCLES';
-
-    $normalizedRows = [];
-    foreach ($rows as $row) {
-        $cat1 = '-';
-        $cat2 = '-';
-        if (!empty($cycleLabels)) {
-            $first = (string)$cycleLabels[0];
-            $cat1 = $row['cycle_scores'][$first] ?? '-';
-        }
-        if (count($cycleLabels) > 1) {
-            $second = (string)$cycleLabels[1];
-            $cat2 = $row['cycle_scores'][$second] ?? '-';
-        }
-        $normalizedRows[] = [
-            'subject_name' => (string)($row['subject_name'] ?? ''),
-            'cat1' => $cat1,
-            'cat2' => $cat2,
-            'score' => (float)($row['combined_score'] ?? 0),
-            'class_mean' => (float)($row['class_mean'] ?? 0),
-            'grade' => (string)($row['grade'] ?? ''),
-            'position' => (string)($row['position'] ?? '-'),
-            'remark' => (string)($row['remark'] ?? ''),
-            'teacher_name' => (string)($row['teacher_name'] ?? ''),
-        ];
-    }
-
-    return app_report_render_layout($conn, $payload, $normalizedRows, $cycleTitle);
-}
-
-function app_report_generic_html(PDO $conn, array $payload): string
-{
-    $card = is_array($payload['card'] ?? null) ? $payload['card'] : [];
-    $examSummary = is_array($payload['exam_summary'] ?? null) ? $payload['exam_summary'] : null;
-    $subjects = is_array($payload['exam_breakdown'] ?? null) ? $payload['exam_breakdown'] : [];
-
-    if (empty($subjects) && !empty($card['class_id']) && !empty($card['term_id']) && !empty($payload['student_id'])) {
-        $subjects = report_subject_breakdown(
-            $conn,
-            (string)$payload['student_id'],
-            (int)$card['class_id'],
-            (int)$card['term_id']
-        );
-    }
-
-    $examTitle = (string)($examSummary['exam_name'] ?? 'End Term Combined');
-    return app_report_render_layout($conn, $payload, $subjects, $examTitle);
+    return '<!doctype html><html><head><meta charset="utf-8"><title>Report Card</title>'
+        . '<style>'
+        . 'body{margin:0;padding:0;font-family:helvetica,arial,sans-serif;color:#1b2733;background:#fff;} '
+        . '.card{width:100%;box-sizing:border-box;padding:4px 6px 0 6px;} '
+        . '.header{width:100%;border-collapse:collapse;} '
+        . '.header td{vertical-align:middle;} '
+        . '.logo{width:42px;height:42px;border:1px solid #d7d7d7;text-align:center;overflow:hidden;} '
+        . '.title{font-size:10pt;font-weight:700;text-align:center;color:#fff;background:#00aeef;padding:4px 6px;margin-top:3px;} '
+        . '.info{width:100%;border-collapse:collapse;margin-top:4px;} '
+        . '.info td{border:1px solid #88939c;padding:3px 4px;font-size:7.2pt;vertical-align:top;} '
+        . '.info .label{font-weight:700;width:18%;background:#f3f7fb;} '
+        . '.stats{width:100%;border-collapse:collapse;margin-top:4px;} '
+        . '.stats td{border:1px solid #88939c;padding:3px 4px;font-size:7.2pt;} '
+        . '.stats .label{font-weight:700;background:#f3f7fb;width:16%;} '
+        . '.subjects{width:100%;border-collapse:collapse;margin-top:4px;} '
+        . '.subjects th{border:1px solid #88939c;background:#f3f7fb;padding:4px 5px;font-size:7pt;text-align:left;} '
+        . '.subjects td{font-size:7pt;} '
+        . '.photo{width:42px;height:48px;border:1px solid #d7d7d7;overflow:hidden;text-align:center;vertical-align:middle;} '
+        . '.photo img{width:100%;height:100%;object-fit:cover;} '
+        . '.footer-note{margin-top:4px;font-size:6.8pt;color:#495966;} '
+        . '</style></head><body>'
+        . '<div class="card">'
+        . '<table class="header"><tr>'
+        . '<td style="width:48px;"><div class="logo">' . $logoHtml . '</div></td>'
+        . '<td style="text-align:center;">'
+        . '<div style="font-size:11pt;font-weight:800;line-height:1.05;">' . htmlspecialchars($schoolName, ENT_QUOTES, 'UTF-8') . '</div>'
+        . '<div style="font-size:7pt;line-height:1.1;margin-top:2px;">' . htmlspecialchars($schoolContact, ENT_QUOTES, 'UTF-8') . '</div>'
+        . '</td>'
+        . '<td style="width:48px;"><div class="photo">' . $photoHtml . '</div></td>'
+        . '</tr></table>'
+        . '<div class="title">ACADEMIC REPORT CARD - ' . strtoupper(htmlspecialchars($className, ENT_QUOTES, 'UTF-8')) . ' - ' . strtoupper(htmlspecialchars($examName, ENT_QUOTES, 'UTF-8')) . ' - ' . strtoupper(htmlspecialchars($termName, ENT_QUOTES, 'UTF-8')) . '</div>'
+        . '<table class="info">'
+        . '<tr><td class="label">Name</td><td>' . htmlspecialchars($studentName, ENT_QUOTES, 'UTF-8') . '</td><td class="label">ADM No</td><td>' . htmlspecialchars($schoolId !== '' ? $schoolId : $studentId, ENT_QUOTES, 'UTF-8') . '</td></tr>'
+        . '<tr><td class="label">Class</td><td>' . htmlspecialchars($className, ENT_QUOTES, 'UTF-8') . '</td><td class="label">Term</td><td>' . htmlspecialchars($termName, ENT_QUOTES, 'UTF-8') . '</td></tr>'
+        . '<tr><td class="label">Exam</td><td>' . htmlspecialchars($examName, ENT_QUOTES, 'UTF-8') . '</td><td class="label">KCPE</td><td>' . htmlspecialchars($kcpeScore, ENT_QUOTES, 'UTF-8') . '</td></tr>'
+        . '</table>'
+        . '<table class="stats">'
+        . '<tr><td class="label">Overall Grade</td><td>' . htmlspecialchars($overallGrade, ENT_QUOTES, 'UTF-8') . '</td><td class="label">Total Points</td><td>' . number_format($totalPoints, 1) . '</td><td class="label">Mean Points</td><td>' . number_format($meanPoints, 2) . '</td><td class="label">Attendance</td><td>' . htmlspecialchars($attendanceText, ENT_QUOTES, 'UTF-8') . '</td></tr>'
+        . '<tr><td class="label">Fees Balance</td><td>' . htmlspecialchars($feesText, ENT_QUOTES, 'UTF-8') . '</td><td class="label">Subjects</td><td>' . (int)$subjectCount . '</td><td class="label">Shown</td><td>' . count($displayRows) . '</td><td class="label">Status</td><td>One-page model</td></tr>'
+        . '</table>'
+        . '<table class="subjects">'
+        . '<thead><tr><th style="width:58%;">Subject</th><th style="width:21%;text-align:center;">Score</th><th style="width:21%;text-align:center;">Grade</th></tr></thead>'
+        . '<tbody>' . $subjectRows . '</tbody>'
+        . '</table>'
+        . '<div class="footer-note">Verification: ' . htmlspecialchars(app_report_verify_url((string)($card['verification_code'] ?? '')), ENT_QUOTES, 'UTF-8') . '</div>'
+        . '</div></body></html>';
 }
 
 function app_output_single_page_report_pdf(PDO $conn, TCPDF $pdf, array $payload): void
 {
-    $topMargin = 5.5;
-    $bottomMargin = 5.5;
-
     $pdf->setPrintHeader(false);
     $pdf->setPrintFooter(false);
-    $pdf->SetAutoPageBreak(true, $bottomMargin);
-    $pdf->SetMargins(7, $topMargin, 7);
+    // Force a single-page layout; content is positioned manually.
+    $pdf->SetAutoPageBreak(false, 0);
+    // set conservative top margin so content fits evenly on the page
+    $pdf->SetMargins(10, 12, 10);
     $pdf->SetTitle('Academic Report Card');
     $pdf->AddPage('P', 'A4');
-    $pdf->SetFont('helvetica', '', 9);
 
-    $examSummary = is_array($payload['exam_summary'] ?? null) ? $payload['exam_summary'] : null;
-    $examMode = strtolower(trim((string)($examSummary['assessment_mode'] ?? 'normal')));
-    $html = ($examMode === 'consolidated')
-        ? app_report_combined_cycles_html($conn, $payload)
-        : app_report_generic_html($conn, $payload);
+    $schoolName = defined('WBName') ? (string)WBName : (defined('APP_NAME') ? (string)APP_NAME : 'School');
+    $schoolMotto = defined('WBMotto') ? trim((string)WBMotto) : '';
+    $schoolContact = trim(implode(' | ', array_filter([trim((string)WBAddress), trim((string)WBPhone), trim((string)WBEmail)])));
+    $logoPath = 'images/logo/' . trim((string)WBLogo);
+    $logoExists = trim((string)WBLogo) !== '' && app_pdf_image_path_is_safe($logoPath) && is_file($logoPath);
+    list($photoPath, $photoExists) = app_report_student_photo_html($conn, (string)($payload['student_id'] ?? ''));
+    $photoExists = $photoExists && app_pdf_image_path_is_safe($photoPath) && is_file($photoPath);
 
-    // Fit to a single page while preserving the same layout geometry.
-    $scale = app_report_pick_single_page_scale($pdf, $html, $topMargin, $bottomMargin);
-    if ($scale <= 0) {
-        $scale = 0.72;
-    }
-    $scaledHtml = app_report_scale_html_font_sizes($html, $scale);
-
-    $pdf->SetY($topMargin);
-    $pdf->writeHTML($scaledHtml, true, false, true, false, '');
-
-    // Add watermark with student name
+    $card = is_array($payload['card'] ?? null) ? $payload['card'] : [];
+    $examSummary = is_array($payload['exam_summary'] ?? null) ? $payload['exam_summary'] : [];
     $studentName = (string)($payload['student_name'] ?? '');
-    if ($studentName !== '') {
-        $pdf->lastPage();
-        
-        // Save current state
-        $current_alpha = ($pdf->getAlpha()['ca'] ?? 1.0);
-        $current_font = method_exists($pdf, 'getFontFamily') ? $pdf->getFontFamily() : '';
-        $current_font_style = method_exists($pdf, 'getFontStyle') ? $pdf->getFontStyle() : '';
-        // Use accessor to get current font size in points
-        $current_font_size = method_exists($pdf, 'getFontSizePt') ? $pdf->getFontSizePt() : ($pdf->getFontSize() ?? 0);
-        
-        // Set watermark font properties
-        $pdf->SetFont('helvetica', '', 80);
-        $pdf->SetTextColor(200, 200, 200); // Light gray
-        $pdf->SetAlpha(0.12); // 12% opacity for watermark
-        
-        // Get page dimensions
-        $pageWidth = $pdf->getPageWidth();
-        $pageHeight = $pdf->getPageHeight();
-        $centerX = $pageWidth / 2;
-        $centerY = $pageHeight / 2;
-        
-        // Draw watermark text rotated 45 degrees
-        // Position at center and write with rotation
-        $pdf->SetXY($centerX - 50, $centerY - 20);
-        $pdf->Cell(0, 0, $studentName, 0, 0, 'C', false, '', 45, false, 'T', false);
-        
-        // Restore previous state
-        $pdf->SetAlpha(1.0);
-        $pdf->SetFont($current_font, $current_font_style, $current_font_size);
-        $pdf->SetTextColor(0, 0, 0); // Reset to black
+    $studentId = (string)($payload['student_id'] ?? '');
+    $schoolId = (string)($payload['school_id'] ?? '');
+    $className = (string)($payload['class_name'] ?? '');
+    $termName = (string)($payload['term_name'] ?? '');
+    $examName = (string)($examSummary['exam_name'] ?? 'END TERM COMBINED');
+    $assessmentMode = strtolower(trim((string)($card['assessment_mode'] ?? ($examSummary['assessment_mode'] ?? 'normal'))));
+    $overallGrade = (string)($examSummary['grade'] ?? ($card['grade'] ?? 'N/A'));
+    $currentMean = (float)($card['mean'] ?? ($examSummary['mean'] ?? 0));
+    $totalMarks = (float)($card['total'] ?? ($examSummary['total'] ?? 0));
+    $position = (string)($card['position'] ?? ($examSummary['position'] ?? '-'));
+    $generatedDate = gmdate('d M Y');
+    $academicYear = gmdate('Y');
+    $trend = trim((string)($card['trend'] ?? ''));
+    $previousMean = null;
+    if ((string)($card['term_id'] ?? '') !== '' && $studentId !== '') {
+        $previousMean = report_previous_mean($conn, $studentId, (int)$card['term_id']);
+    }
+    if ($trend === '') {
+        $trend = $studentId !== '' && (int)($card['term_id'] ?? 0) > 0 ? report_trend($conn, $studentId, (int)$card['term_id'], $currentMean) : 'New';
     }
 
-    $verifyUrl = app_report_verify_url((string)($payload['card']['verification_code'] ?? ''));
-    if ($verifyUrl !== '') {
-        $pdf->lastPage();
-        $margins = $pdf->getMargins();
-        $qrSize = 22;
-        $pageWidth = $pdf->getPageWidth();
-        $x = $pageWidth - (float)$margins['right'] - $qrSize - 4;
-        $y = $pdf->getPageHeight() - (float)$margins['bottom'] - $qrSize - 4;
-        $pdf->write2DBarcode($verifyUrl, 'QRCODE,H', $x, $y, $qrSize, $qrSize);
+    $attendance = is_array($payload['attendance'] ?? null) ? $payload['attendance'] : (is_array($card['attendance'] ?? null) ? $card['attendance'] : []);
+    $feesBalance = $payload['fees_balance'] ?? ($card['fees_balance'] ?? null);
+    $kcpeScore = (string)($payload['kcpe_score'] ?? 'N/A');
+    $rows = is_array($card['subjects'] ?? null) ? $card['subjects'] : [];
+    if (empty($rows) && is_array($payload['exam_breakdown'] ?? null)) {
+        $rows = $payload['exam_breakdown'];
     }
+    // Show all subject rows and avoid hiding rows to keep layout consistent.
+    $displayRows = $rows;
+    $hiddenRows = 0;
+    $allMeanSum = 0.0;
+    $allMeanCount = 0;
+    foreach ($rows as $subjectRow) {
+        if (isset($subjectRow['class_mean']) && $subjectRow['class_mean'] !== '') {
+            $allMeanSum += (float)$subjectRow['class_mean'];
+            $allMeanCount++;
+        }
+    }
+    $classAverage = $allMeanCount > 0 ? round($allMeanSum / $allMeanCount, 2) : 0.0;
+    $meanDelta = $currentMean - $classAverage;
+    $previousDelta = $previousMean !== null ? $currentMean - $previousMean : null;
+    $trendText = $trend !== '' ? $trend : ($previousDelta === null ? 'New' : (($previousDelta > 0) ? 'Improved' : (($previousDelta < 0) ? 'Dropped' : 'Steady')));
+    if (empty($card['ai_summary']) && !empty($rows) && $studentId !== '' && (int)($card['term_id'] ?? 0) > 0) {
+        $bundle = report_ai_comment_bundle($rows, $currentMean, $previousMean, $overallGrade, $trendText);
+        $card['ai_summary'] = $bundle['ai_summary'];
+        $card['strengths'] = $bundle['strengths'];
+        $card['weaknesses'] = $bundle['weaknesses'];
+    }
+    $aiSummary = trim((string)($card['ai_summary'] ?? ''));
+    $strengths = array_values(array_filter(array_map('trim', (array)($card['strengths'] ?? []))));
+    $weaknesses = array_values(array_filter(array_map('trim', (array)($card['weaknesses'] ?? []))));
+    $attendanceText = 'N/A';
+    if (!empty($attendance)) {
+        if (!empty($attendance['rate_text'])) {
+            $attendanceText = (string)$attendance['rate_text'];
+        } elseif (!empty($attendance['attendance_rate_text'])) {
+            $attendanceText = (string)$attendance['attendance_rate_text'];
+        } elseif (isset($attendance['present'], $attendance['days_open']) && (int)$attendance['days_open'] > 0) {
+            $attendanceText = (int)$attendance['present'] . '/' . (int)$attendance['days_open'];
+        }
+    }
+    if (is_numeric($feesBalance)) {
+        $feesText = number_format((float)$feesBalance, 2);
+    } elseif (is_string($feesBalance) && trim($feesBalance) !== '') {
+        $feesText = trim($feesBalance);
+    } else {
+        $feesText = 'N/A';
+    }
+
+    $schoolInfo = $schoolContact !== '' ? $schoolContact : 'Published exam report';
+    $verificationUrl = app_report_verify_url((string)($card['verification_code'] ?? ''));
+    $pageW = (float)$pdf->getPageWidth();
+    $pageH = (float)$pdf->getPageHeight();
+    // Match the TCPDF margins above for consistent positioning
+    $margin = 12.0;
+    $innerW = $pageW - ($margin * 2);
+    // make left column narrower so main table gets more horizontal space
+    $leftW = 72.0;
+    $rightW = $innerW - $leftW - 2.0;
+
+    $hex = static function (string $hexColor): array {
+        $hexColor = ltrim($hexColor, '#');
+        return [hexdec(substr($hexColor, 0, 2)), hexdec(substr($hexColor, 2, 2)), hexdec(substr($hexColor, 4, 2))];
+    };
+    $drawSection = static function (TCPDF $pdf, float $x, float $y, float $w, float $h, string $title, string $subtitle = '', string $accent = '00AEEF') use ($hex): void {
+        [$r, $g, $b] = $hex($accent);
+        $pdf->SetDrawColor(215, 226, 235);
+        $pdf->SetFillColor(250, 252, 253);
+        $pdf->Rect($x, $y, $w, $h, 'DF');
+        $pdf->SetFillColor($r, $g, $b);
+        $pdf->Rect($x, $y, $w, 6, 'F');
+        $pdf->SetTextColor(255, 255, 255);
+        $pdf->SetFont('helvetica', 'B', 8.2);
+        $pdf->SetXY($x + 1, $y + 0.7);
+        $pdf->Cell($w - 2, 4, $title, 0, 0, 'L', false);
+        if ($subtitle !== '') {
+            $pdf->SetTextColor(82, 93, 103);
+            $pdf->SetFont('helvetica', '', 6.3);
+            $pdf->SetXY($x + 1, $y + 6.6);
+            $pdf->Cell($w - 2, 3, $subtitle, 0, 0, 'L', false);
+        }
+        $pdf->SetTextColor(27, 39, 51);
+    };
+    $drawMetric = static function (TCPDF $pdf, float $x, float $y, float $w, string $label, string $value, string $note = ''): void {
+        $pdf->SetDrawColor(215, 215, 215);
+        $pdf->SetFillColor(244, 244, 244);
+        $pdf->Rect($x, $y, $w, 13.5, 'DF');
+        $pdf->SetFont('helvetica', 'B', 6.9);
+        $pdf->SetXY($x + 1.3, $y + 1.2);
+        $pdf->Cell($w - 2.6, 2.8, $label, 0, 1, 'L');
+        $pdf->SetFont('helvetica', 'B', 9.2);
+        $pdf->SetX($x + 1.3);
+        $pdf->Cell($w - 2.6, 4.0, $value, 0, 1, 'L');
+        if ($note !== '') {
+            $pdf->SetFont('helvetica', '', 6.0);
+            $pdf->SetX($x + 1.3);
+            $pdf->Cell($w - 2.6, 2.3, $note, 0, 1, 'L');
+        }
+    };
+    $drawBar = static function (TCPDF $pdf, float $x, float $y, float $w, string $label, ?float $value, string $color, string $suffix = '') use ($hex): void {
+        [$r, $g, $b] = $hex($color);
+        $pdf->SetFont('helvetica', '', 6.5);
+        $pdf->SetXY($x, $y);
+        $pdf->Cell($w, 3.2, $label, 0, 1, 'L');
+        $pdf->SetDrawColor(224, 232, 238);
+        $pdf->Rect($x, $y + 3.3, $w, 3.6, 'D');
+        $pdf->SetFillColor($r, $g, $b);
+        $fill = $value === null ? 0 : max(0, min($w, $w * min(1.0, $value / 100.0)));
+        if ($fill > 0) {
+            $pdf->Rect($x, $y + 3.3, $fill, 3.6, 'F');
+        }
+        $pdf->SetFont('helvetica', 'B', 6.2);
+        $pdf->SetXY($x, $y + 7.0);
+        $pdf->Cell($w, 2.6, ($value === null ? 'N/A' : number_format($value, 2)) . ($suffix !== '' ? ' ' . $suffix : ''), 0, 0, 'R');
+    };
+    $drawMiniComparison = static function (TCPDF $pdf, float $x, float $y, float $w, array $row): void {
+        $student = isset($row['has_score']) && !$row['has_score'] ? null : (isset($row['score']) && $row['score'] !== null ? (float)$row['score'] : null);
+        $classMean = isset($row['class_mean']) && $row['class_mean'] !== '' ? (float)$row['class_mean'] : null;
+        $subject = (string)($row['subject_name'] ?? 'Subject');
+        $dev = isset($row['deviation']) && $row['deviation'] !== null ? (float)$row['deviation'] : null;
+        $pdf->SetFont('helvetica', '', 6.0);
+        $pdf->SetXY($x, $y);
+        $pdf->Cell($w * 0.36, 3.3, $subject, 0, 0, 'L');
+        $pdf->SetDrawColor(224, 232, 238);
+        $pdf->Rect($x + $w * 0.36, $y + 0.25, $w * 0.40, 2.5, 'D');
+        if ($student !== null) {
+            $pdf->SetFillColor(26, 143, 212);
+            $pdf->Rect($x + $w * 0.36, $y + 0.25, ($w * 0.40) * max(0.0, min(1.0, $student / 100.0)), 2.5, 'F');
+        }
+        if ($classMean !== null) {
+            $pdf->SetFillColor(56, 181, 106);
+            $pdf->Rect($x + $w * 0.36, $y + 1.35, ($w * 0.40) * max(0.0, min(1.0, $classMean / 100.0)), 1.0, 'F');
+        }
+        $pdf->SetXY($x + $w * 0.77, $y);
+        $pdf->Cell($w * 0.23, 3.3, $dev === null ? 'N/A' : (($dev > 0 ? '+' : '') . number_format($dev, 1)), 0, 0, 'R');
+    };
+
+    // ======================
+    // CLEAN LAYOUT MATCHING HTML REFERENCE - SPACIOUS & PROFESSIONAL
+    // NO OVERLAP HEADER (FLEX-LIKE LAYOUT)
+    // ======================
+    
+    // ==== HEADER: Logo (LEFT) | School Name (CENTER-LEFT) | Photo (RIGHT) ====
+    $headerY = $margin + 2;
+    $logoSize = 20;  // 20mm logo
+    $photoSize = 20;  // 20mm photo
+    $gapSize = 2;    // gap between sections
+    
+    // LEFT SECTION: Logo
+    $logoX = $margin;
+    if ($logoExists) {
+        $pdf->Image($logoPath, $logoX, $headerY, $logoSize, $logoSize, '', '', '', false, 300, '', false, false, 0, false, false, false);
+    }
+    
+    // CENTER-LEFT SECTION: School name + contact (between logo and photo)
+    $textX = $logoX + $logoSize + $gapSize;
+    $textMaxWidth = $innerW - $logoSize - $photoSize - ($gapSize * 3);
+    
+    $pdf->SetFont('helvetica', 'B', 12.5);
+    $pdf->SetTextColor(31, 77, 117);
+    $pdf->SetXY($textX, $headerY + 1);
+    $pdf->Cell($textMaxWidth, 6.0, $schoolName, 0, 1, 'L');
+
+    if ($schoolMotto !== '') {
+        $pdf->SetFont('helvetica', 'I', 7.0);
+        $pdf->SetTextColor(62, 98, 132);
+        $pdf->SetX($textX);
+        $pdf->Cell($textMaxWidth, 3.5, $schoolMotto, 0, 1, 'L');
+    }
+    
+    $pdf->SetFont('helvetica', '', 8.0);
+    $pdf->SetTextColor(27, 39, 51);
+    $pdf->SetX($textX);
+    $pdf->Cell($textMaxWidth, 4.0, $schoolContact, 0, 1, 'L');
+    
+    // RIGHT SECTION: Student Photo (far right, safe from collision)
+    $photoX = $margin + $innerW - $photoSize - $gapSize;
+    if ($photoExists && $photoPath !== '') {
+        $pdf->Image($photoPath, $photoX, $headerY, $photoSize, $photoSize, '', '', '', false, 300, '', false, false, 0, false, false, false);
+    } else {
+        // Placeholder box with initial
+        $pdf->SetDrawColor(26, 163, 207);
+        $pdf->SetLineWidth(0.7);
+        $pdf->Rect($photoX, $headerY, $photoSize, $photoSize, 'D');
+        $pdf->SetFont('helvetica', 'B', 11.0);
+        $pdf->SetTextColor(100, 100, 100);
+        $pdf->SetXY($photoX, $headerY + 6);
+        $pdf->Cell($photoSize, 8, strtoupper(substr($studentName !== '' ? $studentName : $studentId, 0, 1)), 0, 0, 'C');
+    }
+    
+    // Reset position after header
+    $pdf->SetY($headerY + $logoSize + 2);
+    
+    // ==== BLUE BANNER with exam/term info (FULL WIDTH, NO COLLISION) ====
+    $bannerY = $pdf->GetY() + 2;
+    $pdf->SetY($bannerY);
+    $pdf->SetFillColor(26, 163, 207);
+    $pdf->SetTextColor(255, 255, 255);
+    $pdf->SetFont('helvetica', 'B', 8.5);
+    $pdf->SetX($margin);
+    $pdf->Cell($innerW, 5.6, 'ACADEMIC REPORT FORM - ' . strtoupper($className) . ' - ' . strtoupper($examName) . ' - ' . strtoupper($termName), 0, 1, 'C', true);
+    $pdf->SetFillColor(236, 246, 251);
+    $pdf->SetTextColor(31, 77, 117);
+    $pdf->SetFont('helvetica', '', 6.8);
+    $pdf->SetX($margin);
+    $pdf->Cell($innerW, 4.0, 'Generated: ' . $generatedDate . ' | Academic Year: ' . $academicYear, 0, 1, 'C', true);
+    
+    $pdf->SetTextColor(27, 39, 51);
+    
+    // ==== STUDENT DETAILS GRID (moved above the subject table) ====
+    $pdf->SetFont('helvetica', '', 7.4);
+    $pdf->SetFillColor(238, 246, 251);
+    // small gap after banner
+    $pdf->SetY($pdf->GetY() + 4);
+
+    // Calculate cell width (4 equal columns with padding)
+    $gridCellW = ($innerW - 6) / 4;
+
+    // Row 1: Name, Class, ADM No, Total Marks
+    $pdf->SetX($margin + 2);
+    $pdf->Cell($gridCellW, 5.0, 'Name: ' . $studentName, 0, 0, 'L', true);
+    $pdf->Cell($gridCellW, 5.0, 'Class: ' . $className, 0, 0, 'L', true);
+    $pdf->Cell($gridCellW, 5.0, 'ADM No: ' . ($schoolId !== '' ? $schoolId : $studentId), 0, 0, 'L', true);
+    $pdf->Cell($gridCellW, 5.0, 'Total: ' . (is_numeric($totalMarks) ? number_format($totalMarks, 1) : (string)$totalMarks), 0, 1, 'L', true);
+
+    // Row 2: Mean, Grade, Position, Term
+    $pdf->SetX($margin + 2);
+    $pdf->SetFont('helvetica', 'B', 7.4);
+    $pdf->Cell($gridCellW, 5.0, 'Mean: ' . number_format($currentMean, 2), 0, 0, 'L', true);
+    $pdf->Cell($gridCellW, 5.0, 'Grade: ' . $overallGrade, 0, 0, 'L', true);
+    $pdf->Cell($gridCellW, 5.0, 'Position: ' . $position, 0, 0, 'L', true);
+    $pdf->Cell($gridCellW, 5.0, 'Term: ' . $termName, 0, 1, 'L', true);
+
+    $pdf->SetTextColor(27, 39, 51);
+
+    // ==== SUBJECT TABLE (full-width, keep original table) ====
+    $pdf->SetFont('helvetica', 'B', 7.4);
+    $pdf->SetFillColor(243, 247, 251);
+    $pdf->SetDrawColor(136, 147, 156);
+    $tableX = $margin + 2;
+    $tableW = $innerW - 4;
+    $pdf->SetY($pdf->GetY() + 4);
+
+    if (!empty($rows)) {
+        // New table columns: Subject | Score | Grade | Position | Dev | Trend
+        $pdf->SetX($tableX);
+        $pdf->Cell($tableW * 0.30, 4.8, 'Subject', 1, 0, 'L', true);
+        $pdf->Cell($tableW * 0.08, 4.8, 'Score', 1, 0, 'C', true);
+        $pdf->Cell($tableW * 0.08, 4.8, 'Grade', 1, 0, 'C', true);
+        $pdf->Cell($tableW * 0.16, 4.8, 'Position', 1, 0, 'C', true);
+        $pdf->Cell($tableW * 0.08, 4.8, 'Dev', 1, 0, 'C', true);
+        $pdf->Cell($tableW * 0.10, 4.8, 'Trend', 1, 1, 'C', true);
+
+        $pdf->SetFont('helvetica', '', 6.8);
+        $pdf->SetDrawColor(136, 147, 156);
+        foreach ($displayRows as $subjectRow) {
+            $pdf->SetX($tableX);
+            $gradeText = (string)($subjectRow['grade'] ?? 'N/A');
+            $devRaw = isset($subjectRow['deviation']) && $subjectRow['deviation'] !== null ? (float)$subjectRow['deviation'] : null;
+            // Format deviation: if no previous data show '0+'; otherwise show sign
+            $devText = 'N/A';
+            if ($devRaw === null) {
+                $devText = 'N/A';
+            } else {
+                // Consider no-previous-exam when previous_mean is exactly 0 and change is 0
+                $prevMean = isset($subjectRow['previous_mean']) ? (float)$subjectRow['previous_mean'] : 0.0;
+                $change = isset($subjectRow['change']) ? (float)$subjectRow['change'] : 0.0;
+                if ($prevMean === 0.0 && $change === 0.0) {
+                    $devText = '0+';
+                } else {
+                    $devText = ($devRaw >= 0 ? '+' : '') . number_format($devRaw, 1);
+                }
+            }
+            $rankVal = isset($subjectRow['rank']) && trim((string)$subjectRow['rank']) !== '' ? (string)$subjectRow['rank'] : '-';
+
+            // Highlight low performance: score < 50 OR grade indicating low (BE)
+            $isLow = false;
+            if (isset($subjectRow['score']) && $subjectRow['score'] !== null && is_numeric($subjectRow['score'])) {
+                $isLow = ((float)$subjectRow['score'] < 50.0);
+            }
+            if (!$isLow && strtoupper(trim((string)$subjectRow['grade'] ?? '')) === 'BE') {
+                $isLow = true;
+            }
+            if ($isLow) {
+                $pdf->SetTextColor(180, 30, 30);
+            } else {
+                $pdf->SetTextColor(27, 39, 51);
+            }
+            $trendVal = (string)($subjectRow['trend'] ?? '-');
+            $subjectLabel = (string)($subjectRow['subject_name'] ?? '');
+
+            $pdf->Cell($tableW * 0.30, 5.0, $subjectLabel, 1, 0, 'L');
+            $scoreVal = isset($subjectRow['points']) ? (int)$subjectRow['points'] : (isset($subjectRow['score']) && $subjectRow['score'] !== null ? (int)round((float)$subjectRow['score'] / 25) : '-');
+            $pdf->Cell($tableW * 0.08, 5.0, $scoreVal, 1, 0, 'C');
+            $pdf->Cell($tableW * 0.08, 5.0, $gradeText, 1, 0, 'C');
+            $pdf->Cell($tableW * 0.16, 5.0, $rankVal, 1, 0, 'C');
+            $pdf->Cell($tableW * 0.08, 5.0, $devText, 1, 0, 'C');
+            $pdf->Cell($tableW * 0.10, 5.0, $trendVal, 1, 1, 'C');
+
+            // reset text color after row
+            $pdf->SetTextColor(27, 39, 51);
+        }
+    }
+    
+    // ==== SUBJECT PERFORMANCE CHART (student vs class) ====
+    $chartY = $pdf->GetY() + 4;
+    $pdf->SetY($chartY);
+
+    // Prepare data arrays; keep the same subject count but use a taller chart area.
+    $subjectsList = array_slice($displayRows, 0, 8);
+    $labels = [];
+    $student_scores = [];
+    $class_averages = [];
+    foreach ($subjectsList as $r) {
+        $labels[] = (string)($r['subject_name'] ?? '');
+        $student_scores[] = isset($r['has_score']) && !$r['has_score'] ? 0 : ((isset($r['score']) && $r['score'] !== null) ? (float)$r['score'] : 0);
+        $class_averages[] = isset($r['class_mean']) && $r['class_mean'] !== '' ? (float)$r['class_mean'] : 0;
+    }
+
+    // Chart box styling
+    $pdf->SetDrawColor(221, 221, 221);
+    $pdf->SetFillColor(249, 251, 253);
+    $boxX = $margin + 2;
+    $boxW = $innerW - 4;
+    $boxH = 56;
+    $pdf->Rect($boxX, $chartY, $boxW, $boxH, 'DF');
+
+    // Title + legend
+    $pdf->SetFont('helvetica', 'B', 7.2);
+    $pdf->SetTextColor(31, 77, 117);
+    $pdf->SetXY($boxX + 4, $chartY + 3);
+    $pdf->Cell($boxW * 0.6, 4, 'Subject Performance', 0, 0, 'L');
+
+    // Draw grouped bars
+    $labelW = 24;
+    $plotX = $boxX + 5 + $labelW;
+    $plotW = $boxW - ($labelW + 12);
+    $plotY = $chartY + 10;
+    $rows = count($labels);
+    $groupH = ($boxH - 15) / max(1, $rows);
+    $maxScore = 100.0;
+
+    $pdf->SetFont('helvetica', '', 6.2);
+    for ($i = 0; $i < $rows; $i++) {
+        $y = $plotY + ($i * $groupH);
+        $label = substr($labels[$i], 0, 16);
+        $s = isset($student_scores[$i]) ? $student_scores[$i] : 0;
+        $c = isset($class_averages[$i]) ? $class_averages[$i] : 0;
+
+        // Label
+        $pdf->SetXY($boxX + 4, $y + 0.4);
+        $pdf->Cell($labelW, 3.1, $label, 0, 0, 'L');
+
+        // Background axis
+        $pdf->SetDrawColor(220, 220, 220);
+        $pdf->Rect($plotX, $y + 0.2, $plotW, max(1.0, $groupH - 0.7), 'D');
+
+        // Student bar (blue)
+        $pdf->SetFillColor(26, 143, 212);
+        $sW = ($plotW * min($s, $maxScore)) / $maxScore;
+        if ($sW > 0) {
+            $pdf->Rect($plotX + 1, $y + 0.35, $sW * 0.48, max(0.8, $groupH - 1.0), 'F');
+        }
+
+        // Class bar (green) - placed to the right of student bar
+        $pdf->SetFillColor(56, 181, 106);
+        $cW = ($plotW * min($c, $maxScore)) / $maxScore;
+        if ($cW > 0) {
+            $pdf->Rect($plotX + 1 + ($sW * 0.48) + 1.5, $y + 0.35, $cW * 0.48, max(0.8, $groupH - 1.0), 'F');
+        }
+
+    }
+
+    // ==== QR CODE AT BOTTOM CENTER ====
+    $qrSize = 22;
+    $qrX = ($pageW / 2) - ($qrSize / 2);
+    $qrY = $pageH - 28;
+    $pdf->write2DBarcode($verificationUrl, 'QRCODE,H', $qrX, $qrY, $qrSize, $qrSize);
+    $pdf->SetFont('helvetica', '', 6.0);
+    $pdf->SetTextColor(80, 90, 100);
+    $url_display = strlen($verificationUrl) > 45 ? substr($verificationUrl, 0, 45) . '...' : $verificationUrl;
+    $pdf->SetXY($qrX - 5, $qrY + $qrSize + 1);
+    $pdf->Cell($qrSize + 10, 3, 'Verify: ' . $url_display, 0, 1, 'C');
+
+    app_pdf_draw_document_watermark(
+        $pdf,
+        $studentName,
+        (string)(defined('WBName') ? WBName : (defined('APP_NAME') ? APP_NAME : 'School'))
+    );
 }

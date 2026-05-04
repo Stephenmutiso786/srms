@@ -3,8 +3,9 @@ session_start();
 chdir('../../');
 require_once('db/config.php');
 require_once('const/check_session.php');
+require_once('const/rbac.php');
 
-if ($res !== "1" || !in_array((string)$level, ['0', '9'], true) || $_SERVER['REQUEST_METHOD'] !== 'GET') {
+if ($res !== "1" || ((int)$level !== 1 && !app_current_user_has_any_permission(['staff.manage', 'academic.manage'])) || $_SERVER['REQUEST_METHOD'] !== 'GET') {
 	header("location:../");
 	exit;
 }

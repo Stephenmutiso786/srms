@@ -5,7 +5,38 @@ require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
 require_once('const/online_presence.php');
-if ($res == "1" && $level == "0") {}else{header("location:../");}
+require_once('const/rbac.php');
+$teacherControlAllowed = $res === "1" && ((int)$level === 1 || app_current_user_has_any_permission(['staff.manage', 'academic.manage']));
+if (!$teacherControlAllowed) { header("location:../"); exit; }
+
+$teacherStats = [
+	'total' => 0,
+	'active' => 0,
+	'blocked' => 0,
+	'online' => 0,
+];
+
+try {
+	$conn = app_db();
+	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	$onlineMaps = app_online_fetch_maps($conn, 180);
+	$onlineStaff = isset($onlineMaps['staff']) && is_array($onlineMaps['staff']) ? $onlineMaps['staff'] : [];
+	$stmt = $conn->prepare("SELECT id, status FROM tbl_staff WHERE level = 2");
+	$stmt->execute();
+	foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $teacherRow) {
+		$teacherStats['total']++;
+		if ((string)($teacherRow['status'] ?? '0') === "1") {
+			$teacherStats['active']++;
+		} else {
+			$teacherStats['blocked']++;
+		}
+		if (isset($onlineStaff[(string)$teacherRow['id']])) {
+			$teacherStats['online']++;
+		}
+	}
+} catch (Throwable $e) {
+	// Keep the page usable even if the stats summary cannot load.
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -46,22 +77,128 @@ if ($res == "1" && $level == "0") {}else{header("location:../");}
 <main class="app-content">
 <div class="app-title">
 <div>
-<h1>Staff</h1>
+<h1>Teachers</h1>
+<p class="text-muted mb-0">Add teachers, import them in bulk, and jump to teacher control pages.</p>
 </div>
 <ul class="app-breadcrumb breadcrumb">
 <li class="breadcrumb-item"><button class="btn btn-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#addModal">Add</button></li>
 <li class="breadcrumb-item"><button class="btn btn-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#importModal">Import</button></li>
+<li class="breadcrumb-item"><a class="btn btn-outline-primary btn-sm" href="admin/teacher_allocation">Subject Control</a></li>
+<li class="breadcrumb-item"><a class="btn btn-outline-secondary btn-sm" href="admin/role_matrix">Role Control</a></li>
 </ul>
 </div>
 
+<div class="tile mb-3">
+<div class="tile-body d-flex flex-wrap gap-2 align-items-center justify-content-between">
+<div>
+<strong>Teacher control panel</strong>
+<div class="text-muted">Use this module to create, edit, block, delete, and impersonate teacher accounts from one place. Admin accounts are created separately with the red button.</div>
+</div>
+<div class="d-flex flex-wrap gap-2">
+<button class="btn btn-danger btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#addAdminModal">Create Admin Account</button>
+<button class="btn btn-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#addModal">Add Teacher</button>
+<a class="btn btn-outline-primary btn-sm" href="admin/teacher_allocation">Control Subjects</a>
+<a class="btn btn-outline-secondary btn-sm" href="admin/role_matrix">Control Roles</a>
+</div>
+</div>
+</div>
+
+<div class="row mb-3">
+<div class="col-md-3 col-sm-6">
+<div class="tile mb-0">
+<div class="tile-body">
+<div class="text-muted text-uppercase small">Teachers</div>
+<div class="h3 mb-0"><?php echo number_format($teacherStats['total']); ?></div>
+</div>
+</div>
+</div>
+<div class="col-md-3 col-sm-6">
+<div class="tile mb-0">
+<div class="tile-body">
+<div class="text-muted text-uppercase small">Active</div>
+<div class="h3 mb-0 text-success"><?php echo number_format($teacherStats['active']); ?></div>
+</div>
+</div>
+</div>
+<div class="col-md-3 col-sm-6">
+<div class="tile mb-0">
+<div class="tile-body">
+<div class="text-muted text-uppercase small">Blocked</div>
+<div class="h3 mb-0 text-danger"><?php echo number_format($teacherStats['blocked']); ?></div>
+</div>
+</div>
+</div>
+<div class="col-md-3 col-sm-6">
+<div class="tile mb-0">
+<div class="tile-body">
+<div class="text-muted text-uppercase small">Online</div>
+<div class="h3 mb-0 text-primary"><?php echo number_format($teacherStats['online']); ?></div>
+</div>
+</div>
+</div>
+</div>
+<div class="modal fade" id="addAdminModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="addAdminModalLabel" aria-hidden="true">
+<div class="modal-dialog">
+<div class="modal-content">
+<div class="modal-header">
+<h5 class="modal-title" id="addAdminModalLabel">Create Admin Account</h5>
+</div>
+<div class="modal-body">
+<form class="app_frm" method="POST" autocomplete="OFF" action="admin/core/new_user2">
+<div class="alert alert-warning mb-3">
+This creates a full admin account with the same control level as the current admin portal.
+</div>
+<div class="mb-2">
+<label class="form-label">First Name</label>
+<input required name="fname" class="form-control" type="text" onkeypress="return lettersOnly(event)" placeholder="Enter first name">
+</div>
+<div class="mb-2">
+<label class="form-label">Last Name</label>
+<input required name="lname" class="form-control" type="text" onkeypress="return lettersOnly(event)" placeholder="Enter last name">
+</div>
+<div class="mb-2">
+<label class="form-label">Email Address</label>
+<input required name="email" class="form-control" type="email" placeholder="Enter email address">
+</div>
+<div class="mb-2">
+<label class="form-label">Password</label>
+<input type="password" class="form-control" name="password" placeholder="***************">
+</div>
+<div class="mb-2">
+<label class="form-label">Gender</label>
+<select class="form-control" name="gender" required>
+<option selected disabled value="">Select gender</option>
+<option value="Male">Male</option>
+<option value="Female">Female</option>
+</select>
+</div>
+<input type="hidden" name="role" value="0">
+<div class="mb-3">
+<label class="form-label">Status</label>
+<select class="form-control" name="status" required>
+<option value="1" selected>Active</option>
+<option value="0">Blocked</option>
+</select>
+</div>
+<button type="submit" name="submit" value="1" class="btn btn-danger app_btn">Create Admin</button>
+<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+</form>
+</div>
+
+</div>
+</div>
+</div>
 <div class="modal fade" id="addModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="addModalLabel" aria-hidden="true">
 <div class="modal-dialog">
 <div class="modal-content">
 <div class="modal-header">
-<h5 class="modal-title" id="addModalLabel">Add Staff</h5>
+<h5 class="modal-title" id="addModalLabel">Add Teacher Account</h5>
 </div>
 <div class="modal-body">
 <form class="app_frm" method="POST" autocomplete="OFF" action="admin/core/new_user2">
+<div class="alert alert-primary mb-3">
+This form creates teacher accounts only. Use <strong>Create Admin Account</strong> for admin users.
+</div>
 <div class="mb-2">
 <label class="form-label">First Name</label>
 <input required name="fname" class="form-control" type="text" onkeypress="return lettersOnly(event)" placeholder="Enter first name">
@@ -90,15 +227,7 @@ if ($res == "1" && $level == "0") {}else{header("location:../");}
 <option value="Female">Female</option>
 </select>
 </div>
-
-<div class="mb-2">
-<label class="form-label">Role</label>
-<select class="form-control" name="role" required>
-<option value="2" selected>Teacher</option>
-<option value="5">Accountant</option>
-</select>
-</div>
-
+<input type="hidden" name="role" value="2">
 
 <div class="mb-3">
 <label class="form-label">Status</label>
@@ -109,7 +238,7 @@ if ($res == "1" && $level == "0") {}else{header("location:../");}
 </select>
 </div>
 
-<button id="sub_btnp2" type="submit" name="submit" value="1" class="btn btn-primary app_btn">Add</button>
+<button id="sub_btnp2" type="submit" name="submit" value="1" class="btn btn-primary app_btn">Create Teacher</button>
 <button type="button" class="btn btn-danger" data-bs-dismiss="modal">Close</button>
 </form>
 </div>
@@ -205,7 +334,7 @@ Download excel template from <a download href="templates/import_teachers.xlsx" c
 <div class="tile">
 <div class="tile-body">
 <div class="table-responsive">
-<h3 class="tile-title">Staff</h3>
+<h3 class="tile-title">Teacher Accounts</h3>
 <form id="bulkStaffForm" method="POST" action="admin/core/bulk_delete_staff" onsubmit="return confirmBulkDelete('staff');">
 <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
 <select class="form-control form-control-sm" name="bulk_action" style="max-width:200px;">
@@ -231,7 +360,7 @@ Download excel template from <a download href="templates/import_teachers.xlsx" c
 <th>Role</th>
 <th>Presence</th>
 <th width="120" align="center">Status</th>
-<th width="120" align="center"></th>
+<th width="220" align="center">Actions</th>
 </tr>
 </thead>
 <tbody>
@@ -241,7 +370,7 @@ try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-$stmt = $conn->prepare("SELECT * FROM tbl_staff WHERE level IN (2,5)");
+$stmt = $conn->prepare("SELECT * FROM tbl_staff WHERE level IN (2,5) ORDER BY status DESC, fname ASC, lname ASC");
 $stmt->execute();
 $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 $onlineMaps = app_online_fetch_maps($conn, 180);
@@ -275,17 +404,17 @@ $st = '<span class="me-1 badge badge-pill bg-danger">Blocked</span>';
 </td>
 <td width="100" align="center"><?php echo $st;?></td>
 <td width="120" align="center">
-<textarea style="display:none;" id="fname_<?php echo $row[0]; ?>"><?php echo $row[1]; ?></textarea>
-<textarea style="display:none;" id="lname_<?php echo $row[0]; ?>"><?php echo $row[2]; ?></textarea>
-<textarea style="display:none;" id="email_<?php echo $row[0]; ?>"><?php echo $row[4]; ?></textarea>
-<textarea style="display:none;" id="role_<?php echo $row[0]; ?>"><?php echo $row[6]; ?></textarea>
-<button onclick="set_user('<?php echo $row[0]; ?>', '<?php echo $row[3]; ?>', '<?php echo $row[7]; ?>', '<?php echo $row[6]; ?>');" data-bs-toggle="modal" data-bs-target="#editModal" class="btn btn-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#editModal">Edit</button>
+<textarea style="display:none;" id="fname_<?php echo (int)$row['id']; ?>"><?php echo htmlspecialchars((string)$row['fname']); ?></textarea>
+<textarea style="display:none;" id="lname_<?php echo (int)$row['id']; ?>"><?php echo htmlspecialchars((string)$row['lname']); ?></textarea>
+<textarea style="display:none;" id="email_<?php echo (int)$row['id']; ?>"><?php echo htmlspecialchars((string)$row['email']); ?></textarea>
+<textarea style="display:none;" id="role_<?php echo (int)$row['id']; ?>"><?php echo htmlspecialchars((string)$row['level']); ?></textarea>
+<button onclick="set_user('<?php echo (int)$row['id']; ?>', '<?php echo htmlspecialchars((string)$row['gender'], ENT_QUOTES, 'UTF-8'); ?>', '<?php echo htmlspecialchars((string)$row['status'], ENT_QUOTES, 'UTF-8'); ?>', '<?php echo htmlspecialchars((string)$row['level'], ENT_QUOTES, 'UTF-8'); ?>');" data-bs-toggle="modal" data-bs-target="#editModal" class="btn btn-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#editModal">Edit</button>
 <form method="POST" action="admin/core/start_impersonation" style="display:inline-block;">
 <input type="hidden" name="target_type" value="staff">
 <input type="hidden" name="target_id" value="<?php echo (int)$row['id']; ?>">
 <button type="submit" class="btn btn-warning btn-sm" onclick="return confirm('Impersonate this staff account now?');">Impersonate</button>
 </form>
-<a onclick="del('admin/core/drop_user2?id=<?php echo $row[0]; ?>', 'Delete Teacher?');" href="javascript:void(0);" class="btn btn-danger btn-sm">Delete</a>
+<a onclick="del('admin/core/drop_user2?id=<?php echo (int)$row['id']; ?>', 'Delete this staff account?');" href="javascript:void(0);" class="btn btn-danger btn-sm">Delete</a>
 </td>
 </tr>
 <?php
@@ -328,6 +457,20 @@ function set_user(id, gender, status, role){
 	document.getElementById("status").value = status;
 	document.getElementById("role").value = role;
 }
+function resetAddStaffModal(){
+	var role = document.querySelector('#addModal select[name="role"]');
+	var status = document.querySelector('#addModal select[name="status"]');
+	if (role) { role.value = '2'; }
+	if (status) { status.value = '1'; }
+}
+function resetAddAdminModal(){
+	var role = document.querySelector('#addAdminModal input[name="role"]');
+	var status = document.querySelector('#addAdminModal select[name="status"]');
+	if (role) { role.value = '0'; }
+	if (status) { status.value = '1'; }
+}
+document.getElementById('addModal')?.addEventListener('show.bs.modal', resetAddStaffModal);
+document.getElementById('addAdminModal')?.addEventListener('show.bs.modal', resetAddAdminModal);
 function confirmBulkDelete(label){
   var checked = document.querySelectorAll('.staff-checkbox:checked');
   if (!checked.length) {

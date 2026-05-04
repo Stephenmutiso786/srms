@@ -33,7 +33,7 @@ try {
 	$pdf->RoundedRect(1.5, 1.5, 83, 13, 4, '1100', 'F');
 
 	$logoPath = 'images/logo/' . ($school['logo'] ?? '');
-	if (!empty($school['logo']) && file_exists($logoPath)) {
+	if (!empty($school['logo']) && app_pdf_image_path_is_safe($logoPath)) {
 		$pdf->Image($logoPath, 4, 3.2, 8.5, 8.5);
 	}
 
@@ -47,8 +47,8 @@ try {
 	$pdf->SetFont('helvetica', 'B', 12);
 	$pdf->Text(60, 5.2, 'STUDENT ID');
 
-	$photoPath = $payload['photo_exists'] ? $payload['photo_path'] : '';
-	if ($photoPath !== '' && file_exists($photoPath)) {
+	$photoPath = !empty($payload['photo_exists']) ? (string)$payload['photo_path'] : '';
+	if (app_pdf_image_path_is_safe($photoPath)) {
 		$pdf->Image($photoPath, 5, 17, 21, 24, '', '', '', false, 300, '', false, false, 1, false, false, false);
 	} else {
 		$pdf->SetFillColor(15, 95, 168);

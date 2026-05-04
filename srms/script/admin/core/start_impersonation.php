@@ -26,7 +26,10 @@ try {
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 	app_ensure_impersonation_schema($conn);
 
-	if (!app_has_permission($conn, (string)$account_id, (string)$level, 'staff.manage')) {
+	$canManageStaff = app_has_permission($conn, (string)$account_id, (string)$level, 'staff.manage');
+	$canManageAcademics = app_has_permission($conn, (string)$account_id, (string)$level, 'academic.manage');
+	$actorLevel = (int)$level;
+	if (!$canManageStaff && !$canManageAcademics && $actorLevel !== 1) {
 		throw new RuntimeException('You do not have permission to impersonate users.');
 	}
 
@@ -89,7 +92,6 @@ try {
 		throw new RuntimeException('You are already logged in as this user.');
 	}
 
-	$actorLevel = (int)$level;
 	if ($actorLevel === 1) {
 		if ($targetType === 'parent') {
 			throw new RuntimeException('Headteacher can impersonate teachers and students only.');

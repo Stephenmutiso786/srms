@@ -34,7 +34,7 @@ function admin_sidebar_group_label(string $moduleKey): string
   $groupMap = [
     'dashboard' => 'Overview',
     'academic' => 'Academic',
-    'teachers' => 'Staff',
+    'teachers' => 'Teachers',
     'classes' => 'Academic',
     'terms' => 'Academic',
     'subjects' => 'Academic',
@@ -53,7 +53,7 @@ function admin_sidebar_group_label(string $moduleKey): string
     'communication' => 'Communication',
     'sms_topup' => 'Communication',
     'elearning' => 'Academic',
-    'feedback' => 'Academic',
+    'feedback' => 'Communication',
     'library' => 'Resources',
     'inventory' => 'Resources',
     'transport' => 'Resources',
@@ -74,8 +74,8 @@ function admin_sidebar_group_label(string $moduleKey): string
     'notifications' => 'Communication',
     'online_users' => 'System',
     'audit_logs' => 'System',
-    'roles' => 'Access Control',
-    'role_matrix' => 'Access Control',
+    'roles' => 'Teachers',
+    'role_matrix' => 'Teachers',
     'bom' => 'Governance',
     'mpesa' => 'Finance',
     'smtp' => 'System',
@@ -101,7 +101,7 @@ foreach ($visibleAdminModules as $module) {
   $adminSidebarGroups[$group][] = $module;
 }
 
-$adminSidebarGroupOrder = ['Overview', 'Academic', 'Students', 'Operations', 'Finance', 'Communication', 'Exams', 'Reports', 'Results', 'Access Control', 'Resources', 'Governance', 'System', 'Support', 'General'];
+$adminSidebarGroupOrder = ['Overview', 'Academic', 'Teachers', 'Students', 'Operations', 'Finance', 'Communication', 'Exams', 'Reports', 'Results', 'Access Control', 'Resources', 'Governance', 'System', 'Support', 'General'];
 ?>
 <div class="app-sidebar__overlay" data-toggle="sidebar"></div>
 <aside class="app-sidebar">

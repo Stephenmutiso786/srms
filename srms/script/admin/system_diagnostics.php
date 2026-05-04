@@ -13,6 +13,13 @@ app_require_permission('system.manage', 'admin');
 
 function app_find_migrations_dir_for_diagnostics(): ?string
 {
+	if (DBDriver === 'mysql') {
+		$mysqlPatch = app_mysql_current_mode_patch_path();
+		if ($mysqlPatch && is_file($mysqlPatch)) {
+			return dirname($mysqlPatch);
+		}
+	}
+
 	$candidates = [
 		dirname(__DIR__, 2).'/database/pg_migrations',
 		dirname(__DIR__, 3).'/database/pg_migrations',
@@ -110,12 +117,13 @@ $pendingMigrations = [];
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	app_ensure_current_mode_mysql_schema($conn);
 
 	if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		$lastRunAt = date('Y-m-d H:i:s');
 		$results[] = app_diagnostics_item('Application', 'pass', APP_NAME.' is responding');
 		$results[] = app_diagnostics_item('PHP Version', version_compare(PHP_VERSION, '8.0.0', '>=') ? 'pass' : 'warning', PHP_VERSION);
-		$results[] = app_diagnostics_item('Database Driver', DBDriver === 'pgsql' ? 'pass' : 'warning', DBDriver);
+		$results[] = app_diagnostics_item('Database Driver', in_array(DBDriver, ['pgsql', 'mysql'], true) ? 'pass' : 'warning', DBDriver);
 		$results[] = app_diagnostics_check_extension('pdo');
 		$results[] = app_diagnostics_check_extension('json');
 		$results[] = app_diagnostics_check_extension('mbstring');
@@ -135,6 +143,11 @@ try {
 			'tbl_students',
 			'tbl_classes',
 			'tbl_terms',
+			'tbl_app_settings',
+			'tbl_result_settings',
+			'tbl_module_locks',
+			'tbl_promotion_batches',
+			'tbl_student_promotions',
 			'tbl_invoices',
 			'tbl_payments',
 			'tbl_parent_students',
@@ -150,7 +163,9 @@ try {
 			$results[] = app_diagnostics_item('Migrations Folder', 'pass', 'Found: '.$migrationsDir);
 			$migrationFiles = glob($migrationsDir.'/*.sql') ?: [];
 			sort($migrationFiles, SORT_NATURAL);
-			if (app_table_exists($conn, 'tbl_schema_migrations')) {
+			if (DBDriver === 'mysql') {
+				$results[] = app_diagnostics_item('Migration Status', 'pass', 'MySQL runtime detected; PostgreSQL migration files are informational only');
+			} elseif (app_table_exists($conn, 'tbl_schema_migrations')) {
 				$stmt = $conn->prepare('SELECT name FROM tbl_schema_migrations');
 				$stmt->execute();
 				$applied = $stmt->fetchAll(PDO::FETCH_COLUMN);

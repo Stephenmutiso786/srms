@@ -25,6 +25,7 @@ function accountant_sidebar_is_active(array $module): string
 function accountant_sidebar_group_label(string $moduleKey): string
 {
 	$groupMap = [
+		'dashboard' => 'Overview',
 		'fees' => 'Finance',
 		'fee_structure' => 'Finance',
 		'invoices' => 'Finance',

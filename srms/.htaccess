@@ -1,0 +1,16 @@
+<IfModule mod_rewrite.c>
+RewriteEngine On
+
+RewriteCond %{HTTPS} !=on
+RewriteCond %{HTTP_HOST} !^localhost(:[0-9]+)?$ [NC]
+RewriteCond %{HTTP_HOST} !^127\.0\.0\.1(:[0-9]+)?$
+RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=302]
+
+# Route top-level portal URLs into the script/ app folder while keeping
+# direct files and directories like uploads/, ssl/, and database/ intact.
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.+)$ script/$1 [L,QSA]
+</IfModule>
+
+DirectoryIndex index.php

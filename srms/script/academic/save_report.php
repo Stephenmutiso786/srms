@@ -29,14 +29,7 @@ try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-	$stmt = $conn->prepare('SELECT * FROM tbl_grade_system');
-	$stmt->execute();
-	$grading = $stmt->fetchAll();
-
 	$_MATOKEO = [];
-	foreach ($divisions as $value) {
-		$_MATOKEO[$value[0]] = ['BOYS' => 0, 'GIRLS' => 0];
-	}
 
 	$stmt = $conn->prepare('SELECT * FROM tbl_students WHERE class = ?');
 	$stmt->execute([$class]);
@@ -93,7 +86,6 @@ try {
 		foreach ($result as $row) {
 			$class_list = app_unserialize($row[1]);
 			if (in_array($class, $class_list, true)) {
-				$t_subjects++;
 				$score = 0;
 				if ($useExamId) {
 					$stmt = $conn->prepare('SELECT * FROM tbl_exam_results WHERE class = ? AND subject_combination = ? AND term = ? AND student = ? AND exam_id = ?');
@@ -103,31 +95,18 @@ try {
 					$stmt->execute([$class, $row[0], $term, $row2[0]]);
 				}
 				$ex_result = $stmt->fetchAll();
-				if (!empty($ex_result[0][5])) {
+				if (isset($ex_result[0][5]) && $ex_result[0][5] !== '') {
 					$score = (float)$ex_result[0][5];
 					$tscore += $score;
+					$t_subjects++;
+					$subssss[] = $score;
 				}
-				$subssss[] = $score;
 			}
 		}
 
 		$av = $t_subjects === 0 ? 0 : round($tscore / $t_subjects);
-		foreach ($grading as $grade) {
-			if ($av >= $grade[2] && $av <= $grade[3]) {
-				break;
-			}
-		}
 
-		$div = get_division($subssss);
-		if (!isset($_MATOKEO[$div])) {
-			$_MATOKEO[$div] = ['BOYS' => 0, 'GIRLS' => 0];
-		}
-
-		if ($gnd === 'Male') {
-			$_MATOKEO[$div]['BOYS'] = $_MATOKEO[$div]['BOYS'] + 1;
-		} else {
-			$_MATOKEO[$div]['GIRLS'] = $_MATOKEO[$div]['GIRLS'] + 1;
-		}
+		// CBC-ONLY: Division tally removed
 	}
 
 	$pdf = new TCPDF(PDF_PAGE_ORIENTATION, PDF_UNIT, PDF_PAGE_FORMAT, true, 'UTF-8', false);
@@ -157,15 +136,7 @@ try {
 	$pdf->SetFont('helvetica', '', 10, '', true);
 	$pdf->Cell(0, 0, '', 0, 1, 'C');
 
-	$htmls = '<table border="1" cellpadding="5"><tr><td>DIVISION</td><td>BOYS</td><td>GIRLS</td><td>Total</td></tr>';
-	foreach ($divisions as $value) {
-		$key = $value[0];
-		$boys = (int)($_MATOKEO[$key]['BOYS'] ?? 0);
-		$girls = (int)($_MATOKEO[$key]['GIRLS'] ?? 0);
-		$htmls .= '<tr><td>' . htmlspecialchars((string)$key) . '</td><td>' . $boys . '</td><td>' . $girls . '</td><td>' . ($boys + $girls) . '</td></tr>';
-	}
-	$htmls .= '</table>';
-	$pdf->writeHTMLCell(0, 0, '', '', $htmls, 0, 1, 0, true, '', true);
+	// CBC-ONLY: Division table removed
 
 	$html2 = '<br><br><b>Date : ' . date('F d, Y G:i:s A') . '</b>';
 	$pdf->writeHTMLCell(0, 0, '', '', $html2, 0, 1, 0, true, '', true);

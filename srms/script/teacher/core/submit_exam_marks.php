@@ -23,6 +23,7 @@ if ($examId < 1 || $subjectComb < 1) {
 try {
   $conn = app_db();
   $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+  app_ensure_exam_grading_schema($conn);
 
   $stmt = $conn->prepare("SELECT * FROM tbl_exams WHERE id = ? LIMIT 1");
   $stmt->execute([$examId]);

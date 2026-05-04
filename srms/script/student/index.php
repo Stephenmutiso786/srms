@@ -97,19 +97,19 @@ try {
 	if (app_table_exists($conn, 'tbl_invoices') && app_table_exists($conn, 'tbl_invoice_lines')) {
 		if (app_table_exists($conn, 'tbl_payments')) {
 			$stmt = $conn->prepare("
-				SELECT COALESCE(SUM(lines.total_amount - COALESCE(paid.total_paid, 0)), 0) AS outstanding
+				SELECT COALESCE(SUM(invoice_totals.total_amount - COALESCE(paid.total_paid, 0)), 0) AS outstanding
 				FROM (
 					SELECT i.id, SUM(l.amount) AS total_amount
 					FROM tbl_invoices i
 					INNER JOIN tbl_invoice_lines l ON l.invoice_id = i.id
 					WHERE i.student_id = ? AND i.status <> 'void'
 					GROUP BY i.id
-				) lines
+				) invoice_totals
 				LEFT JOIN (
 					SELECT invoice_id, SUM(amount) AS total_paid
 					FROM tbl_payments
 					GROUP BY invoice_id
-				) paid ON paid.invoice_id = lines.id
+				) paid ON paid.invoice_id = invoice_totals.id
 			");
 			$stmt->execute([$account_id]);
 			$summary['fees_balance'] = (float)$stmt->fetchColumn();

@@ -421,9 +421,79 @@ function app_staff_role_module_allocation(PDO $conn, string $portal, string $sta
 	return $cache[$cacheKey];
 }
 
+function app_ensure_staff_module_allocations_table(PDO $conn): bool
+{
+	if (app_table_exists($conn, 'tbl_staff_module_allocations')) {
+		return true;
+	}
+
+	try {
+		$conn->exec("CREATE TABLE IF NOT EXISTS tbl_staff_module_allocations (
+			staff_id INT NOT NULL,
+			portal VARCHAR(50) NOT NULL,
+			module_key VARCHAR(120) NOT NULL,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (staff_id, portal, module_key)
+		)");
+		return app_table_exists($conn, 'tbl_staff_module_allocations');
+	} catch (Throwable $e) {
+		return false;
+	}
+}
+
+function app_staff_module_allocations(PDO $conn, string $portal, string $staffId): array
+{
+	// Returns allocation active flag and module_keys map. Prefers per-staff allocations when present.
+	static $cache = [];
+	$portal = strtolower(trim($portal));
+	$staffIdInt = (int)$staffId;
+	$cacheKey = $portal . '|' . $staffIdInt;
+	if (isset($cache[$cacheKey])) {
+		return $cache[$cacheKey];
+	}
+
+	$result = [
+		'active' => false,
+		'module_keys' => [],
+	];
+
+	if ($portal === '' || $staffIdInt < 1) {
+		$cache[$cacheKey] = $result;
+		return $cache[$cacheKey];
+	}
+
+	try {
+		// Check staff-specific allocations first
+		if (app_ensure_staff_module_allocations_table($conn)) {
+			$stmt = $conn->prepare('SELECT module_key FROM tbl_staff_module_allocations WHERE staff_id = ? AND portal = ?');
+			$stmt->execute([$staffIdInt, $portal]);
+			$moduleKeys = array_values(array_unique(array_filter(array_map(static function ($moduleKey): string {
+				return strtolower(trim((string)$moduleKey));
+			}, $stmt->fetchAll(PDO::FETCH_COLUMN)), static function (string $moduleKey): bool {
+				return $moduleKey !== '';
+			})));
+
+			if (!empty($moduleKeys)) {
+				$result['active'] = true;
+				$result['module_keys'] = array_fill_keys($moduleKeys, true);
+				$cache[$cacheKey] = $result;
+				return $cache[$cacheKey];
+			}
+		}
+
+		// Fallback to role-based allocations
+		$result = app_staff_role_module_allocation($conn, $portal, $staffId);
+	} catch (Throwable $e) {
+		// ignore and return defaults
+	}
+
+	$cache[$cacheKey] = $result;
+	return $cache[$cacheKey];
+}
+
 function app_staff_module_allocation_allows(PDO $conn, string $portal, string $staffId, array $module): bool
 {
-	$allocation = app_staff_role_module_allocation($conn, $portal, $staffId);
+	$allocation = app_staff_module_allocations($conn, $portal, $staffId);
 	if (empty($allocation['active'])) {
 		return true;
 	}

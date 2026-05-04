@@ -182,10 +182,10 @@ try {
 		header('Content-Disposition: attachment; filename="results-analytics.csv"');
 		$out = fopen('php://output', 'w');
 		if ($classId > 0) {
-			fputcsv($out, ['Position', 'Student ID', 'Student Name', 'Subjects', 'Average', 'Total']);
-			foreach ($rankings as $row) {
-				fputcsv($out, [$row['position'], $row['student_id'], $row['student_name'], $row['subjects'], $row['avg_score'], $row['total_score']]);
-			}
+			   fputcsv($out, ['Student ID', 'Student Name', 'Subjects', 'Average', 'Total']);
+			   foreach ($rankings as $row) {
+				   fputcsv($out, [$row['student_id'], $row['student_name'], $row['subjects'], $row['avg_score'], $row['total_score']]);
+			   }
 		} else {
 			fputcsv($out, ['Class', 'Students', 'Average', 'Highest', 'Lowest']);
 			foreach ($classSummaries as $row) {

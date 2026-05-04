@@ -10,17 +10,39 @@ require_once(__DIR__ . '/../mail/src/SMTP.php');
 
 function app_get_smtp(PDO $conn): ?array {
 	try {
-		if (!app_table_exists($conn, 'tbl_smtp')) { return null; }
-		$stmt = $conn->prepare("SELECT server, username, password, port, encryption, status FROM tbl_smtp ORDER BY id DESC LIMIT 1");
-		$stmt->execute();
-		$row = $stmt->fetch(PDO::FETCH_ASSOC);
-		if (!$row) { return null; }
-		if (isset($row['status']) && (int)$row['status'] !== 1) { return null; }
 		$envServer = trim((string)(getenv('SMTP_HOST') ?: ''));
 		$envUsername = trim((string)(getenv('SMTP_USERNAME') ?: ''));
 		$envPassword = (string)(getenv('SMTP_PASSWORD') ?: '');
 		$envPort = trim((string)(getenv('SMTP_PORT') ?: ''));
 		$envEncryption = trim((string)(getenv('SMTP_ENCRYPTION') ?: ''));
+		if (!app_table_exists($conn, 'tbl_smtp')) {
+			if ($envServer === '' || $envUsername === '') {
+				return null;
+			}
+			return [
+				'server' => $envServer,
+				'username' => $envUsername,
+				'password' => $envPassword,
+				'port' => $envPort !== '' ? $envPort : '587',
+				'encryption' => $envEncryption !== '' ? $envEncryption : 'tls',
+				'status' => 1,
+			];
+		}
+		$stmt = $conn->prepare("SELECT server, username, password, port, encryption, status FROM tbl_smtp ORDER BY id DESC LIMIT 1");
+		$stmt->execute();
+		$row = $stmt->fetch(PDO::FETCH_ASSOC);
+		if (!$row) {
+			if ($envServer === '' || $envUsername === '') { return null; }
+			return [
+				'server' => $envServer,
+				'username' => $envUsername,
+				'password' => $envPassword,
+				'port' => $envPort !== '' ? $envPort : '587',
+				'encryption' => $envEncryption !== '' ? $envEncryption : 'tls',
+				'status' => 1,
+			];
+		}
+		if (isset($row['status']) && (int)$row['status'] !== 1) { return null; }
 		if ($envServer !== '') { $row['server'] = $envServer; }
 		if ($envUsername !== '') { $row['username'] = $envUsername; }
 		if ($envPassword !== '') { $row['password'] = $envPassword; }
@@ -176,41 +198,108 @@ function app_send_sms(PDO $conn, string $recipient, string $message): array {
 		}
 
 		$provider = $settings['provider'] ?: 'custom';
-		$payload = json_encode([
-			'to' => $recipient,
-			'message' => $message,
-			'sender' => $settings['sender_id'],
-			'api_key' => $settings['api_key']
-		]);
+		$providerNormalized = strtolower(trim((string)$provider));
+		$apiUrl = (string)$settings['api_url'];
+		$apiKey = (string)$settings['api_key'];
+		$senderId = trim((string)($settings['sender_id'] ?? ''));
+		$payload = '';
+		$headers = [];
 
-		$ch = curl_init($settings['api_url']);
-		curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-		curl_setopt($ch, CURLOPT_POST, true);
-		curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
-		curl_setopt($ch, CURLOPT_HTTPHEADER, [
-			'Content-Type: application/json',
-			'Accept: application/json',
-			'Authorization: Bearer '.$settings['api_key']
-		]);
-		$response = curl_exec($ch);
-		$httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-		if ($response === false) {
-			$error = curl_error($ch);
-		} else if ($httpCode >= 200 && $httpCode < 300) {
-			$status = 'sent';
-			if (app_table_exists($conn, 'tbl_sms_wallets') && $tokensUsed > 0) {
-				try {
-					app_sms_wallet_adjust($conn, $walletId, -$tokensUsed, 'SMS-' . date('YmdHis'), 'Outbound SMS to ' . $recipient, 'usage');
-					$deductedTokens = true;
-				} catch (Throwable $e) {
-					$status = 'failed';
-					$error = 'SMS sent but token deduction failed';
+		if ($providerNormalized === 'africastalking') {
+			$username = trim((string)(getenv('AFRICASTALKING_USERNAME') ?: getenv('AT_USERNAME') ?: ''));
+			if ($username === '' && stripos($apiUrl, 'sandbox') !== false) {
+				$username = 'sandbox';
+			}
+			if ($username === '') {
+				$error = 'Africa\'s Talking username missing. Set AFRICASTALKING_USERNAME or AT_USERNAME.';
+			} else {
+				$form = [
+					'username' => $username,
+					'to' => $recipient,
+					'message' => $message,
+				];
+				if ($senderId !== '') {
+					$form['from'] = $senderId;
 				}
+				$payload = http_build_query($form);
+				$headers = [
+					'Content-Type: application/x-www-form-urlencoded',
+					'Accept: application/json',
+					'apiKey: ' . $apiKey,
+				];
 			}
 		} else {
-			$error = 'HTTP '.$httpCode;
+			$payload = json_encode([
+				'to' => $recipient,
+				'message' => $message,
+				'sender' => $senderId,
+				'api_key' => $apiKey
+			]);
+			$headers = [
+				'Content-Type: application/json',
+				'Accept: application/json',
+				'Authorization: Bearer ' . $apiKey,
+			];
 		}
-		curl_close($ch);
+
+		if ($error === '') {
+			$response = '';
+			$httpCode = 0;
+
+			if (function_exists('curl_init')) {
+				$ch = curl_init($apiUrl);
+				curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+				curl_setopt($ch, CURLOPT_POST, true);
+				curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+				curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+				$response = (string)curl_exec($ch);
+				$httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+				if ($response === '' && curl_errno($ch)) {
+					$error = curl_error($ch);
+				}
+				curl_close($ch);
+			} else {
+				$headerText = '';
+				foreach ($headers as $headerLine) {
+					$headerText .= $headerLine . "\r\n";
+				}
+				$context = stream_context_create([
+					'http' => [
+						'method' => 'POST',
+						'header' => $headerText,
+						'content' => $payload,
+						'ignore_errors' => true,
+						'timeout' => 20,
+					],
+				]);
+				$raw = @file_get_contents($apiUrl, false, $context);
+				$response = $raw === false ? '' : (string)$raw;
+				if (isset($http_response_header[0]) && preg_match('/\s(\d{3})\s/', (string)$http_response_header[0], $m)) {
+					$httpCode = (int)$m[1];
+				}
+				if ($raw === false && $httpCode === 0) {
+					$error = 'SMS request failed; HTTP client unavailable';
+				}
+			}
+
+			if ($error === '') {
+				if ($httpCode >= 200 && $httpCode < 300) {
+					$status = 'sent';
+					if (app_table_exists($conn, 'tbl_sms_wallets') && $tokensUsed > 0) {
+						try {
+							app_sms_wallet_adjust($conn, $walletId, -$tokensUsed, 'SMS-' . date('YmdHis'), 'Outbound SMS to ' . $recipient, 'usage');
+							$deductedTokens = true;
+						} catch (Throwable $e) {
+							$status = 'failed';
+							$error = 'SMS sent but token deduction failed';
+						}
+					}
+				} else {
+					$snippet = trim(substr($response, 0, 180));
+					$error = 'HTTP ' . $httpCode . ($snippet !== '' ? ': ' . $snippet : '');
+				}
+			}
+		}
 	}
 
 	if (app_table_exists($conn, 'tbl_sms_logs')) {

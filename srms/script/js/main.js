@@ -298,6 +298,7 @@
 		document.body.appendChild(panel);
 
 		var storageKey = 'srms-ai-widget-history:anon';
+		var userKeyLoaded = false;
 		var chatBox = null;
 		var statusBox = null;
 		var messageBox = null;
@@ -362,12 +363,16 @@
 		}
 
 		function loadServerHistory() {
-			return fetch('core/ai_feedback?action=history', { credentials: 'same-origin' })
+			if (userKeyLoaded) {
+				return Promise.resolve(loadHistory());
+			}
+				return fetch(appCoreEndpoint('ai_feedback.php') + '?action=history', { credentials: 'same-origin' })
 				.then(function (r) { return r.json(); })
 				.then(function (data) {
 					if (data && data.ok) {
 						var userKey = (data.user_key || 'anon').replace(/[^a-zA-Z0-9:_-]/g, '');
 						storageKey = 'srms-ai-widget-history:' + userKey;
+						userKeyLoaded = true;
 						var history = Array.isArray(data.history) ? data.history : [];
 						if (history.length) {
 							saveHistory(history);
@@ -379,6 +384,27 @@
 				.catch(function () {
 					return [];
 				});
+		}
+
+		function openWidget() {
+			loadServerHistory().then(function () {
+				panel.classList.add('is-open');
+				setTimeout(function () {
+					if (!chatBox) {
+						chatBox = document.getElementById('aiChat');
+						statusBox = document.getElementById('aiStatus');
+						messageBox = document.getElementById('aiMessage');
+					}
+					syncHistory();
+					if (!loadHistory().length) {
+						pushHistory('edu', 'Hello. Ask me about reports, fees, attendance, or send feedback.');
+						syncHistory();
+					}
+					if (messageBox) {
+						messageBox.focus();
+					}
+				}, 0);
+			});
 		}
 
 		function sendMessage() {
@@ -394,17 +420,30 @@
 			appendMessage('thinking', thinking);
 			setStatus(thinking);
 
-			fetch('core/ai_feedback', {
+			fetch(appCoreEndpoint('ai_feedback.php'), {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				credentials: 'same-origin',
 				body: JSON.stringify({ message: msg, category: mode })
-			}).then(function (r) { return r.json(); }).then(function (data) {
+			}).then(function (r) {
+				return r.text().then(function (text) {
+					var data = null;
+					try {
+						data = JSON.parse(text || '{}');
+					} catch (error) {
+						data = { ok: false, message: text || ('HTTP ' + r.status) };
+					}
+					if (!r.ok && !data.message) {
+						data.message = 'HTTP ' + r.status;
+					}
+					return data;
+				});
+			}).then(function (data) {
 				var currentThinking = chatBox.querySelector('.ai-message.thinking');
 				if (currentThinking) {
 					currentThinking.remove();
 				}
-				var reply = data && data.ok ? (data.response || 'Thanks. We received your message.') : (data && data.message ? data.message : 'Failed to send.');
+				var reply = data && data.ok ? (data.response || 'Thanks. We received your message.') : (data && (data.message || data.details) ? (data.message || data.details) : 'Failed to send.');
 				var role = (mode === 'ai' && data && data.ok) ? 'edu' : 'system';
 				appendMessage(role, reply);
 				pushHistory(role, reply);
@@ -421,26 +460,11 @@
 		}
 
 		fab.addEventListener('click', function () {
-			panel.classList.toggle('is-open');
 			if (panel.classList.contains('is-open')) {
-				setTimeout(function () {
-					if (!chatBox) {
-						chatBox = document.getElementById('aiChat');
-						statusBox = document.getElementById('aiStatus');
-						messageBox = document.getElementById('aiMessage');
-						loadServerHistory().then(function () {
-							syncHistory();
-							if (!loadHistory().length) {
-								pushHistory('edu', 'Hello. Ask me about reports, fees, attendance, or send feedback.');
-								syncHistory();
-							}
-						});
-					}
-					if (messageBox) {
-						messageBox.focus();
-					}
-				}, 0);
+				panel.classList.remove('is-open');
+				return;
 			}
+			openWidget();
 		});
 		document.addEventListener('click', function (e) {
 			if (e.target && e.target.id === 'aiClose') {
@@ -547,12 +571,13 @@
 	}
 
 	function appCoreEndpoint(fileName) {
-		var base = document.baseURI || window.location.href;
-		try {
-			return new URL('core/' + fileName, base).toString();
-		} catch (e) {
-			return 'core/' + fileName;
+		var path = window.location.pathname || '';
+		var marker = '/script/';
+		var index = path.toLowerCase().indexOf(marker);
+		if (index !== -1) {
+			return path.substring(0, index + marker.length) + 'core/' + fileName;
 		}
+		return 'core/' + fileName;
 	}
 
 	function appEnsureConnectivityBanner() {
@@ -837,6 +862,72 @@
 	appInitOnlineWidget(portal);
 	appInitGlobalAutoRefresh();
 	appApplyImpersonationBanner();
+
+	/* Auto-scale wide mark-sheet / class-list tables to fit printable area.
+	   This adjusts tables inside .sheet-wrap elements and scales them via CSS transform
+	   so the layout doesn't overflow when printing or viewing on narrow screens. */
+	function appAdjustWideTablesForPrint() {
+		var wrappers = document.querySelectorAll('.sheet-wrap');
+		wrappers.forEach(function (wrap) {
+			var table = wrap.querySelector('table.sheet-table');
+			if (!table) return;
+			// ensure wrapper for clipping
+			if (!wrap.querySelector('.fit-scale-wrapper')) {
+				var inner = document.createElement('div');
+				inner.className = 'fit-scale-wrapper';
+				// move table into wrapper
+				table.parentNode.insertBefore(inner, table);
+				inner.appendChild(table);
+				// keep reference
+				wrap._fitWrapper = inner;
+			} else {
+				wrap._fitWrapper = wrap.querySelector('.fit-scale-wrapper');
+			}
+
+			var clip = wrap._fitWrapper;
+			// reset first
+			table.style.transform = '';
+			table.classList.remove('sheet-table--too-small');
+			clip.style.height = '';
+
+			// compute available width and table natural width
+			var avail = Math.max(1, clip.clientWidth || wrap.clientWidth || 800) - 8;
+			var natural = Math.max(1, table.scrollWidth || table.offsetWidth);
+			if (natural > avail) {
+				var scale = Math.max(0.45, avail / natural);
+				table.style.transform = 'scale(' + scale + ')';
+				// set wrapper height to preserve flow (table height * scale)
+				var h = Math.ceil((table.offsetHeight || table.getBoundingClientRect().height) * scale) + 'px';
+				clip.style.height = h;
+				if (scale < 0.7) table.classList.add('sheet-table--too-small');
+			}
+		});
+	}
+
+	// Reset scaled tables (useful after printing or when layout changes)
+	function appResetScaledTables() {
+		var tables = document.querySelectorAll('table.sheet-table');
+		tables.forEach(function (t) {
+			t.style.transform = '';
+			t.classList.remove('sheet-table--too-small');
+			var wrapper = t.closest('.fit-scale-wrapper');
+			if (wrapper) wrapper.style.height = '';
+		});
+	}
+
+	// Bind to print lifecycle and resize
+	if (window.matchMedia) {
+		window.matchMedia('print').addEventListener('change', function (m) {
+			if (m.matches) {
+				appAdjustWideTablesForPrint();
+			} else {
+				appResetScaledTables();
+			}
+		});
+	}
+	window.addEventListener('beforeprint', appAdjustWideTablesForPrint);
+	window.addEventListener('afterprint', appResetScaledTables);
+	window.addEventListener('resize', function () { setTimeout(appResetScaledTables, 80); setTimeout(appAdjustWideTablesForPrint, 220); });
 
 	// Restrict copying/paste/context menu only on admin/teacher portals - PERF: Reduces event overhead
 	var isSensitivePortal = window.location.pathname.indexOf('/admin/') > -1 || 

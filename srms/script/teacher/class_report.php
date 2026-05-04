@@ -111,8 +111,9 @@ try {
 <a class="btn btn-outline-secondary btn-sm" href="teacher/manage_results"><i class="bi bi-arrow-left me-2"></i>Back</a>
 <button class="btn btn-primary btn-sm" onclick="window.print();"><i class="bi bi-printer me-2"></i>Print Whole Class</button>
 </div>
-<div class="table-responsive">
-<table class="table table-bordered table-striped table-sm">
+<div class="sheet-wrap">
+  <div class="table-responsive">
+    <table class="table table-bordered table-striped table-sm sheet-table">
 <thead>
 <tr>
 <th>School ID</th>
@@ -138,7 +139,8 @@ try {
 <?php endforeach; ?>
 </tbody>
 </table>
-</div>
+    </div>
+  </div>
 </div>
 </div>
 </main>

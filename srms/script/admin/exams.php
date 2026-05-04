@@ -23,6 +23,7 @@ $defaultGradingSystemId = 0;
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	app_ensure_exam_grading_schema($conn);
 	app_ensure_exam_type($conn);
 	app_ensure_exam_weights_table($conn);
 

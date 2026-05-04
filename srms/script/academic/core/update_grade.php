@@ -1,53 +1,13 @@
 <?php
-chdir('../../');
 session_start();
+chdir('../../');
 require_once('db/config.php');
+require_once('const/check_session.php');
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+// CBC-ONLY: Legacy grade system is deprecated. CBC grading is standardized and cannot be modified.
+// Redirect to grading system page with error message.
 
-$grade_name = ucwords($_POST['grade_name']);
-$min = $_POST['min'];
-$max = $_POST['max'];
-$remark = ucwords($_POST['remark']);
-$id = $_POST['id'];
-
-if ($min > 100 OR $max > 100) {
-$_SESSION['reply'] = array (array("danger","Minimum and Maximum percentage must be less or equal to 100%"));
+$_SESSION['reply'] = array(array("warning", "The legacy grading system is deprecated. CBC uses standardized national grading bands (EE, ME, AE, BE) that cannot be modified. Please use the CBC Grading System page to view the current grading standards."));
 header("location:../grading-system");
-}else{
-
-try {
-$conn = app_db();
-$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-$stmt = $conn->prepare("SELECT * FROM tbl_grade_system WHERE name = ? AND id != ? OR min = ? AND max = ? AND id != ?");
-$stmt->execute([$grade_name, $id, $min, $max, $id]);
-$result = $stmt->fetchAll();
-
-if (count($result) > 0) {
-$_SESSION['reply'] = array (array("warning","Grade is already registered"));
-header("location:../grading-system");
-}else{
-
-$stmt = $conn->prepare("UPDATE tbl_grade_system  SET name=?, min=?, max=?, remark=? WHERE id = ?");
-$stmt->execute([$grade_name, $min, $max,  $remark, $id]);
-
-$_SESSION['reply'] = array (array("success","Grade updated successfully"));
-header("location:../grading-system");
-
-}
-
-}catch(PDOException $e)
-{
-error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
-echo "Connection failed.";
-}
-
-}
-
-
-
-}else{
-header("location:../");
-}
+exit;
 ?>

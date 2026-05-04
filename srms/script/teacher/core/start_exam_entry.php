@@ -24,6 +24,7 @@ if ($examId < 1 || $subjectComb < 1) {
 try {
   $conn = app_db();
   $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+  app_ensure_exam_grading_schema($conn);
   app_ensure_exam_subjects_table($conn);
 
   $stmt = $conn->prepare("SELECT * FROM tbl_exams WHERE id = ? AND status IN ('active', 'open') LIMIT 1");

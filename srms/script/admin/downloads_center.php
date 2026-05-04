@@ -145,16 +145,9 @@ try {
                             <span class="badge bg-light text-dark badge-status">All Students</span>
                             <span class="badge bg-light text-dark badge-status">Single PDF</span>
                         </div>
-                        <?php if ($selectedClass > 0 && $selectedTerm > 0): ?>
-                            <a href="class_report_pdf?class=<?php echo $selectedClass; ?>&term=<?php echo $selectedTerm; ?>&download=1" 
-                               target="_blank" class="btn btn-success btn-sm w-100">
-                                <i class="bi bi-download me-1"></i> Download PDF
-                            </a>
-                        <?php else: ?>
-                            <button class="btn btn-success btn-sm w-100" disabled>
-                                <i class="bi bi-download me-1"></i> Select Class & Term
-                            </button>
-                        <?php endif; ?>
+                        <a href="/srms/script/admin/class_report_pdf" target="_blank" class="btn btn-success btn-sm w-100 requires-filter">
+                            <i class="bi bi-download me-1"></i> Download PDF
+                        </a>
                     </div>
                 </div>
             </div>
@@ -170,16 +163,9 @@ try {
                             <span class="badge bg-light text-dark badge-status">Rankings</span>
                             <span class="badge bg-light text-dark badge-status">Performance</span>
                         </div>
-                        <?php if ($selectedClass > 0 && $selectedTerm > 0): ?>
-                            <a href="merit_list_pdf?class_id=<?php echo $selectedClass; ?>&term_id=<?php echo $selectedTerm; ?>" 
-                               target="_blank" class="btn btn-warning btn-sm w-100">
-                                <i class="bi bi-download me-1"></i> Download Merit List
-                            </a>
-                        <?php else: ?>
-                            <button class="btn btn-warning btn-sm w-100" disabled>
-                                <i class="bi bi-download me-1"></i> Select Class & Term
-                            </button>
-                        <?php endif; ?>
+                        <a href="/srms/script/admin/merit_list_pdf" target="_blank" class="btn btn-warning btn-sm w-100 requires-filter">
+                            <i class="bi bi-download me-1"></i> Download Merit List
+                        </a>
                     </div>
                 </div>
             </div>
@@ -195,16 +181,9 @@ try {
                             <span class="badge bg-light text-dark badge-status">ZIP Archive</span>
                             <span class="badge bg-light text-dark badge-status">Individual Files</span>
                         </div>
-                        <?php if ($selectedClass > 0 || $selectedTerm > 0): ?>
-                            <a href="core/download_all_reports?list_class_id=<?php echo $selectedClass; ?>&list_term_id=<?php echo $selectedTerm; ?>" 
-                               class="btn btn-info btn-sm w-100">
-                                <i class="bi bi-download me-1"></i> Download ZIP
-                            </a>
-                        <?php else: ?>
-                            <button class="btn btn-info btn-sm w-100" disabled>
-                                <i class="bi bi-download me-1"></i> Select Filters
-                            </button>
-                        <?php endif; ?>
+                        <a href="/srms/script/admin/core/download_all_reports" class="btn btn-info btn-sm w-100 requires-filter">
+                            <i class="bi bi-download me-1"></i> Download ZIP
+                        </a>
                     </div>
                 </div>
             </div>
@@ -286,5 +265,55 @@ try {
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        function getSelections() {
+            var c = document.getElementById('filterClass');
+            var t = document.getElementById('filterTerm');
+            return { cls: c ? c.value : '0', term: t ? t.value : '0' };
+        }
+
+        function buildAndOpen(a) {
+            var href = a.getAttribute('href') || '';
+            var sel = getSelections();
+            var cls = parseInt(sel.cls, 10) || 0;
+            var term = parseInt(sel.term, 10) || 0;
+            var origin = window.location.origin || (window.location.protocol + '//' + window.location.host);
+            var adminBase = origin + '/srms/script/admin/';
+
+            if (href.indexOf('class_report_pdf') !== -1) {
+                if (!cls || !term) { alert('Please select Class and Term first.'); return; }
+                var url = adminBase + 'class_report_pdf?class=' + cls + '&term=' + term + '&download=1';
+                window.open(url, '_blank');
+                return;
+            }
+
+            if (href.indexOf('merit_list_pdf') !== -1) {
+                if (!cls || !term) { alert('Please select Class and Term first.'); return; }
+                var url = adminBase + 'merit_list_pdf?class_id=' + cls + '&term_id=' + term;
+                window.open(url, '_blank');
+                return;
+            }
+
+            if (href.indexOf('download_all_reports') !== -1) {
+                if (!cls && !term) { alert('Please select at least Class or Term before downloading.'); return; }
+                var url = adminBase + 'core/download_all_reports?list_class_id=' + cls + '&list_term_id=' + term;
+                window.open(url, '_blank');
+                return;
+            }
+
+            // fallback: follow link
+            window.open(href.indexOf('http') === 0 ? href : adminBase + href, '_blank');
+        }
+
+        var els = document.querySelectorAll('a.requires-filter');
+        els.forEach(function (a) {
+            a.addEventListener('click', function (ev) {
+                ev.preventDefault();
+                buildAndOpen(a);
+            });
+        });
+    });
+    </script>
 </body>
 </html>

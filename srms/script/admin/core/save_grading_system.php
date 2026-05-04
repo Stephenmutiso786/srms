@@ -49,6 +49,7 @@ function app_grading_stmt(PDO $conn, string $sql, array $params = [], string $co
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	app_ensure_exam_grading_schema($conn);
 	if (!app_table_exists($conn, 'tbl_grading_systems') || !app_table_exists($conn, 'tbl_grading_scales')) {
 		throw new RuntimeException('Grading system support is not installed. Run migration 030.');
 	}

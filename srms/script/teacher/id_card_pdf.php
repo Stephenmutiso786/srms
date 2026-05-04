@@ -33,7 +33,7 @@ try {
 	$pdf->RoundedRect(1.5, 1.5, 83, 13, 4, '1100', 'F');
 
 	$logoPath = 'images/logo/' . ($school['logo'] ?? '');
-	if (!empty($school['logo']) && file_exists($logoPath)) {
+	if (!empty($school['logo']) && app_pdf_image_path_is_safe($logoPath)) {
 		$pdf->Image($logoPath, 4, 3.2, 8.5, 8.5);
 	}
 

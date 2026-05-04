@@ -1097,27 +1097,6 @@ if (count($slides) === 0) {
 			return null;
 		});
 
-		var deferredPrompt = null;
-		var installBtn = document.getElementById('installBtn');
-		window.addEventListener('beforeinstallprompt', function (e) {
-			e.preventDefault();
-			deferredPrompt = e;
-			if (installBtn) {
-				installBtn.style.display = 'inline-flex';
-			}
-		});
-
-		if (installBtn) {
-			installBtn.addEventListener('click', function () {
-				if (!deferredPrompt) {
-					return;
-				}
-				deferredPrompt.prompt();
-				deferredPrompt = null;
-				installBtn.style.display = 'none';
-			});
-		}
-
 		var notifyBtn = document.getElementById('notifyBtn');
 		if (notifyBtn) {
 			notifyBtn.addEventListener('click', function () {
@@ -1139,6 +1118,14 @@ if (count($slides) === 0) {
 			});
 		}
 	})();
+
+	window.SRMS_PWA_INSTALL_CONFIG = {
+		buttonId: 'installBtn',
+		autoPrompt: true,
+		promptDelayMs: 1000,
+		sessionKey: 'srms_pwa_prompt_public'
+	};
 	</script>
+	<script src="js/pwa-install.js"></script>
 </body>
 </html>

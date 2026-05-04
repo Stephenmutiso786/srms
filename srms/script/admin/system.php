@@ -76,6 +76,7 @@ $hasLoginBackground = false;
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	app_ensure_current_mode_mysql_schema($conn);
 	app_ensure_overall_grading_defaults($conn);
 
 	if (app_table_exists($conn, 'tbl_result_settings')) {

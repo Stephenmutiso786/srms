@@ -79,11 +79,8 @@ function app_certificate_code(string $studentId): string
 
 function app_certificate_verify_url(string $code): string
 {
-    if (defined('APP_URL') && APP_URL !== '') {
-        return rtrim((string)APP_URL, '/') . '/verify_certificate?code=' . urlencode($code);
-    }
-    $host = $_SERVER['HTTP_HOST'] ?? '';
-    return 'http://' . $host . '/verify_certificate?code=' . urlencode($code);
+    $base = app_base_url();
+    return rtrim($base, '/') . '/verify_certificate?code=' . urlencode($code);
 }
 
 /**
@@ -207,15 +204,21 @@ function app_promotion_eligibility_check(PDO $conn, int $studentId): array
         }
         
         // Check report card finalization
-        $stmt = $conn->prepare('
-            SELECT finalized FROM tbl_report_cards 
-            WHERE student_id = ? 
-            ORDER BY id DESC LIMIT 1
-        ');
-        $stmt->execute([$studentId]);
-        $report = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        $checks['report_finalized'] = $report && $report['finalized'];
+        if (app_column_exists($conn, 'tbl_report_cards', 'finalized')) {
+            $stmt = $conn->prepare('
+                SELECT finalized FROM tbl_report_cards 
+                WHERE student_id = ? 
+                ORDER BY id DESC LIMIT 1
+            ');
+            $stmt->execute([$studentId]);
+            $report = $stmt->fetch(PDO::FETCH_ASSOC);
+            $checks['report_finalized'] = $report && !empty($report['finalized']);
+        } else {
+            $stmt = $conn->prepare('SELECT 1 FROM tbl_report_cards WHERE student_id = ? ORDER BY id DESC LIMIT 1');
+            $stmt->execute([$studentId]);
+            $checks['report_finalized'] = (bool)$stmt->fetchColumn();
+        }
+
         if ($checks['report_finalized']) {
             $checks['messages'][] = 'Report card finalized ✓';
         } else {

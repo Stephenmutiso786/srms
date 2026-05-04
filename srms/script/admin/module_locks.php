@@ -24,6 +24,7 @@ $locks = [];
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	app_ensure_current_mode_mysql_schema($conn);
 
 	if (app_table_exists($conn, 'tbl_module_locks')) {
 		$stmt = $conn->prepare("SELECT module, locked, reason, locked_at FROM tbl_module_locks");

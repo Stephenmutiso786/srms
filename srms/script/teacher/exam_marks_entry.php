@@ -14,6 +14,7 @@ $examModeMap = [];
 try {
   $conn = app_db();
   $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+  app_ensure_exam_grading_schema($conn);
   app_ensure_exam_subjects_table($conn);
   app_ensure_exam_assessment_mode_column($conn);
 

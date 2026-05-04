@@ -14,16 +14,17 @@ $cbcSubmissions = [];
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+  app_ensure_exam_grading_schema($conn);
 
 	if (app_table_exists($conn, 'tbl_exam_mark_submissions')) {
 		$stmt = $conn->prepare("SELECT s.*, e.name AS exam_name, c.name AS class_name, t.name AS term_name, sb.name AS subject_name
 			FROM tbl_exam_mark_submissions s
 			LEFT JOIN tbl_exams e ON e.id = s.exam_id
-			LEFT JOIN tbl_classes c ON c.id = s.class_id
+            LEFT JOIN tbl_classes c ON c.id = s.class_id
 			LEFT JOIN tbl_terms t ON t.id = s.term_id
 			LEFT JOIN tbl_subject_combinations sc ON sc.id = s.subject_combination_id
 			LEFT JOIN tbl_subjects sb ON sb.id = sc.subject
-			ORDER BY s.submitted_at DESC NULLS LAST, s.id DESC");
+      ORDER BY (s.submitted_at IS NULL) ASC, s.submitted_at DESC, s.id DESC");
 		$stmt->execute();
 		$examSubmissions = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
@@ -31,10 +32,10 @@ try {
 	if (app_table_exists($conn, 'tbl_cbc_mark_submissions')) {
 		$stmt = $conn->prepare("SELECT s.*, c.name AS class_name, t.name AS term_name, sb.name AS subject_name
 			FROM tbl_cbc_mark_submissions s
-			LEFT JOIN tbl_classes c ON c.id = s.class_id
+            LEFT JOIN tbl_classes c ON c.id = s.class_id
 			LEFT JOIN tbl_terms t ON t.id = s.term_id
 			LEFT JOIN tbl_subjects sb ON sb.id = s.subject_id
-			ORDER BY s.submitted_at DESC NULLS LAST, s.id DESC");
+      ORDER BY (s.submitted_at IS NULL) ASC, s.submitted_at DESC, s.id DESC");
 		$stmt->execute();
 		$cbcSubmissions = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}

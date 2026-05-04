@@ -1,0 +1,24 @@
+{
+  "name": "mobile-wrapper",
+  "version": "1.0.0",
+  "description": "Android wrapper for the locally hosted SRMS app",
+  "private": true,
+  "scripts": {
+    "cap:sync": "npx cap sync",
+    "cap:add:android": "npx cap add android",
+    "cap:open:android": "npx cap open android",
+    "build:apk:help": "echo 'Open the Android project in Android Studio, then Build > Build Bundle(s) / APK(s) > Build APK(s).'"
+  },
+  "keywords": [
+    "capacitor",
+    "android",
+    "srms"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@capacitor/android": "^8.3.1",
+    "@capacitor/cli": "^8.3.1",
+    "@capacitor/core": "^8.3.1"
+  }
+}

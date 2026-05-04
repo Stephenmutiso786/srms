@@ -6,6 +6,7 @@ require_once('const/school.php');
 require_once('const/check_session.php');
 require_once('const/report_engine.php');
 require_once('const/id_card_engine.php');
+require_once('const/report_card_layout.php');
 
 if ($res !== "1" || $level !== "3") { header("location:../"); }
 
@@ -543,6 +544,7 @@ try {
 	.report-sheet,.report-empty{box-shadow:none;max-width:100%;margin:0;border-radius:0;border:0}
 }
 </style>
+<?php echo app_report_card_view_styles(); ?>
 </head>
 <body class="app sidebar-mini">
 <header class="app-header"><a class="app-header__logo" href="javascript:void(0);\"><?php echo APP_NAME; ?></a>
@@ -598,35 +600,9 @@ try {
 </div>
 <?php else: ?>
 <?php
-$rows = !empty($examBreakdown) ? $examBreakdown : $subjectBreakdown;
-$subjectCount = count($rows);
-$totalMarks = isset($examSummary['total']) ? (float)$examSummary['total'] : (float)($card['total'] ?? 0);
-$meanScore = isset($examSummary['mean']) ? (float)$examSummary['mean'] : (float)($card['mean'] ?? 0);
-$maxMarks = max(100, $subjectCount * 100);
-$classMeanTotal = 0.0;
-$gradePointMap = [
-	'A+' => 12, 'A' => 11, 'A-' => 10, 'B+' => 9, 'B' => 8, 'B-' => 7,
-	'C+' => 6, 'C' => 5, 'C-' => 4, 'D+' => 3, 'D' => 2, 'D-' => 1, 'E' => 0
-];
-$totalPoints = 0.0;
-foreach ($rows as $subjectRow) {
-	$classMeanTotal += (float)($subjectRow['class_mean'] ?? 0);
-	$gradeKey = strtoupper(trim((string)($subjectRow['grade'] ?? '')));
-	$totalPoints += (float)($gradePointMap[$gradeKey] ?? 0);
-}
-$classMeanAvg = $subjectCount > 0 ? $classMeanTotal / $subjectCount : 0.0;
-$pointsMax = max(12, $subjectCount * 12);
-$classPointEstimate = ($classMeanAvg / 100) * $pointsMax;
-$meanDev = $meanScore - $classMeanAvg;
-$totalDev = $totalMarks - $classMeanTotal;
-$pointsDev = $totalPoints - $classPointEstimate;
 $schoolContact = trim(implode(' | ', array_filter([trim((string)WBAddress), trim((string)WBPhone), trim((string)WBEmail)])));
 $logoPath = 'images/logo/' . trim((string)WBLogo);
 $logoExists = trim((string)WBLogo) !== '' && is_file($logoPath);
-$attendanceRate = ((int)($attendance['days_open'] ?? 0) > 0) ? ((int)($attendance['present'] ?? 0) / max(1, (int)($attendance['days_open'] ?? 0)) * 100) : 0;
-$currentGrade = (string)($examSummary['grade'] ?? $card['grade'] ?? 'N/A');
-$streamPosition = (string)($examSummary['position'] ?? $card['position'] ?? '-') . '/' . (string)($examSummary['total'] ?? $card['total_students'] ?? '-');
-$overallPosition = (string)($card['position'] ?? '-') . '/' . (string)($card['total_students'] ?? '-');
 ?>
 <?php if ($blockReport): ?>
 <div class="report-empty mb-3" style="border-left:6px solid #d18b00;">
@@ -638,134 +614,25 @@ $overallPosition = (string)($card['position'] ?? '-') . '/' . (string)($card['to
 	<a class="btn btn-primary" href="student/report_card_pdf?term=<?php echo $termId; ?><?php echo $examId > 0 ? '&exam=' . $examId : ''; ?>&download=1" target="_blank"><i class="bi bi-download me-2"></i>Download PDF</a>
 	<a class="btn btn-outline-secondary" href="verify_report?code=<?php echo $card['verification_code']; ?>" target="_blank"><i class="bi bi-qr-code-scan me-2"></i>Verify</a>
 </div>
-
-<section class="report-sheet">
-	<header class="report-hero">
-		<div class="report-brand">
-			<div class="report-brand__logo">
-				<?php if ($logoExists): ?>
-				<img src="<?php echo htmlspecialchars($logoPath); ?>" alt="School Logo">
-				<?php endif; ?>
-			</div>
-			<div>
-				<h2 class="report-brand__name mb-1"><?php echo htmlspecialchars((string)WBName); ?></h2>
-				<div class="report-brand__meta"><?php echo htmlspecialchars($schoolContact); ?></div>
-			</div>
-			<div class="report-tag">Official Academic Report</div>
-		</div>
-	</header>
-
-	<div class="report-section">
-		<div class="student-grid">
-			<div class="student-photo">
-				<?php if ($photoExists): ?>
-				<img src="<?php echo htmlspecialchars($photoPath); ?>" alt="Student Photo">
-				<?php else: ?>
-				<div class="student-fallback"><?php echo htmlspecialchars(strtoupper(substr($fname, 0, 1) . substr($lname, 0, 1))); ?></div>
-				<?php endif; ?>
-			</div>
-
-			<div class="student-details">
-				<h2><?php echo htmlspecialchars($fname . ' ' . $lname); ?></h2>
-				<p><strong>Admission No:</strong> <?php echo htmlspecialchars($schoolId !== '' ? $schoolId : $account_id); ?></p>
-				<p><strong>Class/Form:</strong> <?php echo htmlspecialchars($className); ?></p>
-				<p><strong>Term:</strong> <?php echo htmlspecialchars($termName); ?></p>
-				<p><strong>Exam:</strong> <?php echo htmlspecialchars((string)($selectedExam['name'] ?? 'End Term Combined')); ?></p>
-				<p><strong>KCPE:</strong> <?php echo htmlspecialchars($kcpeScore !== '' ? $kcpeScore : 'N/A'); ?></p>
-
-				<div class="pill-row">
-					<div class="pill">Mean<strong><?php echo htmlspecialchars($currentGrade); ?></strong></div>
-					<div class="pill">Stream<strong><?php echo htmlspecialchars($streamPosition); ?></strong></div>
-					<div class="pill">Overall<strong><?php echo htmlspecialchars($overallPosition); ?></strong></div>
-				</div>
-			</div>
-
-			<div class="snapshot-card">
-				<div class="snapshot-card__head">Subject Snapshot</div>
-				<div class="snapshot-card__body">
-					<div class="snapshot-list">
-						<?php foreach (array_slice($rows, 0, 5) as $chartRow): ?>
-						<div class="snapshot-row">
-							<span><?php echo htmlspecialchars((string)$chartRow['subject_name']); ?></span>
-							<div class="snapshot-bars">
-								<div class="student-bar" style="width: <?php echo max(0, min(100, (float)($chartRow['score'] ?? 0))); ?>%;"></div>
-								<div class="class-bar" style="width: <?php echo max(0, min(100, (float)($chartRow['class_mean'] ?? 0))); ?>%;"></div>
-							</div>
-						</div>
-						<?php endforeach; ?>
-					</div>
-				</div>
-			</div>
-		</div>
-
-		<div class="stats-grid">
-			<div class="stat-card">Mean Grade<strong><?php echo htmlspecialchars($currentGrade); ?></strong><span class="dev <?php echo $meanDev > 0 ? 'up' : ($meanDev < 0 ? 'down' : 'flat'); ?>"><?php echo ($meanDev > 0 ? '+' : '') . number_format($meanDev, 1); ?> vs class</span></div>
-			<div class="stat-card">Total Marks<strong><?php echo number_format($totalMarks, 0) . '/' . number_format($maxMarks, 0); ?></strong><span class="dev <?php echo $totalDev > 0 ? 'up' : ($totalDev < 0 ? 'down' : 'flat'); ?>"><?php echo ($totalDev > 0 ? '+' : '') . number_format($totalDev, 0); ?> dev.</span></div>
-			<div class="stat-card">Total Points<strong><?php echo number_format($totalPoints, 1) . '/' . number_format($pointsMax, 0); ?></strong><span class="dev <?php echo $pointsDev > 0 ? 'up' : ($pointsDev < 0 ? 'down' : 'flat'); ?>"><?php echo ($pointsDev > 0 ? '+' : '') . number_format($pointsDev, 1); ?> dev.</span></div>
-			<div class="stat-card">Attendance<strong><?php echo (int)$attendance['present']; ?>/<?php echo (int)$attendance['days_open']; ?></strong><span class="dev flat"><?php echo number_format($attendanceRate, 1); ?>%</span></div>
-			<div class="stat-card">Stream Position<strong><?php echo htmlspecialchars($streamPosition); ?></strong><span class="dev flat">current</span></div>
-			<div class="stat-card">Overall Position<strong><?php echo htmlspecialchars($overallPosition); ?></strong><span class="dev flat">school wide</span></div>
-		</div>
-
-		<div class="performance-wrap">
-			<div class="performance-head">Academic Performance</div>
-			<table class="report-table">
-				<thead>
-					<tr>
-						<th>Subject</th>
-						<th class="center">Cat 1</th>
-						<th class="center">Cat 2</th>
-						<th class="center">Score</th>
-						<th class="center">Dev.</th>
-						<th class="center">Grade</th>
-						<th class="center">Rank</th>
-					</tr>
-				</thead>
-				<tbody>
-					<?php foreach ($rows as $subject):
-						$cat1 = $subject['cat1'] ?? ($subject['cat_1'] ?? '-');
-						$cat2 = $subject['cat2'] ?? ($subject['cat_2'] ?? '-');
-						$score = (float)($subject['score'] ?? 0);
-						$classMean = (float)($subject['class_mean'] ?? 0);
-						$dev = $score - $classMean;
-					?>
-					<tr>
-						<td><strong><?php echo htmlspecialchars((string)$subject['subject_name']); ?></strong></td>
-						<td class="center"><?php echo is_numeric($cat1) ? number_format((float)$cat1, 1) . '%' : htmlspecialchars((string)$cat1); ?></td>
-						<td class="center"><?php echo is_numeric($cat2) ? number_format((float)$cat2, 1) . '%' : htmlspecialchars((string)$cat2); ?></td>
-						<td class="center"><?php echo number_format($score, 1); ?>%</td>
-						<td class="center dev <?php echo $dev > 0 ? 'up' : ($dev < 0 ? 'down' : 'flat'); ?>"><?php echo ($dev > 0 ? '+' : '') . number_format($dev, 1); ?></td>
-						<td class="center"><strong><?php echo htmlspecialchars((string)($subject['grade'] ?? '-')); ?></strong></td>
-						<td class="center"><?php echo htmlspecialchars((string)($subject['rank'] ?? '-')); ?></td>
-					</tr>
-					<?php endforeach; ?>
-				</tbody>
-			</table>
-		</div>
-
-		<div class="footer-grid">
-			<div class="verifier">
-				<div class="remarks-card__head">Verification</div>
-				<div class="verifier__body">
-					<div class="verifier__badge mb-2">Secure QR Verification</div>
-					<div class="verifier__qr d-flex align-items-center justify-content-center"><i class="bi bi-qr-code-scan fs-2 text-success"></i></div>
-					<div><strong>Code:</strong> <?php echo htmlspecialchars((string)($card['verification_code'] ?? '')); ?></div>
-					<div><strong>Portal User:</strong> <?php echo htmlspecialchars((string)($schoolId !== '' ? $schoolId : $account_id)); ?></div>
-					<div class="mt-2 text-muted">Verify this report through the school portal or the PDF download.</div>
-				</div>
-			</div>
-
-			<div class="remarks">
-				<div class="remarks-card__head">Remarks</div>
-				<div class="remarks-card__body">
-					<p><strong>Class Teacher:</strong> <?php echo htmlspecialchars((string)($card['teacher_comment'] ?? $card['remark'])); ?></p>
-					<p><strong>Principal:</strong> <?php echo htmlspecialchars((string)($card['headteacher_comment'] ?? $card['remark'])); ?></p>
-					<p><strong>School Motto:</strong> <?php echo htmlspecialchars((string)WBMotto); ?></p>
-				</div>
-			</div>
-		</div>
-	</div>
-</section>
+<?php
+echo app_report_card_render($conn, [
+	'student_id' => (string)$account_id,
+	'student_name' => trim($fname . ' ' . $lname),
+	'school_id' => ($schoolId !== '' ? $schoolId : (string)$account_id),
+	'class_name' => $className,
+	'term_name' => $termName,
+	'exam_name' => (string)($selectedExam['name'] ?? 'END TERM COMBINED'),
+	'kcpe_score' => $kcpeScore,
+	'school_contact' => $schoolContact,
+	'logo_path' => $logoPath,
+	'logo_exists' => $logoExists,
+	'photo_path' => $photoPath,
+	'photo_exists' => $photoExists,
+	'card' => $card,
+	'rows' => !empty($examBreakdown) ? $examBreakdown : $subjectBreakdown,
+	'overall_grade' => (string)($examSummary['grade'] ?? $card['grade'] ?? 'N/A'),
+]);
+?>
 <?php endif; ?>
 </main>
 

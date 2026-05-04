@@ -2,20 +2,35 @@
 chdir('../../');
 session_start();
 require_once('db/config.php');
+require_once('const/check_session.php');
+require_once('const/rbac.php');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($res !== "1" || ((int)$level !== 1 && !app_current_user_has_any_permission(['staff.manage', 'academic.manage']))) {
+	$_SESSION['reply'] = array (array("danger",'Access denied.'));
+	header("location:../teachers");
+	exit;
+}
 
-$fname = ucfirst($_POST['fname']);
-$lname = ucfirst($_POST['lname']);
-$email = $_POST['email'];
-$gender = $_POST['gender'];
+$fname = ucfirst(trim((string)($_POST['fname'] ?? '')));
+$lname = ucfirst(trim((string)($_POST['lname'] ?? '')));
+$email = trim((string)($_POST['email'] ?? ''));
+$gender = trim((string)($_POST['gender'] ?? ''));
 $role = (string)($_POST['role'] ?? '2');
-$allowedRoles = ['2', '5'];
+$allowedRoles = ['0', '1', '2', '5', '6', '7', '8', '9'];
 if (!in_array($role, $allowedRoles, true)) {
 	$role = '2';
 }
-$pass = password_hash($_POST['password'], PASSWORD_DEFAULT);
-$status = $_POST['status'];
+$rawPassword = (string)($_POST['password'] ?? '');
+$status = (string)($_POST['status'] ?? '1');
+
+if ($fname === '' || $lname === '' || $email === '' || $rawPassword === '') {
+	$_SESSION['reply'] = array (array("danger",'All required staff fields must be filled in.'));
+	header("location:../teachers");
+	exit;
+}
+
+$pass = password_hash($rawPassword, PASSWORD_DEFAULT);
 
 try {
 $conn = app_db();

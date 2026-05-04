@@ -28,12 +28,7 @@ if ($subjectId < 1) {
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-	if (!app_table_exists($conn, 'tbl_subject_weights')) {
-		$_SESSION['reply'] = array (array("danger", "Subject weights table missing. Run migration 007."));
-		header("location:".$returnTo);
-		exit;
-	}
+	app_ensure_current_mode_mysql_schema($conn);
 
 	$stmt = $conn->prepare("SELECT subject_id FROM tbl_subject_weights WHERE subject_id = ?");
 	$stmt->execute([$subjectId]);

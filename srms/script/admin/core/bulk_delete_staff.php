@@ -3,8 +3,9 @@ chdir('../../');
 session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
+require_once('const/rbac.php');
 
-if ($res !== "1" || $level !== "0") {
+if ($res !== "1" || ((int)$level !== 1 && !app_current_user_has_any_permission(['staff.manage', 'academic.manage']))) {
 	header("location:../");
 	exit;
 }

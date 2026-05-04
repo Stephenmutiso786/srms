@@ -1,6 +1,26 @@
 <?php
 require_once('db/config.php');
 
+function app_pdf_supports_alpha_images(): bool
+{
+	return extension_loaded('gd') || extension_loaded('imagick');
+}
+
+function app_pdf_image_path_is_safe(string $path): bool
+{
+	$path = trim($path);
+	if ($path === '' || !is_file($path)) {
+		return false;
+	}
+
+	$extension = strtolower((string)pathinfo($path, PATHINFO_EXTENSION));
+	if (in_array($extension, ['png', 'webp', 'gif'], true) && !app_pdf_supports_alpha_images()) {
+		return false;
+	}
+
+	return true;
+}
+
 function idcard_school_meta(PDO $conn): array
 {
 	$meta = [
@@ -102,7 +122,6 @@ function idcard_staff_payload(PDO $conn, string $staffId): ?array
 
 function idcard_verify_url(string $schoolId): string
 {
-	$base = defined('APP_URL') && APP_URL !== '' ? APP_URL : ('http://' . ($_SERVER['HTTP_HOST'] ?? 'localhost'));
+	$base = app_base_url();
 	return rtrim($base, '/') . '/verify_report?code=' . urlencode($schoolId);
 }
-

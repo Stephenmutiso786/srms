@@ -25,36 +25,77 @@ if (is_file($cacheFile) && (time() - filemtime($cacheFile) < $cacheTtl)) {
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-	app_ensure_finance_tables($conn);
 	$driver = $conn->getAttribute(PDO::ATTR_DRIVER_NAME);
+	$safeScalar = static function (callable $callback, $default = 0) {
+		try {
+			return $callback();
+		} catch (Throwable $e) {
+			return $default;
+		}
+	};
+	$safeRows = static function (callable $callback): array {
+		try {
+			$rows = $callback();
+			return is_array($rows) ? $rows : [];
+		} catch (Throwable $e) {
+			return [];
+		}
+	};
 
 	$counts = [];
-	$counts['students'] = (int)$conn->query("SELECT COUNT(*) FROM tbl_students")->fetchColumn();
-	$counts['teachers'] = (int)$conn->query("SELECT COUNT(*) FROM tbl_staff WHERE level = 2")->fetchColumn();
-	$counts['staff'] = (int)$conn->query("SELECT COUNT(*) FROM tbl_staff")->fetchColumn();
-	$counts['classes'] = (int)$conn->query("SELECT COUNT(*) FROM tbl_classes")->fetchColumn();
-	$counts['subjects'] = (int)$conn->query("SELECT COUNT(*) FROM tbl_subjects")->fetchColumn();
-	$counts['terms_active'] = (int)$conn->query("SELECT COUNT(*) FROM tbl_terms WHERE status = 1")->fetchColumn();
+	$counts['students'] = app_table_exists($conn, 'tbl_students')
+		? (int)$safeScalar(fn() => $conn->query("SELECT COUNT(*) FROM tbl_students")->fetchColumn(), 0)
+		: 0;
+	$counts['teachers'] = app_table_exists($conn, 'tbl_staff')
+		? (int)$safeScalar(fn() => $conn->query("SELECT COUNT(*) FROM tbl_staff WHERE level = 2")->fetchColumn(), 0)
+		: 0;
+	$counts['staff'] = app_table_exists($conn, 'tbl_staff')
+		? (int)$safeScalar(fn() => $conn->query("SELECT COUNT(*) FROM tbl_staff")->fetchColumn(), 0)
+		: 0;
+	$counts['classes'] = app_table_exists($conn, 'tbl_classes')
+		? (int)$safeScalar(fn() => $conn->query("SELECT COUNT(*) FROM tbl_classes")->fetchColumn(), 0)
+		: 0;
+	$counts['subjects'] = app_table_exists($conn, 'tbl_subjects')
+		? (int)$safeScalar(fn() => $conn->query("SELECT COUNT(*) FROM tbl_subjects")->fetchColumn(), 0)
+		: 0;
+	$counts['terms_active'] = (app_table_exists($conn, 'tbl_terms') && app_column_exists($conn, 'tbl_terms', 'status'))
+		? (int)$safeScalar(fn() => $conn->query("SELECT COUNT(*) FROM tbl_terms WHERE status = 1")->fetchColumn(), 0)
+		: 0;
 
-	$stmt = $conn->prepare("SELECT c.id, c.name, COUNT(s.id) AS count
-		FROM tbl_classes c
-		LEFT JOIN tbl_students s ON s.class = c.id
-		GROUP BY c.id, c.name
-		ORDER BY c.id");
-	$stmt->execute();
-	$studentsByClass = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	$studentsByClass = [];
+	if (app_table_exists($conn, 'tbl_classes') && app_table_exists($conn, 'tbl_students')) {
+		$studentsByClass = $safeRows(function () use ($conn) {
+			$stmt = $conn->prepare("SELECT c.id, c.name, COUNT(s.id) AS count
+				FROM tbl_classes c
+				LEFT JOIN tbl_students s ON s.class = c.id
+				GROUP BY c.id, c.name
+				ORDER BY c.id");
+			$stmt->execute();
+			return $stmt->fetchAll(PDO::FETCH_ASSOC);
+		});
+	}
 
-	$stmt = $conn->prepare("SELECT t.id, t.name, COALESCE(AVG(r.score), 0) AS avg_score
-		FROM tbl_terms t
-		LEFT JOIN tbl_exam_results r ON r.term = t.id
-		GROUP BY t.id, t.name
-		ORDER BY t.id");
-	$stmt->execute();
-	$avgScoreByTerm = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	$avgScoreByTerm = [];
+	if (app_table_exists($conn, 'tbl_terms') && app_table_exists($conn, 'tbl_exam_results')) {
+		$avgScoreByTerm = $safeRows(function () use ($conn) {
+			$stmt = $conn->prepare("SELECT t.id, t.name, COALESCE(AVG(r.score), 0) AS avg_score
+				FROM tbl_terms t
+				LEFT JOIN tbl_exam_results r ON r.term = t.id
+				GROUP BY t.id, t.name
+				ORDER BY t.id");
+			$stmt->execute();
+			return $stmt->fetchAll(PDO::FETCH_ASSOC);
+		});
+	}
 
-	$stmt = $conn->prepare("SELECT gender, COUNT(*) AS count FROM tbl_students GROUP BY gender ORDER BY gender");
-	$stmt->execute();
-	$studentsByGender = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	$studentsByGender = [];
+	if (app_table_exists($conn, 'tbl_students') && app_column_exists($conn, 'tbl_students', 'gender')) {
+		$studentsByGender = $safeRows(function () use ($conn) {
+			$stmt = $conn->prepare("SELECT gender, COUNT(*) AS count FROM tbl_students GROUP BY gender ORDER BY gender");
+			$stmt->execute();
+			return $stmt->fetchAll(PDO::FETCH_ASSOC);
+		});
+	}
 
 	$attendanceSummary = [
 		"present" => 0,
@@ -64,13 +105,16 @@ try {
 	];
 
 	if (app_table_exists($conn, 'tbl_attendance_sessions') && app_table_exists($conn, 'tbl_attendance_records')) {
-		$stmt = $conn->prepare("SELECT r.status, COUNT(*) AS count
-			FROM tbl_attendance_records r
-			INNER JOIN tbl_attendance_sessions s ON s.id = r.session_id
-			WHERE s.session_date = CURRENT_DATE
-			GROUP BY r.status");
-		$stmt->execute();
-		foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+		$attendanceRows = $safeRows(function () use ($conn) {
+			$stmt = $conn->prepare("SELECT r.status, COUNT(*) AS count
+				FROM tbl_attendance_records r
+				INNER JOIN tbl_attendance_sessions s ON s.id = r.session_id
+				WHERE s.session_date = CURRENT_DATE
+				GROUP BY r.status");
+			$stmt->execute();
+			return $stmt->fetchAll(PDO::FETCH_ASSOC);
+		});
+		foreach ($attendanceRows as $row) {
 			$key = $row['status'] ?? '';
 			if ($key !== '') {
 				$attendanceSummary[$key] = (int)$row['count'];
@@ -80,9 +124,11 @@ try {
 
 	$staffAttendanceToday = 0;
 	if (app_table_exists($conn, 'tbl_staff_attendance')) {
-		$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_staff_attendance WHERE attendance_date = CURRENT_DATE AND status = 'present'");
-		$stmt->execute();
-		$staffAttendanceToday = (int)$stmt->fetchColumn();
+		$staffAttendanceToday = (int)$safeScalar(function () use ($conn) {
+			$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_staff_attendance WHERE attendance_date = CURRENT_DATE AND status = 'present'");
+			$stmt->execute();
+			return $stmt->fetchColumn();
+		}, 0);
 	}
 
 	$feeSummary = [
@@ -95,38 +141,42 @@ try {
 	$paymentsByMethod = [];
 
 	if (app_table_exists($conn, 'tbl_invoices')) {
-		$feeSummary['open_invoices'] = (int)$conn->query("SELECT COUNT(*) FROM tbl_invoices WHERE status = 'open'")->fetchColumn();
-		$feeSummary['paid_invoices'] = (int)$conn->query("SELECT COUNT(*) FROM tbl_invoices WHERE status = 'paid'")->fetchColumn();
+		$feeSummary['open_invoices'] = (int)$safeScalar(fn() => $conn->query("SELECT COUNT(*) FROM tbl_invoices WHERE status = 'open'")->fetchColumn(), 0);
+		$feeSummary['paid_invoices'] = (int)$safeScalar(fn() => $conn->query("SELECT COUNT(*) FROM tbl_invoices WHERE status = 'paid'")->fetchColumn(), 0);
 	}
 
 	if (app_table_exists($conn, 'tbl_invoice_lines') && app_table_exists($conn, 'tbl_invoices')) {
 		if (app_table_exists($conn, 'tbl_payments')) {
+			$feeSummary['outstanding_total'] = (float)$safeScalar(function () use ($conn) {
 			$stmt = $conn->prepare("
-				SELECT COALESCE(SUM(lines.total_amount - COALESCE(paid.total_paid, 0)), 0) AS outstanding
+				SELECT COALESCE(SUM(invoice_totals.total_amount - COALESCE(paid.total_paid, 0)), 0) AS outstanding
 				FROM (
 					SELECT i.id, SUM(l.amount) AS total_amount
 					FROM tbl_invoices i
 					INNER JOIN tbl_invoice_lines l ON l.invoice_id = i.id
 					WHERE i.status <> 'void'
 					GROUP BY i.id
-				) lines
+				) invoice_totals
 				LEFT JOIN (
 					SELECT invoice_id, SUM(amount) AS total_paid
 					FROM tbl_payments
 					GROUP BY invoice_id
-				) paid ON paid.invoice_id = lines.id
+				) paid ON paid.invoice_id = invoice_totals.id
 			");
-			$stmt->execute();
-			$feeSummary['outstanding_total'] = (float)$stmt->fetchColumn();
+				$stmt->execute();
+				return $stmt->fetchColumn();
+			}, 0);
 		} else {
-			$stmt = $conn->prepare("
+			$feeSummary['outstanding_total'] = (float)$safeScalar(function () use ($conn) {
+				$stmt = $conn->prepare("
 				SELECT COALESCE(SUM(l.amount), 0) AS outstanding
 				FROM tbl_invoices i
 				INNER JOIN tbl_invoice_lines l ON l.invoice_id = i.id
 				WHERE i.status <> 'void'
-			");
-			$stmt->execute();
-			$feeSummary['outstanding_total'] = (float)$stmt->fetchColumn();
+				");
+				$stmt->execute();
+				return $stmt->fetchColumn();
+			}, 0);
 		}
 	}
 
@@ -141,22 +191,26 @@ try {
 			$todayExpr = "CURRENT_DATE";
 		}
 
-		$feeSummary['payments_today'] = (float)$conn->query("SELECT COALESCE(SUM(amount),0) FROM tbl_payments WHERE $dateExpr = $todayExpr")->fetchColumn();
+		$feeSummary['payments_today'] = (float)$safeScalar(fn() => $conn->query("SELECT COALESCE(SUM(amount),0) FROM tbl_payments WHERE $dateExpr = $todayExpr")->fetchColumn(), 0);
 
-		$stmt = $conn->prepare("SELECT $dateExpr AS day, COALESCE(SUM(amount),0) AS total
-			FROM tbl_payments
-			WHERE $dateExpr >= $rangeExpr
-			GROUP BY $dateExpr
-			ORDER BY $dateExpr");
-		$stmt->execute();
-		$paymentsByDay = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		$paymentsByDay = $safeRows(function () use ($conn, $dateExpr, $rangeExpr) {
+			$stmt = $conn->prepare("SELECT $dateExpr AS day, COALESCE(SUM(amount),0) AS total
+				FROM tbl_payments
+				WHERE $dateExpr >= $rangeExpr
+				GROUP BY $dateExpr
+				ORDER BY $dateExpr");
+			$stmt->execute();
+			return $stmt->fetchAll(PDO::FETCH_ASSOC);
+		});
 
-		$stmt = $conn->prepare("SELECT method, COALESCE(SUM(amount),0) AS total
-			FROM tbl_payments
-			GROUP BY method
-			ORDER BY total DESC");
-		$stmt->execute();
-		$paymentsByMethod = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		$paymentsByMethod = $safeRows(function () use ($conn) {
+			$stmt = $conn->prepare("SELECT method, COALESCE(SUM(amount),0) AS total
+				FROM tbl_payments
+				GROUP BY method
+				ORDER BY total DESC");
+			$stmt->execute();
+			return $stmt->fetchAll(PDO::FETCH_ASSOC);
+		});
 	}
 
 	$response = json_encode([
@@ -175,7 +229,7 @@ try {
 	}
 	@file_put_contents($cacheFile, $response, LOCK_EX);
 	echo $response;
-} catch (PDOException $e) {
+} catch (Throwable $e) {
 	http_response_code(500);
 	echo json_encode(["error" => $e->getMessage()]);
 }

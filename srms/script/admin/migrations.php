@@ -122,13 +122,20 @@ try {
 	<div>
 	  <strong>Driver:</strong> <?php echo htmlspecialchars((string)DBDriver); ?>
 	  <?php if (DBDriver !== 'pgsql') { ?>
-		<div class="text-muted">Migrations are built for Postgres. For MySQL, import the clean schema and re-load the app.</div>
+		<div class="text-muted">Migrations are built for Postgres. For MySQL, this screen is informational and does not apply migration files.</div>
 	  <?php } ?>
 	</div>
 	<form action="admin/core/run_migrations" method="POST">
 	  <button class="btn btn-primary" <?php echo DBDriver !== 'pgsql' ? 'disabled' : ''; ?>>Apply All Migrations</button>
 	</form>
   </div>
+
+	<?php if (DBDriver !== 'pgsql') { ?>
+	<div class="alert alert-info mt-3 mb-0">
+	  Postgres migration files are shown below for reference only. On MySQL/MariaDB their status is marked as not applicable.
+	</div>
+	<?php } ?>
+
   <hr>
   <div class="table-responsive">
 	<table class="table table-hover">
@@ -140,7 +147,17 @@ try {
 	  <?php foreach ($migrations as $m): ?>
 		<tr>
 		  <td><?php echo htmlspecialchars($m); ?></td>
-		  <td><?php echo in_array($m, $applied, true) ? '<span class="badge bg-success">Applied</span>' : '<span class="badge bg-warning text-dark">Pending</span>'; ?></td>
+		  <td>
+			<?php
+			if (DBDriver !== 'pgsql') {
+				echo '<span class="badge bg-secondary">MySQL (N/A)</span>';
+			} else {
+				echo in_array($m, $applied, true)
+					? '<span class="badge bg-success">Applied</span>'
+					: '<span class="badge bg-warning text-dark">Pending</span>';
+			}
+			?>
+		  </td>
 		</tr>
 	  <?php endforeach; ?>
 	  </tbody>

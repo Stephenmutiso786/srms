@@ -29,6 +29,7 @@ if ($classId < 1 || $termId < 1) {
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	app_ensure_results_locks_table($conn);
 
 	if ($locked === 0) {
 		if (!app_has_permission($conn, (string)$account_id, (string)$level, 'results.unlock')) {
