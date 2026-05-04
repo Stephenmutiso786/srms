@@ -137,7 +137,7 @@ try {
 	  <div class="text-muted">Record student fee payments and deduct balances from invoices.</div>
 	</div>
 	<div class="d-flex gap-2 flex-wrap">
-	  <a class="btn btn-primary" href="accountant/receive_payment"><i class="bi bi-plus-circle me-1"></i>Record Fee Payment</a>
+	  <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#quickPaymentModal"><i class="bi bi-plus-circle me-1"></i>Record Fee Payment</button>
 	  <a class="btn btn-outline-primary" href="accountant/invoices"><i class="bi bi-file-text me-1"></i>View Invoices</a>
 	</div>
   </div>
@@ -179,9 +179,129 @@ try {
 
 </main>
 
+<!-- Quick Payment Modal -->
+<div class="modal fade" id="quickPaymentModal" tabindex="-1" aria-labelledby="quickPaymentModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+	<div class="modal-content">
+	  <div class="modal-header border-0">
+		<h5 class="modal-title" id="quickPaymentModalLabel"><i class="bi bi-cash-coin me-2 text-primary"></i>Record Fee Payment</h5>
+		<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+	  </div>
+	  <div class="modal-body">
+		<form id="quickPaymentForm" onsubmit="handleQuickPayment(event)">
+		  <div class="mb-3">
+			<label for="studentSearch" class="form-label">Search Student</label>
+			<input type="text" class="form-control form-control-lg" id="studentSearch" placeholder="Student name or ID..." autocomplete="off" required>
+			<div id="studentSuggestions" class="list-group mt-2" style="max-height:250px;overflow-y:auto;display:none;"></div>
+			<input type="hidden" id="selectedStudentId" required>
+		  </div>
+		  <div class="mb-3">
+			<label for="paymentAmount" class="form-label">Amount (Ksh)</label>
+			<input type="number" class="form-control form-control-lg" id="paymentAmount" placeholder="0.00" step="0.01" min="0.01" required>
+		  </div>
+		  <div class="mb-3">
+			<label for="paymentMethod" class="form-label">Payment Method</label>
+			<select class="form-select form-select-lg" id="paymentMethod" required>
+			  <option value="">-- Select method --</option>
+			  <option value="cash">Cash</option>
+			  <option value="cheque">Cheque</option>
+			  <option value="bank">Bank Transfer</option>
+			  <option value="mpesa">M-Pesa</option>
+			</select>
+		  </div>
+		  <div class="d-grid gap-2">
+			<button type="submit" class="btn btn-primary btn-lg"><i class="bi bi-check-circle me-1"></i>Record Payment</button>
+		  </div>
+		</form>
+		<div id="paymentStatus" class="mt-3"></div>
+	  </div>
+	</div>
+  </div>
+</div>
+
 <script src="js/jquery-3.7.0.min.js"></script>
 <script src="js/bootstrap.min.js"></script>
 <script src="js/main.js"></script>
+<script>
+// Student search with live filtering
+document.getElementById('studentSearch').addEventListener('input', async function() {
+	const query = this.value.trim();
+	if (query.length < 2) {
+		document.getElementById('studentSuggestions').style.display = 'none';
+		return;
+	}
+	
+	try {
+		const res = await fetch('api/search_students?q=' + encodeURIComponent(query));
+		const data = await res.json();
+		const suggestions = document.getElementById('studentSuggestions');
+		suggestions.innerHTML = '';
+		
+		if (data.students && data.students.length > 0) {
+			data.students.forEach(student => {
+				const item = document.createElement('button');
+				item.type = 'button';
+				item.className = 'list-group-item list-group-item-action';
+				item.textContent = student.name + ' (ID: ' + student.id + ')';
+				item.onclick = (e) => {
+					e.preventDefault();
+					document.getElementById('studentSearch').value = student.name + ' (ID: ' + student.id + ')';
+					document.getElementById('selectedStudentId').value = student.id;
+					suggestions.style.display = 'none';
+				};
+				suggestions.appendChild(item);
+			});
+			suggestions.style.display = 'block';
+		}
+	} catch (err) {
+		console.error('Search error:', err);
+	}
+});
+
+// Handle payment submission
+async function handleQuickPayment(event) {
+	event.preventDefault();
+	
+	const studentId = document.getElementById('selectedStudentId').value;
+	const amount = document.getElementById('paymentAmount').value;
+	const method = document.getElementById('paymentMethod').value;
+	const statusDiv = document.getElementById('paymentStatus');
+	
+	statusDiv.innerHTML = '<div class="alert alert-info">Processing...</div>';
+	
+	try {
+		const res = await fetch('api/record_payment', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ student_id: studentId, amount: amount, method: method })
+		});
+		
+		const result = await res.json();
+		
+		if (result.success) {
+			statusDiv.innerHTML = '<div class="alert alert-success"><i class="bi bi-check-circle me-1"></i>' + result.message + '</div>';
+			document.getElementById('quickPaymentForm').reset();
+			document.getElementById('selectedStudentId').value = '';
+			setTimeout(() => {
+				document.getElementById('quickPaymentModal').querySelector('.btn-close').click();
+				location.reload();
+			}, 1500);
+		} else {
+			statusDiv.innerHTML = '<div class="alert alert-danger"><i class="bi bi-exclamation-circle me-1"></i>' + (result.message || 'Payment recording failed') + '</div>';
+		}
+	} catch (err) {
+		statusDiv.innerHTML = '<div class="alert alert-danger"><i class="bi bi-exclamation-circle me-1"></i>Error: ' + err.message + '</div>';
+	}
+}
+
+// Clear suggestions on modal close
+document.getElementById('quickPaymentModal').addEventListener('hidden.bs.modal', function() {
+	document.getElementById('quickPaymentForm').reset();
+	document.getElementById('selectedStudentId').value = '';
+	document.getElementById('studentSuggestions').style.display = 'none';
+	document.getElementById('paymentStatus').innerHTML = '';
+});
+</script>
 <?php require_once('const/check-reply.php'); ?>
 </body>
 </html>
