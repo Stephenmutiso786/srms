@@ -13638,14 +13638,25 @@ body.has-top-banner .app-content {
   -webkit-box-flex: 1;
       -ms-flex: 1 0 auto;
           flex: 1 0 auto;
+  position: relative;
   color: #fff;
   text-align: center;
   font-family: 'Karla', sans-serif;
   padding: 0 15px;
-  font-size: 0.8rem !important;
+  font-size: 0 !important;
   font-weight: 600 !important;
-  line-height: 1.4 !important;
+  line-height: 1 !important;
+  white-space: nowrap;
+  overflow: hidden;
   text-decoration: none;
+}
+.app-header__logo::after {
+  content: "ELIMU HUB";
+  display: inline-block;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  font-weight: 700;
+  letter-spacing: 0.03em;
 }
 @media (min-width: 768px) {
   .app-header__logo {
@@ -13656,7 +13667,7 @@ body.has-top-banner .app-content {
     width: 230px;
     background-color: #005046;
     padding: 4px 15px !important;
-    line-height: 1.4 !important;
+    line-height: 1 !important;
   }
 }
 .app-header__logo:focus, .app-header__logo:hover {
