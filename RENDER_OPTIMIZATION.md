@@ -1,4 +1,6 @@
-yes# Elimu Hub - Render Deployment & Optimization Guide
+# SRMS - Render Deployment & Optimization Guide
+
+SRMS is deployed as one application tree under `srms/script/`.
 
 ## 🎯 Current Issue: 502 Errors
 

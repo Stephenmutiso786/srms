@@ -9,6 +9,38 @@ require_once __DIR__ . '/base_controller.php';
 class AcademicsController extends BaseController {
 
     /**
+     * Check whether a table exists in the current database.
+     */
+    private function tableExists($table) {
+        try {
+            $stmt = $this->db->getConnection()->prepare(
+                "SELECT 1 FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ? LIMIT 1"
+            );
+            $stmt->bind_param('s', $table);
+            $stmt->execute();
+            return (bool)$stmt->get_result()->fetch_row();
+        } catch (Throwable $e) {
+            return false;
+        }
+    }
+
+    /**
+     * Check whether a column exists in a table.
+     */
+    private function columnExists($table, $column) {
+        try {
+            $stmt = $this->db->getConnection()->prepare(
+                "SELECT 1 FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ? LIMIT 1"
+            );
+            $stmt->bind_param('ss', $table, $column);
+            $stmt->execute();
+            return (bool)$stmt->get_result()->fetch_row();
+        } catch (Throwable $e) {
+            return false;
+        }
+    }
+
+    /**
      * List exams with filtering
      */
     protected function get_exams() {
@@ -397,6 +429,278 @@ class AcademicsController extends BaseController {
         }
         
         $this->respond($timetable ?? []);
+    }
+
+    /**
+     * Academics dashboard summary
+     */
+    protected function get_dashboard() {
+        $this->requireAuth();
+
+        $summary = [
+            'classes' => 0,
+            'subjects' => 0,
+            'students' => 0,
+            'teachers' => 0,
+            'exams' => 0,
+            'active_timetables' => 0,
+            'assignments' => 0,
+            'quizzes' => 0,
+            'attendance_today' => ['present' => 0, 'absent' => 0, 'late' => 0, 'excused' => 0],
+        ];
+
+        if ($this->tableExists('tbl_classes')) {
+            $summary['classes'] = (int)$this->db->count('tbl_classes');
+        }
+        if ($this->tableExists('tbl_subjects')) {
+            $summary['subjects'] = (int)$this->db->count('tbl_subjects');
+        }
+        if ($this->tableExists('tbl_students')) {
+            $summary['students'] = (int)$this->db->count('tbl_students');
+        }
+        if ($this->tableExists('tbl_staff')) {
+            $summary['teachers'] = (int)$this->db->count('tbl_staff', ['level' => 2]);
+        }
+        if ($this->tableExists('tbl_exams')) {
+            $summary['exams'] = (int)$this->db->count('tbl_exams');
+        }
+        if ($this->tableExists('tbl_timetables')) {
+            $summary['active_timetables'] = (int)$this->db->count('tbl_timetables', ['is_active' => 1]);
+        }
+        if ($this->tableExists('tbl_assignments')) {
+            $summary['assignments'] = (int)$this->db->count('tbl_assignments');
+        }
+        if ($this->tableExists('tbl_online_quizzes')) {
+            $summary['quizzes'] = (int)$this->db->count('tbl_online_quizzes');
+        }
+        if ($this->tableExists('tbl_attendance')) {
+            $rows = $this->db->select('tbl_attendance', ['status', 'COUNT(*) AS count'], ['attendance_date' => date('Y-m-d')], 'status');
+            foreach ($rows as $row) {
+                $status = $row['status'] ?? '';
+                if ($status !== '' && isset($summary['attendance_today'][$status])) {
+                    $summary['attendance_today'][$status] = (int)($row['count'] ?? 0);
+                }
+            }
+        }
+
+        $this->respond($summary);
+    }
+
+    /**
+     * List classes and class head summary
+     */
+    protected function get_classes() {
+        $this->requireAuth();
+
+        if (!$this->tableExists('tbl_classes')) {
+            $this->respond([]);
+        }
+
+        $classes = $this->db->select('tbl_classes', []);
+        foreach ($classes as &$classRow) {
+            if ($this->columnExists('tbl_students', 'class_id')) {
+                $classRow['student_count'] = $this->db->count('tbl_students', ['class_id' => $classRow['id']]);
+            } elseif ($this->columnExists('tbl_students', 'class')) {
+                $classRow['student_count'] = $this->db->count('tbl_students', ['class' => $classRow['id']]);
+            } else {
+                $classRow['student_count'] = 0;
+            }
+        }
+
+        $this->respond($classes);
+    }
+
+    /**
+     * List subjects with usage counts
+     */
+    protected function get_subjects() {
+        $this->requireAuth();
+
+        if (!$this->tableExists('tbl_subjects')) {
+            $this->respond([]);
+        }
+
+        $subjects = $this->db->select('tbl_subjects', []);
+        $this->respond($subjects);
+    }
+
+    /**
+     * List active terms
+     */
+    protected function get_terms() {
+        $this->requireAuth();
+
+        if (!$this->tableExists('tbl_terms')) {
+            $this->respond([]);
+        }
+
+        $terms = $this->db->select('tbl_terms', [], [], 'id DESC');
+        $this->respond($terms);
+    }
+
+    /**
+     * List students with academic filters
+     */
+    protected function get_students() {
+        $this->requireAuth();
+
+        if (!$this->tableExists('tbl_students')) {
+            $this->respond([]);
+        }
+
+        $where = [];
+        $classId = $this->getInput('class_id');
+        if ($classId) {
+            if ($this->columnExists('tbl_students', 'class_id')) {
+                $where['class_id'] = $classId;
+            } elseif ($this->columnExists('tbl_students', 'class')) {
+                $where['class'] = $classId;
+            }
+        }
+
+        $students = $this->db->select('tbl_students', [], $where, 'id DESC', 100);
+        $this->respond($students);
+    }
+
+    /**
+     * List assignments for a class/subject.
+     */
+    protected function get_assignments() {
+        $this->requireAuth();
+
+        if (!$this->tableExists('tbl_assignments')) {
+            $this->respond([]);
+        }
+
+        $where = [];
+        $classId = $this->getInput('class_id');
+        $subjectId = $this->getInput('subject_id');
+        if ($classId) $where['class_id'] = $classId;
+        if ($subjectId) $where['subject_id'] = $subjectId;
+
+        $assignments = $this->db->select('tbl_assignments', [], $where, 'due_date ASC');
+        $this->respond($assignments);
+    }
+
+    /**
+     * Create assignment.
+     */
+    protected function post_create_assignment() {
+        $this->requireAuth();
+        $this->requirePermission('academics.manage_assignments');
+
+        $this->validateRequired(['title', 'due_date']);
+
+        if (!$this->tableExists('tbl_assignments')) {
+            $this->respondError('Assignments table is not available', 501);
+        }
+
+        $assignmentId = $this->db->insert('tbl_assignments', [
+            'title' => $this->getInput('title', true),
+            'description' => $this->getInput('description'),
+            'subject_id' => $this->getInput('subject_id'),
+            'class_id' => $this->getInput('class_id'),
+            'teacher_id' => $this->user_id,
+            'issued_date' => $this->getInput('issued_date', false, date('Y-m-d')),
+            'due_date' => $this->getInput('due_date', true),
+            'total_marks' => intval($this->getInput('total_marks', false, 100)),
+            'is_published' => intval($this->getInput('is_published', false, 0))
+        ]);
+
+        $this->log('create', 'academics', 'assignments', $assignmentId);
+        $this->respond(['assignment_id' => $assignmentId], 201);
+    }
+
+    /**
+     * Attendance summary for today or a given class.
+     */
+    protected function get_attendance_summary() {
+        $this->requireAuth();
+
+        if (!$this->tableExists('tbl_attendance')) {
+            $this->respond(['present' => 0, 'absent' => 0, 'late' => 0, 'excused' => 0]);
+        }
+
+        $date = $this->getInput('attendance_date', false, date('Y-m-d'));
+        $classId = $this->getInput('class_id');
+
+        $where = ['attendance_date' => $date];
+        if ($classId) {
+            $where['class_id'] = $classId;
+        }
+
+        $rows = $this->db->select('tbl_attendance', ['status', 'COUNT(*) AS count'], $where, 'status');
+        $summary = ['present' => 0, 'absent' => 0, 'late' => 0, 'excused' => 0];
+        foreach ($rows as $row) {
+            $status = $row['status'] ?? '';
+            if ($status !== '' && isset($summary[$status])) {
+                $summary[$status] = (int)($row['count'] ?? 0);
+            }
+        }
+
+        $this->respond($summary);
+    }
+
+    /**
+     * Latest pathway analysis records.
+     */
+    protected function get_pathway_analysis() {
+        $this->requireAuth();
+
+        if (!$this->tableExists('tbl_pathway_analysis')) {
+            $this->respond([]);
+        }
+
+        $studentId = $this->getInput('student_id');
+        $where = [];
+        if ($studentId) $where['student_id'] = $studentId;
+
+        $analysis = $this->db->select('tbl_pathway_analysis', [], $where, 'analysis_date DESC', 50);
+        $this->respond($analysis);
+    }
+
+    /**
+     * Competency profile for CBC/CBE.
+     */
+    protected function get_competency_profile() {
+        $this->requireAuth();
+
+        if (!$this->tableExists('tbl_cbc_competencies')) {
+            $this->respond([]);
+        }
+
+        $studentId = $this->getInput('student_id', true);
+        $competencies = $this->db->select('tbl_cbc_competencies', [], ['student_id' => $studentId], 'id DESC');
+        $this->respond($competencies);
+    }
+
+    /**
+     * Result summary by exam.
+     */
+    protected function get_results_summary() {
+        $this->requireAuth();
+
+        if (!$this->tableExists('tbl_exam_results')) {
+            $this->respond([]);
+        }
+
+        $examId = $this->getInput('exam_id', true);
+        $scoreColumn = $this->columnExists('tbl_exam_results', 'marks') ? 'marks' : 'score';
+        $summary = $this->db->select('tbl_exam_results', [], ['exam' => $examId]);
+
+        $total = 0;
+        $count = 0;
+        foreach ($summary as $row) {
+            $total += (float)($row[$scoreColumn] ?? 0);
+            $count++;
+        }
+
+        $this->respond([
+            'exam_id' => $examId,
+            'students' => $count,
+            'average_score' => $count > 0 ? round($total / $count, 2) : 0,
+            'results' => $summary
+        ]);
     }
 
     /**

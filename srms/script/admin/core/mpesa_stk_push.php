@@ -35,17 +35,32 @@ try {
 		exit;
 	}
 
-	$stmt = $conn->prepare("SELECT i.id, i.student_id,
-		COALESCE((SELECT SUM(l.amount) FROM tbl_invoice_lines l WHERE l.invoice_id = i.id), 0) AS total,
-		COALESCE((SELECT SUM(p.amount) FROM tbl_payments p WHERE p.invoice_id = i.id), 0) AS paid
-		FROM tbl_invoices i WHERE i.id = ? LIMIT 1");
-	$stmt->execute([$invoiceId]);
-	$inv = $stmt->fetch(PDO::FETCH_ASSOC);
-	if (!$inv) {
+	$invoice = null;
+	$invoiceTable = '';
+	if (app_table_exists($conn, 'tbl_student_invoices')) {
+		$stmt = $conn->prepare("SELECT i.id, i.student_id,
+			i.total_amount AS total,
+			COALESCE(i.amount_paid, 0) AS paid,
+			COALESCE(i.balance_due, GREATEST(i.total_amount - COALESCE(i.amount_paid, 0), 0)) AS balance
+			FROM tbl_student_invoices i WHERE i.id = ? LIMIT 1");
+		$stmt->execute([$invoiceId]);
+		$invoice = $stmt->fetch(PDO::FETCH_ASSOC);
+		$invoiceTable = 'tbl_student_invoices';
+	} elseif (app_table_exists($conn, 'tbl_invoices')) {
+		$stmt = $conn->prepare("SELECT i.id, i.student_id,
+			COALESCE((SELECT SUM(l.amount) FROM tbl_invoice_lines l WHERE l.invoice_id = i.id), 0) AS total,
+			COALESCE((SELECT SUM(p.amount) FROM tbl_payments p WHERE p.invoice_id = i.id), 0) AS paid,
+			COALESCE(i.balance, GREATEST(COALESCE((SELECT SUM(l.amount) FROM tbl_invoice_lines l WHERE l.invoice_id = i.id), 0) - COALESCE((SELECT SUM(p.amount) FROM tbl_payments p WHERE p.invoice_id = i.id), 0), 0)) AS balance
+			FROM tbl_invoices i WHERE i.id = ? LIMIT 1");
+		$stmt->execute([$invoiceId]);
+		$invoice = $stmt->fetch(PDO::FETCH_ASSOC);
+		$invoiceTable = 'tbl_invoices';
+	}
+	if (!$invoice) {
 		throw new RuntimeException("Invoice not found.");
 	}
 
-	$balance = max(0, (float)$inv['total'] - (float)$inv['paid']);
+	$balance = max(0, (float)($invoice['balance'] ?? max(0, (float)$invoice['total'] - (float)$invoice['paid'])));
 	if ($balance <= 0) {
 		throw new RuntimeException("Invoice already fully paid.");
 	}
@@ -78,7 +93,7 @@ try {
 		WHERE id = ?");
 	$stmt->execute([$merchantRequestId, $checkoutRequestId, $responseCode, $responseDesc, $customerMessage, $reqId]);
 
-	app_audit_log($conn, 'staff', (string)$account_id, 'mpesa.stk_push', 'invoice', (string)$invoiceId);
+	app_audit_log($conn, 'staff', (string)$account_id, 'mpesa.stk_push', $invoiceTable === 'tbl_student_invoices' ? 'student_invoice' : 'invoice', (string)$invoiceId);
 
 	$_SESSION['reply'] = array(array("success", $customerMessage !== '' ? $customerMessage : "STK push sent."));
 	header("location:../mpesa_pay?invoice_id=".$invoiceId);

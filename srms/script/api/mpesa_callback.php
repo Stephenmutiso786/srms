@@ -80,29 +80,68 @@ try {
 			$ref = $mpesaReceipt !== '' ? $mpesaReceipt : $checkoutRequestId;
 
 			// Prevent duplicates
-			$stmt = $conn->prepare("SELECT id FROM tbl_payments WHERE invoice_id = ? AND method = 'mpesa' AND reference = ? LIMIT 1");
-			$stmt->execute([$invoiceId, $ref]);
+			$paymentTable = app_table_exists($conn, 'tbl_payments') ? 'tbl_payments' : '';
+			$legacyColumns = app_column_exists($conn, 'tbl_payments', 'method') && app_column_exists($conn, 'tbl_payments', 'reference');
+			$newColumns = app_column_exists($conn, 'tbl_payments', 'payment_method_id') && app_column_exists($conn, 'tbl_payments', 'payment_reference');
+			if ($paymentTable === '') {
+				throw new RuntimeException('Payments table missing');
+			}
+
+			if ($newColumns) {
+				$stmt = $conn->prepare("SELECT id FROM tbl_payments WHERE invoice_id = ? AND payment_reference = ? LIMIT 1");
+				$stmt->execute([$invoiceId, $ref]);
+			} else {
+				$stmt = $conn->prepare("SELECT id FROM tbl_payments WHERE invoice_id = ? AND method = 'mpesa' AND reference = ? LIMIT 1");
+				$stmt->execute([$invoiceId, $ref]);
+			}
 			$exists = $stmt->fetchColumn();
 			if (!$exists) {
-				$stmt = $conn->prepare("INSERT INTO tbl_payments (invoice_id, amount, method, reference, received_by) VALUES (?,?,?,?,?)");
-				$stmt->execute([$invoiceId, $payAmount, 'mpesa', $ref, null]);
+				if ($newColumns) {
+					$studentStmt = $conn->prepare("SELECT student_id FROM tbl_student_invoices WHERE id = ? LIMIT 1");
+					$studentStmt->execute([$invoiceId]);
+					$studentId = (int)$studentStmt->fetchColumn();
+					$methodId = 1;
+					if (app_table_exists($conn, 'tbl_payment_methods')) {
+						$methodStmt = $conn->prepare("SELECT id FROM tbl_payment_methods WHERE name = 'M-Pesa' OR payment_type = 'mpesa' LIMIT 1");
+						$methodStmt->execute();
+						$methodId = (int)$methodStmt->fetchColumn() ?: 1;
+					}
+					$stmt = $conn->prepare("INSERT INTO tbl_payments (student_id, invoice_id, payment_date, payment_method_id, amount_paid, payment_reference, payer_name, receipt_number, balance_after_payment, notes, recorded_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)");
+					$stmt->execute([$studentId, $invoiceId, date('Y-m-d'), $methodId, $payAmount, $ref, '', $ref, null, 'M-Pesa callback', null]);
+				} else {
+					$stmt = $conn->prepare("INSERT INTO tbl_payments (invoice_id, amount, method, reference, received_by) VALUES (?,?,?,?,?)");
+					$stmt->execute([$invoiceId, $payAmount, 'mpesa', $ref, null]);
+				}
 
 				app_audit_log($conn, 'staff', 'system', 'payment.mpesa_callback', 'invoice', (string)$invoiceId);
 			}
 
 			// Update invoice status if fully paid
-			$stmt = $conn->prepare("SELECT
-				COALESCE((SELECT SUM(l.amount) FROM tbl_invoice_lines l WHERE l.invoice_id = i.id), 0) AS total,
-				COALESCE((SELECT SUM(p.amount) FROM tbl_payments p WHERE p.invoice_id = i.id), 0) AS paid
-				FROM tbl_invoices i WHERE i.id = ? LIMIT 1");
-			$stmt->execute([$invoiceId]);
-			$tot = $stmt->fetch(PDO::FETCH_ASSOC);
-			if ($tot) {
-				$total = (float)$tot['total'];
-				$paid = (float)$tot['paid'];
-				$newStatus = ($paid + 0.00001 >= $total && $total > 0) ? 'paid' : 'open';
-				$stmt = $conn->prepare("UPDATE tbl_invoices SET status = ? WHERE id = ?");
-				$stmt->execute([$newStatus, $invoiceId]);
+			if (app_table_exists($conn, 'tbl_student_invoices')) {
+				$stmt = $conn->prepare("SELECT total_amount AS total, COALESCE(amount_paid, 0) AS paid FROM tbl_student_invoices WHERE id = ? LIMIT 1");
+				$stmt->execute([$invoiceId]);
+				$tot = $stmt->fetch(PDO::FETCH_ASSOC);
+				if ($tot) {
+					$total = (float)$tot['total'];
+					$paid = (float)$tot['paid'];
+					$newStatus = ($paid + 0.00001 >= $total && $total > 0) ? 'paid' : 'partial';
+					$stmt = $conn->prepare("UPDATE tbl_student_invoices SET status = ?, amount_paid = COALESCE(amount_paid, 0) + ?, balance_due = GREATEST(COALESCE(balance_due, total_amount - COALESCE(amount_paid, 0)) - ?, 0) WHERE id = ?");
+					$stmt->execute([$newStatus, $payAmount, $payAmount, $invoiceId]);
+				}
+			} elseif (app_table_exists($conn, 'tbl_invoices')) {
+				$stmt = $conn->prepare("SELECT
+					COALESCE((SELECT SUM(l.amount) FROM tbl_invoice_lines l WHERE l.invoice_id = i.id), 0) AS total,
+					COALESCE((SELECT SUM(p.amount) FROM tbl_payments p WHERE p.invoice_id = i.id), 0) AS paid
+					FROM tbl_invoices i WHERE i.id = ? LIMIT 1");
+				$stmt->execute([$invoiceId]);
+				$tot = $stmt->fetch(PDO::FETCH_ASSOC);
+				if ($tot) {
+					$total = (float)$tot['total'];
+					$paid = (float)$tot['paid'];
+					$newStatus = ($paid + 0.00001 >= $total && $total > 0) ? 'paid' : 'open';
+					$stmt = $conn->prepare("UPDATE tbl_invoices SET status = ? WHERE id = ?");
+					$stmt->execute([$newStatus, $invoiceId]);
+				}
 			}
 		}
 	}

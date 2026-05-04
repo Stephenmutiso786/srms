@@ -115,6 +115,20 @@ try {
 		</div>
 		<div class="stat-icon"><i class="bi bi-wallet2"></i></div>
 	</div>
+  <div class="stat-card">
+    <div>
+      <div class="stat-label">Boarders</div>
+      <div class="stat-value" data-stat="boarders">0</div>
+    </div>
+    <div class="stat-icon"><i class="bi bi-house-door"></i></div>
+  </div>
+  <div class="stat-card">
+    <div>
+      <div class="stat-label">Active Timetables</div>
+      <div class="stat-value" data-stat="timetables">0</div>
+    </div>
+    <div class="stat-icon"><i class="bi bi-calendar2-week"></i></div>
+  </div>
 </div>
 
 <div class="dashboard-grid">
@@ -188,8 +202,12 @@ try {
       if (data.counts) {
         var students = document.querySelector('[data-stat=\"students\"]');
         var teachers = document.querySelector('[data-stat=\"teachers\"]');
+          var boarders = document.querySelector('[data-stat="boarders"]');
+          var timetables = document.querySelector('[data-stat="timetables"]');
         if (students) students.textContent = data.counts.students || 0;
         if (teachers) teachers.textContent = data.counts.teachers || 0;
+          if (boarders) boarders.textContent = data.counts.boarders || 0;
+          if (timetables) timetables.textContent = data.counts.timetables || 0;
       }
 
       var staffToday = document.querySelector('[data-stat=\"staffToday\"]');

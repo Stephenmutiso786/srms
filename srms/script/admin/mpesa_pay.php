@@ -18,15 +18,27 @@ try {
 		throw new RuntimeException("M-Pesa module is not installed. Run migration 006_mpesa_stk.sql.");
 	}
 
-	$stmt = $conn->prepare("SELECT i.id, i.student_id, concat_ws(' ', s.fname, s.mname, s.lname) AS student_name,
-		t.name AS term_name, c.name AS class_name,
-		COALESCE((SELECT SUM(l.amount) FROM tbl_invoice_lines l WHERE l.invoice_id = i.id), 0) AS total,
-		COALESCE((SELECT SUM(p.amount) FROM tbl_payments p WHERE p.invoice_id = i.id), 0) AS paid
-		FROM tbl_invoices i
-		JOIN tbl_students s ON s.id = i.student_id
-		JOIN tbl_terms t ON t.id = i.term_id
-		JOIN tbl_classes c ON c.id = i.class_id
-		WHERE i.id = ? LIMIT 1");
+	if (app_table_exists($conn, 'tbl_student_invoices')) {
+		$stmt = $conn->prepare("SELECT i.id, i.student_id, concat_ws(' ', s.fname, s.mname, s.lname) AS student_name,
+			COALESCE(t.name, '') AS term_name, COALESCE(c.name, '') AS class_name,
+			i.total_amount AS total,
+			COALESCE(i.amount_paid, 0) AS paid
+			FROM tbl_student_invoices i
+			JOIN tbl_students s ON s.id = i.student_id
+			LEFT JOIN tbl_terms t ON t.id = i.term_id
+			LEFT JOIN tbl_classes c ON c.id = i.class_id
+			WHERE i.id = ? LIMIT 1");
+	} else {
+		$stmt = $conn->prepare("SELECT i.id, i.student_id, concat_ws(' ', s.fname, s.mname, s.lname) AS student_name,
+			t.name AS term_name, c.name AS class_name,
+			COALESCE((SELECT SUM(l.amount) FROM tbl_invoice_lines l WHERE l.invoice_id = i.id), 0) AS total,
+			COALESCE((SELECT SUM(p.amount) FROM tbl_payments p WHERE p.invoice_id = i.id), 0) AS paid
+			FROM tbl_invoices i
+			JOIN tbl_students s ON s.id = i.student_id
+			JOIN tbl_terms t ON t.id = i.term_id
+			JOIN tbl_classes c ON c.id = i.class_id
+			WHERE i.id = ? LIMIT 1");
+	}
 	$stmt->execute([$invoiceId]);
 	$invoice = $stmt->fetch(PDO::FETCH_ASSOC);
 	if (!$invoice) {

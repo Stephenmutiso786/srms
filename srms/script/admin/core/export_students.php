@@ -25,7 +25,7 @@ try {
 	if ($format === 'pdf') {
 		require_once('tcpdf/tcpdf.php');
 		$pdf = new TCPDF();
-		$pdf->SetCreator('Elimu Hub');
+		$pdf->SetCreator(APP_NAME);
 		$pdf->SetTitle('Students Export');
 		$pdf->AddPage();
 		$pdf->SetFont('helvetica', '', 11);

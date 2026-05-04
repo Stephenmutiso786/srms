@@ -223,6 +223,71 @@ function report_exam_weight_percentage(PDO $conn, ?int $examId): float
 	return $weight > 0 ? $weight : 100.0;
 }
 
+/**
+ * Compute weighted total across multiple exams for a student.
+ * Combines exam scores using their weight_percentage, useful for term-level grades.
+ *
+ * @param PDO $conn Database connection
+ * @param string $studentId Student ID
+ * @param int $classId Class ID  
+ * @param int $termId Term ID
+ * @param array $examIds Optional array of exam IDs to include; if empty, uses all published exams
+ * @return array ['total' => weighted score, 'examCount' => number of exams, 'weightUsed' => total weight %]
+ */
+function report_weighted_exam_total(PDO $conn, string $studentId, int $classId, int $termId, ?array $examIds = null): array
+{
+	if ($studentId === '' || $classId < 1 || $termId < 1 || !app_table_exists($conn, 'tbl_exam_results')) {
+		return ['total' => 0.0, 'examCount' => 0, 'weightUsed' => 0.0];
+	}
+
+	// If no exam IDs specified, fetch published exams for this class/term
+	if ($examIds === null || empty($examIds)) {
+		if (!app_table_exists($conn, 'tbl_exams')) {
+			return ['total' => 0.0, 'examCount' => 0, 'weightUsed' => 0.0];
+		}
+		$stmt = $conn->prepare("SELECT id FROM tbl_exams WHERE class_id = ? AND term_id = ? AND COALESCE(status, 'draft') = 'published' ORDER BY id ASC");
+		$stmt->execute([$classId, $termId]);
+		$examIds = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+	}
+
+	if (empty($examIds)) {
+		return ['total' => 0.0, 'examCount' => 0, 'weightUsed' => 0.0];
+	}
+
+	$placeholders = implode(',', array_fill(0, count($examIds), '?'));
+	$stmt = $conn->prepare("SELECT exam_id, AVG(CAST(score AS FLOAT)) as avg_score FROM tbl_exam_results 
+		WHERE student = ? AND class = ? AND term = ? AND exam_id IN ($placeholders)
+		GROUP BY exam_id");
+	$params = array_merge([$studentId, $classId, $termId], $examIds);
+	$stmt->execute($params);
+	$examAverages = [];
+	foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+		$examAverages[(int)$row['exam_id']] = (float)$row['avg_score'];
+	}
+
+	if (empty($examAverages)) {
+		return ['total' => 0.0, 'examCount' => 0, 'weightUsed' => 0.0];
+	}
+
+	$weightedSum = 0.0;
+	$totalWeight = 0.0;
+	foreach ($examIds as $examId) {
+		if (isset($examAverages[$examId])) {
+			$weight = report_exam_weight_percentage($conn, $examId) / 100.0;
+			$weightedSum += $examAverages[$examId] * $weight;
+			$totalWeight += $weight;
+		}
+	}
+
+	$weightedTotal = ($totalWeight > 0) ? ($weightedSum / $totalWeight) : 0.0;
+
+	return [
+		'total' => round($weightedTotal, 2),
+		'examCount' => count($examAverages),
+		'weightUsed' => round($totalWeight * 100, 1),
+	];
+}
+
 function report_exam_result_matrix(PDO $conn, int $classId, int $termId, ?string $studentId = null): array
 {
 	if ($classId < 1 || $termId < 1 || !app_table_exists($conn, 'tbl_exam_results')) {

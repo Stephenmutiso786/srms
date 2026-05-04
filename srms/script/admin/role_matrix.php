@@ -154,7 +154,7 @@ try {
 <html lang="en">
 <meta http-equiv="content-type" content="text/html;charset=utf-8" />
 <head>
-<title>Role Permission Matrix - Elimu Hub</title>
+<title>Role Permission Matrix - <?php echo APP_NAME; ?></title>
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -179,7 +179,7 @@ try {
 </style>
 </head>
 <body class="app sidebar-mini">
-<header class="app-header"><a class="app-header__logo" href="javascript:void(0);">Elimu Hub</a>
+<header class="app-header"><a class="app-header__logo" href="javascript:void(0);"><?php echo APP_NAME; ?></a>
 <a class="app-sidebar__toggle" href="#" data-toggle="sidebar" aria-label="Hide Sidebar"></a>
 <ul class="app-nav">
 <li class="dropdown"><a class="app-nav__item" href="#" data-bs-toggle="dropdown" aria-label="Open Profile Menu"><i class="bi bi-person fs-4"></i></a>

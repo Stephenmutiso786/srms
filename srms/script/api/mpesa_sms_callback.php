@@ -79,6 +79,10 @@ try {
 			$duplicateStmt->execute([$walletId, 'topup', $reference]);
 			if (!(int)$duplicateStmt->fetchColumn()) {
 				app_sms_wallet_adjust($conn, $walletId, $tokens, $reference, 'SMS token top-up via M-Pesa', 'topup', (int)($req['created_by'] ?? 0) ?: null);
+				if (app_table_exists($conn, 'tbl_sms_topup_requests')) {
+					$markStmt = $conn->prepare('UPDATE tbl_sms_topup_requests SET tokens = ?, status = ? WHERE id = ?');
+					$markStmt->execute([$tokens, 'completed', (int)$req['id']]);
+				}
 			}
 		}
 	}

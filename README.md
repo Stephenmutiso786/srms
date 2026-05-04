@@ -1,6 +1,6 @@
-# Elimu Hub
+# SRMS
 
-Elimu Hub is a PHP Student Results Management System (MySQL or Postgres).
+SRMS is a single PHP Student Results Management System (MySQL or Postgres) with one application root at `srms/script/`.
 
 ## Setup
 
@@ -18,6 +18,8 @@ php -S localhost:8000 router.php
 ```
 
 Open `http://localhost:8000`.
+
+The login page is the only public entry point; all modules are routed from the same application tree.
 
 ## Health Checks + Uptime Probes
 
@@ -140,10 +142,12 @@ srms/database/pg_migrations/013_import_export.sql
 
 ## Initial admin setup (no demo data)
 
-If your DB has **no staff accounts**, create the first admin via:
+If your DB has **no staff accounts**, create the first admin once via:
 
 - Open `/setup?token=YOUR_TOKEN`
 - Set `SETUP_TOKEN` in Render environment variables first
+
+This creates the single initial admin account used to enter the system.
 
 ## Attendance + Parent Portal
 

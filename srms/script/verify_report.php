@@ -85,7 +85,7 @@ if ($code !== '') {
 <div class="report-stat"><div class="label">Term</div><div class="value"><?php echo $termName; ?></div></div>
 <div class="report-stat"><div class="label">Mean</div><div class="value"><?php echo $card['mean']; ?>%</div></div>
 </div>
-<p class="text-muted">This report card matches the official record stored in Elimu Hub.</p>
+<p class="text-muted">This report card matches the official record stored in <?php echo APP_NAME; ?>.</p>
 <?php else: ?>
 <p class="text-danger">We could not verify this report card. Please contact the school.</p>
 <?php endif; ?>

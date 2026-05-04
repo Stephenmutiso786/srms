@@ -179,7 +179,7 @@ try {
 <th></th>
 <th>REGISTRATION NUMBER</th>
 <th>STUDENT NAME</th>
-<th>TOTAL SCORE</th>
+<th>TOTAL SCORE<?php echo ($examWeightPercentage != 100.0) ? ' <small>(' . number_format($examWeightPercentage, 1) . '% weight)</small>' : ''; ?></th>
 <th>AVERAGE</th>
 <th>GRADE</th>
 <th>REMARKS</th>
@@ -196,6 +196,7 @@ $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 $useExamId = app_column_exists($conn, 'tbl_exam_results', 'exam_id');
 $selectedExamName = '';
+$examWeightPercentage = 100.0;
 
 if (!$termPublished) {
 	$result = [];
@@ -209,6 +210,8 @@ if ($useExamId && $examId > 0) {
 			break;
 		}
 	}
+	// Load exam weight percentage for display and report generation
+	$examWeightPercentage = report_exam_weight_percentage($conn, $examId);
 }
 
 $tit = $tit . ($selectedExamName !== '' ? ' - ' . $selectedExamName : ($examId > 0 ? ' - Selected Exam' : ''));

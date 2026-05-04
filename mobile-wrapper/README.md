@@ -1,8 +1,10 @@
 # SRMS Mobile Wrapper
 
-This folder contains an Android wrapper for the locally hosted SRMS app using Capacitor.
+This folder contains an Android wrapper for the single locally hosted SRMS app using Capacitor.
 
 ## Current server target
+
+The mobile app opens the same SRMS application tree used by the web login.
 
 The app is configured to open:
 

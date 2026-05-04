@@ -13,7 +13,7 @@ set_time_limit(5);
 $payload = [
 	'ok' => true,
 	'service' => 'backend',
-	'app' => defined('APP_NAME') ? APP_NAME : 'Elimu Hub',
+	'app' => defined('APP_NAME') ? APP_NAME : 'SRMS',
 	'driver' => defined('DBDriver') ? DBDriver : 'unknown',
 	'time' => date('c'),
 	'php' => PHP_VERSION,

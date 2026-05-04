@@ -84,7 +84,7 @@ try {
 	<form method="POST" autocomplete="off">
 	  <div class="mb-3">
 	    <label class="form-label">School Name (optional)</label>
-	    <input class="form-control" name="school_name" type="text" placeholder="Elimu Hub Academy">
+	    <input class="form-control" name="school_name" type="text" placeholder="Your School Name">
 	  </div>
 	  <div class="mb-3">
 	    <label class="form-label">First Name</label>

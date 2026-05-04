@@ -1,0 +1,18 @@
+feature,present,key_files,notes
+Timetable,yes,script/teacher/exam_timetable.php;database/pg_migrations/030_grading_timetable_settings.sql,Full timetable tables and generator exist
+Exam Management,yes,script/admin/bulk_results.php;script/teacher/exam_marks_entry.php;database/srms_postgres.sql,Exam results tables and bulk upload/print features present
+Attendance,yes,script/teacher/attendance.php;database/srms_mysql_compat_patch.sql,Attendance sessions & records present
+Student Management,yes,script/admin/manage_students.php;script/student/,Admissions, transfer, promotion flows exist
+Staff Management,yes,script/api/staff_api.php;script/staff/,Staff APIs and allocations exist
+Boarding (Dorms),partial,script/admin/boardings.php;script/admin/bom.php,dorm roles present and basic dorm management
+Finance (fees,invoices,payments),yes,script/admin/fees.php;script/admin/invoices.php;database/srms_mysql_current_mode_patch.sql,Fee charging and payment flows present but limited accounting
+General Ledger / Full Accounting,no,,No explicit GL, trial balance or chart-of-accounts found; adding scaffold
+Bursaries / Sponsors,partial,script/admin/core/bom_create_portal_user.php;script/mail/README.md,sponsor roles exist but no dedicated bursary module
+Appraisals (HR),yes,script/api/staff_api.php,Staff appraisal API endpoints exist
+Pathway Analysis / Learner Profiles,yes,script/api/academics_api.php,Pathway analysis API present
+Workflows,yes,script/db/config.php;database/pg_migrations/*,Promotion and workflow migrations exist
+AI Timetable (marketing),partial,script/admin/school_timetable.php;script/core/ai_feedback.php,Generator exists but not labelled as AI-powered V2
+National Exams (KPSEA/KJSEA),no,,No explicit KPSEA/KJSEA modules found; promotion/certificate workflows exist
+Reports & Analytics,yes,script/admin/financial_reports.php;script/admin/bulk_results.php,Multiple reporting pages present
+SMS / Communication,yes,script/mail/;script/sms/,SMS integrations and mail utilities exist
+Board of Management / Sponsors,yes,script/admin/bom.php,BOM portal and sponsor roles
