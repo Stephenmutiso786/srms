@@ -11,6 +11,7 @@ $terms = [];
 $invoices = [];
 $filterClass = (int)($_GET['class_id'] ?? 0);
 $filterTerm = (int)($_GET['term_id'] ?? 0);
+$studentQuery = trim((string)($_GET['student_query'] ?? ''));
 $error = '';
 
 try {
@@ -31,16 +32,26 @@ try {
 	$terms = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 	if ($filterClass > 0 && $filterTerm > 0) {
-		$stmt = $conn->prepare("SELECT i.id, i.student_id, concat_ws(' ', s.fname, s.mname, s.lname) AS student_name,
+		$sql = "SELECT i.id, i.student_id, concat_ws(' ', s.fname, s.mname, s.lname) AS student_name,
 			COALESCE(SUM(l.amount),0) AS total,
 			COALESCE((SELECT SUM(p.amount) FROM tbl_payments p WHERE p.invoice_id = i.id),0) AS paid
 			FROM tbl_invoices i
 			JOIN tbl_students s ON s.id = i.student_id
 			LEFT JOIN tbl_invoice_lines l ON l.invoice_id = i.id
-			WHERE i.class_id = ? AND i.term_id = ? AND i.status != 'void'
-			GROUP BY i.id, i.student_id, student_name
-			ORDER BY i.student_id");
-		$stmt->execute([$filterClass, $filterTerm]);
+			WHERE i.class_id = ? AND i.term_id = ? AND i.status != 'void'";
+		$params = [$filterClass, $filterTerm];
+		if ($studentQuery !== '') {
+			$sql .= " AND (CAST(i.student_id AS CHAR) LIKE ? OR s.fname LIKE ? OR s.mname LIKE ? OR s.lname LIKE ? OR concat_ws(' ', s.fname, s.mname, s.lname) LIKE ? )";
+			$like = '%' . $studentQuery . '%';
+			$params[] = $like;
+			$params[] = $like;
+			$params[] = $like;
+			$params[] = $like;
+			$params[] = $like;
+		}
+		$sql .= " GROUP BY i.id, i.student_id, student_name ORDER BY i.student_id";
+		$stmt = $conn->prepare($sql);
+		$stmt->execute($params);
 		$invoices = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
 } catch (Throwable $e) {
@@ -111,6 +122,10 @@ try {
 		  </option>
 		<?php } ?>
 	  </select>
+	</div>
+	<div class="col-md-10">
+	  <label class="form-label">Student Search</label>
+	  <input class="form-control" type="text" name="student_query" value="<?php echo htmlspecialchars($studentQuery, ENT_QUOTES, 'UTF-8'); ?>" placeholder="Search by admission number or student name">
 	</div>
 	<div class="col-md-2 d-grid align-items-end">
 	  <button class="btn btn-outline-primary" type="submit">Load</button>
