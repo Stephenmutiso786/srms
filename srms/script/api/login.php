@@ -89,7 +89,7 @@ UNION SELECT id, email, password, level, status FROM tbl_students WHERE id = ? O
 			app_audit_log($conn, 'staff', $accountId, 'auth.login', 'session', $sessionId);
 		}
 
-		app_issue_auth_cookies((string)$row[3], $sessionId, true, 4320);
+		app_issue_auth_cookies((string)$row[3], $sessionId, false, 4320);
 		$portal = '';
 		if ($loginLevel === 4) {
 			$portal = 'parent';

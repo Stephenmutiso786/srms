@@ -894,6 +894,13 @@ function app_enforce_portal_route_permission(PDO $conn, string $portal, string $
 		return;
 	}
 
+	$portalHome = $portal;
+	try {
+		$portalHome = app_staff_login_portal($conn, (int)$staffId, $level) ?: $portal;
+	} catch (Throwable $e) {
+		$portalHome = $portal;
+	}
+
 	$requestRoute = app_request_route_from_portal($portal);
 	if ($requestRoute === '') {
 		return;
@@ -924,7 +931,7 @@ function app_enforce_portal_route_permission(PDO $conn, string $portal, string $
 			if (session_status() === PHP_SESSION_ACTIVE) {
 				$_SESSION['reply'] = array(array('danger', 'Access denied: module not allocated to your role.'));
 			}
-			$redirect = app_normalize_redirect_target($redirect);
+			$redirect = app_normalize_redirect_target($portalHome !== '' ? $portalHome : $redirect);
 			header("location:$redirect");
 			exit;
 		}
@@ -932,7 +939,7 @@ function app_enforce_portal_route_permission(PDO $conn, string $portal, string $
 		if (session_status() === PHP_SESSION_ACTIVE) {
 			$_SESSION['reply'] = array(array('danger', 'Access denied: missing required permissions for this module.'));
 		}
-		$redirect = app_normalize_redirect_target($redirect);
+		$redirect = app_normalize_redirect_target($portalHome !== '' ? $portalHome : $redirect);
 		header("location:$redirect");
 		exit;
 	}
@@ -941,7 +948,7 @@ function app_enforce_portal_route_permission(PDO $conn, string $portal, string $
 		if (session_status() === PHP_SESSION_ACTIVE) {
 			$_SESSION['reply'] = array(array('danger', 'Access denied: this route is not registered as an authorized module.'));
 		}
-		$redirect = app_normalize_redirect_target($redirect);
+		$redirect = app_normalize_redirect_target($portalHome !== '' ? $portalHome : $redirect);
 		header("location:$redirect");
 		exit;
 	}
