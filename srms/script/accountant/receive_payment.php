@@ -154,8 +154,9 @@ try {
 		$total = (float)$inv['total'];
 		$paid = (float)$inv['paid'];
 		$balance = max(0, $total - $paid);
+		$studentSearch = strtolower(trim((string)$inv['student_id'] . ' ' . (string)$inv['student_name']));
 	  ?>
-		<tr>
+		<tr data-student-search="<?php echo htmlspecialchars($studentSearch, ENT_QUOTES, 'UTF-8'); ?>">
 		  <td><?php echo htmlspecialchars((string)$inv['student_id'].' — '.$inv['student_name']); ?></td>
 		  <td><?php echo number_format($total, 2); ?></td>
 		  <td><?php echo number_format($paid, 2); ?></td>
@@ -180,6 +181,11 @@ try {
 	  <?php } } ?>
 	  </tbody>
 	</table>
+	<datalist id="studentSuggestions">
+	<?php foreach ($invoices as $inv): ?>
+	  <option value="<?php echo htmlspecialchars((string)$inv['student_id'].' - '.$inv['student_name'], ENT_QUOTES, 'UTF-8'); ?>"></option>
+	<?php endforeach; ?>
+	</datalist>
   </div>
 </div>
 <?php } ?>
@@ -191,6 +197,27 @@ try {
 <script src="js/jquery-3.7.0.min.js"></script>
 <script src="js/bootstrap.min.js"></script>
 <script src="js/main.js"></script>
+<script>
+(function () {
+	var searchInput = document.querySelector('input[name="student_query"]');
+	var rows = document.querySelectorAll('tr[data-student-search]');
+	if (!searchInput || !rows.length) {
+		return;
+	}
+
+	function filterRows() {
+		var query = (searchInput.value || '').trim().toLowerCase();
+		rows.forEach(function (row) {
+			var haystack = (row.getAttribute('data-student-search') || '').toLowerCase();
+			row.style.display = !query || haystack.indexOf(query) !== -1 ? '' : 'none';
+		});
+	}
+
+	searchInput.setAttribute('list', 'studentSuggestions');
+	searchInput.addEventListener('input', filterRows);
+	filterRows();
+})();
+</script>
 <?php require_once('const/check-reply.php'); ?>
 </body>
 </html>
