@@ -130,6 +130,19 @@ try {
   </div>
 </div>
 
+<div class="tile mt-3 mb-3">
+  <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+	<div>
+	  <h3 class="tile-title mb-1">Fee Recording</h3>
+	  <div class="text-muted">Record student fee payments and deduct balances from invoices.</div>
+	</div>
+	<div class="d-flex gap-2 flex-wrap">
+	  <a class="btn btn-primary" href="accountant/receive_payment"><i class="bi bi-plus-circle me-1"></i>Record Fee Payment</a>
+	  <a class="btn btn-outline-primary" href="accountant/invoices"><i class="bi bi-file-text me-1"></i>View Invoices</a>
+	</div>
+  </div>
+</div>
+
 <div class="tile mt-3">
   <div class="d-flex justify-content-between align-items-center">
 	<h3 class="tile-title mb-0">Top Defaulters</h3>
