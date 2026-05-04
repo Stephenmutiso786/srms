@@ -13430,9 +13430,9 @@ textarea.form-control-lg {
 }
 
 .app-content {
-  min-height: calc(100vh - 32px);
-  margin-top: 32px;
-  padding: 20px 30px !important;
+  min-height: calc(100vh - 50px);
+  margin-top: 50px;
+  padding: 30px;
   background-color: #E5E5E5;
   -webkit-transition: margin-left 0.3s ease;
   transition: margin-left 0.3s ease;
@@ -13440,12 +13440,11 @@ textarea.form-control-lg {
 @media (min-width: 768px) {
   .app-content {
     margin-left: 230px;
-    padding-top: 25px !important;
   }
 }
 @media (max-width: 767px) {
   .app-content {
-    margin-top: 32px;
+    margin-top: 50px;
     min-width: 100%;
   }
 }
@@ -13620,12 +13619,10 @@ body.has-top-banner .app-content {
   background-color: #00695C;
   z-index: 1030;
   padding-right: 15px;
-  padding: 4px 15px !important;
 }
 @media (min-width: 768px) {
   .app-header {
     padding-right: 30px;
-    padding: 4px 30px !important;
   }
 }
 @media print {
@@ -13638,25 +13635,14 @@ body.has-top-banner .app-content {
   -webkit-box-flex: 1;
       -ms-flex: 1 0 auto;
           flex: 1 0 auto;
-  position: relative;
   color: #fff;
   text-align: center;
   font-family: 'Karla', sans-serif;
   padding: 0 15px;
-  font-size: 0 !important;
-  font-weight: 600 !important;
-  line-height: 1 !important;
-  white-space: nowrap;
-  overflow: hidden;
+  font-size: 26px;
+  font-weight: 400;
+  line-height: 50px;
   text-decoration: none;
-}
-.app-header__logo::after {
-  content: "ELIMU HUB";
-  display: inline-block;
-  font-size: 0.78rem;
-  line-height: 1.4;
-  font-weight: 700;
-  letter-spacing: 0.03em;
 }
 @media (min-width: 768px) {
   .app-header__logo {
@@ -13666,8 +13652,6 @@ body.has-top-banner .app-content {
     display: block;
     width: 230px;
     background-color: #005046;
-    padding: 4px 15px !important;
-    line-height: 1 !important;
   }
 }
 .app-header__logo:focus, .app-header__logo:hover {
