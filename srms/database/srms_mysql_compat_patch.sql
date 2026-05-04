@@ -281,4 +281,34 @@ JOIN tbl_roles r ON r.name = CASE
   ELSE 'Teacher'
 END;
 
+-- General Ledger (Chart of Accounts and GL Entries)
+CREATE TABLE IF NOT EXISTS tbl_chart_of_accounts (
+  id int NOT NULL AUTO_INCREMENT,
+  code varchar(32) NOT NULL UNIQUE,
+  name varchar(255) NOT NULL,
+  type varchar(32) NOT NULL,
+  parent_id int DEFAULT NULL,
+  created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY tbl_chart_of_accounts_type_idx (type),
+  KEY tbl_chart_of_accounts_parent_idx (parent_id),
+  CONSTRAINT tbl_chart_of_accounts_parent_fk FOREIGN KEY (parent_id) REFERENCES tbl_chart_of_accounts (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS tbl_gl_entries (
+  id int NOT NULL AUTO_INCREMENT,
+  account_id int NOT NULL,
+  date date NOT NULL DEFAULT (CURRENT_DATE),
+  description text,
+  debit decimal(14,2) DEFAULT 0,
+  credit decimal(14,2) DEFAULT 0,
+  created_by int DEFAULT NULL,
+  created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id),
+  KEY idx_gl_entries_account_date (account_id, date),
+  KEY idx_gl_entries_date_idx (date),
+  CONSTRAINT tbl_gl_entries_account_fk FOREIGN KEY (account_id) REFERENCES tbl_chart_of_accounts (id) ON DELETE RESTRICT,
+  CONSTRAINT tbl_gl_entries_staff_fk FOREIGN KEY (created_by) REFERENCES tbl_staff (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 SET FOREIGN_KEY_CHECKS=1;
