@@ -10,6 +10,7 @@ putenv('DB_USER=root');
 putenv('DB_PASS=');
 putenv('DB_NAME=srms');
 putenv('DB_CHARSET=utf8mb4');
+putenv('APP_NAME=ELIMU HUB');
 putenv('AFRICASTALKING_USERNAME=kyandulu_primary_school');
 
 // If you need to enable debug behaviours locally, you can set more vars here.
