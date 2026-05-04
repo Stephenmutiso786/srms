@@ -3,6 +3,7 @@ chdir('../');
 session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
+require_once('const/http_client.php');
 
 header('Content-Type: application/json');
 
@@ -913,28 +914,13 @@ function app_openai_reply(string $message, array $scope, string $role, string $i
 		'max_output_tokens' => 300,
 	]);
 
-	$ch = curl_init('https://api.openai.com/v1/responses');
-	curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-	curl_setopt($ch, CURLOPT_POST, true);
-	curl_setopt($ch, CURLOPT_HTTPHEADER, [
-		'Authorization: Bearer '.$apiKey,
-		'Content-Type: application/json',
-	]);
-	curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
-	curl_setopt($ch, CURLOPT_TIMEOUT, 20);
-
-	$result = curl_exec($ch);
-	if ($result === false) {
-		curl_close($ch);
-		return '';
-	}
-	$httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-	curl_close($ch);
-	if ($httpCode < 200 || $httpCode >= 300) {
+	$httpHeaders = ['Authorization: Bearer ' . $apiKey, 'Content-Type: application/json'];
+	$resp = app_http_post_json('https://api.openai.com/v1/responses', $payload, $httpHeaders, 20);
+	if (!is_array($resp) || ($resp['http_code'] ?? 0) < 200 || ($resp['http_code'] ?? 0) >= 300) {
 		return '';
 	}
 
-	$data = json_decode($result, true);
+	$data = json_decode((string)($resp['body'] ?? ''), true);
 	if (!is_array($data)) {
 		return '';
 	}

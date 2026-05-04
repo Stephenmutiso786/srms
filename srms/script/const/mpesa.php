@@ -1,5 +1,6 @@
 <?php
 require_once(__DIR__ . '/../db/config.php');
+require_once(__DIR__ . '/../const/http_client.php');
 
 function mpesa_config(PDO $conn): array
 {
@@ -53,64 +54,34 @@ function mpesa_base_url(string $env): string
 
 function mpesa_http_json(string $url, array $headers, array $payload): array
 {
-	if (!function_exists('curl_init')) {
-		throw new RuntimeException("PHP cURL is required for M-Pesa requests.");
+	$hdrs = array_merge(['Content-Type: application/json'], $headers);
+	$resp = app_http_post_json($url, json_encode($payload), $hdrs, 30);
+	$code = (int)($resp['http_code'] ?? 0);
+	$body = (string)($resp['body'] ?? '');
+	if (!empty($resp['error'])) {
+		throw new RuntimeException('M-Pesa request failed: ' . $resp['error']);
 	}
-
-	$ch = curl_init($url);
-	curl_setopt_array($ch, [
-		CURLOPT_RETURNTRANSFER => true,
-		CURLOPT_HTTPHEADER => array_merge(['Content-Type: application/json'], $headers),
-		CURLOPT_POST => true,
-		CURLOPT_POSTFIELDS => json_encode($payload),
-		CURLOPT_TIMEOUT => 30,
-	]);
-
-	$body = curl_exec($ch);
-	$err = curl_error($ch);
-	$code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-	curl_close($ch);
-
-	if ($body === false) {
-		throw new RuntimeException("M-Pesa request failed: " . $err);
-	}
-
 	$data = json_decode($body, true);
 	if (!is_array($data)) {
-		throw new RuntimeException("M-Pesa response is not JSON (HTTP $code).");
+		throw new RuntimeException("M-Pesa response is not JSON (HTTP $code). Body: " . substr($body, 0, 600));
 	}
-
 	return [$code, $data];
 }
 
 function mpesa_get_access_token(array $cfg): string
 {
-	if (!function_exists('curl_init')) {
-		throw new RuntimeException("PHP cURL is required for M-Pesa requests.");
-	}
-
 	$base = mpesa_base_url($cfg['environment']);
 	$url = $base . '/oauth/v1/generate?grant_type=client_credentials';
-
-	$ch = curl_init($url);
-	curl_setopt_array($ch, [
-		CURLOPT_RETURNTRANSFER => true,
-		CURLOPT_HTTPHEADER => ['Accept: application/json'],
-		CURLOPT_USERPWD => $cfg['consumer_key'] . ':' . $cfg['consumer_secret'],
-		CURLOPT_TIMEOUT => 30,
-	]);
-	$body = curl_exec($ch);
-	$err = curl_error($ch);
-	$code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-	curl_close($ch);
-
-	if ($body === false) {
-		throw new RuntimeException("M-Pesa auth failed: " . $err);
+	$basic = ['user' => $cfg['consumer_key'], 'pass' => $cfg['consumer_secret']];
+	$resp = app_http_request('GET', $url, null, ['Accept: application/json'], 30, $basic);
+	if (!empty($resp['error'])) {
+		throw new RuntimeException('M-Pesa auth failed: ' . $resp['error']);
 	}
-
+	$body = (string)($resp['body'] ?? '');
+	$code = (int)($resp['http_code'] ?? 0);
 	$data = json_decode($body, true);
 	if (!is_array($data) || !isset($data['access_token'])) {
-		throw new RuntimeException("M-Pesa auth response invalid (HTTP $code).");
+		throw new RuntimeException("M-Pesa auth response invalid (HTTP $code). Body: " . substr($body, 0, 600));
 	}
 	return (string)$data['access_token'];
 }

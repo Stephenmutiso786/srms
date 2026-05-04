@@ -137,6 +137,27 @@
 					if (data.maintenance) {
 						applyMaintenanceBadge(data.maintenance);
 					}
+
+					// Apply branding if provided
+					try {
+						var appName = (data.app && data.app.name) ? String(data.app.name) : '';
+						var schoolName = (data.school && data.school.name) ? String(data.school.name) : appName;
+						if (schoolName) {
+							var headerLogos = document.querySelectorAll('.app-header__logo');
+							for (var i = 0; i < headerLogos.length; i++) {
+								headerLogos[i].textContent = schoolName;
+							}
+							var footerEl = document.getElementById('appFooter');
+							if (footerEl) {
+								footerEl.textContent = '@' + (new Date()).getFullYear() + ' ' + schoolName;
+							}
+							if (appName && document.title.indexOf(appName) === -1) {
+								document.title = appName + (document.title ? ' - ' + document.title : '');
+							}
+						}
+					} catch (e) {
+						// ignore branding failures
+					}
 				}
 			})
 			.catch(function () {

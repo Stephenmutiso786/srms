@@ -1,5 +1,6 @@
 <?php
 require_once('db/config.php');
+require_once('const/http_client.php');
 
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
@@ -246,40 +247,11 @@ function app_send_sms(PDO $conn, string $recipient, string $message): array {
 			$response = '';
 			$httpCode = 0;
 
-			if (function_exists('curl_init')) {
-				$ch = curl_init($apiUrl);
-				curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-				curl_setopt($ch, CURLOPT_POST, true);
-				curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
-				curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-				$response = (string)curl_exec($ch);
-				$httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-				if ($response === '' && curl_errno($ch)) {
-					$error = curl_error($ch);
-				}
-				curl_close($ch);
-			} else {
-				$headerText = '';
-				foreach ($headers as $headerLine) {
-					$headerText .= $headerLine . "\r\n";
-				}
-				$context = stream_context_create([
-					'http' => [
-						'method' => 'POST',
-						'header' => $headerText,
-						'content' => $payload,
-						'ignore_errors' => true,
-						'timeout' => 20,
-					],
-				]);
-				$raw = @file_get_contents($apiUrl, false, $context);
-				$response = $raw === false ? '' : (string)$raw;
-				if (isset($http_response_header[0]) && preg_match('/\s(\d{3})\s/', (string)$http_response_header[0], $m)) {
-					$httpCode = (int)$m[1];
-				}
-				if ($raw === false && $httpCode === 0) {
-					$error = 'SMS request failed; HTTP client unavailable';
-				}
+			$resp = app_http_request('POST', $apiUrl, $payload, $headers, 20);
+			$response = (string)($resp['body'] ?? '');
+			$httpCode = (int)($resp['http_code'] ?? 0);
+			if (!empty($resp['error'])) {
+				$error = (string)$resp['error'];
 			}
 
 			if ($error === '') {

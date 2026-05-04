@@ -61,7 +61,31 @@ if (getenv('DB_DSN')) {
 }
 
 // App branding
-DEFINE('APP_NAME', getenv('APP_NAME') ?: 'SRMS');
+$envAppName = trim((string)(getenv('APP_NAME') ?: ''));
+$appName = '';
+if ($envAppName !== '') {
+	$appName = $envAppName;
+} else {
+	// Try to read school name from database (fallback to SRMS)
+	try {
+		$tmpOptions = [
+			PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+			PDO::ATTR_TIMEOUT => (DBConnectTimeout > 0 ? DBConnectTimeout : 5),
+		];
+		$tmpPdo = new PDO(DB_DSN, DBUser, DBPass, $tmpOptions);
+		$tmpPdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+		$stmt = $tmpPdo->prepare("SELECT name FROM tbl_school ORDER BY id ASC LIMIT 1");
+		$stmt->execute();
+		$row = $stmt->fetch(PDO::FETCH_ASSOC);
+		if ($row && !empty($row['name'])) {
+			$appName = trim((string)$row['name']);
+		}
+	} catch (Throwable $e) {
+		// ignore and fallback
+	}
+}
+if ($appName === '') { $appName = 'SRMS'; }
+DEFINE('APP_NAME', $appName);
 DEFINE('APP_TAGLINE', getenv('APP_TAGLINE') ?: 'Student Results Management System');
 DEFINE('APP_URL', rtrim(getenv('APP_URL') ?: '', '/'));
 DEFINE('APP_SECRET', getenv('APP_SECRET') ?: '');
