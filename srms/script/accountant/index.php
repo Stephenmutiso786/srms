@@ -176,8 +176,10 @@ try {
 	  <h3 class="tile-title">Quick Links</h3>
 	  <div class="d-grid gap-2">
 		<a class="btn btn-primary" href="accountant/fees"><i class="bi bi-credit-card me-1"></i>Fees Overview</a>
+		<a class="btn btn-outline-primary" href="accountant/receive_payment"><i class="bi bi-plus-circle me-1"></i>Receive Payment</a>
 		<a class="btn btn-outline-primary" href="accountant/fee_structure"><i class="bi bi-sliders me-1"></i>Fee Structure</a>
 		<a class="btn btn-outline-primary" href="accountant/invoices"><i class="bi bi-file-text me-1"></i>Invoices & Payments</a>
+		<a class="btn btn-outline-primary" href="accountant/ledger"><i class="bi bi-journal-bookmark me-1"></i>General Ledger</a>
 	  </div>
 	</div>
   </div>

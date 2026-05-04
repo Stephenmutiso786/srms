@@ -5,7 +5,7 @@ require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/rbac.php');
 
-if ($level != "5") { header("location:../"); }
+if ($level != "5") { header("location:../"); exit; }
 app_require_permission('finance.manage', '../finances');
 app_require_unlocked('finance', '../finances');
 

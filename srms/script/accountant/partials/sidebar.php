@@ -27,8 +27,10 @@ function accountant_sidebar_group_label(string $moduleKey): string
 	$groupMap = [
 		'dashboard' => 'Overview',
 		'fees' => 'Finance',
+		'receive_payment' => 'Finance',
 		'fee_structure' => 'Finance',
 		'invoices' => 'Finance',
+		'ledger' => 'Finance',
 		'profile' => 'Account',
 	];
 

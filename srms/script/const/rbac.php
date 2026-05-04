@@ -664,8 +664,10 @@ function app_portal_module_catalog(string $portal): array
 		return [
 			['key' => 'dashboard', 'label' => 'Dashboard', 'href' => 'accountant', 'icon' => 'feather icon-monitor', 'description' => 'Finance overview', 'permissions' => [], 'core' => true],
 			['key' => 'fees', 'label' => 'Fees & Finance', 'href' => 'accountant/fees', 'icon' => 'feather icon-credit-card', 'description' => 'Payments and finance activity', 'permissions' => ['finance.manage', 'finance.view'], 'core' => true],
+			['key' => 'receive_payment', 'label' => 'Receive Payment', 'href' => 'accountant/receive_payment', 'icon' => 'feather icon-plus-circle', 'description' => 'Quick fee collection entry', 'permissions' => ['finance.manage', 'finance.view'], 'core' => true, 'routes' => ['accountant/add_payment']],
 			['key' => 'fee_structure', 'label' => 'Fee Structure', 'href' => 'accountant/fee_structure', 'icon' => 'feather icon-sliders', 'description' => 'Fee setup and policies', 'permissions' => ['finance.manage'], 'core' => true],
 			['key' => 'invoices', 'label' => 'Invoices', 'href' => 'accountant/invoices', 'icon' => 'feather icon-file-text', 'description' => 'Invoices and collections', 'permissions' => ['finance.manage', 'finance.view'], 'core' => true],
+			['key' => 'ledger', 'label' => 'General Ledger', 'href' => 'accountant/ledger', 'icon' => 'feather icon-book-open', 'description' => 'Ledger and journal entries', 'permissions' => ['finance.manage', 'finance.view'], 'core' => true],
 			['key' => 'profile', 'label' => 'Profile', 'href' => 'accountant/profile', 'icon' => 'feather icon-user', 'description' => 'My accountant profile', 'permissions' => [], 'core' => true],
 		];
 	}
