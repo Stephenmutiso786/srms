@@ -30,10 +30,20 @@ try {
 <link rel="icon" href="images/icon.ico">
 <link rel="stylesheet" type="text/css" href="cdn.jsdelivr.net/npm/bootstrap-icons%401.10.5/font/bootstrap-icons.css">
 <link type="text/css" rel="stylesheet" href="loader/waitMe.css">
+<style>
+.app-header__logo {
+	font-size: 0.9rem !important;
+	padding: 8px 12px !important;
+	font-weight: 600 !important;
+}
+.app-header {
+	padding: 8px 0 !important;
+}
+</style>
 </head>
 <body class="app sidebar-mini">
 
-<header class="app-header"><a class="app-header__logo" href="javascript:void(0);"><?php echo APP_NAME; ?></a>
+<header class="app-header"><a class="app-header__logo" href="javascript:void(0);">ELIMU HUB</a>
 <a class="app-sidebar__toggle" href="#" data-toggle="sidebar" aria-label="Hide Sidebar"></a>
 
 <ul class="app-nav">

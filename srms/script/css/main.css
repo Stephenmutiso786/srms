@@ -13430,8 +13430,8 @@ textarea.form-control-lg {
 }
 
 .app-content {
-  min-height: calc(100vh - 50px);
-  margin-top: 50px;
+  min-height: calc(100vh - 40px);
+  margin-top: 40px;
   padding: 30px;
   background-color: #E5E5E5;
   -webkit-transition: margin-left 0.3s ease;
@@ -13444,7 +13444,7 @@ textarea.form-control-lg {
 }
 @media (max-width: 767px) {
   .app-content {
-    margin-top: 50px;
+    margin-top: 40px;
     min-width: 100%;
   }
 }
@@ -13619,10 +13619,12 @@ body.has-top-banner .app-content {
   background-color: #00695C;
   z-index: 1030;
   padding-right: 15px;
+  padding: 6px 15px !important;
 }
 @media (min-width: 768px) {
   .app-header {
     padding-right: 30px;
+    padding: 6px 30px !important;
   }
 }
 @media print {
@@ -13639,9 +13641,9 @@ body.has-top-banner .app-content {
   text-align: center;
   font-family: 'Karla', sans-serif;
   padding: 0 15px;
-  font-size: 26px;
-  font-weight: 400;
-  line-height: 50px;
+  font-size: 0.95rem !important;
+  font-weight: 600 !important;
+  line-height: 1.8 !important;
   text-decoration: none;
 }
 @media (min-width: 768px) {
@@ -13652,6 +13654,8 @@ body.has-top-banner .app-content {
     display: block;
     width: 230px;
     background-color: #005046;
+    padding: 6px 15px !important;
+    line-height: 1.8 !important;
   }
 }
 .app-header__logo:focus, .app-header__logo:hover {
