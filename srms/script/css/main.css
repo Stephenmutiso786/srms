@@ -13432,7 +13432,7 @@ textarea.form-control-lg {
 .app-content {
   min-height: calc(100vh - 32px);
   margin-top: 32px;
-  padding: 30px;
+  padding: 20px 30px !important;
   background-color: #E5E5E5;
   -webkit-transition: margin-left 0.3s ease;
   transition: margin-left 0.3s ease;
@@ -13440,6 +13440,7 @@ textarea.form-control-lg {
 @media (min-width: 768px) {
   .app-content {
     margin-left: 230px;
+    padding-top: 25px !important;
   }
 }
 @media (max-width: 767px) {
