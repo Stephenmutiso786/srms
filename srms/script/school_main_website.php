@@ -3,7 +3,7 @@ require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/public_media.php');
 
-$schoolName = (defined('WBName') && trim((string)WBName) !== '') ? (string)WBName : 'Kyandulu Primary School';
+$schoolName = (defined('WBName') && trim((string)WBName) !== '') ? (string)WBName : (defined('APP_NAME') && trim((string)APP_NAME) !== '' ? (string)APP_NAME : 'ELIMU HUB');
 $schoolLogo = (defined('WBLogo') && trim((string)WBLogo) !== '') ? 'images/logo/' . trim((string)WBLogo) : 'images/logo/school_logo1711003619.png';
 $schoolMotto = 'Nurturing Excellence Through CBC Education';
 $schoolTagline = 'A trusted learning community shaping future-ready leaders.';
@@ -1109,7 +1109,7 @@ if (count($slides) === 0) {
 						return;
 					}
 					navigator.serviceWorker.ready.then(function (registration) {
-						registration.showNotification('Kyandulu Primary School', {
+						registration.showNotification('<?php echo htmlspecialchars($schoolName, ENT_QUOTES, 'UTF-8'); ?>', {
 							body: 'Welcome! Stay updated with school news and events.',
 							icon: 'images/pwa/icon-192.png'
 						});
