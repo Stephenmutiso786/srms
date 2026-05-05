@@ -124,17 +124,35 @@ try {
 
 		if ($assessmentMode === 'consolidated') {
 			$componentSubjects = [];
-			if (!empty($componentExamIds)) {
-				$placeholders = implode(',', array_fill(0, count($componentExamIds), '?'));
-				$params = array_merge([$classId, $termId], $componentExamIds);
-				$stmt = $conn->prepare("SELECT id FROM tbl_exams WHERE class_id = ? AND term_id = ? AND id IN ($placeholders) AND id <> 0 AND COALESCE(assessment_mode, 'normal') <> 'cbc' AND COALESCE(assessment_mode, 'normal') <> 'consolidated' AND status IN ('finalized', 'published')");
-				$stmt->execute($params);
-				$validComponentExamIds = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+			if (empty($componentExamIds)) {
+				throw new RuntimeException("Choose at least two component exams for consolidated mode.");
 			}
 
-			if (count($validComponentExamIds) < 2) {
-				$skippedClasses[] = $classId;
-				continue;
+			$placeholders = implode(',', array_fill(0, count($componentExamIds), '?'));
+			$params = array_merge([$classId, $termId], $componentExamIds);
+			$stmt = $conn->prepare("SELECT id FROM tbl_exams
+				WHERE class_id = ? AND term_id = ? AND id IN ($placeholders)
+				AND id <> 0
+				AND COALESCE(assessment_mode, 'normal') <> 'cbc'
+				AND COALESCE(assessment_mode, 'normal') <> 'consolidated'
+				AND COALESCE(status, 'draft') = 'published'");
+			$stmt->execute($params);
+			$validComponentExamIds = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+
+			if (count($validComponentExamIds) !== count($componentExamIds)) {
+				throw new RuntimeException("All selected source exams must belong to the same class/term and be published before creating a consolidated exam.");
+			}
+
+			if (!app_table_exists($conn, 'tbl_exam_results') || !app_column_exists($conn, 'tbl_exam_results', 'exam_id')) {
+				throw new RuntimeException("Exam results table is not ready for consolidated validation.");
+			}
+
+			foreach ($validComponentExamIds as $componentExamId) {
+				$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_exam_results WHERE class = ? AND term = ? AND exam_id = ?");
+				$stmt->execute([$classId, $termId, $componentExamId]);
+				if ((int)$stmt->fetchColumn() < 1) {
+					throw new RuntimeException("Each selected source exam must already contain marks before creating a consolidated exam.");
+				}
 			}
 
 			foreach ($validComponentExamIds as $componentExamId) {
