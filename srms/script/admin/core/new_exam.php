@@ -20,8 +20,8 @@ $subjectIds = $_POST['subject_ids'] ?? [];
 $componentExamIds = $_POST['component_exam_ids'] ?? [];
 $termId = (int)($_POST['term_id'] ?? 0);
 $gradingSystemId = (int)($_POST['grading_system_id'] ?? 0);
-$assessmentMode = strtolower(trim((string)($_POST['assessment_mode'] ?? 'normal')));
-if (!in_array($assessmentMode, ['normal', 'cbc', 'consolidated'], true)) {
+$assessmentMode = strtoupper(trim((string)($_POST['assessment_mode'] ?? 'normal')));
+if (!in_array($assessmentMode, ['normal', 'cbc', 'KPSEA', 'KJSEA', 'consolidated'], true)) {
 	$assessmentMode = 'normal';
 }
 $examTypeId = $_POST['exam_type_id'] ?? null;
@@ -61,6 +61,22 @@ try {
 		$_SESSION['reply'] = array (array("danger", "Choose at least two component exams for consolidated mode."));
 		header("location:../exams");
 		exit;
+	}
+
+	// Validate national assessment modes (KPSEA, KJSEA)
+	if (in_array($assessmentMode, ['KPSEA', 'KJSEA'], true)) {
+		$validationError = null;
+		foreach ($classIds as $classId) {
+			$validationError = app_validate_assessment_mode_for_class($conn, $assessmentMode, $classId);
+			if ($validationError) {
+				break;
+			}
+		}
+		if ($validationError) {
+			$_SESSION['reply'] = array (array("danger", htmlspecialchars($validationError)));
+			header("location:../exams");
+			exit;
+		}
 	}
 
 	if (!app_table_exists($conn, 'tbl_exams')) {

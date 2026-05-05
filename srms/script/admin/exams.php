@@ -251,9 +251,23 @@ try {
 <select class="form-control" name="assessment_mode" id="assessmentModeSelect" required>
 <option value="normal" selected>Normal Exam</option>
 <option value="cbc">CBC Assessment</option>
+<option value="KPSEA">KPSEA (Grade 6 National Assessment)</option>
+<option value="KJSEA">KJSEA (Grade 9 National Assessment)</option>
 <option value="consolidated">Consolidated (Average Multiple Exams)</option>
 </select>
-<div class="small text-muted mt-1">Use one exam module for both normal and CBC workflows.</div>
+<div class="small text-muted mt-1">Use one exam module for both normal and CBC workflows. National assessments have fixed structures and prerequisites.</div>
+</div>
+<div class="col-md-12 mb-3" id="kjseaWarning" style="display:none;">
+<div class="alert alert-warning" role="alert">
+  <i class="bi bi-exclamation-triangle me-2"></i>
+  <strong>KJSEA Prerequisite Check Required</strong>
+  <p class="mb-0 mt-2">KJSEA (Grade 9) requires:</p>
+  <ul class="mb-0 mt-2">
+    <li>✅ All Grade 9 students must have SBA scores from Grade 7 & 8</li>
+    <li>✅ All Grade 9 students must have KPSEA results</li>
+  </ul>
+  <p class="mb-0 mt-2 small">The system will validate these prerequisites when the exam is created. If any student is missing scores, the exam creation will be blocked.</p>
+</div>
 </div>
 <div class="col-md-12 mb-3" id="componentExamWrap" style="display:none;">
 <label class="form-label">Source Exams To Combine</label>
@@ -429,16 +443,67 @@ function filterComponentExams() {
 function toggleAssessmentModeFields() {
 	const mode = (assessmentModeSelect.value || 'normal').toLowerCase();
 	const consolidated = mode === 'consolidated';
+	const isKPSEA = mode === 'kpsea';
+	const isKJSEA = mode === 'kjsea';
+	const isNational = isKPSEA || isKJSEA;
+
+	// Handle consolidated mode
 	componentExamWrap.style.display = consolidated ? '' : 'none';
 	componentExamIds.required = consolidated;
 	consolidatedSubjectNotice.style.display = consolidated ? '' : 'none';
-	document.getElementById('examSubjectIds').disabled = consolidated;
+	document.getElementById('examSubjectIds').disabled = consolidated || isNational;
+
+	// Handle national assessment modes (KPSEA/KJSEA)
+	const examNameInput = document.querySelector('input[name="name"]');
+	const examClassSelect = document.getElementById('examClassIds');
+	const kjseaWarning = document.getElementById('kjseaWarning');
+
+	if (isKPSEA) {
+		// KPSEA: Grade 6 only
+		examNameInput.value = 'KPSEA ' + new Date().getFullYear();
+		examNameInput.disabled = false; // Allow override
+		examClassSelect.disabled = false;
+		// Auto-select Grade 6
+		Array.from(examClassSelect.options).forEach(function(option) {
+			if (option.text.includes('Grade 6') || option.text.includes('Form 1')) {
+				option.selected = true;
+			} else {
+				option.selected = false;
+			}
+		});
+		kjseaWarning.style.display = 'none';
+		Array.from(document.getElementById('examSubjectIds').options).forEach(function(option) {
+			option.selected = false;
+		});
+	} else if (isKJSEA) {
+		// KJSEA: Grade 9 only
+		examNameInput.value = 'KJSEA ' + new Date().getFullYear();
+		examNameInput.disabled = false; // Allow override
+		examClassSelect.disabled = false;
+		// Auto-select Grade 9
+		Array.from(examClassSelect.options).forEach(function(option) {
+			if (option.text.includes('Grade 9') || option.text.includes('Form 3')) {
+				option.selected = true;
+			} else {
+				option.selected = false;
+			}
+		});
+		kjseaWarning.style.display = '';
+		Array.from(document.getElementById('examSubjectIds').options).forEach(function(option) {
+			option.selected = false;
+		});
+	} else {
+		// Normal or CBC mode
+		examNameInput.disabled = false;
+		examClassSelect.disabled = false;
+		kjseaWarning.style.display = 'none';
+		document.getElementById('examSubjectIds').disabled = false;
+	}
+
 	if (consolidated) {
 		Array.from(document.getElementById('examSubjectIds').options).forEach(function(option) {
 			option.selected = false;
 		});
-	}
-	if (consolidated) {
 		filterComponentExams();
 	}
 }

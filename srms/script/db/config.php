@@ -4711,4 +4711,283 @@ function app_generate_receipt_number(PDO $conn): string
 }
 
 date_default_timezone_set('Africa/Dar_es_Salaam');
+
+// ====== KPSEA & KJSEA National Assessment Functions ======
+
+function app_get_sba_scores(PDO $conn, int $studentId, int $grade, ?int $termId = null): array
+{
+	if (!app_table_exists($conn, 'tbl_sba_scores') || $studentId < 1 || $grade < 1) {
+		return [];
+	}
+	$stmt = $conn->prepare("SELECT id, subject_id, score FROM tbl_sba_scores WHERE student_id = ? AND grade = ?" . ($termId ? " AND term_id = ?" : "") . " ORDER BY subject_id");
+	$params = [$studentId, $grade];
+	if ($termId) $params[] = $termId;
+	$stmt->execute($params);
+	return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+function app_get_kpsea_results(PDO $conn, int $studentId, ?int $year = null): array
+{
+	if (!app_table_exists($conn, 'tbl_kpsea_results') || $studentId < 1) {
+		return [];
+	}
+	$stmt = $conn->prepare("SELECT id, subject_id, score, grade_awarded FROM tbl_kpsea_results WHERE student_id = ?" . ($year ? " AND exam_session_year = ?" : "") . " ORDER BY subject_id");
+	$params = [$studentId];
+	if ($year) $params[] = $year;
+	$stmt->execute($params);
+	return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
+function app_student_has_sba_scores(PDO $conn, int $studentId, array $grades = [7, 8]): bool
+{
+	if (!app_table_exists($conn, 'tbl_sba_scores') || $studentId < 1) {
+		return false;
+	}
+	foreach ($grades as $grade) {
+		$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_sba_scores WHERE student_id = ? AND grade = ?");
+		$stmt->execute([$studentId, (int)$grade]);
+		if ((int)$stmt->fetchColumn() < 1) {
+			return false;
+		}
+	}
+	return true;
+}
+
+function app_student_has_kpsea_results(PDO $conn, int $studentId, ?int $year = null): bool
+{
+	if (!app_table_exists($conn, 'tbl_kpsea_results') || $studentId < 1) {
+		return false;
+	}
+	$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_kpsea_results WHERE student_id = ?" . ($year ? " AND exam_session_year = ?" : ""));
+	$params = [$studentId];
+	if ($year) $params[] = $year;
+	$stmt->execute($params);
+	return (int)$stmt->fetchColumn() > 0;
+}
+
+function app_kjsea_prerequisites_met(PDO $conn, int $classId, int $year): bool
+{
+	// Check that all Grade 9 students in this class have:
+	// 1. SBA scores from Grade 7 and 8
+	// 2. KPSEA results
+	if ($classId < 1) {
+		return false;
+	}
+	$stmt = $conn->prepare("SELECT id FROM tbl_students WHERE class = ? LIMIT 1");
+	$stmt->execute([$classId]);
+	if (!$stmt->fetchColumn()) {
+		return true; // No students, so it's fine
+	}
+
+	$stmt = $conn->prepare("SELECT id FROM tbl_students WHERE class = ? ORDER BY id");
+	$stmt->execute([$classId]);
+	$students = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+	foreach ($students as $studentId) {
+		$studentId = (int)$studentId;
+		if (!app_student_has_sba_scores($conn, $studentId, [7, 8])) {
+			return false;
+		}
+		if (!app_student_has_kpsea_results($conn, $studentId, $year)) {
+			return false;
+		}
+	}
+	return true;
+}
+
+function app_compute_kjsea_final_score(PDO $conn, int $studentId, float $examScore, int $year): float
+{
+	// Final Score = SBA (30%) + Exam Score (70%)
+	// SBA is average of Grade 7 & 8 scores
+	if ($studentId < 1 || !app_table_exists($conn, 'tbl_sba_scores')) {
+		return (float)$examScore;
+	}
+
+	$sbaGrade7 = $sbaGrade8 = [];
+	foreach ([7, 8] as $grade) {
+		$stmt = $conn->prepare("SELECT AVG(score) FROM tbl_sba_scores WHERE student_id = ? AND grade = ? AND exam_session_year = ?");
+		$stmt->execute([$studentId, $grade, $year]);
+		$avg = (float)($stmt->fetchColumn() ?? 0);
+		if ($grade === 7) $sbaGrade7 = $avg;
+		else $sbaGrade8 = $avg;
+	}
+
+	$sbaAverage = ($sbaGrade7 + $sbaGrade8) / 2;
+	return ($sbaAverage * 0.30) + ((float)$examScore * 0.70);
+}
+
+function app_validate_assessment_mode_for_class(PDO $conn, string $mode, int $classId): ?string
+{
+	// Validate that the assessment mode is allowed for the given class
+	// KPSEA: Grade 6 only
+	// KJSEA: Grade 9 only
+	// Others: Any class
+	$mode = strtoupper(trim($mode));
+
+	if ($mode === 'KPSEA') {
+		// KPSEA is for Grade 6 only
+		$stmt = $conn->prepare("SELECT id FROM tbl_classes WHERE id = ? AND name LIKE '%Grade 6%' OR name LIKE '%6%' LIMIT 1");
+		$stmt->execute([$classId]);
+		if (!$stmt->fetchColumn()) {
+			return "KPSEA assessments are only for Grade 6.";
+		}
+	} elseif ($mode === 'KJSEA') {
+		// KJSEA is for Grade 9 only
+		$stmt = $conn->prepare("SELECT id FROM tbl_classes WHERE id = ? AND name LIKE '%Grade 9%' OR name LIKE '%9%' LIMIT 1");
+		$stmt->execute([$classId]);
+		if (!$stmt->fetchColumn()) {
+			return "KJSEA assessments are only for Grade 9.";
+		}
+
+		// Check prerequisites for Grade 9
+		if (!app_kjsea_prerequisites_met($conn, $classId, (int)date('Y'))) {
+			return "KJSEA creation requires all Grade 9 students to have SBA scores (Grade 7&8) and KPSEA results.";
+		}
+	}
+
+	return null; // No error
+}
+
+function app_lock_exam(PDO $conn, int $examId): bool
+{
+	if (!app_table_exists($conn, 'tbl_exams') || $examId < 1) {
+		return false;
+	}
+	$stmt = $conn->prepare("UPDATE tbl_exams SET is_locked = TRUE WHERE id = ?");
+	$stmt->execute([$examId]);
+	return (int)$stmt->rowCount() > 0;
+}
+
+function app_is_exam_locked(PDO $conn, int $examId): bool
+{
+	if (!app_table_exists($conn, 'tbl_exams') || $examId < 1) {
+		return false;
+	}
+	$stmt = $conn->prepare("SELECT is_locked FROM tbl_exams WHERE id = ? LIMIT 1");
+	$stmt->execute([$examId]);
+	$locked = $stmt->fetchColumn();
+	return $locked === true || $locked === 1 || $locked === '1';
+}
+
+function app_ensure_assessment_modes_table(PDO $conn): void
+{
+	if (app_table_exists($conn, 'tbl_assessment_modes')) {
+		return;
+	}
+	if (DBDriver === 'pgsql') {
+		$conn->exec("CREATE TABLE IF NOT EXISTS tbl_assessment_modes (
+			id SERIAL PRIMARY KEY,
+			name VARCHAR(100) NOT NULL,
+			code VARCHAR(20) UNIQUE NOT NULL,
+			description TEXT,
+			required_grade INT,
+			requires_sba BOOLEAN DEFAULT FALSE,
+			requires_kpsea BOOLEAN DEFAULT FALSE,
+			sba_weight DECIMAL(3, 2) DEFAULT 0,
+			exam_weight DECIMAL(3, 2) DEFAULT 1,
+			is_national BOOLEAN DEFAULT FALSE,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)");
+	} else {
+		$conn->exec("CREATE TABLE IF NOT EXISTS tbl_assessment_modes (
+			id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+			name VARCHAR(100) NOT NULL,
+			code VARCHAR(20) UNIQUE NOT NULL,
+			description TEXT,
+			required_grade INT,
+			requires_sba BOOLEAN DEFAULT FALSE,
+			requires_kpsea BOOLEAN DEFAULT FALSE,
+			sba_weight DECIMAL(3, 2) DEFAULT 0,
+			exam_weight DECIMAL(3, 2) DEFAULT 1,
+			is_national BOOLEAN DEFAULT FALSE,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)");
+	}
+}
+
+function app_ensure_sba_scores_table(PDO $conn): void
+{
+	if (app_table_exists($conn, 'tbl_sba_scores')) {
+		return;
+	}
+	if (DBDriver === 'pgsql') {
+		$conn->exec("CREATE TABLE IF NOT EXISTS tbl_sba_scores (
+			id SERIAL PRIMARY KEY,
+			student_id INT NOT NULL,
+			grade INT NOT NULL,
+			subject_id INT NOT NULL,
+			score DECIMAL(5, 2) NOT NULL DEFAULT 0,
+			term_id INT,
+			exam_session_year INT,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (student_id) REFERENCES tbl_students(id) ON DELETE CASCADE,
+			FOREIGN KEY (subject_id) REFERENCES tbl_subjects(id) ON DELETE CASCADE,
+			FOREIGN KEY (term_id) REFERENCES tbl_terms(id) ON DELETE SET NULL,
+			UNIQUE (student_id, grade, subject_id, term_id)
+		)");
+	} else {
+		$conn->exec("CREATE TABLE IF NOT EXISTS tbl_sba_scores (
+			id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+			student_id INT NOT NULL,
+			grade INT NOT NULL,
+			subject_id INT NOT NULL,
+			score DECIMAL(5, 2) NOT NULL DEFAULT 0,
+			term_id INT,
+			exam_session_year INT,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (student_id) REFERENCES tbl_students(id) ON DELETE CASCADE,
+			FOREIGN KEY (subject_id) REFERENCES tbl_subjects(id) ON DELETE CASCADE,
+			FOREIGN KEY (term_id) REFERENCES tbl_terms(id) ON DELETE SET NULL,
+			UNIQUE KEY unique_sba (student_id, grade, subject_id, term_id)
+		)");
+	}
+}
+
+function app_ensure_kpsea_results_table(PDO $conn): void
+{
+	if (app_table_exists($conn, 'tbl_kpsea_results')) {
+		return;
+	}
+	if (DBDriver === 'pgsql') {
+		$conn->exec("CREATE TABLE IF NOT EXISTS tbl_kpsea_results (
+			id SERIAL PRIMARY KEY,
+			student_id INT NOT NULL,
+			subject_id INT NOT NULL,
+			score DECIMAL(5, 2) NOT NULL DEFAULT 0,
+			grade_awarded VARCHAR(5),
+			exam_session_year INT,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (student_id) REFERENCES tbl_students(id) ON DELETE CASCADE,
+			FOREIGN KEY (subject_id) REFERENCES tbl_subjects(id) ON DELETE CASCADE,
+			UNIQUE (student_id, subject_id, exam_session_year)
+		)");
+	} else {
+		$conn->exec("CREATE TABLE IF NOT EXISTS tbl_kpsea_results (
+			id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+			student_id INT NOT NULL,
+			subject_id INT NOT NULL,
+			score DECIMAL(5, 2) NOT NULL DEFAULT 0,
+			grade_awarded VARCHAR(5),
+			exam_session_year INT,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (student_id) REFERENCES tbl_students(id) ON DELETE CASCADE,
+			FOREIGN KEY (subject_id) REFERENCES tbl_subjects(id) ON DELETE CASCADE,
+			UNIQUE KEY unique_kpsea (student_id, subject_id, exam_session_year)
+		)");
+	}
+}
+
+function app_ensure_exam_assessment_mode_columns(PDO $conn): void
+{
+	if (!app_table_exists($conn, 'tbl_exams')) {
+		return;
+	}
+	if (!app_column_exists($conn, 'tbl_exams', 'assessment_mode')) {
+		$conn->exec("ALTER TABLE tbl_exams ADD COLUMN assessment_mode VARCHAR(20) DEFAULT 'normal'");
+	}
+	if (!app_column_exists($conn, 'tbl_exams', 'is_locked')) {
+		$conn->exec("ALTER TABLE tbl_exams ADD COLUMN is_locked BOOLEAN DEFAULT FALSE");
+	}
+}
+
 ?>
