@@ -27,11 +27,26 @@ try {
   app_ensure_exam_grading_schema($conn);
   app_ensure_exam_subjects_table($conn);
 
-  $stmt = $conn->prepare("SELECT * FROM tbl_exams WHERE id = ? AND status IN ('active', 'open') LIMIT 1");
+  // Load exam regardless of status; allow opening if there's a rejected submission for this teacher
+  $stmt = $conn->prepare("SELECT * FROM tbl_exams WHERE id = ? LIMIT 1");
   $stmt->execute([$examId]);
   $exam = $stmt->fetch(PDO::FETCH_ASSOC);
   if (!$exam) {
-    throw new RuntimeException("Exam not found or not open for mark entry.");
+    throw new RuntimeException("Exam not found.");
+  }
+
+  // If exam is not active/open, allow entry only when this teacher has a rejected submission for this exam+subject
+  if (!in_array((string)($exam['status'] ?? ''), ['active','open'], true)) {
+    if (app_table_exists($conn, 'tbl_exam_mark_submissions')) {
+      $chk = $conn->prepare("SELECT id FROM tbl_exam_mark_submissions WHERE exam_id = ? AND subject_combination_id = ? AND teacher_id = ? AND status = 'rejected' LIMIT 1");
+      $chk->execute([$examId, $subjectComb, (int)$account_id]);
+      if (!$chk->fetchColumn()) {
+        throw new RuntimeException("Exam not open for mark entry.");
+      }
+      // else: proceed because teacher needs to correct rejected submission
+    } else {
+      throw new RuntimeException("Exam not open for mark entry.");
+    }
   }
 
   $stmt = $conn->prepare("SELECT id, class, teacher, subject FROM tbl_subject_combinations WHERE id = ?");
