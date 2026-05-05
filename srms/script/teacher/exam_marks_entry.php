@@ -112,6 +112,31 @@ try {
   foreach ($exams as $exam) {
     $examModeMap[(int)$exam['id']] = (($exam['assessment_mode'] ?? 'normal') === 'cbc') ? 'cbc' : 'normal';
   }
+
+  // Include reopenable exams: exams where this teacher has a rejected submission
+  $availableExams = count($exams);
+  $reopenableExamIds = [];
+  if (app_table_exists($conn, 'tbl_exam_mark_submissions')) {
+    // get distinct exam ids with rejected status for this teacher
+    $stmt = $conn->prepare("SELECT DISTINCT exam_id FROM tbl_exam_mark_submissions WHERE teacher_id = ? AND status = 'rejected'");
+    $stmt->execute([(int)$account_id]);
+    $rows = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    if (!empty($rows)) {
+      $existing = array_map(function($e){ return (int)$e; }, array_keys($examModeMap));
+      foreach ($rows as $eid) {
+        $eid = (int)$eid;
+        if ($eid < 1) continue;
+        if (in_array($eid, $existing, true)) continue;
+        // verify exam exists
+        $check = $conn->prepare("SELECT id FROM tbl_exams WHERE id = ? LIMIT 1");
+        $check->execute([$eid]);
+        if ($check->fetchColumn()) {
+          $reopenableExamIds[] = $eid;
+        }
+      }
+      $availableExams += count($reopenableExamIds);
+    }
+  }
 } catch (Throwable $e) {
   $_SESSION['reply'] = array (array("danger", "Failed to load exams."));
 }
@@ -210,7 +235,7 @@ body.exam-entry-page{background:linear-gradient(180deg,#eef5f2 0%,#f7fbf9 45%,#e
     </div>
   </div>
   <div class="exam-workflow">
-    <div class="workflow-card"><div class="label">Available exams</div><div class="value"><?php echo (int)count($exams); ?></div></div>
+    <div class="workflow-card"><div class="label">Available exams</div><div class="value"><?php echo (int)$availableExams; ?></div></div>
     <div class="workflow-card"><div class="label">Subjects mapped</div><div class="value"><?php echo (int)count($classSubjects); ?></div></div>
     <div class="workflow-card"><div class="label">Mode</div><div class="value">Auto-detected</div></div>
     <div class="workflow-card"><div class="label">Print sheet</div><div class="value">One click</div></div>
