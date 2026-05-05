@@ -169,6 +169,70 @@ try {
 		}
 	}
 
+	// Handle KJSEA final score computation and exam locking when finalized
+	if ($status === 'finalized' && strtoupper($assessmentMode) === 'KJSEA') {
+		try {
+			// Ensure kjsea_final_score column exists
+			if (app_table_exists($conn, 'tbl_exam_results') && !app_column_exists($conn, 'tbl_exam_results', 'kjsea_final_score')) {
+				if (DBDriver === 'pgsql') {
+					$conn->exec("ALTER TABLE tbl_exam_results ADD COLUMN kjsea_final_score DECIMAL(5, 2) DEFAULT NULL");
+				} else {
+					$conn->exec("ALTER TABLE tbl_exam_results ADD COLUMN kjsea_final_score DECIMAL(5, 2) DEFAULT NULL");
+				}
+			}
+
+			// Compute final scores for all students
+			$classId = (int)($exam['class_id'] ?? 0);
+			if ($classId > 0) {
+				$stmt = $conn->prepare("SELECT id FROM tbl_students WHERE class = ? OR class_id = ? ORDER BY id");
+				$stmt->execute([$classId, $classId]);
+				$studentIds = $stmt->fetchAll(PDO::FETCH_COLUMN);
+
+				foreach ($studentIds as $studentId) {
+					$studentId = (int)$studentId;
+					if ($studentId < 1) {
+						continue;
+					}
+
+					// Get average SBA score (Grade 7 & 8)
+					$sbaScore = app_get_sba_scores($conn, $studentId, 7, null);
+					if (empty($sbaScore)) {
+						$sbaScore = app_get_sba_scores($conn, $studentId, 8, null);
+					}
+
+					if (empty($sbaScore)) {
+						continue; // No SBA data
+					}
+
+					$sbaAverage = array_sum($sbaScore) / count($sbaScore);
+
+					// Get exam mark
+					$stmt = $conn->prepare("SELECT MAX(mark) as exam_mark FROM tbl_exam_results WHERE student = ? AND exam_id = ? LIMIT 1");
+					$stmt->execute([$studentId, $examId]);
+					$examMark = (float)($stmt->fetchColumn() ?: 0);
+
+					if ($examMark === 0) {
+						continue; // No exam mark
+					}
+
+					// Compute final score: SBA 30% + Exam 70%
+					$finalScore = ($sbaAverage * 0.30) + ($examMark * 0.70);
+
+					// Update exam results
+					$updateStmt = $conn->prepare("UPDATE tbl_exam_results SET kjsea_final_score = ? WHERE student = ? AND exam_id = ?");
+					$updateStmt->execute([$finalScore, $studentId, $examId]);
+				}
+			}
+
+			// Lock the KJSEA exam to prevent further edits
+			app_lock_exam($conn, $examId);
+			app_audit_log($conn, 'staff', (string)$account_id, 'kjsea_scores.finalized', 'exam', (string)$examId);
+		} catch (Throwable $e) {
+			error_log('[update_exam_status KJSEA] KJSEA finalization error: ' . $e->getMessage());
+			// Log but don't block the status update
+		}
+	}
+
 	if ($status === 'draft') {
 		if ($assessmentMode === 'cbc' && app_table_exists($conn, 'tbl_cbc_mark_submissions')) {
 			$stmt = $conn->prepare("UPDATE tbl_cbc_mark_submissions SET status = 'draft', reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ? WHERE class_id = ? AND term_id = ? AND status IN ('submitted','approved')");
