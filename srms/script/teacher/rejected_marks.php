@@ -116,7 +116,11 @@ try {
   <?php } ?>
 </td>
 <td>
-  <a href="teacher/exam_marks_entry?edit=<?php echo (int)$row['exam_id']; ?>&subject=<?php echo (int)$row['subject_combination_id']; ?>" class="btn btn-sm btn-primary">Review & Edit</a>
+  <form method="POST" action="teacher/core/start_exam_entry" style="display:inline;margin:0;">
+    <input type="hidden" name="exam_id" value="<?php echo (int)$row['exam_id']; ?>">
+    <input type="hidden" name="subject_combination" value="<?php echo (int)$row['subject_combination_id']; ?>">
+    <button class="btn btn-sm btn-primary">Review & Edit</button>
+  </form>
 </td>
 </tr>
 <?php endforeach; ?>
