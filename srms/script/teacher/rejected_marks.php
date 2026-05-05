@@ -102,6 +102,78 @@ try {
 </thead>
 <tbody>
 <?php foreach ($rejectedMarks as $row): ?>
+<?php
+  // Determine whether this rejected submission can be opened for editing
+  $openable = true;
+  $openReason = '';
+  try {
+    $examId = (int)($row['exam_id'] ?? 0);
+    $subjectCombId = (int)($row['subject_combination_id'] ?? 0);
+    // load exam
+    $stmt = $conn->prepare("SELECT * FROM tbl_exams WHERE id = ? LIMIT 1");
+    $stmt->execute([$examId]);
+    $exam = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$exam || !in_array((string)($exam['status'] ?? ''), ['active','open'], true)) {
+      $openable = false;
+      $openReason = 'Exam not found or not open for mark entry.';
+    }
+    if ($openable) {
+      $stmt = $conn->prepare("SELECT id, class, teacher, subject FROM tbl_subject_combinations WHERE id = ? LIMIT 1");
+      $stmt->execute([$subjectCombId]);
+      $combo = $stmt->fetch(PDO::FETCH_ASSOC);
+      if (!$combo) {
+        $openable = false;
+        $openReason = 'Subject combination not found.';
+      }
+    }
+    if ($openable) {
+      if ((int)$combo['teacher'] !== (int)$account_id) {
+        $openable = false;
+        $openReason = 'You are not assigned to that subject.';
+      }
+    }
+    if ($openable) {
+      $classList = app_unserialize($combo['class']);
+      if (!in_array((string)$exam['class_id'], array_map('strval', $classList), true)) {
+        $openable = false;
+        $openReason = 'Subject not assigned to exam class.';
+      }
+    }
+    if ($openable) {
+      if (!app_exam_has_subject($conn, (int)$exam['id'], (int)$combo['subject'])) {
+        $openable = false;
+        $openReason = 'That subject is not enabled for this exam.';
+      }
+    }
+    if ($openable && app_table_exists($conn, 'tbl_teacher_assignments')) {
+      $stmt = $conn->prepare("SELECT id FROM tbl_teacher_assignments
+        WHERE teacher_id = ? AND class_id = ? AND subject_id = ? AND status = 1
+        AND (term_id = ? OR term_id IS NULL OR term_id = 0)
+        ORDER BY year DESC, id DESC LIMIT 1");
+      $stmt->execute([(int)$account_id, (int)$exam['class_id'], (int)$combo['subject'], (int)$exam['term_id']]);
+      if (!$stmt->fetchColumn()) {
+        $openable = false;
+        $openReason = 'No active assignment for this class/subject/term.';
+      }
+    }
+    if ($openable) {
+      $examMode = app_exam_assessment_mode($conn, (int)$exam['id']);
+      if ($examMode === 'consolidated') {
+        $openable = false;
+        $openReason = 'Consolidated exams do not accept direct mark entry.';
+      }
+    }
+    if ($openable) {
+      if (app_results_locked($conn, (int)$exam['class_id'], (int)$exam['term_id'], (int)$exam['id'])) {
+        $openable = false;
+        $openReason = 'Results are locked for this class and term.';
+      }
+    }
+  } catch (Throwable $e) {
+    $openable = false;
+    $openReason = 'Unable to determine availability.';
+  }
+?>
 <tr>
 <td><strong><?php echo htmlspecialchars($row['exam_name'] ?? ''); ?></strong></td>
 <td><?php echo htmlspecialchars($row['class_name'] ?? ''); ?></td>
@@ -116,11 +188,16 @@ try {
   <?php } ?>
 </td>
 <td>
-  <form method="POST" action="teacher/core/start_exam_entry" style="display:inline;margin:0;">
-    <input type="hidden" name="exam_id" value="<?php echo (int)$row['exam_id']; ?>">
-    <input type="hidden" name="subject_combination" value="<?php echo (int)$row['subject_combination_id']; ?>">
-    <button class="btn btn-sm btn-primary">Review & Edit</button>
-  </form>
+  <?php if ($openable) { ?>
+    <form method="POST" action="teacher/core/start_exam_entry" style="display:inline;margin:0;">
+      <input type="hidden" name="exam_id" value="<?php echo (int)$row['exam_id']; ?>">
+      <input type="hidden" name="subject_combination" value="<?php echo (int)$row['subject_combination_id']; ?>">
+      <button class="btn btn-sm btn-primary">Review & Edit</button>
+    </form>
+  <?php } else { ?>
+    <button class="btn btn-sm btn-secondary" disabled>Cannot Open</button>
+    <div class="small text-muted mt-1">Reason: <?php echo htmlspecialchars($openReason); ?></div>
+  <?php } ?>
 </td>
 </tr>
 <?php endforeach; ?>
