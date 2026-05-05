@@ -176,9 +176,9 @@ try {
         <div class="modal-body">
           <input type="hidden" name="submission_id" id="submissionId" value="">
           <div class="mb-3">
-            <label for="rejectionReason" class="form-label">Reason for Rejection (Optional)</label>
-            <textarea class="form-control" id="rejectionReason" name="reason" rows="3" placeholder="e.g., Please verify marks for students 10-15, grades seem inconsistent..."></textarea>
-            <small class="text-muted">This message will be displayed to the teacher when they review the rejected marks.</small>
+            <label for="rejectionReason" class="form-label">Reason for Rejection <span class="text-danger">*</span></label>
+            <textarea class="form-control" id="rejectionReason" name="reason" rows="3" placeholder="e.g., Please verify marks for students 10-15, grades seem inconsistent..." required></textarea>
+            <small class="text-muted">Be specific so teachers know what to correct. This message will be displayed to the teacher.</small>
           </div>
         </div>
         <div class="modal-footer">
@@ -202,9 +202,9 @@ try {
         <div class="modal-body">
           <input type="hidden" name="submission_id" id="cbcSubmissionId" value="">
           <div class="mb-3">
-            <label for="cbcRejectionReason" class="form-label">Reason for Rejection (Optional)</label>
-            <textarea class="form-control" id="cbcRejectionReason" name="reason" rows="3" placeholder="e.g., Please review the performance levels for competencies..."></textarea>
-            <small class="text-muted">This message will be displayed to the teacher when they review the rejected marks.</small>
+            <label for="cbcRejectionReason" class="form-label">Reason for Rejection <span class="text-danger">*</span></label>
+            <textarea class="form-control" id="cbcRejectionReason" name="reason" rows="3" placeholder="e.g., Please review the performance levels for competencies..." required></textarea>
+            <small class="text-muted">Be specific so teachers know what to correct. This message will be displayed to the teacher.</small>
           </div>
         </div>
         <div class="modal-footer">

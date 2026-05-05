@@ -10,6 +10,7 @@ $exams = [];
 $classSubjects = [];
 $useTeacherAssignments = false;
 $examModeMap = [];
+$rejectedMarksCount = 0;
 
 try {
   $conn = app_db();
@@ -17,6 +18,13 @@ try {
   app_ensure_exam_grading_schema($conn);
   app_ensure_exam_subjects_table($conn);
   app_ensure_exam_assessment_mode_column($conn);
+  
+  // Get count of rejected exam submissions
+  if (app_table_exists($conn, 'tbl_exam_mark_submissions')) {
+    $stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_exam_mark_submissions WHERE teacher_id = ? AND status = 'rejected'");
+    $stmt->execute([(int)$account_id]);
+    $rejectedMarksCount = (int)$stmt->fetchColumn();
+  }
 
   $combos = [];
   $useTeacherAssignments = app_table_exists($conn, 'tbl_teacher_assignments');
@@ -176,6 +184,19 @@ body.exam-entry-page{background:linear-gradient(180deg,#eef5f2 0%,#f7fbf9 45%,#e
 <p>Select one exam. The system will automatically use normal marks entry or CBC entry based on the exam mode chosen by admin.</p>
 </div>
 </div>
+
+<?php if ($rejectedMarksCount > 0) { ?>
+<div class="alert alert-warning mb-3" style="border-left: 4px solid #ffc107;">
+  <div class="d-flex align-items-start gap-2">
+    <i class="bi bi-exclamation-triangle-fill mt-1" style="font-size: 1.2rem;"></i>
+    <div>
+      <strong>Action Required: <?php echo $rejectedMarksCount; ?> submission<?php echo $rejectedMarksCount !== 1 ? 's' : ''; ?> returned for revision</strong>
+      <p class="mb-0 mt-1">Your exam marks have been returned by the admin for correction. Review the feedback and make changes before resubmitting.</p>
+      <a href="teacher/rejected_marks" class="btn btn-sm btn-warning mt-2"><i class="bi bi-arrow-right me-1"></i>View Rejected Marks</a>
+    </div>
+  </div>
+</div>
+<?php } ?>
 
 <section class="exam-hero mb-3">
   <div class="exam-hero-copy">
