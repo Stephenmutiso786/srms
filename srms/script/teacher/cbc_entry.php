@@ -30,6 +30,7 @@ $isLocked = false;
 $grading = [];
 $levels = [];
 $submissionStatus = 'draft';
+$rejectionReason = '';
 
 try {
 	$conn = app_db();
@@ -104,6 +105,13 @@ try {
 
 	$isLocked = app_results_locked($conn, $class, $term);
 	$submissionStatus = app_cbc_submission_status($conn, $term, $class, $subjectComb);
+	
+	// Load rejection reason if marks were rejected
+	if ($submissionStatus === 'rejected' && app_table_exists($conn, 'tbl_cbc_mark_submissions')) {
+		$stmt = $conn->prepare("SELECT review_note FROM tbl_cbc_mark_submissions WHERE term_id = ? AND class_id = ? AND subject_combination_id = ? LIMIT 1");
+		$stmt->execute([$term, $class, $subjectComb]);
+		$rejectionReason = (string)($stmt->fetchColumn() ?? '');
+	}
 } catch (Throwable $e) {
 	error_log("[".__FILE__.":".__LINE__." Throwable] " . $e->getMessage());
 	$error = "An internal error occurred.";
@@ -180,6 +188,18 @@ $levels = array_values(array_unique($levels));
 <?php } ?>
 <?php if (!$isLocked && in_array($submissionStatus, ['submitted','approved'], true)) { ?>
   <div class="tile"><div class="alert alert-info mb-0">Marks are <?php echo htmlspecialchars($submissionStatus); ?> and read-only.</div></div>
+<?php } ?>
+<?php if ($submissionStatus === 'rejected') { ?>
+  <div class="tile"><div class="alert alert-danger mb-0">
+    <div class="fw-bold mb-2"><i class="bi bi-exclamation-triangle me-2"></i>Your marks were returned for revision</div>
+    <?php if ($rejectionReason !== '') { ?>
+      <div class="alert alert-light mb-0" style="border-left: 3px solid #dc3545;">
+        <strong>Admin Feedback:</strong><br>
+        <?php echo htmlspecialchars($rejectionReason); ?>
+      </div>
+    <?php } ?>
+    <div class="mt-2 small text-muted">Please review the feedback above, make necessary corrections, and resubmit your marks.</div>
+  </div></div>
 <?php } ?>
 
 <div class="row mb-2">

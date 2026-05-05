@@ -52,9 +52,15 @@ try {
 	$counts['students'] = app_table_exists($conn, 'tbl_students')
 		? (int)$safeScalar(fn() => $conn->query("SELECT COUNT(*) FROM tbl_students")->fetchColumn(), 0)
 		: 0;
-	$counts['teachers'] = app_table_exists($conn, 'tbl_staff')
-		? (int)$safeScalar(fn() => $conn->query("SELECT COUNT(*) FROM tbl_staff WHERE level = 2 OR designation LIKE '%Teacher%' OR designation LIKE '%Lecturer%'")->fetchColumn(), 0)
-		: 0;
+	$counts['teachers'] = 0;
+	if (app_table_exists($conn, 'tbl_staff')) {
+		$counts['teachers'] = (int)$safeScalar(function () use ($conn) {
+			if (app_column_exists($conn, 'tbl_staff', 'designation')) {
+				return $conn->query("SELECT COUNT(*) FROM tbl_staff WHERE level = 2 OR designation LIKE '%Teacher%' OR designation LIKE '%Lecturer%'")->fetchColumn();
+			}
+			return $conn->query("SELECT COUNT(*) FROM tbl_staff WHERE level = 2")->fetchColumn();
+		}, 0);
+	}
 	$counts['staff'] = app_table_exists($conn, 'tbl_staff')
 		? (int)$safeScalar(fn() => $conn->query("SELECT COUNT(*) FROM tbl_staff")->fetchColumn(), 0)
 		: 0;

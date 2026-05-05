@@ -15231,7 +15231,7 @@ margin: auto !important;
   display: flex;
   flex-wrap: wrap;
   gap: 1.5rem;
-  margin-top: 1rem;
+  margin-top: 1.75rem;
   padding: 1.75rem 2rem;
   border-radius: 24px;
   color: #f7fffd;
@@ -15322,7 +15322,7 @@ margin: auto !important;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap: 1rem;
-  margin: 1.5rem 0;
+  margin: 2rem 0 1.5rem;
 }
 
 .stat-card {

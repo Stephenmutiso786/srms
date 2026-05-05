@@ -18,14 +18,15 @@ try {
   $conn = app_db();
   $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
+  $reason = trim((string)($_POST['reason'] ?? ''));
   $meta = $conn->prepare("SELECT class_id, term_id FROM tbl_cbc_mark_submissions WHERE id = ? LIMIT 1");
   $meta->execute([$submissionId]);
   $submissionMeta = $meta->fetch(PDO::FETCH_ASSOC);
   $classId = (int)($submissionMeta['class_id'] ?? 0);
   $termId = (int)($submissionMeta['term_id'] ?? 0);
 
-  $stmt = $conn->prepare("UPDATE tbl_cbc_mark_submissions SET status = 'rejected', reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ? WHERE id = ? AND status = 'submitted'");
-  $stmt->execute([(int)$account_id, $submissionId]);
+  $stmt = $conn->prepare("UPDATE tbl_cbc_mark_submissions SET status = 'rejected', reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ?, review_note = ? WHERE id = ? AND status = 'submitted'");
+  $stmt->execute([(int)$account_id, $reason !== '' ? $reason : null, $submissionId]);
   if ((int)$stmt->rowCount() < 1) {
     throw new RuntimeException("Submission is no longer in submitted state.");
   }

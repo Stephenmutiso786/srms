@@ -104,10 +104,7 @@ try {
       <input type="hidden" name="submission_id" value="<?php echo (int)$row['id']; ?>">
       <button class="btn btn-sm btn-success">Mark Reviewed</button>
     </form>
-    <form method="POST" action="admin/core/reject_exam_marks">
-      <input type="hidden" name="submission_id" value="<?php echo (int)$row['id']; ?>">
-      <button class="btn btn-sm btn-outline-danger">Return to Teacher</button>
-    </form>
+    <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#rejectModal" data-submission-id="<?php echo (int)$row['id']; ?>">Return to Teacher</button>
   <?php } ?>
   <?php if (in_array((string)$row['status'], ['reviewed','finalized'], true) && (int)$level === 9) { ?>
     <form method="POST" action="admin/core/unlock_exam_marks">
@@ -146,10 +143,7 @@ try {
       <input type="hidden" name="submission_id" value="<?php echo (int)$row['id']; ?>">
       <button class="btn btn-sm btn-success">Approve</button>
     </form>
-    <form method="POST" action="admin/core/reject_cbc_marks">
-      <input type="hidden" name="submission_id" value="<?php echo (int)$row['id']; ?>">
-      <button class="btn btn-sm btn-outline-danger">Reject</button>
-    </form>
+    <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#rejectCBCModal" data-submission-id="<?php echo (int)$row['id']; ?>">Reject</button>
   <?php } ?>
   <?php if ($row['status'] === 'approved' && (int)$level === 9) { ?>
     <form method="POST" action="admin/core/unlock_cbc_marks">
@@ -170,5 +164,77 @@ try {
 <script src="js/bootstrap.min.js"></script>
 <script src="js/main.js"></script>
 <?php require_once('const/check-reply.php'); ?>
+<!-- Rejection Feedback Modal -->
+<div class="modal fade" id="rejectModal" tabindex="-1" aria-labelledby="rejectModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="rejectModalLabel">Return Marks to Teacher</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="POST" action="admin/core/reject_exam_marks">
+        <div class="modal-body">
+          <input type="hidden" name="submission_id" id="submissionId" value="">
+          <div class="mb-3">
+            <label for="rejectionReason" class="form-label">Reason for Rejection (Optional)</label>
+            <textarea class="form-control" id="rejectionReason" name="reason" rows="3" placeholder="e.g., Please verify marks for students 10-15, grades seem inconsistent..."></textarea>
+            <small class="text-muted">This message will be displayed to the teacher when they review the rejected marks.</small>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-danger">Return to Teacher</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- CBC Rejection Feedback Modal -->
+<div class="modal fade" id="rejectCBCModal" tabindex="-1" aria-labelledby="rejectCBCModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="rejectCBCModalLabel">Return Marks to Teacher</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="POST" action="admin/core/reject_cbc_marks">
+        <div class="modal-body">
+          <input type="hidden" name="submission_id" id="cbcSubmissionId" value="">
+          <div class="mb-3">
+            <label for="cbcRejectionReason" class="form-label">Reason for Rejection (Optional)</label>
+            <textarea class="form-control" id="cbcRejectionReason" name="reason" rows="3" placeholder="e.g., Please review the performance levels for competencies..."></textarea>
+            <small class="text-muted">This message will be displayed to the teacher when they review the rejected marks.</small>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-danger">Return to Teacher</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+const rejectModal = document.getElementById('rejectModal');
+if (rejectModal) {
+  rejectModal.addEventListener('show.bs.modal', function(e) {
+    const submissionId = e.relatedTarget.getAttribute('data-submission-id');
+    document.getElementById('submissionId').value = submissionId;
+    document.getElementById('rejectionReason').value = '';
+  });
+}
+
+const rejectCBCModal = document.getElementById('rejectCBCModal');
+if (rejectCBCModal) {
+  rejectCBCModal.addEventListener('show.bs.modal', function(e) {
+    const submissionId = e.relatedTarget.getAttribute('data-submission-id');
+    document.getElementById('cbcSubmissionId').value = submissionId;
+    document.getElementById('cbcRejectionReason').value = '';
+  });
+}
+</script>
+
 </body>
 </html>

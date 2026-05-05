@@ -17,8 +17,9 @@ if ($submissionId < 1) {
 try {
   $conn = app_db();
   $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-  $stmt = $conn->prepare("UPDATE tbl_exam_mark_submissions SET status = 'rejected', reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ? WHERE id = ? AND status = 'submitted'");
-  $stmt->execute([(int)$account_id, $submissionId]);
+  $reason = trim((string)($_POST['reason'] ?? ''));
+  $stmt = $conn->prepare("UPDATE tbl_exam_mark_submissions SET status = 'rejected', reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ?, review_note = ? WHERE id = ? AND status = 'submitted'");
+  $stmt->execute([(int)$account_id, $reason !== '' ? $reason : null, $submissionId]);
   if ((int)$stmt->rowCount() < 1) {
     throw new RuntimeException("Submission is no longer in submitted state.");
   }
