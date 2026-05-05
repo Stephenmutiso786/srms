@@ -17,19 +17,27 @@ if ($submissionId < 1) {
 try {
   $conn = app_db();
   $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+  
+  // Get exam ID first to check lock status
+  $meta = $conn->prepare("SELECT exam_id FROM tbl_exam_mark_submissions WHERE id = ? LIMIT 1");
+  $meta->execute([$submissionId]);
+  $examId = (int)$meta->fetchColumn();
+  
+  if ($examId > 0 && app_is_exam_locked($conn, $examId)) {
+    throw new RuntimeException("Cannot approve marks for a locked exam. This exam has been finalized.");
+  }
+  
   $stmt = $conn->prepare("UPDATE tbl_exam_mark_submissions SET status = 'reviewed', reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ? WHERE id = ? AND status = 'submitted'");
   $stmt->execute([(int)$account_id, $submissionId]);
   if ((int)$stmt->rowCount() < 1) {
     throw new RuntimeException("Submission is no longer in submitted state.");
   }
-  $meta = $conn->prepare("SELECT exam_id FROM tbl_exam_mark_submissions WHERE id = ? LIMIT 1");
-  $meta->execute([$submissionId]);
-  $examId = (int)$meta->fetchColumn();
   if ($examId > 0) {
     app_refresh_exam_status($conn, $examId);
   }
   app_audit_log($conn, 'staff', (string)$account_id, 'exam_marks.approve', 'submission', (string)$submissionId);
   $_SESSION['reply'] = array (array("success", "Marks reviewed successfully."));
+
 } catch (Throwable $e) {
 	error_log("[".__FILE__.":".__LINE__." Throwable] " . $e->getMessage());
 	$_SESSION['reply'] = array(array("danger", "Operation failed. Please try again."));

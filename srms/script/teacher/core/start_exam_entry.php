@@ -49,6 +49,11 @@ try {
     }
   }
 
+  // Check if exam is locked (for national assessments like KJSEA/KPSEA)
+  if (app_is_exam_locked($conn, $examId)) {
+    throw new RuntimeException("This exam is locked and cannot be edited. Contact the administration if you need to make changes.");
+  }
+
   $stmt = $conn->prepare("SELECT id, class, teacher, subject FROM tbl_subject_combinations WHERE id = ?");
   $stmt->execute([$subjectComb]);
   $combo = $stmt->fetch(PDO::FETCH_ASSOC);
