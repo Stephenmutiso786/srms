@@ -41,10 +41,15 @@ try {
 	}
 
 	$examAllowed = false;
+	$selectedAssessmentMode = 'normal';
 	if (app_table_exists($conn, 'tbl_exams')) {
-		$stmt = $conn->prepare("SELECT id FROM tbl_exams WHERE id = ? AND class_id = ? AND term_id = ? LIMIT 1");
+		$stmt = $conn->prepare("SELECT id, COALESCE(assessment_mode, 'normal') AS assessment_mode FROM tbl_exams WHERE id = ? AND class_id = ? AND term_id = ? LIMIT 1");
 		$stmt->execute([$examId, $classId, $termId]);
-		$examAllowed = ((int)$stmt->fetchColumn() > 0);
+		$examRow = $stmt->fetch(PDO::FETCH_ASSOC);
+		$examAllowed = $examRow && ((int)($examRow['id'] ?? 0) > 0);
+		if ($examAllowed) {
+			$selectedAssessmentMode = strtolower(trim((string)($examRow['assessment_mode'] ?? 'normal')));
+		}
 	}
 	if (!$examAllowed) {
 		$_SESSION['reply'] = array (array("danger", "Select a valid exam for the selected class and term."));
@@ -60,14 +65,40 @@ try {
 	}
 
 	$useExamId = app_column_exists($conn, 'tbl_exam_results', 'exam_id');
+	$totalResults = 0;
 	if ($useExamId) {
-		$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_exam_results WHERE class = ? AND term = ? AND exam_id = ?");
-		$stmt->execute([$classId, $termId, $examId]);
+		if ($selectedAssessmentMode === 'consolidated' && app_table_exists($conn, 'tbl_exam_components')) {
+			$stmt = $conn->prepare("SELECT component_exam_id FROM tbl_exam_components WHERE exam_id = ? ORDER BY component_exam_id");
+			$stmt->execute([$examId]);
+			$componentExamIds = array_values(array_unique(array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN))));
+
+			if (!empty($componentExamIds)) {
+				$placeholders = implode(',', array_fill(0, count($componentExamIds), '?'));
+				$params = array_merge([$classId, $termId], $componentExamIds);
+				if (app_table_exists($conn, 'tbl_exams')) {
+					$stmt = $conn->prepare("SELECT COUNT(*)
+						FROM tbl_exam_results er
+						JOIN tbl_exams e ON e.id = er.exam_id
+						WHERE er.class = ? AND er.term = ?
+						AND er.exam_id IN ($placeholders)
+						AND COALESCE(e.status, 'draft') = 'published'");
+					$stmt->execute($params);
+				} else {
+					$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_exam_results WHERE class = ? AND term = ? AND exam_id IN ($placeholders)");
+					$stmt->execute($params);
+				}
+				$totalResults = (int)$stmt->fetchColumn();
+			}
+		} else {
+			$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_exam_results WHERE class = ? AND term = ? AND exam_id = ?");
+			$stmt->execute([$classId, $termId, $examId]);
+			$totalResults = (int)$stmt->fetchColumn();
+		}
 	} else {
 		$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_exam_results WHERE class = ? AND term = ?");
 		$stmt->execute([$classId, $termId]);
+		$totalResults = (int)$stmt->fetchColumn();
 	}
-	$totalResults = (int)$stmt->fetchColumn();
 
 	$totalCbc = 0;
 	if (app_table_exists($conn, 'tbl_cbc_assessments')) {
@@ -77,6 +108,9 @@ try {
 	}
 
 	if (($totalResults + $totalCbc) < 1) {
+		if ($selectedAssessmentMode === 'consolidated') {
+			throw new RuntimeException('No saved results were found for this consolidated exam. Ensure its source exams are published and contain marks for the selected class and term.');
+		}
 		throw new RuntimeException('No saved results were found for the selected class and term (exam results and CBC assessments are both empty).');
 	}
 

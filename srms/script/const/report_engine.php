@@ -349,13 +349,19 @@ function report_exam_result_matrix(PDO $conn, int $classId, int $termId, ?string
 
 	$consolidatedExams = [];
 	if ($hasExamId && app_table_exists($conn, 'tbl_exams') && app_column_exists($conn, 'tbl_exams', 'assessment_mode') && app_table_exists($conn, 'tbl_exam_components')) {
-		$stmt = $conn->prepare("SELECT id FROM tbl_exams WHERE class_id = ? AND term_id = ? AND COALESCE(assessment_mode, 'normal') = 'consolidated' AND status IN ('finalized', 'published') ORDER BY id DESC");
+		$stmt = $conn->prepare("SELECT id FROM tbl_exams WHERE class_id = ? AND term_id = ? AND COALESCE(assessment_mode, 'normal') = 'consolidated' AND COALESCE(status, 'draft') = 'published' ORDER BY id DESC");
 		$stmt->execute([$classId, $termId]);
 		foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $consolidatedExamId) {
 			$cid = (int)$consolidatedExamId;
 			$stmtComp = $conn->prepare("SELECT component_exam_id FROM tbl_exam_components WHERE exam_id = ? ORDER BY component_exam_id");
 			$stmtComp->execute([$cid]);
 			$componentIds = array_values(array_unique(array_map('intval', $stmtComp->fetchAll(PDO::FETCH_COLUMN))));
+			if (!empty($componentIds)) {
+				$ph = implode(',', array_fill(0, count($componentIds), '?'));
+				$stmtPublished = $conn->prepare("SELECT id FROM tbl_exams WHERE id IN ($ph) AND COALESCE(status, 'draft') = 'published'");
+				$stmtPublished->execute($componentIds);
+				$componentIds = array_values(array_unique(array_map('intval', $stmtPublished->fetchAll(PDO::FETCH_COLUMN))));
+			}
 			if (count($componentIds) >= 2) {
 				$consolidatedExams[$cid] = $componentIds;
 			}
