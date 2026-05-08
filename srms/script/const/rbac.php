@@ -318,13 +318,6 @@ function app_auto_allocate_normal_modules_for_portal(PDO $conn, string $portal):
 
 		$isPgsql = (defined('DBDriver') && DBDriver === 'pgsql');
 		foreach ($roleIds as $roleId) {
-			$seedStateStmt = $conn->prepare('SELECT 1 FROM tbl_role_module_seed_state WHERE role_id = ? AND portal = ? LIMIT 1');
-			$seedStateStmt->execute([$roleId, $portal]);
-			$alreadySeeded = (bool)$seedStateStmt->fetchColumn();
-			if ($alreadySeeded) {
-				continue;
-			}
-
 			$permissionCodes = app_role_effective_permission_codes($conn, (int)$roleId);
 			if (empty($permissionCodes)) {
 				continue;
@@ -709,6 +702,8 @@ function app_portal_module_catalog(string $portal): array
 
 function app_portal_visible_modules(PDO $conn, string $portal, string $staffId, string $level): array
 {
+	app_auto_allocate_normal_modules_for_portal($conn, $portal);
+
 	$modules = app_portal_module_catalog($portal);
 	$visible = [];
 
