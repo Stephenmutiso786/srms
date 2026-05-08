@@ -29,8 +29,10 @@ $classMeta = [];
 $years = [];
 $sourceClassStudentCount = null;
 $targetClassStudentCount = null;
+$targetClassHasOccupants = false;
 $promotedStudentsCount = 0;
 $repeatersRemainingCount = 0;
+$alumniStudentsCount = 0;
 $promotionQueue = [];
 $autoPromotionRun = [];
 
@@ -78,7 +80,9 @@ try {
     foreach ($classes as $classRow) {
         $effectiveGrade = app_effective_grade_level((string)($classRow['name'] ?? ''), $classRow['grade'] ?? null);
         $nextClassName = '';
-        if ($effectiveGrade > 0 && isset($classGradeMap[$effectiveGrade + 1])) {
+        if ($effectiveGrade >= app_promotion_terminal_grade_level()) {
+            $nextClassName = 'Alumni';
+        } elseif ($effectiveGrade > 0 && isset($classGradeMap[$effectiveGrade + 1])) {
             $nextClassName = (string)$classGradeMap[$effectiveGrade + 1]['name'];
         }
         $classMeta[(int)$classRow['id']] = [
@@ -164,6 +168,7 @@ try {
                        concat_ws(' ', st.fname, st.mname, st.lname) as student_name,
                        c_from.name as from_class,
                        c_to.name as to_class,
+                       c_to.name as to_class_name,
                        (SELECT r.grade FROM tbl_report_cards r WHERE r.student_id = st.id ORDER BY r.id DESC LIMIT 1) AS latest_report_grade,
                        COALESCE(sp.final_status, sp.status) AS final_status,
                        COALESCE(sp.suggested_status, sp.status) AS suggested_status
@@ -182,12 +187,13 @@ try {
             $repeatersRemainingCount = count(array_filter($students_in_batch, static function (array $student): bool {
                 return strtolower(trim((string)($student['final_status'] ?? $student['status'] ?? ''))) === 'repeated';
             }));
+            $alumniStudentsCount = count(array_filter($students_in_batch, static function (array $student): bool {
+                return strtolower(trim((string)($student['final_status'] ?? $student['status'] ?? ''))) === 'alumni';
+            }));
 
             $sourceClassId = (int)($batch_details['class_id'] ?? 0);
             if ($sourceClassId > 0) {
-                $stmt = $conn->prepare('SELECT COUNT(*) FROM tbl_students WHERE class = ?');
-                $stmt->execute([$sourceClassId]);
-                $sourceClassStudentCount = (int)$stmt->fetchColumn();
+                $sourceClassStudentCount = app_active_student_count_in_class($conn, $sourceClassId);
             }
 
             $targetClassId = 0;
@@ -199,9 +205,8 @@ try {
                 }
             }
             if ($targetClassId > 0) {
-                $stmt = $conn->prepare('SELECT COUNT(*) FROM tbl_students WHERE class = ?');
-                $stmt->execute([$targetClassId]);
-                $targetClassStudentCount = (int)$stmt->fetchColumn();
+                $targetClassStudentCount = app_active_student_count_in_class($conn, $targetClassId);
+                $targetClassHasOccupants = $targetClassStudentCount > 0;
             }
 
             $reviewMode = $isLeadershipReviewer && $batch_details['status'] === 'pending' && $reviewState === 'pending_review';
@@ -406,6 +411,7 @@ switch($batch['status']) {
 <p><strong>Current step:</strong> <?php echo htmlspecialchars($currentStepText); ?></p>
 <p><strong><?php echo (int)count($students_in_batch); ?></strong> students in batch</p>
 <p><strong class="text-success"><?php echo count(array_filter($students_in_batch, fn($s) => ($s['final_status'] ?? $s['status']) === 'promoted')); ?></strong> final promotions</p>
+<p><strong class="text-dark"><?php echo count(array_filter($students_in_batch, fn($s) => ($s['final_status'] ?? $s['status']) === 'alumni')); ?></strong> moving to alumni</p>
 <p><strong class="text-info"><?php echo count(array_filter($students_in_batch, fn($s) => ($s['status'] ?? '') === 'conditional')); ?></strong> awaiting review</p>
 <p><strong class="text-warning"><?php echo count(array_filter($students_in_batch, fn($s) => ($s['final_status'] ?? $s['status']) === 'repeated')); ?></strong> to repeat</p>
 <p><strong class="text-danger"><?php echo count(array_filter($students_in_batch, fn($s) => !$s['fees_cleared'])); ?></strong> not cleared fees</p>
@@ -421,13 +427,24 @@ to <strong><?php echo htmlspecialchars($promotionTargetName !== '' ? $promotionT
 You do not select the destination class manually on this screen.
 </div>
 
+<?php if ($targetClassHasOccupants): ?>
+<div class="alert alert-danger mb-3">
+<strong>Target class warning:</strong>
+<?php echo htmlspecialchars($promotionTargetName); ?> already has <strong><?php echo (int)$targetClassStudentCount; ?></strong> active student(s).
+The system will not allow promoted learners to move into that class until it is cleared. If a learner is staying behind, mark that learner as <strong>Repeat</strong> instead of promoting.
+</div>
+<?php endif; ?>
+
 <?php if ($batch_details['status'] === 'approved'): ?>
 <div class="tile mb-3">
 <h3 class="tile-title">After Promotion</h3>
 <div class="row g-2">
 <div class="col-md-4"><div class="alert alert-light mb-0"><strong>Students moved</strong><br><?php echo (int)$promotedStudentsCount; ?> promoted to <?php echo htmlspecialchars($promotionTargetName !== '' ? $promotionTargetName : 'the next class'); ?></div></div>
+<div class="col-md-4"><div class="alert alert-light mb-0"><strong>Alumni</strong><br><?php echo (int)$alumniStudentsCount; ?> completed and moved to alumni</div></div>
 <div class="col-md-4"><div class="alert alert-light mb-0"><strong><?php echo htmlspecialchars((string)$batch_details['class_name']); ?> now has</strong><br><?php echo $sourceClassStudentCount !== null ? (int)$sourceClassStudentCount : 0; ?> active students</div></div>
+<?php if ($promotionTargetName !== 'Alumni'): ?>
 <div class="col-md-4"><div class="alert alert-light mb-0"><strong><?php echo htmlspecialchars($promotionTargetName !== '' ? $promotionTargetName : 'Target class'); ?> now has</strong><br><?php echo $targetClassStudentCount !== null ? (int)$targetClassStudentCount : 0; ?> active students</div></div>
+<?php endif; ?>
 </div>
 <div class="alert alert-info mt-3 mb-0">
 <strong>What this means:</strong>
@@ -445,6 +462,9 @@ This batch kept <strong><?php echo (int)$repeatersRemainingCount; ?></strong> re
 <div class="col-md-8">
 <h3 class="tile-title text-success mb-1">Complete Promotion</h3>
 <p class="mb-0">Headteacher or Deputy already reviewed this batch. The final step is now with Super Admin.</p>
+<?php if ($targetClassHasOccupants): ?>
+<p class="text-danger mb-0 mt-2">This batch still has a blocked target class. Final execution will fail until <?php echo htmlspecialchars($promotionTargetName); ?> has no active students or affected learners are changed to repeaters.</p>
+<?php endif; ?>
 </div>
 <div class="col-md-4 d-grid">
 <form method="POST" action="admin/core/approve_promotion">
@@ -508,30 +528,38 @@ This batch kept <strong><?php echo (int)$repeatersRemainingCount; ?></strong> re
 <thead><tr><th>#</th><th>Name</th><th>Adm No</th><th>Mean</th><th>Report Grade</th><th>Promote To</th><th>Report</th><th>Fees</th><th>Suggested</th><th>Final</th><th>Review Notes</th></tr></thead>
 <tbody>
 <?php foreach ($students_in_batch as $idx => $student): ?>
+<?php
+$studentFinalStatus = strtolower(trim((string)($student['final_status'] ?? $student['status'] ?? '')));
+$studentSuggestedStatus = strtolower(trim((string)($student['suggested_status'] ?? $student['status'] ?? '')));
+$studentTargetLabel = $studentFinalStatus === 'alumni'
+	? 'Alumni'
+	: (($student['to_class_name'] ?? '') !== '' ? (string)$student['to_class_name'] : ($promotionTargetName !== '' ? $promotionTargetName : (string)($student['to_class'] ?? '')));
+?>
 <tr<?php echo !$student['fees_cleared'] || !$student['report_card_finalized'] ? ' class="table-warning"' : ''; ?>>
 <td><?php echo $idx + 1; ?></td>
 <td><?php echo htmlspecialchars((string)$student['student_name']); ?></td>
 <td><?php echo htmlspecialchars((string)($student['school_id'] ?? '')); ?></td>
 <td><?php echo $student['mean_score'] !== null ? number_format((float)$student['mean_score'], 2) : '—'; ?></td>
 <td><?php echo ($student['latest_report_grade'] ?? $student['merit_grade']) ? '<strong>' . htmlspecialchars((string)($student['latest_report_grade'] ?: $student['merit_grade'])) . '</strong>' : '—'; ?></td>
-<td><?php echo htmlspecialchars((string)($student['to_class'] ?? $promotionTargetName)); ?></td>
+<td><?php echo htmlspecialchars($studentTargetLabel); ?></td>
 <td><?php echo $student['report_card_finalized'] ? '✓' : '<span class="badge bg-danger">✗</span>'; ?></td>
 <td><?php echo $student['fees_cleared'] ? '✓' : '<span class="badge bg-danger">✗ Bal</span>'; ?></td>
 <td>
-<span class="badge bg-<?php echo $student['suggested_status'] === 'promoted' ? 'success' : ($student['suggested_status'] === 'conditional' ? 'info text-dark' : ($student['suggested_status'] === 'repeated' ? 'warning' : 'secondary')); ?>">
+<span class="badge bg-<?php echo $studentSuggestedStatus === 'promoted' ? 'success' : ($studentSuggestedStatus === 'conditional' ? 'info text-dark' : ($studentSuggestedStatus === 'repeated' ? 'warning' : ($studentSuggestedStatus === 'alumni' ? 'dark' : 'secondary'))); ?>">
 <?php echo ucfirst(htmlspecialchars((string)$student['suggested_status'])); ?>
 </span>
 </td>
 <td>
 <?php if (!empty($reviewMode)): ?>
 <select class="form-control form-control-sm" name="final_status[<?php echo (int)$student['id']; ?>]">
-<option value="promoted"<?php echo ($student['final_status'] === 'promoted') ? ' selected' : ''; ?>>Promoted</option>
-<option value="repeated"<?php echo ($student['final_status'] === 'repeated') ? ' selected' : ''; ?>>Repeat</option>
-<option value="exited"<?php echo ($student['final_status'] === 'exited') ? ' selected' : ''; ?>>Exited</option>
-<option value="suspended"<?php echo ($student['final_status'] === 'suspended') ? ' selected' : ''; ?>>Suspended</option>
+<option value="promoted"<?php echo ($studentFinalStatus === 'promoted') ? ' selected' : ''; ?>>Promoted</option>
+<option value="repeated"<?php echo ($studentFinalStatus === 'repeated') ? ' selected' : ''; ?>>Repeat</option>
+<option value="alumni"<?php echo ($studentFinalStatus === 'alumni') ? ' selected' : ''; ?>>Alumni</option>
+<option value="exited"<?php echo ($studentFinalStatus === 'exited') ? ' selected' : ''; ?>>Exited</option>
+<option value="suspended"<?php echo ($studentFinalStatus === 'suspended') ? ' selected' : ''; ?>>Suspended</option>
 </select>
 <?php else: ?>
-<span class="badge bg-<?php echo $student['final_status'] === 'promoted' ? 'success' : ($student['final_status'] === 'repeated' ? 'warning' : ($student['final_status'] === 'exited' ? 'danger' : 'secondary')); ?>">
+<span class="badge bg-<?php echo $studentFinalStatus === 'promoted' ? 'success' : ($studentFinalStatus === 'repeated' ? 'warning' : ($studentFinalStatus === 'alumni' ? 'dark' : ($studentFinalStatus === 'exited' ? 'danger' : 'secondary'))); ?>">
 <?php echo ucfirst(htmlspecialchars((string)$student['final_status'])); ?>
 </span>
 <?php endif; ?>

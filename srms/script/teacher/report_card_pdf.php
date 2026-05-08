@@ -15,7 +15,8 @@ app_require_permission('report.view', '../');
 $termId = isset($_GET['term']) ? (int)$_GET['term'] : 0;
 $studentId = isset($_GET['student']) ? (string)$_GET['student'] : '';
 $examId = isset($_GET['exam']) ? (int)$_GET['exam'] : 0;
-if ($termId < 1 || $studentId === '') { header('location:manage_results'); exit; }
+$reportId = isset($_GET['report_id']) ? (int)$_GET['report_id'] : 0;
+if (($termId < 1 && $reportId < 1) || $studentId === '') { header('location:manage_results'); exit; }
 $forceDownload = isset($_GET['download']) && (string)$_GET['download'] !== '0';
 
 try {
@@ -28,20 +29,36 @@ try {
         exit;
     }
 
-    if (!report_term_is_published($conn, (int)$student['class_id'], $termId)) {
-        header('location:report_card?term=' . $termId . '&student=' . urlencode($studentId));
-        exit;
-    }
+    if ($reportId > 0) {
+        $card = report_load_card($conn, $reportId);
+        if (!$card || (string)($card['student_id'] ?? '') !== $studentId || !report_teacher_has_class_access($conn, (int)$account_id, (int)($card['class_id'] ?? 0), (int)($card['term_id'] ?? 0))) {
+            header('location:manage_results');
+            exit;
+        }
+        $termId = (int)($card['term_id'] ?? 0);
+        $examId = (int)($card['exam_id'] ?? 0);
+        $student['class_id'] = (int)($card['class_id'] ?? 0);
+        if ((string)($card['class_id'] ?? '') !== '') {
+            $stmt = $conn->prepare('SELECT name FROM tbl_classes WHERE id = ? LIMIT 1');
+            $stmt->execute([(int)$card['class_id']]);
+            $student['class_name'] = (string)$stmt->fetchColumn();
+        }
+    } else {
+        if (!report_term_is_published($conn, (int)$student['class_id'], $termId)) {
+            header('location:report_card?term=' . $termId . '&student=' . urlencode($studentId));
+            exit;
+        }
 
-    if (app_table_exists($conn, 'tbl_results_locks') && !app_results_locked($conn, (int)$student['class_id'], $termId)) {
-        header('location:report_card?term=' . $termId . '&student=' . urlencode($studentId));
-        exit;
-    }
+        if (app_table_exists($conn, 'tbl_results_locks') && !app_results_locked($conn, (int)$student['class_id'], $termId)) {
+            header('location:report_card?term=' . $termId . '&student=' . urlencode($studentId));
+            exit;
+        }
 
-    $card = report_ensure_card_generated($conn, $studentId, (int)$student['class_id'], $termId, (int)$account_id, $examId);
-    if (!$card) {
-        header('location:report_card?term=' . $termId . '&student=' . urlencode($studentId));
-        exit;
+        $card = report_ensure_card_generated($conn, $studentId, (int)$student['class_id'], $termId, (int)$account_id, $examId);
+        if (!$card) {
+            header('location:report_card?term=' . $termId . '&student=' . urlencode($studentId));
+            exit;
+        }
     }
 
     $attendance = report_attendance_summary($conn, $studentId, (int)$student['class_id'], $termId);

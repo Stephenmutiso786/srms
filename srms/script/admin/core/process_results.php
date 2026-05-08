@@ -205,6 +205,53 @@ $examAcademicYear = (int)date('Y');
 		throw new RuntimeException('No report cards could be generated for the selected class and term.');
 	}
 
+	try {
+		$stmt = $conn->prepare("SELECT name FROM tbl_classes WHERE id = ? LIMIT 1");
+		$stmt->execute([$classId]);
+		$className = (string)$stmt->fetchColumn();
+		$stmt = $conn->prepare("SELECT name FROM tbl_terms WHERE id = ? LIMIT 1");
+		$stmt->execute([$termId]);
+		$termName = (string)$stmt->fetchColumn();
+		$examName = '';
+		if (app_table_exists($conn, 'tbl_exams')) {
+			$stmt = $conn->prepare("SELECT name, academic_year FROM tbl_exams WHERE id = ? LIMIT 1");
+			$stmt->execute([$examId]);
+			$examMeta = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+			$examName = (string)($examMeta['name'] ?? '');
+			$examAcademicYearLabel = trim((string)($examMeta['academic_year'] ?? ''));
+		} else {
+			$examAcademicYearLabel = '';
+		}
+
+		app_data_camp_store_record($conn, [
+			'module_key' => 'report_batches',
+			'record_type' => 'report_batch',
+			'entity_table' => 'tbl_report_cards',
+			'entity_id' => $classId . ':' . $termId . ':' . $examId,
+			'title' => trim(($className !== '' ? $className : 'Class') . ' report batch - ' . ($termName !== '' ? $termName : ('Term ' . $termId))),
+			'description' => trim('Generated and retained full report-card batch' . ($examName !== '' ? ' for ' . $examName : '')),
+			'academic_year' => $examAcademicYearLabel,
+			'class_id' => $classId,
+			'owner_portal' => 'admin,headteacher,deputy_headteacher',
+			'mime_type' => 'application/pdf',
+			'status' => 'retained',
+			'source_key' => 'report_batch:' . $classId . ':' . $termId . ':' . $examId,
+			'created_by' => $generatedBy,
+			'payload_json' => [
+				'class_id' => $classId,
+				'class_name' => $className,
+				'term_id' => $termId,
+				'term_name' => $termName,
+				'exam_id' => $examId,
+				'exam_name' => $examName,
+				'total_students' => (int)($meritList['total_students'] ?? 0),
+				'total_rows' => count((array)($meritList['rows'] ?? [])),
+			],
+		]);
+	} catch (Throwable $archiveError) {
+		error_log('[process_results/data_camp] ' . $archiveError->getMessage());
+	}
+
 	if (app_table_exists($conn, 'tbl_notifications')) {
 		try {
 			$stmt = $conn->prepare("SELECT name FROM tbl_terms WHERE id = ? LIMIT 1");

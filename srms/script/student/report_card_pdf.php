@@ -12,44 +12,57 @@ if ($res !== '1' || $level !== '3') { header('location:../'); exit; }
 
 $termId = isset($_GET['term']) ? (int)$_GET['term'] : 0;
 $examId = isset($_GET['exam']) ? (int)$_GET['exam'] : 0;
-if ($termId < 1) { header('location:report_card'); exit; }
+$reportId = isset($_GET['report_id']) ? (int)$_GET['report_id'] : 0;
+if ($termId < 1 && $reportId < 1) { header('location:report_card'); exit; }
 $forceDownload = isset($_GET['download']) && (string)$_GET['download'] !== '0';
 
 try {
     $conn = app_db();
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $studentId = (string)$account_id;
+    $classId = (int)$class;
 
-    if (!report_term_is_published($conn, (int)$class, $termId)) {
-        header('location:report_card?term=' . $termId);
-        exit;
+    if ($reportId > 0) {
+        $card = report_load_card($conn, $reportId);
+        if (!$card || (string)($card['student_id'] ?? '') !== $studentId) {
+            header('location:report_card');
+            exit;
+        }
+        $classId = (int)($card['class_id'] ?? 0);
+        $termId = (int)($card['term_id'] ?? 0);
+        $examId = (int)($card['exam_id'] ?? 0);
+    } else {
+        if (!report_term_is_published($conn, $classId, $termId)) {
+            header('location:report_card?term=' . $termId);
+            exit;
+        }
+
+        $card = report_ensure_card_generated($conn, $studentId, $classId, $termId, null, $examId);
+        if (!$card) {
+            header('location:report_card?term=' . $termId);
+            exit;
+        }
     }
 
-    $card = report_ensure_card_generated($conn, $studentId, (int)$class, $termId, null, $examId);
-    if (!$card) {
-        header('location:report_card?term=' . $termId);
-        exit;
-    }
-
-    $attendance = report_attendance_summary($conn, $studentId, (int)$class, $termId);
+    $attendance = report_attendance_summary($conn, $studentId, $classId, $termId);
     $feesBalance = report_fees_balance($conn, $studentId, $termId);
     $settings = report_get_settings($conn);
-    if ((int)$settings['require_fees_clear'] === 1 && $feesBalance > 0) {
+    if ($reportId < 1 && (int)$settings['require_fees_clear'] === 1 && $feesBalance > 0) {
         header('location:report_card?term=' . $termId);
         exit;
     }
 
     $examSummary = null;
     $examBreakdown = [];
-    $examOptions = report_term_exam_options($conn, (int)$class, $termId);
+    $examOptions = report_term_exam_options($conn, $classId, $termId);
     if ($examId < 1 && !empty($examOptions)) {
         $examId = (int)$examOptions[0]['id'];
     }
     if ($examId > 0) {
         foreach ($examOptions as $option) {
             if ((int)$option['id'] === $examId) {
-                $examSummary = report_exam_summary($conn, $studentId, (int)$class, $termId, $examId);
-                $examBreakdown = report_exam_subject_breakdown($conn, $studentId, (int)$class, $termId, $examId);
+                $examSummary = report_exam_summary($conn, $studentId, $classId, $termId, $examId);
+                $examBreakdown = report_exam_subject_breakdown($conn, $studentId, $classId, $termId, $examId);
                 break;
             }
         }
@@ -60,7 +73,7 @@ try {
     $termName = (string)$stmt->fetchColumn();
 
     $stmt = $conn->prepare('SELECT name FROM tbl_classes WHERE id = ? LIMIT 1');
-    $stmt->execute([(int)$class]);
+    $stmt->execute([$classId]);
     $className = (string)$stmt->fetchColumn();
 
     $schoolId = '';

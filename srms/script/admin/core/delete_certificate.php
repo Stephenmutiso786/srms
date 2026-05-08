@@ -24,17 +24,31 @@ if ($certificateId < 1) {
 try {
     $conn = app_db();
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    app_ensure_data_camp_schema($conn);
 
-    $stmt = $conn->prepare('SELECT id FROM tbl_certificates WHERE id = ? LIMIT 1');
+    $stmt = $conn->prepare('SELECT id, student_id, class_id, verification_code FROM tbl_certificates WHERE id = ? LIMIT 1');
     $stmt->execute([$certificateId]);
-    if (!$stmt->fetchColumn()) {
+    $certificateRow = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    if (!$certificateRow) {
         app_reply_redirect('warning', 'Certificate was already removed.', '../certificates');
     }
 
-    $stmt = $conn->prepare('DELETE FROM tbl_certificates WHERE id = ?');
-    $stmt->execute([$certificateId]);
+    app_data_camp_store_record($conn, [
+        'module_key' => 'certificates',
+        'record_type' => 'retention_notice',
+        'entity_table' => 'tbl_certificates',
+        'entity_id' => (string)$certificateId,
+        'title' => 'Certificate retained',
+        'description' => 'A delete request was blocked because certificates are now permanently retained for future reference.',
+        'class_id' => (int)($certificateRow['class_id'] ?? 0),
+        'student_id' => (string)($certificateRow['student_id'] ?? ''),
+        'source_url' => trim((string)($certificateRow['verification_code'] ?? '')) !== '' ? 'verify_certificate?code=' . trim((string)$certificateRow['verification_code']) : null,
+        'status' => 'retained',
+        'source_key' => 'certificate_retention_notice:' . $certificateId,
+        'created_by' => isset($account_id) ? (int)$account_id : 0,
+    ]);
 
-    app_reply_redirect('success', 'Certificate deleted successfully.', '../certificates');
+    app_reply_redirect('warning', 'Certificates are now retained permanently. This record was not deleted and remains available in Data Camp.', '../certificates');
 } catch (Throwable $e) {
     app_reply_redirect('danger', 'Failed to delete certificate: ' . $e->getMessage(), '../certificates');
 }

@@ -121,6 +121,34 @@ try {
         $meritGrade,
         $competenciesJson,
     ]);
+    $certificateId = (int)$conn->lastInsertId();
+
+    app_data_camp_store_record($conn, [
+        'module_key' => 'certificates',
+        'record_type' => 'certificate',
+        'entity_table' => 'tbl_certificates',
+        'entity_id' => (string)$certificateId,
+        'title' => $title,
+        'description' => 'Issued certificate for learner record retention',
+        'class_id' => (int)$student['class'],
+        'student_id' => $studentId,
+        'owner_portal' => 'student,parent,teacher,admin',
+        'source_url' => 'verify_certificate?code=' . $code,
+        'mime_type' => 'application/pdf',
+        'status' => 'retained',
+        'source_key' => 'certificate:' . $certificateId,
+        'created_by' => (int)$account_id,
+        'payload_json' => [
+            'certificate_id' => $certificateId,
+            'student_id' => $studentId,
+            'certificate_type' => $type,
+            'issue_date' => $issueDate,
+            'serial_no' => $serial,
+            'verification_code' => $code,
+            'mean_score' => $meanScore,
+            'merit_grade' => $meritGrade,
+        ],
+    ]);
 
     app_audit_log(
         $conn,

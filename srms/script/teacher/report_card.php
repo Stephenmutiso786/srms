@@ -28,6 +28,7 @@ $photoPath = '';
 $photoExists = false;
 $kcpeScore = '';
 $subjectBreakdown = [];
+$reportArchive = [];
 
 try {
 	$conn = app_db();
@@ -75,6 +76,7 @@ try {
 			$feesBalance = report_fees_balance($conn, $studentId, $termId);
 			$subjectBreakdown = report_subject_breakdown($conn, $studentId, (int)$student['class_id'], $termId);
 		}
+		$reportArchive = report_student_report_archive($conn, $studentId, 24);
 	}
 } catch (Throwable $e) {
 	$card = null;
@@ -409,6 +411,31 @@ echo app_report_card_render($conn, [
 	'overall_grade' => (string)($examSummary['grade'] ?? $card['grade'] ?? 'N/A'),
 ]);
 ?>
+<?php endif; ?>
+<?php if (!empty($reportArchive)): ?>
+<div class="tile mt-3">
+<div class="tile-body">
+<h5 class="mb-3">Archived Report Cards</h5>
+<div class="table-responsive">
+<table class="table table-sm table-striped mb-0">
+<thead><tr><th>Term</th><th>Exam</th><th>Class</th><th>Mean</th><th>Grade</th><th>Generated</th><th>Action</th></tr></thead>
+<tbody>
+<?php foreach ($reportArchive as $archiveRow): ?>
+<tr>
+<td><?php echo htmlspecialchars((string)($archiveRow['term_name'] ?? '')); ?></td>
+<td><?php echo htmlspecialchars((string)($archiveRow['exam_name'] ?? 'Latest Published')); ?></td>
+<td><?php echo htmlspecialchars((string)($archiveRow['class_name'] ?? '')); ?></td>
+<td><?php echo number_format((float)($archiveRow['mean'] ?? 0), 2); ?></td>
+<td><?php echo htmlspecialchars((string)($archiveRow['grade'] ?? '')); ?></td>
+<td><?php echo htmlspecialchars((string)($archiveRow['generated_at'] ?? '')); ?></td>
+<td><a href="teacher/report_card_pdf?student=<?php echo urlencode($studentId); ?>&report_id=<?php echo (int)$archiveRow['id']; ?>&download=1" target="_blank">PDF</a></td>
+</tr>
+<?php endforeach; ?>
+</tbody>
+</table>
+</div>
+</div>
+</div>
 <?php endif; ?>
 </main>
 <script src="js/jquery-3.7.0.min.js"></script>

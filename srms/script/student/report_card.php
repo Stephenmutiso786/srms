@@ -23,6 +23,7 @@ $photoPath = '';
 $photoExists = false;
 $subjectBreakdown = [];
 $history = [];
+$reportArchive = [];
 $publicationState = 'draft';
 $isPublished = false;
 $examOptions = [];
@@ -88,6 +89,11 @@ try {
 			}
 			$card = report_ensure_card_generated($conn, $studentId, (int)$class, $termId, null, $examId);
 			if ($card) {
+				if ((int)($card['class_id'] ?? 0) > 0 && (int)($card['class_id'] ?? 0) !== (int)$class) {
+					$stmt = $conn->prepare("SELECT name FROM tbl_classes WHERE id = ? LIMIT 1");
+					$stmt->execute([(int)$card['class_id']]);
+					$className = (string)$stmt->fetchColumn();
+				}
 				$attendance = report_attendance_summary($conn, $studentId, (int)$class, $termId);
 				$feesBalance = report_fees_balance($conn, $studentId, $termId);
 				$settings = report_get_settings($conn);
@@ -96,6 +102,7 @@ try {
 				$history = report_student_term_history($conn, $studentId, (int)$class);
 			}
 		}
+		$reportArchive = report_student_report_archive($conn, $studentId, 24);
 	}
 } catch (Throwable $e) {
 	$card = null;
@@ -633,6 +640,29 @@ echo app_report_card_render($conn, [
 	'overall_grade' => (string)($examSummary['grade'] ?? $card['grade'] ?? 'N/A'),
 ]);
 ?>
+<?php endif; ?>
+<?php if (!empty($reportArchive)): ?>
+<div class="report-empty mt-3">
+	<h5 class="mb-3">Archived Report Cards</h5>
+	<div class="table-responsive">
+	<table class="table table-sm table-striped mb-0">
+	<thead><tr><th>Term</th><th>Exam</th><th>Class</th><th>Mean</th><th>Grade</th><th>Generated</th><th>Action</th></tr></thead>
+	<tbody>
+	<?php foreach ($reportArchive as $archiveRow): ?>
+	<tr>
+		<td><?php echo htmlspecialchars((string)($archiveRow['term_name'] ?? '')); ?></td>
+		<td><?php echo htmlspecialchars((string)($archiveRow['exam_name'] ?? 'Latest Published')); ?></td>
+		<td><?php echo htmlspecialchars((string)($archiveRow['class_name'] ?? '')); ?></td>
+		<td><?php echo number_format((float)($archiveRow['mean'] ?? 0), 2); ?></td>
+		<td><?php echo htmlspecialchars((string)($archiveRow['grade'] ?? '')); ?></td>
+		<td><?php echo htmlspecialchars((string)($archiveRow['generated_at'] ?? '')); ?></td>
+		<td><a href="student/report_card_pdf?report_id=<?php echo (int)$archiveRow['id']; ?>&download=1" target="_blank">PDF</a></td>
+	</tr>
+	<?php endforeach; ?>
+	</tbody>
+	</table>
+	</div>
+</div>
 <?php endif; ?>
 </main>
 

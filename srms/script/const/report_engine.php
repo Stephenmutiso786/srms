@@ -1857,6 +1857,36 @@ function report_student_term_history(PDO $conn, string $studentId, int $classId,
 	}, $history);
 }
 
+function report_student_report_archive(PDO $conn, string $studentId, int $limit = 24): array
+{
+	$limit = max(1, $limit);
+	if ($studentId === '' || !app_table_exists($conn, 'tbl_report_cards')) {
+		return [];
+	}
+
+	$examJoin = app_column_exists($conn, 'tbl_report_cards', 'exam_id')
+		? "LEFT JOIN tbl_exams ex ON ex.id = rc.exam_id"
+		: "LEFT JOIN tbl_exams ex ON 1 = 0";
+	$examSelect = app_column_exists($conn, 'tbl_report_cards', 'exam_id')
+		? "COALESCE(rc.exam_id, 0) AS exam_id,"
+		: "0 AS exam_id,";
+
+	$stmt = $conn->prepare("SELECT rc.id, rc.student_id, rc.class_id, rc.term_id, {$examSelect}
+			rc.mean, rc.grade, rc.generated_at, rc.verification_code,
+			COALESCE(c.name, '') AS class_name,
+			COALESCE(t.name, '') AS term_name,
+			COALESCE(ex.name, '') AS exam_name
+		FROM tbl_report_cards rc
+		LEFT JOIN tbl_classes c ON c.id = rc.class_id
+		LEFT JOIN tbl_terms t ON t.id = rc.term_id
+		{$examJoin}
+		WHERE rc.student_id = ?
+		ORDER BY rc.generated_at DESC, rc.id DESC
+		LIMIT {$limit}");
+	$stmt->execute([$studentId]);
+	return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
+
 function report_subject_breakdown(PDO $conn, string $studentId, int $classId, int $termId): array
 {
 	$subjects = report_fetch_subjects_for_class($conn, $classId);
@@ -2238,6 +2268,61 @@ function report_store_card(PDO $conn, string $studentId, int $classId, int $term
 				$subject['teacher_id']
 			]);
 		}
+	}
+
+	try {
+		$className = '';
+		$termName = '';
+		$examName = '';
+		if ($classId > 0) {
+			$stmt = $conn->prepare("SELECT name FROM tbl_classes WHERE id = ? LIMIT 1");
+			$stmt->execute([$classId]);
+			$className = (string)$stmt->fetchColumn();
+		}
+		if ($termId > 0) {
+			$stmt = $conn->prepare("SELECT name FROM tbl_terms WHERE id = ? LIMIT 1");
+			$stmt->execute([$termId]);
+			$termName = (string)$stmt->fetchColumn();
+		}
+		if ($examId > 0 && app_table_exists($conn, 'tbl_exams')) {
+			$stmt = $conn->prepare("SELECT name FROM tbl_exams WHERE id = ? LIMIT 1");
+			$stmt->execute([$examId]);
+			$examName = (string)$stmt->fetchColumn();
+		}
+
+		app_data_camp_store_record($conn, [
+			'module_key' => 'report_cards',
+			'record_type' => 'report_card',
+			'entity_table' => 'tbl_report_cards',
+			'entity_id' => (string)$reportId,
+			'title' => trim(($className !== '' ? $className : 'Class') . ' report card - ' . ($termName !== '' ? $termName : ('Term ' . $termId))),
+			'description' => trim('Generated learner report card' . ($examName !== '' ? ' for ' . $examName : '')),
+			'class_id' => $classId,
+			'student_id' => $studentId,
+			'owner_portal' => 'student,parent,teacher,admin',
+			'source_url' => 'verify_report?code=' . $code,
+			'mime_type' => 'application/pdf',
+			'status' => 'retained',
+			'source_key' => 'report_card:' . $reportId,
+			'created_by' => $generatedBy,
+			'payload_json' => [
+				'report_id' => $reportId,
+				'student_id' => $studentId,
+				'class_id' => $classId,
+				'class_name' => $className,
+				'term_id' => $termId,
+				'term_name' => $termName,
+				'exam_id' => $examId,
+				'exam_name' => $examName,
+				'mean' => $report['mean'],
+				'grade' => $report['grade'],
+				'position' => $position,
+				'total_students' => $totalStudents,
+				'verification_code' => $code,
+			],
+		]);
+	} catch (Throwable $e) {
+		error_log('[report_upsert_card/data_camp] ' . $e->getMessage());
 	}
 
 	return $reportId;

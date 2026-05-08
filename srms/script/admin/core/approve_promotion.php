@@ -29,6 +29,7 @@ try {
     $conn = app_db();
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     app_ensure_promotion_workflow_schema($conn);
+    app_ensure_student_alumni_schema($conn);
     app_ensure_certificates_table($conn);
     $conn->beginTransaction();
 
@@ -75,6 +76,7 @@ try {
     $promoted = 0;
     $repeated = 0;
     $exited = 0;
+    $alumni = 0;
     $certificates_generated = 0;
 
     $today = date('Y-m-d');
@@ -87,14 +89,30 @@ try {
             $effectiveMeritGrade = trim((string)($student['merit_grade'] ?? ''));
         }
         $decisionStatus = strtolower(trim((string)($student['final_status'] ?? $student['status'])));
-        if (!in_array($decisionStatus, ['promoted', 'repeated', 'exited', 'suspended'], true)) {
+        if (!in_array($decisionStatus, ['promoted', 'repeated', 'alumni', 'exited', 'suspended'], true)) {
             throw new RuntimeException('Student #'.(string)$student['student_id'].' still has an unresolved promotion decision.');
         }
 
         if ($decisionStatus === 'promoted') {
+            $targetClassId = (int)($student['to_class'] ?? 0);
+            if ($targetClassId < 1) {
+                throw new RuntimeException('Student #'.(string)$student['student_id'].' has no valid promotion target class.');
+            }
+            $targetOccupancy = app_active_student_count_in_class($conn, $targetClassId);
+            if ($targetOccupancy > 0) {
+                throw new RuntimeException('Cannot promote into ' . (string)($student['to_class_name'] ?? 'the target class') . ' because it already has ' . $targetOccupancy . ' active student(s). Clear that class first or mark the learner as a repeater.');
+            }
+        }
+
+        if ($decisionStatus === 'promoted') {
             // Update student's class.
-            $stmt = $conn->prepare('UPDATE tbl_students SET class = ? WHERE id = ?');
-            $stmt->execute([(int)$student['to_class'], (string)$student['student_id']]);
+            if (app_column_exists($conn, 'tbl_students', 'class_id')) {
+                $stmt = $conn->prepare('UPDATE tbl_students SET class = ?, class_id = ? WHERE id = ?');
+                $stmt->execute([(int)$student['to_class'], (int)$student['to_class'], (string)$student['student_id']]);
+            } else {
+                $stmt = $conn->prepare('UPDATE tbl_students SET class = ? WHERE id = ?');
+                $stmt->execute([(int)$student['to_class'], (string)$student['student_id']]);
+            }
             app_sync_student_finance_class_links($conn, (string)$student['student_id']);
             $promoted++;
 
@@ -147,6 +165,24 @@ try {
                         $code,
                         $hash
                     ]);
+                    $newCertificateId = (int)$conn->lastInsertId();
+                    app_data_camp_store_record($conn, [
+                        'module_key' => 'certificates',
+                        'record_type' => 'certificate',
+                        'entity_table' => 'tbl_certificates',
+                        'entity_id' => (string)$newCertificateId,
+                        'title' => app_certificate_types()[$certType] ?? 'Certificate',
+                        'description' => 'Auto-generated promotion certificate retained for future reference',
+                        'academic_year' => (string)($batch['academic_year'] ?? ''),
+                        'class_id' => (int)$student['from_class'],
+                        'student_id' => (string)$student['student_id'],
+                        'owner_portal' => 'student,parent,teacher,admin',
+                        'source_url' => 'verify_certificate?code=' . $code,
+                        'mime_type' => 'application/pdf',
+                        'status' => 'retained',
+                        'source_key' => 'certificate:' . $newCertificateId,
+                        'created_by' => (int)$account_id,
+                    ]);
                     $certificates_generated++;
                 }
 
@@ -166,6 +202,134 @@ try {
                 (string)($batch['academic_year'] ?? ''),
                 (string)($batch['promotion_cycle'] ?? ''),
                 'promoted',
+                $student['mean_score'],
+                $effectiveMeritGrade !== '' ? $effectiveMeritGrade : null,
+                'admin_execution',
+                (int)$account_id,
+                $student['review_comment'] ?? $student['notes'] ?? null,
+            ];
+            $stmt = $conn->prepare('INSERT INTO tbl_student_class_history (' . implode(', ', $historyColumns) . ') VALUES (' . implode(', ', array_fill(0, count($historyColumns), '?')) . ')');
+            $stmt->execute($historyValues);
+            continue;
+        }
+
+        if ($decisionStatus === 'alumni') {
+            $alumniNotes = $student['review_comment'] ?? $student['notes'] ?? 'Completed Grade ' . app_promotion_terminal_grade_level();
+            $stmt = $conn->prepare('UPDATE tbl_students SET is_alumni = 1, alumni_year = ?, alumni_at = CURRENT_TIMESTAMP, alumni_notes = ?, status = 0 WHERE id = ?');
+            $stmt->execute([
+                (string)($batch['academic_year'] ?? ''),
+                $alumniNotes,
+                (string)$student['student_id'],
+            ]);
+            app_sync_student_finance_class_links($conn, (string)$student['student_id']);
+            $alumni++;
+
+            try {
+                app_data_camp_store_record($conn, [
+                    'module_key' => 'alumni',
+                    'record_type' => 'alumni_student',
+                    'entity_table' => 'tbl_students',
+                    'entity_id' => (string)$student['student_id'],
+                    'title' => trim((string)($student['student_name'] ?? ('Student ' . $student['student_id']))) . ' - Alumni',
+                    'description' => 'Learner completed school and was retained in alumni records',
+                    'academic_year' => (string)($batch['academic_year'] ?? ''),
+                    'class_id' => (int)$student['from_class'],
+                    'student_id' => (string)$student['student_id'],
+                    'owner_portal' => 'admin,headteacher,deputy_headteacher',
+                    'status' => 'retained',
+                    'source_key' => 'alumni:' . (string)$student['student_id'],
+                    'created_by' => (int)$account_id,
+                    'payload_json' => [
+                        'student_id' => (string)$student['student_id'],
+                        'student_name' => (string)($student['student_name'] ?? ''),
+                        'from_class' => (int)$student['from_class'],
+                        'from_class_name' => (string)($student['from_class_name'] ?? ''),
+                        'academic_year' => (string)($batch['academic_year'] ?? ''),
+                        'decision_status' => 'alumni',
+                        'mean_score' => $student['mean_score'],
+                        'grade' => $effectiveMeritGrade,
+                        'notes' => $alumniNotes,
+                    ],
+                ]);
+            } catch (Throwable $archiveError) {
+                error_log('[approve_promotion/alumni_data_camp] ' . $archiveError->getMessage());
+            }
+
+            $completedGrade = app_effective_grade_level((string)($student['from_class_name'] ?? ''), $student['from_grade'] ?? null);
+            if ($completedGrade === app_promotion_terminal_grade_level()) {
+                $certType = 'junior_completion';
+                $stmt = $conn->prepare('
+                    SELECT id FROM tbl_certificates
+                    WHERE student_id = ? AND certificate_type = ? AND class_id = ?
+                    LIMIT 1
+                ');
+                $stmt->execute([(string)$student['student_id'], $certType, (int)$student['from_class']]);
+                $existingCertId = (int)($stmt->fetchColumn() ?: 0);
+
+                if ($existingCertId === 0) {
+                    $serial = app_certificate_serial($certType, (string)$student['student_id']);
+                    $code = app_certificate_code((string)$student['student_id']);
+                    $payload = [
+                        'student_id' => $student['student_id'],
+                        'certificate_type' => $certType,
+                        'serial' => $serial,
+                    ];
+                    $hash = app_certificate_hash($payload);
+
+                    $stmt = $conn->prepare('
+                        INSERT INTO tbl_certificates
+                        (student_id, class_id, certificate_type, certificate_category, title, serial_no,
+                         issue_date, status, mean_score, merit_grade, issued_by, verification_code, cert_hash)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ');
+                    $stmt->execute([
+                        (string)$student['student_id'],
+                        (int)$student['from_class'],
+                        $certType,
+                        $certType,
+                        app_certificate_types()[$certType] ?? 'Certificate',
+                        $serial,
+                        $today,
+                        'issued',
+                        $student['mean_score'],
+                        $effectiveMeritGrade !== '' ? $effectiveMeritGrade : null,
+                        (int)$account_id,
+                        $code,
+                        $hash
+                    ]);
+                    $newCertificateId = (int)$conn->lastInsertId();
+                    app_data_camp_store_record($conn, [
+                        'module_key' => 'certificates',
+                        'record_type' => 'certificate',
+                        'entity_table' => 'tbl_certificates',
+                        'entity_id' => (string)$newCertificateId,
+                        'title' => app_certificate_types()[$certType] ?? 'Certificate',
+                        'description' => 'Auto-generated alumni completion certificate retained for future reference',
+                        'academic_year' => (string)($batch['academic_year'] ?? ''),
+                        'class_id' => (int)$student['from_class'],
+                        'student_id' => (string)$student['student_id'],
+                        'owner_portal' => 'student,parent,teacher,admin',
+                        'source_url' => 'verify_certificate?code=' . $code,
+                        'mime_type' => 'application/pdf',
+                        'status' => 'retained',
+                        'source_key' => 'certificate:' . $newCertificateId,
+                        'created_by' => (int)$account_id,
+                    ]);
+                    $certificates_generated++;
+                }
+
+                $stmt = $conn->prepare('UPDATE tbl_student_promotions SET certificate_generated = TRUE WHERE id = ?');
+                $stmt->execute([(int)$student['id']]);
+            }
+
+            $historyValues = [
+                (string)$student['student_id'],
+                (int)$batchId,
+                (int)$student['from_class'],
+                (int)$student['from_class'],
+                (string)($batch['academic_year'] ?? ''),
+                (string)($batch['promotion_cycle'] ?? ''),
+                'alumni',
                 $student['mean_score'],
                 $effectiveMeritGrade !== '' ? $effectiveMeritGrade : null,
                 'admin_execution',
@@ -211,7 +375,7 @@ try {
             students_promoted = ?, students_repeated = ?, students_exited = ?
         WHERE id = ?
     ');
-    $stmt->execute(['approved', 'executed', (int)$account_id, (int)$account_id, (int)$account_id, $promoted, $repeated, $exited, (int)$batchId]);
+    $stmt->execute(['approved', 'executed', (int)$account_id, (int)$account_id, (int)$account_id, $promoted, $repeated, $exited + $alumni, (int)$batchId]);
 
     // Send SMS to parents about promotion (if SMS wallet exists)
     if (app_table_exists($conn, 'tbl_sms_wallets')) {
@@ -240,12 +404,12 @@ try {
         'promotion.batch.approve',
         'tbl_promotion_batches',
         (string)$batchId,
-        ['promoted' => $promoted, 'repeated' => $repeated, 'exited' => $exited, 'certificates_generated' => $certificates_generated, 'review_state' => $reviewState]
+        ['promoted' => $promoted, 'repeated' => $repeated, 'alumni' => $alumni, 'exited' => $exited, 'certificates_generated' => $certificates_generated, 'review_state' => $reviewState]
     );
 
     $conn->commit();
 
-    $msg = 'Promotion approved successfully! ' . $promoted . ' students promoted, ' . $repeated . ' will repeat, and ' . $exited . ' were marked as exited/suspended. ' . $certificates_generated . ' certificates generated.';
+    $msg = 'Promotion approved successfully! ' . $promoted . ' students promoted, ' . $repeated . ' will repeat, ' . $alumni . ' moved to alumni, and ' . $exited . ' were marked as exited/suspended. ' . $certificates_generated . ' certificates generated.';
     app_reply_redirect('success', $msg, '../promotions');
 
 } catch (Throwable $e) {

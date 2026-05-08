@@ -48,7 +48,7 @@ try {
         throw new RuntimeException('No students found in the selected promotion batch.');
     }
 
-    $allowedStatuses = ['promoted', 'repeated', 'exited', 'suspended'];
+    $allowedStatuses = ['promoted', 'repeated', 'alumni', 'exited', 'suspended'];
     $reviewedCount = 0;
     $overrideCount = 0;
 

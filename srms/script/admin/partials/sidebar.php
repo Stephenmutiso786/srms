@@ -71,6 +71,8 @@ function admin_sidebar_group_label(string $moduleKey): string
     'certificates' => 'Results',
     'promotion_rules' => 'Results',
     'promotions' => 'Results',
+    'alumni' => 'Results',
+    'data_camp' => 'System',
     'analytics_engine' => 'Reports',
     'benchmarking' => 'Reports',
     'notifications' => 'Communication',
