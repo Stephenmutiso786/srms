@@ -3,11 +3,9 @@ chdir('../../');
 session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
+require_once('const/rbac.php');
 
-if (!isset($res) || $res !== "1" || !isset($level) || $level !== "0") {
-	header("location:../../");
-	exit;
-}
+app_require_authentication([], ['students.manage']);
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 	header("location:../parents");
@@ -18,7 +16,7 @@ $parentId = (int)($_POST['parent_id'] ?? 0);
 $studentId = trim((string)($_POST['student_id'] ?? ''));
 
 if ($parentId < 1 || $studentId === '') {
-	$_SESSION['reply'] = array(array("error", "Invalid request."));
+	$_SESSION['reply'] = array(array("danger", "Invalid request."));
 	header("location:../parents");
 	exit;
 }
@@ -28,7 +26,7 @@ try {
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
 	if (!app_table_exists($conn, 'tbl_parent_students')) {
-		$_SESSION['reply'] = array(array("error", "Parent module is not installed."));
+		$_SESSION['reply'] = array(array("danger", "Parent module is not installed."));
 		header("location:../parents");
 		exit;
 	}
@@ -47,8 +45,7 @@ try {
 	header("location:../parents");
 	exit;
 } catch (PDOException $e) {
-	$_SESSION['reply'] = array(array("error", $e->getMessage()));
+	$_SESSION['reply'] = array(array("danger", $e->getMessage()));
 	header("location:../parents");
 	exit;
 }
-

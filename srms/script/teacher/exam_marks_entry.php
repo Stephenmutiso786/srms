@@ -110,7 +110,7 @@ try {
     }
   }
   foreach ($exams as $exam) {
-    $examModeMap[(int)$exam['id']] = (($exam['assessment_mode'] ?? 'normal') === 'cbc') ? 'cbc' : 'normal';
+    $examModeMap[(int)$exam['id']] = (($exam['assessment_mode'] ?? 'normal') === 'cbe') ? 'cbe' : 'normal';
   }
 
   // Include reopenable exams: exams where this teacher has a rejected submission
@@ -206,7 +206,7 @@ body.exam-entry-page{background:linear-gradient(180deg,#eef5f2 0%,#f7fbf9 45%,#e
 <div class="app-title">
 <div>
 <h1>Assessment Marks Entry</h1>
-<p>Select one exam. The system will automatically use normal marks entry or CBC entry based on the exam mode chosen by admin.</p>
+<p>Select one exam. The system will automatically use normal marks entry or CBE entry based on the exam mode chosen by admin.</p>
 </div>
 </div>
 
@@ -227,7 +227,7 @@ body.exam-entry-page{background:linear-gradient(180deg,#eef5f2 0%,#f7fbf9 45%,#e
   <div class="exam-hero-copy">
     <p class="text-uppercase fw-bold mb-2" style="letter-spacing:.1em;opacity:.8;">Teaching workflow</p>
     <h2>Choose an exam, choose a subject, then enter marks in one clean flow.</h2>
-    <p>The page adapts to the selected exam mode so you can move through normal, CBC, or consolidated workflows without changing screens.</p>
+    <p>The page adapts to the selected exam mode so you can move through normal, CBE, or consolidated workflows without changing screens.</p>
     <div class="workflow-note">
       <span class="workflow-pill"><i class="bi bi-1-circle"></i>Pick exam</span>
       <span class="workflow-pill"><i class="bi bi-2-circle"></i>Pick subject</span>
@@ -278,11 +278,11 @@ body.exam-entry-page{background:linear-gradient(180deg,#eef5f2 0%,#f7fbf9 45%,#e
 <div class="col-md-6">
   <div class="exam-side-note">
     <div class="fw-bold mb-2">What this page does</div>
-    <div class="small text-muted">The selected exam controls whether you enter normal marks, CBC marks, or get redirected to the consolidated workflow. The print mark sheet button opens the same exam/subject in a paper-friendly layout.</div>
+    <div class="small text-muted">The selected exam controls whether you enter normal marks, CBE marks, or get redirected to the consolidated workflow. The print mark sheet button opens the same exam/subject in a paper-friendly layout.</div>
   </div>
   <div class="exam-help-grid">
     <div class="exam-help-card"><div class="label">Normal</div><div class="value">Class tests and end-term assessments</div></div>
-    <div class="exam-help-card"><div class="label">CBC</div><div class="value">Competency entry and coded grading</div></div>
+    <div class="exam-help-card"><div class="label">CBE</div><div class="value">Competency entry and coded grading</div></div>
     <div class="exam-help-card"><div class="label">Consolidated</div><div class="value">Auto averages from component exams</div></div>
   </div>
 </div>

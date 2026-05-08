@@ -30,7 +30,7 @@ if ($res == "1" && $level == "1") {}else{header("location:../");}
 
 <li class="dropdown"><a class="app-nav__item" href="#" data-bs-toggle="dropdown" aria-label="Open Profile Menu"><i class="bi bi-person fs-4"></i></a>
 <ul class="dropdown-menu settings-menu dropdown-menu-right">
-<li><a class="dropdown-item" href="academic/profile"><i class="bi bi-person me-2 fs-5"></i> Profile</a></li>
+<li><a class="dropdown-item" href="academic/profile.php"><i class="bi bi-person me-2 fs-5"></i> Profile</a></li>
 <li><a class="dropdown-item" href="logout"><i class="bi bi-box-arrow-right me-2 fs-5"></i> Logout</a></li>
 </ul>
 </li>
@@ -52,7 +52,7 @@ if ($res == "1" && $level == "1") {}else{header("location:../");}
 <div class="tile">
 <h3 class="tile-title">Profile Information</h3>
 <div class="tile-body">
-<form class="app_frm" action="academic/core/update_profile" method="POST" autocomplete="off">
+<form class="app_frm" action="academic/core/update_profile.php" method="POST" autocomplete="off">
 
 <div class="mb-2">
 <label class="form-label">First Name</label>
@@ -89,7 +89,7 @@ if ($res == "1" && $level == "1") {}else{header("location:../");}
 <h3 class="tile-title">Change Password</h3>
 <div class="tile-body">
 
-<form class="app_frm" action="academic/core/update_password" method="POST" autocomplete="off">
+<form class="app_frm" action="academic/core/update_password.php" method="POST" autocomplete="off">
 
 <div class="mb-2">
 <label class="form-label">Current Password</label>

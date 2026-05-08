@@ -6,7 +6,8 @@ require_once('const/check_session.php');
 
 header('Content-Type: application/json; charset=utf-8');
 
-if (!isset($res) || $res !== "1" || !isset($level) || $level !== "0") {
+$isSuperAdmin = !empty($super_admin);
+if (!isset($res) || $res !== "1" || !isset($level) || !in_array((int)$level, [0, 1], true) && !$isSuperAdmin) {
 	http_response_code(401);
 	echo json_encode(["error" => "unauthorized"]);
 	exit;
@@ -25,6 +26,7 @@ if (is_file($cacheFile) && (time() - filemtime($cacheFile) < $cacheTtl)) {
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	app_ensure_promotion_workflow_schema($conn);
 	$driver = $conn->getAttribute(PDO::ATTR_DRIVER_NAME);
 	$tableExists = static function (PDO $conn, string $table): bool {
 		return app_table_exists($conn, $table);
@@ -251,6 +253,7 @@ try {
 		'active_boarders' => $counts['boarders'],
 		'active_dorms' => $counts['active_dorms']
 	];
+	$promotionQueue = app_promotion_queue_summary($conn);
 
 	$response = json_encode([
 		"counts" => $counts,
@@ -261,6 +264,7 @@ try {
 		"staffAttendanceToday" => $staffAttendanceToday,
 		"fees" => $feeSummary,
 		"boarding" => $boardingSummary,
+		"promotionQueue" => $promotionQueue,
 		"paymentsByDay" => $paymentsByDay,
 		"paymentsByMethod" => $paymentsByMethod
 	]);

@@ -5,8 +5,9 @@ require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/rbac.php');
 require_once('const/report_engine.php');
-if ($res != "1" || $level != "0") { header("location:../"); exit; }
-app_require_permission('results.approve', 'admin');
+if ($res !== "1") { header("location:../"); exit; }
+$portalHome = ((string)$level === '1') ? 'academic' : 'admin';
+app_require_permission('results.approve', $portalHome);
 
 $classes = [];
 $terms = [];

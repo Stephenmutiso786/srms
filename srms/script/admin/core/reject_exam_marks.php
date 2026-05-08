@@ -4,8 +4,9 @@ session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/rbac.php');
-if ($res != "1" || $level != "0") { header("location:../"); }
-app_require_permission('marks.review', 'admin');
+if ($res !== "1") { header("location:../../"); exit; }
+$portalHome = ((string)$level === '1') ? '../../academic' : '../marks_review';
+app_require_permission('marks.review', $portalHome);
 
 $submissionId = (int)($_POST['submission_id'] ?? 0);
 if ($submissionId < 1) {

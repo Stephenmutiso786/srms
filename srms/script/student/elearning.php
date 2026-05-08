@@ -193,7 +193,7 @@ try {
 
 <div class="row mb-3">
 <div class="col-md-3 col-sm-6 mb-3"><div class="tile elearn-stat-card tone-primary"><div class="tile-body"><h4><?php echo (int)count($courses); ?></h4><p>Active Courses</p></div></div></div>
-<div class="col-md-3 col-sm-6 mb-3"><div class="tile elearn-stat-card tone-sky"><div class="tile-body"><h4><?php echo number_format((float)$progressSummary['avg_completion'], 1); ?>%</h4><p>Avg CBC Progress</p></div></div></div>
+<div class="col-md-3 col-sm-6 mb-3"><div class="tile elearn-stat-card tone-sky"><div class="tile-body"><h4><?php echo number_format((float)$progressSummary['avg_completion'], 1); ?>%</h4><p>Avg CBE Progress</p></div></div></div>
 <div class="col-md-3 col-sm-6 mb-3"><div class="tile elearn-stat-card tone-leaf"><div class="tile-body"><h4><?php echo (int)$pendingAssignments; ?></h4><p>Pending Assignments</p></div></div></div>
 <div class="col-md-3 col-sm-6 mb-3"><div class="tile elearn-stat-card tone-sun"><div class="tile-body"><h4><?php echo (int)$upcomingLiveClasses; ?></h4><p>Upcoming Live Classes</p></div></div></div>
 </div>
@@ -219,7 +219,7 @@ try {
 <h3 class="tile-title"><i class="bi bi-journal-text me-2"></i>Lessons</h3>
 <div class="table-responsive">
 <table class="table table-hover elearn-table">
-<thead><tr><th>Course</th><th>Lesson</th><th>CBC Path</th><th>Competency/Outcome</th><th>Content</th></tr></thead>
+<thead><tr><th>Course</th><th>Lesson</th><th>CBE Path</th><th>Competency/Outcome</th><th>Content</th></tr></thead>
 <tbody>
 <?php foreach ($lessons as $lesson): ?>
 <tr>

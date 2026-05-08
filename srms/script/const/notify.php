@@ -1,6 +1,7 @@
 <?php
 require_once('db/config.php');
 require_once('const/http_client.php');
+require_once('const/school.php');
 
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
@@ -96,6 +97,21 @@ function app_configure_mailer_common(PHPMailer $mail, string $fromAddress, strin
 	}
 }
 
+function app_mail_fallback_available(): bool {
+	if (!function_exists('mail')) {
+		return false;
+	}
+	$sendmailPath = trim((string)ini_get('sendmail_path'));
+	if ($sendmailPath === '') {
+		return true;
+	}
+	$binary = preg_split('/\s+/', $sendmailPath)[0] ?? '';
+	if ($binary === '') {
+		return true;
+	}
+	return is_file($binary) && is_executable($binary);
+}
+
 function app_send_email(PDO $conn, string $recipient, string $subject, string $message, array $attachments = []): array {
 	$status = 'failed';
 	$error = '';
@@ -123,7 +139,7 @@ function app_send_email(PDO $conn, string $recipient, string $subject, string $m
 			$error = $e->getMessage();
 		}
 
-		if ($status !== 'sent' && strtolower((string)(getenv('APP_ALLOW_MAIL_FALLBACK') ?: '1')) !== '0' && function_exists('mail')) {
+		if ($status !== 'sent' && strtolower((string)(getenv('APP_ALLOW_MAIL_FALLBACK') ?: '1')) !== '0' && app_mail_fallback_available()) {
 			try {
 				$attemptedFallback = true;
 				$mail = new PHPMailer(true);
@@ -143,6 +159,8 @@ function app_send_email(PDO $conn, string $recipient, string $subject, string $m
 				error_log("[".__FILE__.":".__LINE__." Throwable fallback] " . $e->getMessage());
 				$error = $error !== '' ? 'SMTP failed: ' . $error . ' | mail() fallback exception: ' . $e->getMessage() : $e->getMessage();
 			}
+		} elseif ($status !== 'sent' && strtolower((string)(getenv('APP_ALLOW_MAIL_FALLBACK') ?: '1')) !== '0') {
+			$error = $error !== '' ? 'SMTP failed: ' . $error . ' | mail() fallback unavailable: sendmail binary not found.' : 'mail() fallback unavailable: sendmail binary not found.';
 		}
 	}
 

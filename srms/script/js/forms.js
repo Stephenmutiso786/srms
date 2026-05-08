@@ -431,14 +431,14 @@ document.getElementById('points').value = document.getElementById('points_'+id).
 document.getElementById('id').value = id;
 }
 
-function toggleCbcStudentChoices(classSelect, wrapId) {
+function toggleCbeStudentChoices(classSelect, wrapId) {
 var $classSelect = $(classSelect);
 var $wrap = $('#' + wrapId);
 if ($classSelect.length === 0 || $wrap.length === 0) {
 return;
 }
 
-var band = $classSelect.find('option:selected').data('cbc-band') || '';
+var band = $classSelect.find('option:selected').data('cbe-band') || '';
 var isJss = band === 'junior_secondary';
 
 $wrap.toggle(isJss);
@@ -448,10 +448,10 @@ $wrap.find('select').val(null).trigger('change');
 }
 }
 
-$(document).on('change', '.cbc-class-select', function() {
-var wrapId = $(this).data('cbc-wrap') || '';
+$(document).on('change', '.cbe-class-select', function() {
+var wrapId = $(this).data('cbe-wrap') || '';
 if (wrapId !== '') {
-toggleCbcStudentChoices(this, wrapId);
+toggleCbeStudentChoices(this, wrapId);
 }
 });
 
@@ -469,7 +469,7 @@ $('.select2').select2({
 dropdownParent: $("#editModal")
 })
 
-toggleCbcStudentChoices('#class', 'cbcJssChoicesEdit');
+toggleCbeStudentChoices('#class', 'cbeJssChoicesEdit');
 $('#language_subject_id').val(document.getElementById('language_choice_'+id).value || '').trigger('change');
 $('#religion_subject_id').val(document.getElementById('religion_choice_'+id).value || '').trigger('change');
 var optionalChoices = (document.getElementById('optional_choices_'+id).value || '').split(',').map(function(item) { return item.trim(); }).filter(Boolean);

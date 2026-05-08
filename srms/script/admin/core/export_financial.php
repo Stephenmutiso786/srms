@@ -19,6 +19,7 @@ if (!$export_type || !in_array($format, ['csv', 'xlsx'], true)) {
 try {
     $conn = app_db();
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    app_sync_student_finance_class_links($conn);
 
     $filename = 'financial_' . $export_type . '_' . date('YmdHis');
     $data = [];
@@ -114,7 +115,7 @@ try {
                 CURRENT_DATE - MAX(i.due_date) as 'Days Overdue'
             FROM tbl_students s
             LEFT JOIN tbl_invoices i ON i.student_id = s.id AND i.status = 'open'
-            LEFT JOIN tbl_classes c ON c.id = i.class_id
+            LEFT JOIN tbl_classes c ON c.id = s.class
             LEFT JOIN tbl_invoice_lines il ON il.invoice_id = i.id
             LEFT JOIN (SELECT invoice_id, SUM(amount) as amount FROM tbl_payments GROUP BY invoice_id) p ON p.invoice_id = i.id
             WHERE i.id IS NOT NULL

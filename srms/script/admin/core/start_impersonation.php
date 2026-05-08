@@ -106,8 +106,8 @@ try {
 		$stmt->execute([(int)$account_id, $currentSessionKey]);
 	}
 
-	$impersonatedSessionKey = mb_strtoupper(GRS(20));
-	$ip = (string)($_SERVER['REMOTE_ADDR'] ?? '');
+	$impersonatedSessionKey = function_exists('mb_strtoupper') ? mb_strtoupper(GRS(20)) : strtoupper(GRS(20));
+	$ip = app_request_client_ip();
 
 	if ($targetType === 'staff') {
 		$stmt = $conn->prepare("INSERT INTO tbl_login_sessions (session_key, staff, ip_address) VALUES (?,?,?)");

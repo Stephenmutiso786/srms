@@ -9,8 +9,23 @@ if (!isset($res) || $res !== "1" || !isset($level) || $level !== "2") {
 	exit;
 }
 
+function app_attendance_redirect_target(string $portal, string $page): string
+{
+	$portal = strtolower(trim($portal));
+	if (!in_array($portal, ['admin', 'academic', 'teacher'], true)) {
+		$portal = 'teacher';
+	}
+	return '../../' . $portal . '/' . ltrim($page, '/');
+}
+
+$originPortal = strtolower(trim((string)($_POST['origin_portal'] ?? ($_SESSION['attendance_portal'] ?? 'teacher'))));
+if (!in_array($originPortal, ['admin', 'academic', 'teacher'], true)) {
+	$originPortal = 'teacher';
+}
+$_SESSION['attendance_portal'] = $originPortal;
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-	header("location:../attendance");
+	header("location:" . app_attendance_redirect_target($originPortal, $originPortal === 'admin' ? 'attendance_mark' : 'attendance'));
 	exit;
 }
 
@@ -21,7 +36,7 @@ $sessionDate = trim((string)($_POST['session_date'] ?? ''));
 
 if ($classId < 1 || $sessionDate === '') {
 	$_SESSION['reply'] = array(array("error", "Please select class and date."));
-	header("location:../attendance");
+	header("location:" . app_attendance_redirect_target($originPortal, $originPortal === 'admin' ? 'attendance_mark' : 'attendance'));
 	exit;
 }
 
@@ -31,24 +46,13 @@ try {
 
 	if (!app_table_exists($conn, 'tbl_attendance_sessions') || !app_table_exists($conn, 'tbl_attendance_records')) {
 		$_SESSION['reply'] = array(array("error", "Attendance tables are not installed. Run the Postgres migration 001_rbac_attendance.sql."));
-		header("location:../attendance");
+		header("location:" . app_attendance_redirect_target($originPortal, $originPortal === 'admin' ? 'attendance_mark' : 'attendance'));
 		exit;
 	}
 
-	// Only allow sessions for classes the teacher is assigned to.
-	$stmt = $conn->prepare("SELECT class FROM tbl_subject_combinations WHERE teacher = ?");
-	$stmt->execute([(int)$account_id]);
-	$rows = $stmt->fetchAll(PDO::FETCH_NUM);
-	$allowed = [];
-	foreach ($rows as $r) {
-		foreach (app_unserialize($r[0]) as $c) {
-			$allowed[] = (int)$c;
-		}
-	}
-	$allowed = array_values(array_unique($allowed));
-	if (!in_array($classId, $allowed, true)) {
-		$_SESSION['reply'] = array(array("error", "You are not assigned to this class."));
-		header("location:../attendance");
+	if (!app_staff_is_active_class_teacher($conn, (int)$account_id, $classId)) {
+		$_SESSION['reply'] = array(array("error", "Only the assigned class teacher can start class attendance for this class."));
+		header("location:" . app_attendance_redirect_target($originPortal, $originPortal === 'admin' ? 'attendance_mark' : 'attendance'));
 		exit;
 	}
 
@@ -65,11 +69,11 @@ try {
 
 	app_audit_log($conn, 'staff', (string)$account_id, 'attendance.session.create', 'attendance_session', (string)$sessionId);
 
-	header("location:../attendance_session?id=" . $sessionId);
+	$sessionPage = $originPortal === 'admin' ? 'attendance_mark_session' : 'attendance_session';
+	header("location:" . app_attendance_redirect_target($originPortal, $sessionPage) . "?id=" . $sessionId);
 	exit;
 } catch (PDOException $e) {
 	$_SESSION['reply'] = array(array("error", $e->getMessage()));
-	header("location:../attendance");
+	header("location:" . app_attendance_redirect_target($originPortal, $originPortal === 'admin' ? 'attendance_mark' : 'attendance'));
 	exit;
 }
-

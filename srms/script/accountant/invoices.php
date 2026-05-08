@@ -1,5 +1,5 @@
 <?php
-chdir('../');
+chdir(__DIR__ . '/..');
 session_start();
 require_once('db/config.php');
 require_once('const/school.php');
@@ -18,6 +18,7 @@ try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 	app_ensure_finance_tables($conn);
+	app_sync_student_finance_class_links($conn);
 
 	if (!app_table_exists($conn, 'tbl_invoices') || !app_table_exists($conn, 'tbl_invoice_lines') || !app_table_exists($conn, 'tbl_payments')) {
 		throw new RuntimeException("Fees module is not installed. Run migration 003_fees_finance.sql.");
@@ -54,7 +55,7 @@ try {
 					GROUP BY pr.invoice_id
 				) lr_map ON lr_map.invoice_id = i.id
 				LEFT JOIN tbl_receipts lr ON lr.id = lr_map.latest_receipt_id
-				WHERE i.class_id = ? AND i.term_id = ? AND i.status != 'void'
+				WHERE s.class = ? AND i.term_id = ? AND i.status != 'void'
 				GROUP BY i.id, i.student_id, student_name, paid.total_paid, lr_map.latest_receipt_id, lr.receipt_number
 				ORDER BY i.student_id");
 		} else {
@@ -69,7 +70,7 @@ try {
 					FROM tbl_payments
 					GROUP BY invoice_id
 				) paid ON paid.invoice_id = i.id
-				WHERE i.class_id = ? AND i.term_id = ? AND i.status != 'void'
+				WHERE s.class = ? AND i.term_id = ? AND i.status != 'void'
 				GROUP BY i.id, i.student_id, student_name, paid.total_paid
 				ORDER BY i.student_id");
 		}

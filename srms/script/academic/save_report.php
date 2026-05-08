@@ -5,23 +5,29 @@ require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
 require_once('const/report_engine.php');
-require_once('tcpdf/tcpdf.php');
-require_once('const/calculations.php');
 require_once('const/pdf_branding.php');
+require_once('tcpdf/tcpdf.php');
 
-if ($res == '1' && $level == '1') {} else { header('location:../'); exit; }
-
-if (!isset($_SESSION['bulk_result_2'])) {
-	header('location:./');
+if ($res !== "1" || $level !== "1") {
+	header("location:../");
 	exit;
 }
 
-$class = trim((string)($_SESSION['bulk_result_2']['student'] ?? ''));
-$term = (int)($_SESSION['bulk_result_2']['term'] ?? 0);
-$examId = (int)($_SESSION['bulk_result_2']['exam'] ?? 0);
-if ($class === '' || $term < 1 || $examId < 1) {
-	$_SESSION['reply'] = array(array('danger', 'Please select class, term, and exam.'));
-	header('location:report');
+$classId = 0;
+$termId = 0;
+$examId = 0;
+if (isset($_SESSION['bulk_result_2'])) {
+	$classId = (int)($_SESSION['bulk_result_2']['student'] ?? 0);
+	$termId = (int)($_SESSION['bulk_result_2']['term'] ?? 0);
+	$examId = (int)($_SESSION['bulk_result_2']['exam'] ?? 0);
+} else {
+	$classId = (int)($_GET['class'] ?? 0);
+	$termId = (int)($_GET['term'] ?? 0);
+	$examId = (int)($_GET['exam'] ?? 0);
+}
+
+if ($classId < 1 || $termId < 1 || $examId < 1) {
+	header("location:./");
 	exit;
 }
 
@@ -29,126 +35,161 @@ try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-	$_MATOKEO = [];
-
-	$stmt = $conn->prepare('SELECT * FROM tbl_students WHERE class = ?');
-	$stmt->execute([$class]);
-	$std_data = $stmt->fetchAll();
-	if (!$std_data) {
-		$_SESSION['reply'] = array(array('danger', 'No students found in the selected class.'));
-		header('location:report');
-		exit;
+	$stmt = $conn->prepare("SELECT name FROM tbl_classes WHERE id = ? LIMIT 1");
+	$stmt->execute([$classId]);
+	$className = (string)$stmt->fetchColumn();
+	if ($className === '') {
+		throw new RuntimeException('Class not found.');
 	}
 
-	$stmt = $conn->prepare('SELECT * FROM tbl_terms WHERE id = ? LIMIT 1');
-	$stmt->execute([$term]);
-	$term_row = $stmt->fetch();
-	if (!$term_row) {
-		$_SESSION['reply'] = array(array('danger', 'Selected term was not found.'));
-		header('location:report');
-		exit;
-	}
-
-	$stmt = $conn->prepare('SELECT * FROM tbl_classes WHERE id = ? LIMIT 1');
-	$stmt->execute([$class]);
-	$class_row = $stmt->fetch();
-	if (!$class_row) {
-		$_SESSION['reply'] = array(array('danger', 'Selected class was not found.'));
-		header('location:report');
-		exit;
+	$stmt = $conn->prepare("SELECT name FROM tbl_terms WHERE id = ? LIMIT 1");
+	$stmt->execute([$termId]);
+	$termName = (string)$stmt->fetchColumn();
+	if ($termName === '') {
+		throw new RuntimeException('Term not found.');
 	}
 
 	$examName = '';
 	if (app_table_exists($conn, 'tbl_exams')) {
-		$stmt = $conn->prepare('SELECT name FROM tbl_exams WHERE id = ? AND class_id = ? AND term_id = ? LIMIT 1');
-		$stmt->execute([$examId, (int)$class, $term]);
+		$stmt = $conn->prepare("SELECT name FROM tbl_exams WHERE id = ? AND class_id = ? AND term_id = ? LIMIT 1");
+		$stmt->execute([$examId, $classId, $termId]);
 		$examName = (string)$stmt->fetchColumn();
 	}
 	if ($examName === '') {
-		$_SESSION['reply'] = array(array('danger', 'Selected exam is not valid for the selected class and term.'));
-		header('location:report');
-		exit;
+		throw new RuntimeException('Selected exam is not valid for the selected class and term.');
 	}
 
-	$title = (string)$class_row[1] . ' (' . (string)$term_row[1] . ' - ' . $examName . ' Performance Report)';
-	$useExamId = app_column_exists($conn, 'tbl_exam_results', 'exam_id');
-
-	$stmt = $conn->prepare('SELECT * FROM tbl_subject_combinations LEFT JOIN tbl_subjects ON tbl_subject_combinations.subject = tbl_subjects.id');
-	$stmt->execute();
-	$result = $stmt->fetchAll();
-
-	foreach ($std_data as $row2) {
-		$tscore = 0;
-		$t_subjects = 0;
-		$subssss = [];
-		$gnd = (string)($row2[4] ?? '');
-
-		foreach ($result as $row) {
-			$class_list = app_unserialize($row[1]);
-			if (in_array($class, $class_list, true)) {
-				$score = 0;
-				if ($useExamId) {
-					$stmt = $conn->prepare('SELECT * FROM tbl_exam_results WHERE class = ? AND subject_combination = ? AND term = ? AND student = ? AND exam_id = ?');
-					$stmt->execute([$class, $row[0], $term, $row2[0], $examId]);
-				} else {
-					$stmt = $conn->prepare('SELECT * FROM tbl_exam_results WHERE class = ? AND subject_combination = ? AND term = ? AND student = ?');
-					$stmt->execute([$class, $row[0], $term, $row2[0]]);
-				}
-				$ex_result = $stmt->fetchAll();
-				if (isset($ex_result[0][5]) && $ex_result[0][5] !== '') {
-					$score = (float)$ex_result[0][5];
-					$tscore += $score;
-					$t_subjects++;
-					$subssss[] = $score;
-				}
-			}
+	$summaryRows = [];
+	$totalStudents = 0;
+	if (app_column_exists($conn, 'tbl_exam_results', 'exam_id')) {
+		$stmt = $conn->prepare("SELECT er.student, st.school_id, st.fname, st.mname, st.lname,
+				AVG(er.score) AS mean_score, SUM(er.score) AS total_score
+			FROM tbl_exam_results er
+			JOIN tbl_students st ON st.id = er.student
+			WHERE er.class = ? AND er.term = ? AND er.exam_id = ?
+			GROUP BY er.student, st.school_id, st.fname, st.mname, st.lname
+			ORDER BY mean_score DESC, total_score DESC, st.fname ASC, st.lname ASC");
+		$stmt->execute([$classId, $termId, $examId]);
+		$rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		$totalStudents = count($rows);
+		if ($totalStudents < 1) {
+			throw new RuntimeException('No learners have saved scores for the selected exam.');
 		}
 
-		$av = $t_subjects === 0 ? 0 : round($tscore / $t_subjects);
+		$gradingSystemId = report_default_grading_system_id($conn, 'marks');
+		$grading = report_grading_scales($conn, $gradingSystemId);
+		if (empty($grading)) {
+			$grading = [
+				['name' => 'EE', 'min' => 90, 'max' => 100],
+				['name' => 'ME', 'min' => 75, 'max' => 89],
+				['name' => 'AE', 'min' => 50, 'max' => 74],
+				['name' => 'BE', 'min' => 0, 'max' => 49],
+			];
+		}
 
-		// CBC-ONLY: Division tally removed
+		$position = 1;
+		foreach ($rows as $row) {
+			$grade = 'N/A';
+			$mean = (float)($row['mean_score'] ?? 0);
+			foreach ($grading as $gradeRule) {
+				if ($mean >= (float)$gradeRule['min'] && $mean <= (float)$gradeRule['max']) {
+					$grade = (string)$gradeRule['name'];
+					break;
+				}
+			}
+			$summaryRows[] = [
+				'school_id' => (string)($row['school_id'] ?? (string)$row['student']),
+				'student_name' => trim((string)($row['fname'] ?? '') . ' ' . (string)($row['mname'] ?? '') . ' ' . (string)($row['lname'] ?? '')),
+				'position' => $position,
+				'total_students' => $totalStudents,
+				'total' => (float)($row['total_score'] ?? 0),
+				'mean' => $mean,
+				'grade' => $grade,
+				'trend' => '-',
+			];
+			$position++;
+		}
+	} else {
+		$merit = report_class_merit_list($conn, $classId, $termId, isset($account_id) ? (int)$account_id : null);
+		if (empty($merit['rows'])) {
+			throw new RuntimeException('No report-ready learners were found for this class and term.');
+		}
+		$summaryRows = $merit['rows'];
+		$totalStudents = (int)$merit['total_students'];
 	}
+
+	$gradeDistribution = [];
+	$meanSum = 0.0;
+	foreach ($summaryRows as $row) {
+		$grade = strtoupper(trim((string)($row['grade'] ?? 'N/A')));
+		$gradeDistribution[$grade] = (int)($gradeDistribution[$grade] ?? 0) + 1;
+		$meanSum += (float)($row['mean'] ?? 0);
+	}
+	$classMean = round($meanSum / max(1, count($summaryRows)), 2);
 
 	$pdf = new TCPDF(PDF_PAGE_ORIENTATION, PDF_UNIT, PDF_PAGE_FORMAT, true, 'UTF-8', false);
 	$pdf->SetCreator(PDF_CREATOR);
 	$pdf->SetAuthor(WBName);
-	$pdf->SetTitle($title);
-	$pdf->SetSubject($title);
-	$pdf->SetKeywords(APP_NAME, WBName);
+	$pdf->SetTitle($className . ' - ' . $termName . ' - ' . $examName . ' Performance Summary');
+	$pdf->SetSubject('Class performance summary');
 	$pdf->setPrintHeader(false);
 	$pdf->setPrintFooter(false);
-	$pdf->SetDefaultMonospacedFont(PDF_FONT_MONOSPACED);
-	$pdf->SetAutoPageBreak(true, PDF_MARGIN_BOTTOM);
-	$pdf->setImageScale(PDF_IMAGE_SCALE_RATIO);
-	$pdf->setFontSubsetting(true);
-	$pdf->SetFont('helvetica', '', 14, '', true);
+	$pdf->SetMargins(12, 12, 12);
+	$pdf->SetAutoPageBreak(true, 15);
 	$pdf->AddPage();
-	$pdf->setTextShadow(array('enabled' => true, 'depth_w' => 0.2, 'depth_h' => 0.2, 'color' => array(196, 196, 196), 'opacity' => 1, 'blend_mode' => 'Normal'));
+	app_pdf_draw_document_watermark($pdf, $className . ' ' . $termName, defined('WBName') ? (string)WBName : 'School');
 
-	$brandingHeader = app_pdf_brand_header_html($conn, 'CLASS PERFORMANCE REPORT', 'Official class performance summary for term review and record keeping', 60);
-	$html = $brandingHeader
-		. '<table width="100%" cellpadding="0" cellspacing="0">'
-		. '<tr><td style="text-align:center;"><h5><b style="font-size:18px;">' . WBName . '</b><br>Student Performance Report<br>'
-		. htmlspecialchars((string)$class_row[1]) . '<br>'
-		. htmlspecialchars((string)$term_row[1]) . '</h5></td></tr>'
-		. '</table>';
-	$pdf->writeHTMLCell(0, 0, '', '', $html, 0, 1, 0, true, '', true);
-	$pdf->SetFont('helvetica', '', 10, '', true);
-	$pdf->Cell(0, 0, '', 0, 1, 'C');
+	$headerHtml = app_pdf_brand_header_html($conn, 'CLASS PERFORMANCE SUMMARY', 'Official class performance summary for school record and review', 54)
+		. '<div style="font-size:11px;margin-top:4px;">' . htmlspecialchars($className) . ' · ' . htmlspecialchars($termName) . ' · ' . htmlspecialchars($examName) . '</div>';
+	$pdf->writeHTML($headerHtml, true, false, true, false, '');
 
-	// CBC-ONLY: Division table removed
+	$distHtml = '<table border="1" cellpadding="5" cellspacing="0">
+		<tr style="background-color:#f3f7fb;">
+			<td width="40%"><b>Total Learners</b></td>
+			<td width="60%">' . (int)$totalStudents . '</td>
+		</tr>
+		<tr>
+			<td><b>Class Mean</b></td>
+			<td>' . number_format($classMean, 2) . '%</td>
+		</tr>
+	</table><br>';
+	$pdf->writeHTML($distHtml, true, false, true, false, '');
 
-	$html2 = '<br><br><b>Date : ' . date('F d, Y G:i:s A') . '</b>';
-	$pdf->writeHTMLCell(0, 0, '', '', $html2, 0, 1, 0, true, '', true);
-	$pdf->IncludeJS('print(true);');
-
-	if (ob_get_length()) {
-		ob_end_clean();
+	if (!empty($gradeDistribution)) {
+		$rows = '';
+		ksort($gradeDistribution);
+		foreach ($gradeDistribution as $grade => $count) {
+			$rows .= '<tr><td>' . htmlspecialchars($grade) . '</td><td>' . (int)$count . '</td></tr>';
+		}
+		$pdf->writeHTML('<h4>Grade Distribution</h4><table border="1" cellpadding="4"><tr style="background-color:#f3f7fb;"><td><b>Grade</b></td><td><b>Learners</b></td></tr>' . $rows . '</table><br>', true, false, true, false, '');
 	}
-	$pdf->Output($title . '.pdf', 'I');
+
+	$tableRows = '';
+	foreach ($summaryRows as $row) {
+		$tableRows .= '<tr>
+			<td>' . htmlspecialchars((string)$row['school_id']) . '</td>
+			<td>' . htmlspecialchars((string)$row['student_name']) . '</td>
+			<td>' . number_format((float)($row['total'] ?? 0), 2) . '</td>
+			<td>' . number_format((float)($row['mean'] ?? 0), 2) . '</td>
+			<td>' . htmlspecialchars((string)($row['grade'] ?? '')) . '</td>
+			<td>' . htmlspecialchars((string)($row['trend'] ?? '')) . '</td>
+		</tr>';
+	}
+
+	$pdf->writeHTML('<h4>Learner Summary</h4><table border="1" cellpadding="4" cellspacing="0">
+		<tr style="background-color:#f3f7fb;">
+			<td width="18%"><b>Adm/ID</b></td>
+			<td width="32%"><b>Learner</b></td>
+			<td width="14%"><b>Total</b></td>
+			<td width="14%"><b>Mean</b></td>
+			<td width="10%"><b>Grade</b></td>
+			<td width="12%"><b>Trend</b></td>
+		</tr>' . $tableRows . '</table>', true, false, true, false, '');
+
+	$pdf->Output($className . '-' . $termName . '-' . $examName . '-performance-summary.pdf', 'I');
 } catch (Throwable $e) {
-	error_log('[' . __FILE__ . ':' . __LINE__ . '] ' . $e->getMessage());
-	$_SESSION['reply'] = array(array('danger', 'Failed to generate class performance report.'));
+	error_log('[academic/save_report] ' . $e->getMessage());
+	$_SESSION['reply'] = array(array('danger', 'Failed to generate summary report: ' . $e->getMessage()));
 	header('location:report');
 	exit;
 }

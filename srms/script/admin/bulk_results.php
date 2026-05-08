@@ -5,6 +5,7 @@ require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
 require_once('const/report_engine.php');
+require_once('const/calculations.php');
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
@@ -31,7 +32,7 @@ if ($hasSelection) {
 }
 
 try {
-	// Use CBC grading system instead of legacy tbl_grade_system
+	// Use CBE grading system instead of legacy tbl_grade_system
 	$gradingSystemId = report_default_grading_system_id($conn, 'marks');
 	$grading = report_grading_scales($conn, $gradingSystemId);
 	if (empty($grading)) {
@@ -269,7 +270,7 @@ $av = '0';
 $av = round($tscore/$t_subjects);
 }
 
-// Determine grade using CBC grading system
+// Determine grade using CBE grading system
 $grd = 'BE';
 $rm = 'Below Expectation';
 foreach($grading as $grade) {

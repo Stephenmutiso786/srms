@@ -3,11 +3,14 @@ chdir('../../');
 session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
+require_once('const/rbac.php');
 
-if (!isset($res) || $res !== "1" || !isset($level) || ($level !== "0" && $level !== "5")) {
+if (!isset($res) || $res !== "1" || !isset($level)) {
 	header("location:../../");
 	exit;
 }
+$portalHome = ((string)$level === '5') ? '../../accountant' : '../invoices';
+app_require_permission('finance.manage', $portalHome);
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 	header("location:../invoices");
@@ -149,9 +152,10 @@ try {
 	$receiptError = '';
 	try {
 		$receiptNo = app_generate_receipt_number($conn);
+		$verificationCode = app_generate_receipt_verification_code($conn);
 		$generatedBy = $receivedBy;
-		$stmt = $conn->prepare("INSERT INTO tbl_receipts (payment_id, receipt_number, generated_by) VALUES (?,?,?)");
-		app_payment_execute($stmt, 'insert_receipt', 'INSERT INTO tbl_receipts (payment_id, receipt_number, generated_by) VALUES (?,?,?)', [$paymentId, $receiptNo, $generatedBy]);
+		$stmt = $conn->prepare("INSERT INTO tbl_receipts (payment_id, receipt_number, verification_code, generated_by) VALUES (?,?,?,?)");
+		app_payment_execute($stmt, 'insert_receipt', 'INSERT INTO tbl_receipts (payment_id, receipt_number, verification_code, generated_by) VALUES (?,?,?,?)', [$paymentId, $receiptNo, $verificationCode, $generatedBy]);
 	} catch (Throwable $receiptEx) {
 		$receiptNo = '';
 		$receiptError = $receiptEx->getMessage();

@@ -7,11 +7,13 @@ require_once('const/rbac.php');
 require_once('const/certificate_engine.php');
 require_once('const/notify.php');
 
-if ($res !== '1' || !in_array((int)$level, [0, 1, 9], true)) {
+$isSuperAdmin = !empty($super_admin);
+
+if ($res !== '1' || (!in_array((int)$level, [0, 1, 9], true) && !$isSuperAdmin)) {
     app_reply_redirect('danger', 'Unauthorized.', '../promotions');
 }
-if (!in_array((int)$level, [0, 9], true)) {
-    app_reply_redirect('danger', 'Only admin can execute the final promotion step.', '../promotions');
+if (!$isSuperAdmin) {
+    app_reply_redirect('danger', 'Only the Super Admin can complete the final promotion step.', '../promotions');
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -52,8 +54,11 @@ try {
     $stmt = $conn->prepare('
         SELECT sp.*, st.id, st.fname, st.mname, st.lname,
                concat_ws(\' \' , st.fname, st.mname, st.lname) AS student_name,
+               c_from.name AS from_class_name,
+               c_to.name AS to_class_name,
                c_from.grade AS from_grade,
-               c_to.grade AS to_grade
+               c_to.grade AS to_grade,
+               (SELECT r.grade FROM tbl_report_cards r WHERE r.student_id = st.id ORDER BY r.id DESC LIMIT 1) AS latest_report_grade
         FROM tbl_student_promotions sp
         JOIN tbl_students st ON st.id = sp.student_id
         LEFT JOIN tbl_classes c_from ON c_from.id = sp.from_class
@@ -77,6 +82,10 @@ try {
 
     // Process each student.
     foreach ($students as $student) {
+        $effectiveMeritGrade = trim((string)($student['latest_report_grade'] ?? ''));
+        if ($effectiveMeritGrade === '') {
+            $effectiveMeritGrade = trim((string)($student['merit_grade'] ?? ''));
+        }
         $decisionStatus = strtolower(trim((string)($student['final_status'] ?? $student['status'])));
         if (!in_array($decisionStatus, ['promoted', 'repeated', 'exited', 'suspended'], true)) {
             throw new RuntimeException('Student #'.(string)$student['student_id'].' still has an unresolved promotion decision.');
@@ -86,10 +95,11 @@ try {
             // Update student's class.
             $stmt = $conn->prepare('UPDATE tbl_students SET class = ? WHERE id = ?');
             $stmt->execute([(int)$student['to_class'], (string)$student['student_id']]);
+            app_sync_student_finance_class_links($conn, (string)$student['student_id']);
             $promoted++;
 
             // Auto-generate completion certificates based on the completed class grade.
-            $completedGrade = (int)($student['from_grade'] ?? 0);
+            $completedGrade = app_effective_grade_level((string)($student['from_class_name'] ?? ''), $student['from_grade'] ?? null);
             $certType = null;
             if ($completedGrade === 6) {
                 $certType = 'primary_completion';
@@ -132,7 +142,7 @@ try {
                         $today,
                         'issued',
                         $student['mean_score'],
-                        $student['merit_grade'],
+                        $effectiveMeritGrade !== '' ? $effectiveMeritGrade : null,
                         (int)$account_id,
                         $code,
                         $hash
@@ -157,7 +167,7 @@ try {
                 (string)($batch['promotion_cycle'] ?? ''),
                 'promoted',
                 $student['mean_score'],
-                $student['merit_grade'],
+                $effectiveMeritGrade !== '' ? $effectiveMeritGrade : null,
                 'admin_execution',
                 (int)$account_id,
                 $student['review_comment'] ?? $student['notes'] ?? null,
@@ -182,7 +192,7 @@ try {
                 (string)($batch['promotion_cycle'] ?? ''),
                 $decisionStatus,
                 $student['mean_score'],
-                $student['merit_grade'],
+                $effectiveMeritGrade !== '' ? $effectiveMeritGrade : null,
                 'admin_execution',
                 (int)$account_id,
                 $student['review_comment'] ?? $student['notes'] ?? null,

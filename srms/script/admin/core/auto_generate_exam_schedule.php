@@ -5,11 +5,12 @@ require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/rbac.php');
 
-if (!isset($res) || $res !== "1" || !isset($level) || $level !== "0") {
+if (!isset($res) || $res !== "1" || !isset($level)) {
 	header("location:../../");
 	exit;
 }
-app_require_permission('exams.manage', '../exam_timetable');
+$portalHome = ((string)$level === '1') ? '../../academic' : '../exam_timetable';
+app_require_permission('exams.manage', $portalHome);
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 	header("location:../exam_timetable");

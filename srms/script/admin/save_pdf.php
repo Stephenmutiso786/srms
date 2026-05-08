@@ -33,11 +33,11 @@ try {
         exit;
     }
 
-    $card = report_ensure_card_generated($conn, $studentId, (int)$student['class_id'], $termId, (int)$account_id);
+    $card = report_ensure_card_generated($conn, $studentId, (int)$student['class_id'], $termId, (int)$account_id, $examId);
     if (!$card) {
-        $rankData = report_rank_students($conn, (int)$student['class_id'], $termId);
-        $report = report_compute_for_student($conn, $studentId, (int)$student['class_id'], $termId);
-        $reportId = report_store_card($conn, $studentId, (int)$student['class_id'], $termId, $report, $rankData['positions'], (int)$rankData['total_students'], (int)$account_id);
+        $rankData = report_rank_students($conn, (int)$student['class_id'], $termId, $examId);
+        $report = report_compute_for_student($conn, $studentId, (int)$student['class_id'], $termId, $examId);
+        $reportId = report_store_card($conn, $studentId, (int)$student['class_id'], $termId, $report, $rankData['positions'], (int)$rankData['total_students'], (int)$account_id, $examId);
         $card = report_load_card($conn, $reportId);
     }
 

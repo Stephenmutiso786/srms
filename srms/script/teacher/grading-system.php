@@ -9,7 +9,7 @@ if ($res != "1" || !in_array($level, ["0","1","2"])) { header("location:../"); e
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<title><?php echo APP_NAME; ?> - CBC Grading System</title>
+<title><?php echo APP_NAME; ?> - CBE Grading System</title>
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -38,8 +38,8 @@ if ($res != "1" || !in_array($level, ["0","1","2"])) { header("location:../"); e
 <main class="app-content">
 <div class="app-title">
 <div>
-<h1>CBC Grading System</h1>
-<p class="text-muted">Competency-Based Curriculum grading bands used for assessment.</p>
+<h1>CBE Grading System</h1>
+<p class="text-muted">View-only grading reference. Admin manages class grading systems and exams inherit them automatically.</p>
 </div>
 </div>
 
@@ -48,7 +48,7 @@ if ($res != "1" || !in_array($level, ["0","1","2"])) { header("location:../"); e
 <div class="tile">
 <div class="tile-body">
 <div class="table-responsive">
-<h3 class="tile-title">CBC Grading Bands</h3>
+<h3 class="tile-title">CBE Grading Bands</h3>
 <table class="table table-hover table-bordered" id="srmsTable">
 <thead>
 <tr>
@@ -128,7 +128,7 @@ foreach($defaultGrades as $grade)
 <div class="col-md-12">
 <div class="tile">
 <div class="tile-body">
-<h4 class="tile-title">Understanding CBC Grades</h4>
+<h4 class="tile-title">Understanding CBE Grades</h4>
 <ul>
 <li><strong>EE (Exceeding Expectation):</strong> Score 90-100% - Learner exceeds expected competencies</li>
 <li><strong>ME (Meeting Expectation):</strong> Score 75-89% - Learner meets expected competencies</li>

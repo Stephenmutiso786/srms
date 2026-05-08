@@ -88,8 +88,8 @@ try {
   if ($courseId > 0 && app_table_exists($conn, 'tbl_elearning_progress')) {
     $competencyLevel = 'BE';
 
-    if (app_table_exists($conn, 'tbl_cbc_grading')) {
-      $stmt = $conn->prepare("SELECT level, min_mark, max_mark, sort_order FROM tbl_cbc_grading WHERE active = 1 ORDER BY min_mark DESC, sort_order ASC");
+    if (app_table_exists($conn, 'tbl_cbe_grading')) {
+      $stmt = $conn->prepare("SELECT level, min_mark, max_mark, sort_order FROM tbl_cbe_grading WHERE active = 1 ORDER BY min_mark DESC, sort_order ASC");
       $stmt->execute();
       $bands = $stmt->fetchAll(PDO::FETCH_ASSOC);
       foreach ($bands as $band) {

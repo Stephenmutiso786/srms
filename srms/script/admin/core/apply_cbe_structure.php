@@ -15,9 +15,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 try {
 	$conn = app_db();
-	$summary = app_apply_cbc_curriculum_defaults($conn, (int)$account_id);
+	$summary = app_apply_cbe_curriculum_defaults($conn, (int)$account_id);
 	$message = sprintf(
-		'CBC class and subject structure applied. Added %d subject(s), %d class(es), synced %d class-subject link(s), removed %d unused extra subject(s), removed %d unused extra class(es), skipped %d subject(s), and skipped %d class(es) that are still in use.',
+		'CBE class and subject structure applied. Added %d subject(s), %d class(es), synced %d class-subject link(s), removed %d unused extra subject(s), removed %d unused extra class(es), skipped %d subject(s), and skipped %d class(es) that are still in use.',
 		(int)$summary['subjects'],
 		(int)$summary['classes'],
 		(int)$summary['assignments'],
@@ -31,6 +31,6 @@ try {
 	}
 	app_reply_redirect('success', $message, '../classes');
 } catch (Throwable $e) {
-	error_log('[admin.apply_cbc_structure] ' . $e->getMessage());
-	app_reply_redirect('danger', 'Failed to apply CBC defaults. Please try again or contact support.', '../classes');
+	error_log('[admin.apply_cbe_structure] ' . $e->getMessage());
+	app_reply_redirect('danger', 'Failed to apply CBE defaults. Please try again or contact support.', '../classes');
 }

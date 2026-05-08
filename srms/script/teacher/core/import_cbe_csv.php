@@ -6,20 +6,35 @@ require_once('const/check_session.php');
 
 if ($res != "1" || $level != "2") { header("location:../"); exit; }
 
+function app_exam_entry_redirect_target(string $portal, string $page): string
+{
+	$portal = strtolower(trim($portal));
+	if (!in_array($portal, ['admin', 'academic', 'teacher'], true)) {
+		$portal = 'teacher';
+	}
+	return '../../' . $portal . '/' . ltrim($page, '/');
+}
+
+$originPortal = strtolower(trim((string)($_POST['origin_portal'] ?? ($_SESSION['cbe_entry']['origin_portal'] ?? $_SESSION['exam_entry_portal'] ?? 'teacher'))));
+if (!in_array($originPortal, ['admin', 'academic', 'teacher'], true)) {
+	$originPortal = 'teacher';
+}
+$_SESSION['exam_entry_portal'] = $originPortal;
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-	header("location:../cbc_entry");
+	header("location:" . app_exam_entry_redirect_target($originPortal, 'cbe_entry'));
 	exit;
 }
 
 if (empty($_FILES['file']['tmp_name'])) {
 	$_SESSION['reply'] = array (array("danger", "Upload a CSV file."));
-	header("location:../cbc_entry");
+	header("location:" . app_exam_entry_redirect_target($originPortal, 'cbe_entry'));
 	exit;
 }
 $uploadCheck = app_validate_upload($_FILES['file'], ['csv']);
 if (!$uploadCheck['ok']) {
 	$_SESSION['reply'] = array (array("danger", $uploadCheck['message']));
-	header("location:../cbc_entry");
+	header("location:" . app_exam_entry_redirect_target($originPortal, 'cbe_entry'));
 	exit;
 }
 
@@ -27,11 +42,11 @@ $termId = (int)($_POST['term_id'] ?? 0);
 $classId = (int)($_POST['class_id'] ?? 0);
 $subjectId = (int)($_POST['subject_id'] ?? 0);
 $learningArea = trim((string)($_POST['learning_area'] ?? ''));
-$mode = ($_POST['mode'] ?? 'cbc') === 'marks' ? 'marks' : 'cbc';
+$mode = ($_POST['mode'] ?? 'cbe') === 'marks' ? 'marks' : 'cbe';
 
 if ($termId < 1 || $classId < 1 || $subjectId < 1) {
 	$_SESSION['reply'] = array (array("danger", "Missing term/class/subject."));
-	header("location:../cbc_entry");
+	header("location:" . app_exam_entry_redirect_target($originPortal, 'cbe_entry'));
 	exit;
 }
 
@@ -60,13 +75,13 @@ try {
 		throw new RuntimeException("Subject not assigned to selected class.");
 	}
 
-	if (!app_table_exists($conn, 'tbl_cbc_assessments')) {
-		throw new RuntimeException("CBC table missing. Run migration 013.");
+	if (!app_table_exists($conn, 'tbl_cbe_assessments')) {
+		throw new RuntimeException("CBE table missing. Run migration 013.");
 	}
 
 	$grading = [];
-	if (app_table_exists($conn, 'tbl_cbc_grading')) {
-		$stmt = $conn->prepare("SELECT level, min_mark, max_mark, points, sort_order FROM tbl_cbc_grading WHERE active = 1 ORDER BY sort_order, min_mark DESC");
+	if (app_table_exists($conn, 'tbl_cbe_grading')) {
+		$stmt = $conn->prepare("SELECT level, min_mark, max_mark, points, sort_order FROM tbl_cbe_grading WHERE active = 1 ORDER BY sort_order, min_mark DESC");
 		$stmt->execute();
 		$grading = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
@@ -98,9 +113,9 @@ try {
 		return $pos === false ? -1 : $pos;
 	};
 
-	$useSubjectId = app_column_exists($conn, 'tbl_cbc_assessments', 'subject_id');
-	$useMarks = app_column_exists($conn, 'tbl_cbc_assessments', 'marks');
-	$usePoints = app_column_exists($conn, 'tbl_cbc_assessments', 'points');
+	$useSubjectId = app_column_exists($conn, 'tbl_cbe_assessments', 'subject_id');
+	$useMarks = app_column_exists($conn, 'tbl_cbe_assessments', 'marks');
+	$usePoints = app_column_exists($conn, 'tbl_cbe_assessments', 'points');
 
 	while (($row = fgetcsv($handle)) !== false) {
 		$total++;
@@ -134,7 +149,7 @@ try {
 			continue;
 		}
 
-		$stmt = $conn->prepare("SELECT id FROM tbl_cbc_assessments WHERE class_id = ? AND term_id = ? AND student_id = ? AND strand = ?".($useSubjectId ? " AND subject_id = ?" : " AND learning_area = ?")." LIMIT 1");
+		$stmt = $conn->prepare("SELECT id FROM tbl_cbe_assessments WHERE class_id = ? AND term_id = ? AND student_id = ? AND strand = ?".($useSubjectId ? " AND subject_id = ?" : " AND learning_area = ?")." LIMIT 1");
 		$args = $useSubjectId ? [$classId, $termId, $studentId, $strand, $subjectId] : [$classId, $termId, $studentId, $strand, $learningArea];
 		$stmt->execute($args);
 		$existingId = $stmt->fetchColumn();
@@ -145,7 +160,7 @@ try {
 			if ($useMarks) { $fields .= ", marks = ?"; $vals[] = $marks; }
 			if ($usePoints) { $fields .= ", points = ?"; $vals[] = $points; }
 			$vals[] = $existingId;
-			$stmt = $conn->prepare("UPDATE tbl_cbc_assessments SET $fields WHERE id = ?");
+			$stmt = $conn->prepare("UPDATE tbl_cbe_assessments SET $fields WHERE id = ?");
 			$stmt->execute($vals);
 		} else {
 			$cols = "student_id, class_id, term_id, learning_area, strand, level, teacher_id";
@@ -154,7 +169,7 @@ try {
 			if ($useSubjectId) { $cols .= ", subject_id"; $placeholders .= ",?"; $vals[] = $subjectId; }
 			if ($useMarks) { $cols .= ", marks"; $placeholders .= ",?"; $vals[] = $marks; }
 			if ($usePoints) { $cols .= ", points"; $placeholders .= ",?"; $vals[] = $points; }
-			$stmt = $conn->prepare("INSERT INTO tbl_cbc_assessments ($cols) VALUES ($placeholders)");
+			$stmt = $conn->prepare("INSERT INTO tbl_cbe_assessments ($cols) VALUES ($placeholders)");
 			$stmt->execute($vals);
 		}
 
@@ -164,8 +179,8 @@ try {
 	fclose($handle);
 
 	$_SESSION['reply'] = array (array("success", "Import done. Total: $total, Success: $success, Failed: $failed"));
-	header("location:../cbc_entry");
+	header("location:" . app_exam_entry_redirect_target($originPortal, 'cbe_entry'));
 } catch (Throwable $e) {
 	$_SESSION['reply'] = array (array("danger", "Import failed: ".$e->getMessage()));
-	header("location:../cbc_entry");
+	header("location:" . app_exam_entry_redirect_target($originPortal, 'cbe_entry'));
 }

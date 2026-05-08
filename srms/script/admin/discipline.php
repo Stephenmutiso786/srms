@@ -6,8 +6,7 @@ require_once('const/check_session.php');
 require_once('const/school.php');
 require_once('const/rbac.php');
 
-if ($res != '1') { header('location:../'); exit; }
-app_require_permission('student.leadership.manage', '../admin');
+app_require_discipline_access();
 
 $cases = [];
 $error = '';
@@ -59,7 +58,7 @@ try {
 <div class="app-title"><div><h1>Discipline Cases</h1><p>Review and resolve teacher-submitted incidents.</p></div></div>
 <?php if ($error !== ''): ?><div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div><?php endif; ?>
 <div class="tile">
-<div class="small text-muted mb-2">Auto refresh every 5 seconds for live updates.</div>
+<div class="small text-muted mb-2">Latest updates appear after saving or reloading this page.</div>
 <div class="table-responsive">
 <table class="table table-hover table-striped">
 <thead><tr><th>Date</th><th>Student</th><th>Class</th><th>Teacher</th><th>Type</th><th>Severity</th><th>Status</th><th>Action</th></tr></thead>
@@ -97,8 +96,5 @@ try {
 <script src="js/bootstrap.min.js"></script>
 <script src="js/main.js"></script>
 <?php require_once('const/check-reply.php'); ?>
-<script>
-setInterval(function() { window.location.reload(); }, 5000);
-</script>
 </body>
 </html>

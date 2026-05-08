@@ -17,6 +17,7 @@ $installments = [];
 try {
     $conn = app_db();
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    app_sync_student_finance_class_links($conn);
 
     // Get list of open invoices
     $stmt = $conn->prepare("
@@ -33,7 +34,7 @@ try {
             (SELECT COUNT(*) FROM tbl_fee_installments WHERE invoice_id = i.id) as installment_count
         FROM tbl_invoices i
         JOIN tbl_students s ON s.id = i.student_id
-        JOIN tbl_classes c ON c.id = i.class_id
+        JOIN tbl_classes c ON c.id = s.class
         JOIN (SELECT invoice_id, SUM(amount) as total FROM tbl_invoice_lines GROUP BY invoice_id) sumi ON sumi.invoice_id = i.id
         LEFT JOIN (SELECT invoice_id, SUM(amount) as total FROM tbl_payments GROUP BY invoice_id) sump ON sump.invoice_id = i.id
         ORDER BY i.due_date DESC, i.id DESC

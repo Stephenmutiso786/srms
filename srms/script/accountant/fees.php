@@ -1,5 +1,5 @@
 <?php
-chdir('../');
+chdir(__DIR__ . '/..');
 session_start();
 require_once('db/config.php');
 require_once('const/school.php');
@@ -9,12 +9,14 @@ if ($res == "1" && $level == "5") {}else{header("location:../"); exit;}
 // Reuse the same logic as admin fees, but for accountant role.
 $counts = ['invoiced' => 0, 'paid' => 0, 'balance' => 0, 'open_invoices' => 0];
 $topDefaulters = [];
+$recentReminderLogs = [];
 $error = '';
 
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 	app_ensure_finance_tables($conn);
+	app_sync_student_finance_class_links($conn);
 
 	if (!app_table_exists($conn, 'tbl_invoices') || !app_table_exists($conn, 'tbl_invoice_lines') || !app_table_exists($conn, 'tbl_payments')) {
 		throw new RuntimeException("Fees module is not installed. Run migration 003_fees_finance.sql.");
@@ -37,19 +39,33 @@ try {
 	$stmt = $conn->prepare("SELECT i.student_id,
 		concat_ws(' ', s.fname, s.mname, s.lname) AS student_name,
 		c.name AS class_name,
-		COALESCE(SUM(l.amount),0) - COALESCE(SUM(p.amount),0) AS balance
+		COALESCE(SUM(line_totals.total_amount),0) - COALESCE(SUM(payment_totals.total_paid),0) AS balance
 		FROM tbl_invoices i
 		JOIN tbl_students s ON s.id = i.student_id
-		LEFT JOIN tbl_classes c ON c.id = i.class_id
-		LEFT JOIN tbl_invoice_lines l ON l.invoice_id = i.id
-		LEFT JOIN tbl_payments p ON p.invoice_id = i.id
+		LEFT JOIN tbl_classes c ON c.id = s.class
+		LEFT JOIN (
+			SELECT invoice_id, SUM(amount) AS total_amount
+			FROM tbl_invoice_lines
+			GROUP BY invoice_id
+		) AS line_totals ON line_totals.invoice_id = i.id
+		LEFT JOIN (
+			SELECT invoice_id, SUM(amount) AS total_paid
+			FROM tbl_payments
+			GROUP BY invoice_id
+		) AS payment_totals ON payment_totals.invoice_id = i.id
 		WHERE i.status = 'open'
 		GROUP BY i.student_id, student_name, class_name
-		HAVING (COALESCE(SUM(l.amount),0) - COALESCE(SUM(p.amount),0)) > 0
+		HAVING (COALESCE(SUM(line_totals.total_amount),0) - COALESCE(SUM(payment_totals.total_paid),0)) > 0
 		ORDER BY balance DESC
 		LIMIT 8");
 	$stmt->execute();
 	$topDefaulters = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+	if (app_table_exists($conn, 'tbl_finance_reminder_logs')) {
+		$stmt = $conn->prepare("SELECT student_id, channel, recipient, created_at FROM tbl_finance_reminder_logs ORDER BY id DESC LIMIT 10");
+		$stmt->execute();
+		$recentReminderLogs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	}
 } catch (Throwable $e) {
 	error_log("[".__FILE__.":".__LINE__." Throwable] " . $e->getMessage());
 	$error = "An internal error occurred.";
@@ -158,7 +174,7 @@ try {
 		  <th>Student</th>
 		  <th>Class</th>
 		  <th>Balance</th>
-		  <th style="width:180px;" class="text-center">Action</th>
+		  <th style="width:320px;" class="text-center">Action</th>
 		</tr>
 	  </thead>
 	  <tbody>
@@ -170,12 +186,44 @@ try {
 		  <td><?php echo htmlspecialchars((string)($d['class_name'] ?? '')); ?></td>
 		  <td><b><?php echo number_format((float)$d['balance'], 2); ?></b></td>
 		  <td class="text-center">
-			<button class="btn btn-sm btn-success" onclick="recordPaymentFor(<?php echo (int)$d['student_id']; ?>, '<?php echo htmlspecialchars((string)$d['student_name']); ?>')">
+			<button class="btn btn-sm btn-success mb-1" onclick='recordPaymentFor(<?php echo json_encode((string)$d["student_id"]); ?>, <?php echo json_encode((string)$d["student_name"]); ?>)'>
 			  <i class="bi bi-cash-coin me-1"></i>Record
 			</button>
+			<form method="POST" action="accountant/core/send_fee_statement" class="d-inline">
+			  <input type="hidden" name="student_id" value="<?php echo htmlspecialchars((string)$d['student_id']); ?>">
+			  <input type="hidden" name="action_type" value="reminder">
+			  <input type="hidden" name="channel" value="sms">
+			  <button class="btn btn-sm btn-warning mb-1" type="submit">SMS Reminder</button>
+			</form>
+			<form method="POST" action="accountant/core/send_fee_statement" class="d-inline">
+			  <input type="hidden" name="student_id" value="<?php echo htmlspecialchars((string)$d['student_id']); ?>">
+			  <input type="hidden" name="action_type" value="statement">
+			  <input type="hidden" name="channel" value="email">
+			  <button class="btn btn-sm btn-info mb-1" type="submit">Email Statement</button>
+			</form>
 		  </td>
 		</tr>
 	  <?php } } ?>
+	  </tbody>
+	</table>
+  </div>
+</div>
+
+<div class="tile mt-3">
+  <h3 class="tile-title">Recent Parent Finance Messages</h3>
+  <div class="table-responsive">
+	<table class="table table-hover table-striped">
+	  <thead><tr><th>Student</th><th>Channel</th><th>Recipient</th><th>Sent At</th></tr></thead>
+	  <tbody>
+	  <?php if (!$recentReminderLogs) { ?><tr><td colspan="4" class="text-muted">No fee reminders or statements sent yet.</td></tr><?php } ?>
+	  <?php foreach ($recentReminderLogs as $log): ?>
+	  <tr>
+		<td><?php echo htmlspecialchars((string)$log['student_id']); ?></td>
+		<td><?php echo htmlspecialchars(strtoupper((string)$log['channel'])); ?></td>
+		<td><?php echo htmlspecialchars((string)$log['recipient']); ?></td>
+		<td><?php echo htmlspecialchars((string)$log['created_at']); ?></td>
+	  </tr>
+	  <?php endforeach; ?>
 	  </tbody>
 	</table>
   </div>

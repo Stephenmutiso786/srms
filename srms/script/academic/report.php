@@ -4,8 +4,11 @@ session_start();
 require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
+require_once('const/rbac.php');
 
 if ($res == "1" && $level == "1") {}else{header("location:../");}
+app_require_permission('report.generate', 'academic');
+app_require_unlocked('reports', 'academic');
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -31,7 +34,7 @@ if ($res == "1" && $level == "1") {}else{header("location:../");}
 
 <li class="dropdown"><a class="app-nav__item" href="#" data-bs-toggle="dropdown" aria-label="Open Profile Menu"><i class="bi bi-person fs-4"></i></a>
 <ul class="dropdown-menu settings-menu dropdown-menu-right">
-<li><a class="dropdown-item" href="academic/profile"><i class="bi bi-person me-2 fs-5"></i> Profile</a></li>
+<li><a class="dropdown-item" href="academic/profile.php"><i class="bi bi-person me-2 fs-5"></i> Profile</a></li>
 <li><a class="dropdown-item" href="logout"><i class="bi bi-box-arrow-right me-2 fs-5"></i> Logout</a></li>
 </ul>
 </li>
@@ -54,7 +57,7 @@ if ($res == "1" && $level == "1") {}else{header("location:../");}
 <div class="tile-body">
 <div class="table-responsive">
 <h3 class="tile-title">Report Tool</h3>
-<form enctype="multipart/form-data" action="academic/core/start_report" class="app_frm" method="POST" autocomplete="OFF">
+<form enctype="multipart/form-data" action="academic/core/start_report.php" class="app_frm" method="POST" autocomplete="OFF">
 
 <div class="mb-2">
 <label class="form-label">Select Class</label>
@@ -123,6 +126,71 @@ echo "Connection failed.";
 
 <div class="">
 <button class="btn btn-primary app_btn" type="submit">Generate Report</button>
+</div>
+</form>
+</div>
+
+</div>
+</div>
+</div>
+
+<div class="col-md-4 center_form">
+<div class="tile">
+<div class="tile-body">
+<div class="table-responsive">
+<h3 class="tile-title">Class Report Cards PDF</h3>
+<p class="text-muted mb-3">Generate one PDF containing all learner report cards for the selected class, term, and exam.</p>
+<form action="academic/class_report_pdf.php" method="GET" autocomplete="off">
+
+<div class="mb-2">
+<label class="form-label">Select Class</label>
+<select class="form-control select2" name="class" id="classPdfClassSelect" required style="width: 100%;" onchange="loadPublishedExams('classPdfClassSelect','classPdfTermSelect','classPdfExamSelect');">
+<option value="" selected disabled> Select One</option>
+<?php
+try {
+$stmt = $conn->prepare("SELECT * FROM tbl_classes");
+$stmt->execute();
+$result = $stmt->fetchAll();
+foreach($result as $row)
+{
+?>
+<option value="<?php echo $row[0]; ?>"><?php echo $row[1]; ?> </option>
+<?php
+}
+} catch(Throwable $e) {}
+?>
+</select>
+</div>
+
+<div class="mb-3">
+<label class="form-label">Select Term</label>
+<select class="form-control select2" name="term" id="classPdfTermSelect" required style="width: 100%;" onchange="loadPublishedExams('classPdfClassSelect','classPdfTermSelect','classPdfExamSelect');">
+<option selected disabled value="">Select One</option>
+<?php
+try {
+$stmt = $conn->prepare("SELECT * FROM tbl_terms WHERE status = '1'");
+$stmt->execute();
+$result = $stmt->fetchAll();
+foreach($result as $row)
+{
+?>
+<option value="<?php echo $row[0]; ?>"><?php echo $row[1]; ?> </option>
+<?php
+}
+} catch(Throwable $e) {}
+?>
+</select>
+</div>
+
+<div class="mb-3">
+<label class="form-label">Select Exam</label>
+<select class="form-control select2" name="exam" id="classPdfExamSelect" required style="width: 100%;">
+<option selected disabled value="">Select class and term first</option>
+</select>
+</div>
+
+<div class="">
+<button class="btn btn-outline-primary app_btn" type="submit">Generate Class Report Cards</button>
 </div>
 </form>
 </div>

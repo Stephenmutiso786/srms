@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS tbl_subject_weights (
   CONSTRAINT tbl_subject_weights_subject_fk FOREIGN KEY (subject_id) REFERENCES tbl_subjects (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE IF NOT EXISTS tbl_cbc_grading (
+CREATE TABLE IF NOT EXISTS tbl_cbe_grading (
   id int NOT NULL AUTO_INCREMENT,
   level varchar(20) NOT NULL,
   min_mark decimal(6,2) NOT NULL DEFAULT 0,
@@ -40,14 +40,14 @@ CREATE TABLE IF NOT EXISTS tbl_cbc_grading (
   PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-INSERT INTO tbl_cbc_grading (level, min_mark, max_mark, points, sort_order, active)
-SELECT 'EE', 90, 100, 4, 1, 1 WHERE NOT EXISTS (SELECT 1 FROM tbl_cbc_grading);
-INSERT INTO tbl_cbc_grading (level, min_mark, max_mark, points, sort_order, active)
-SELECT 'ME', 75, 89.99, 3, 2, 1 WHERE NOT EXISTS (SELECT 1 FROM tbl_cbc_grading WHERE level = 'ME');
-INSERT INTO tbl_cbc_grading (level, min_mark, max_mark, points, sort_order, active)
-SELECT 'AE', 50, 74.99, 2, 3, 1 WHERE NOT EXISTS (SELECT 1 FROM tbl_cbc_grading WHERE level = 'AE');
-INSERT INTO tbl_cbc_grading (level, min_mark, max_mark, points, sort_order, active)
-SELECT 'BE', 0, 49.99, 1, 4, 1 WHERE NOT EXISTS (SELECT 1 FROM tbl_cbc_grading WHERE level = 'BE');
+INSERT INTO tbl_cbe_grading (level, min_mark, max_mark, points, sort_order, active)
+SELECT 'EE', 90, 100, 4, 1, 1 WHERE NOT EXISTS (SELECT 1 FROM tbl_cbe_grading);
+INSERT INTO tbl_cbe_grading (level, min_mark, max_mark, points, sort_order, active)
+SELECT 'ME', 75, 89.99, 3, 2, 1 WHERE NOT EXISTS (SELECT 1 FROM tbl_cbe_grading WHERE level = 'ME');
+INSERT INTO tbl_cbe_grading (level, min_mark, max_mark, points, sort_order, active)
+SELECT 'AE', 50, 74.99, 2, 3, 1 WHERE NOT EXISTS (SELECT 1 FROM tbl_cbe_grading WHERE level = 'AE');
+INSERT INTO tbl_cbe_grading (level, min_mark, max_mark, points, sort_order, active)
+SELECT 'BE', 0, 49.99, 1, 4, 1 WHERE NOT EXISTS (SELECT 1 FROM tbl_cbe_grading WHERE level = 'BE');
 
 CREATE TABLE IF NOT EXISTS tbl_report_cards (
   id int NOT NULL AUTO_INCREMENT,
@@ -527,17 +527,17 @@ CREATE TABLE IF NOT EXISTS tbl_attendance_elearning (
   CONSTRAINT tbl_attendance_elearning_student_fk FOREIGN KEY (student_id) REFERENCES tbl_students (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE IF NOT EXISTS tbl_cbc_strands (
+CREATE TABLE IF NOT EXISTS tbl_cbe_strands (
   id int NOT NULL AUTO_INCREMENT,
   subject_id int NOT NULL,
   name varchar(180) NOT NULL,
   status tinyint(1) NOT NULL DEFAULT 1,
   created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
-  CONSTRAINT tbl_cbc_strands_subject_fk FOREIGN KEY (subject_id) REFERENCES tbl_subjects (id) ON DELETE CASCADE
+  CONSTRAINT tbl_cbe_strands_subject_fk FOREIGN KEY (subject_id) REFERENCES tbl_subjects (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE IF NOT EXISTS tbl_cbc_assessments (
+CREATE TABLE IF NOT EXISTS tbl_cbe_assessments (
   id int NOT NULL AUTO_INCREMENT,
   student_id varchar(20) NOT NULL,
   class_id int NOT NULL,
@@ -552,12 +552,12 @@ CREATE TABLE IF NOT EXISTS tbl_cbc_assessments (
   updated_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id),
-  KEY tbl_cbc_assessments_lookup (student_id, class_id, term_id),
-  CONSTRAINT tbl_cbc_assessments_student_fk FOREIGN KEY (student_id) REFERENCES tbl_students (id) ON DELETE CASCADE,
-  CONSTRAINT tbl_cbc_assessments_class_fk FOREIGN KEY (class_id) REFERENCES tbl_classes (id) ON DELETE CASCADE,
-  CONSTRAINT tbl_cbc_assessments_term_fk FOREIGN KEY (term_id) REFERENCES tbl_terms (id) ON DELETE CASCADE,
-  CONSTRAINT tbl_cbc_assessments_subject_fk FOREIGN KEY (subject_id) REFERENCES tbl_subjects (id) ON DELETE SET NULL,
-  CONSTRAINT tbl_cbc_assessments_teacher_fk FOREIGN KEY (teacher_id) REFERENCES tbl_staff (id) ON DELETE SET NULL
+  KEY tbl_cbe_assessments_lookup (student_id, class_id, term_id),
+  CONSTRAINT tbl_cbe_assessments_student_fk FOREIGN KEY (student_id) REFERENCES tbl_students (id) ON DELETE CASCADE,
+  CONSTRAINT tbl_cbe_assessments_class_fk FOREIGN KEY (class_id) REFERENCES tbl_classes (id) ON DELETE CASCADE,
+  CONSTRAINT tbl_cbe_assessments_term_fk FOREIGN KEY (term_id) REFERENCES tbl_terms (id) ON DELETE CASCADE,
+  CONSTRAINT tbl_cbe_assessments_subject_fk FOREIGN KEY (subject_id) REFERENCES tbl_subjects (id) ON DELETE SET NULL,
+  CONSTRAINT tbl_cbe_assessments_teacher_fk FOREIGN KEY (teacher_id) REFERENCES tbl_staff (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS tbl_fee_installments (

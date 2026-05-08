@@ -5,6 +5,7 @@
  */
 
 require_once __DIR__ . '/base_controller.php';
+require_once __DIR__ . '/../const/report_engine.php';
 
 class StaffController extends BaseController {
 
@@ -373,11 +374,25 @@ class StaffController extends BaseController {
      * Calculate performance grade
      */
     private function calculatePerformanceGrade($score) {
-        if ($score >= 90) return 'A';
-        if ($score >= 80) return 'B';
-        if ($score >= 70) return 'C';
-        if ($score >= 60) return 'D';
-        return 'E';
+        try {
+            $gradingSystemId = function_exists('report_default_grading_system_id')
+                ? report_default_grading_system_id(app_db())
+                : null;
+            if (function_exists('report_grade_for_score')) {
+                list($grade) = report_grade_for_score(app_db(), (float)$score, $gradingSystemId);
+                return (string)$grade;
+            }
+        } catch (Throwable $e) {
+            // Fall through to a CBE-style default if the grading engine is unavailable.
+        }
+        if ($score >= 90) return 'EE1';
+        if ($score >= 75) return 'EE2';
+        if ($score >= 58) return 'ME1';
+        if ($score >= 41) return 'ME2';
+        if ($score >= 31) return 'AE1';
+        if ($score >= 21) return 'AE2';
+        if ($score >= 11) return 'BE1';
+        return 'BE2';
     }
 }
 

@@ -35,7 +35,7 @@ if ($hasSelection) {
 }
 
 try {
-	// CBC-ONLY: Remove legacy tbl_grade_system. Use only CBC/new grading tables.
+	// CBE-ONLY: Remove legacy tbl_grade_system. Use only CBE/new grading tables.
 	$grading = app_default_marks_grading_rows($conn);
 
 	if ($hasSelection) {
@@ -119,7 +119,7 @@ try {
 
 <li class="dropdown"><a class="app-nav__item" href="#" data-bs-toggle="dropdown" aria-label="Open Profile Menu"><i class="bi bi-person fs-4"></i></a>
 <ul class="dropdown-menu settings-menu dropdown-menu-right">
-<li><a class="dropdown-item" href="academic/profile"><i class="bi bi-person me-2 fs-5"></i> Profile</a></li>
+<li><a class="dropdown-item" href="academic/profile.php"><i class="bi bi-person me-2 fs-5"></i> Profile</a></li>
 <li><a class="dropdown-item" href="logout"><i class="bi bi-box-arrow-right me-2 fs-5"></i> Logout</a></li>
 </ul>
 </li>
@@ -146,7 +146,7 @@ try {
 	<div><button class="btn btn-primary" type="submit">Apply</button></div>
 </form>
 <button class="btn btn-primary" type="button" onclick="window.print();"><i class="bi bi-printer me-2"></i>Print All</button>
-<a class="btn btn-danger ms-2" href="javascript:void(0);" onclick="del('academic/core/drop_results?src=bulk_results&amp;std=all&amp;class=<?php echo $class; ?>&amp;term=<?php echo $term; ?>', 'Delete all results for this class and term?');"><i class="bi bi-trash me-2"></i>Delete All</a>
+<a class="btn btn-danger ms-2" href="javascript:void(0);" onclick="del('academic/core/drop_results.php?src=bulk_results&amp;std=all&amp;class=<?php echo $class; ?>&amp;term=<?php echo $term; ?>', 'Delete all results for this class and term?');"><i class="bi bi-trash me-2"></i>Delete All</a>
 </div>
 </div>
 
@@ -176,7 +176,7 @@ try {
 <th>AVERAGE</th>
 <th>GRADE</th>
 <th>REMARKS</th>
-<!-- CBC-ONLY: Division column removed -->
+<!-- CBE-ONLY: Division column removed -->
 <th>POINTS</th>
 <th></th>
 </tr>
@@ -283,13 +283,13 @@ if ($row2[9] == "DEFAULT") {
 <td><?php echo $av; ?></td>
 <td><?php echo $grd; ?></td>
 <td><?php echo $rm; ?></td>
-<!-- CBC-ONLY: Division cell removed -->
+<!-- CBE-ONLY: Division cell removed -->
 <td><?php echo get_points($subssss); ?></td>
 
 <td align="center" width="190" class="no-print">
-<a href="academic/core/edit_result?std=<?php echo $row2[0]; ?>&term=<?php echo $term;?>" class="btn btn-primary btn-sm" href="javascript:void(0);">Edit</a>
-<a href="<?php echo ($examId > 0) ? 'academic/save_pdf?std=' . urlencode((string)$row2[0]) . '&term=' . (int)$term . '&exam=' . (int)$examId . '&download=1' : 'javascript:void(0);'; ?>" class="btn btn-primary btn-sm<?php echo $examId > 0 ? '' : ' disabled'; ?>">Report</a>
-<a onclick="del('academic/core/drop_results?src=bulk_results&std=<?php echo $row2[0]; ?>&class=<?php echo $class; ?>&term=<?php echo $term; ?>', 'Delete Results?');" href="javascript:void(0);" class="btn btn-danger btn-sm">Delete</a>
+<a href="academic/core/edit_result.php?std=<?php echo $row2[0]; ?>&term=<?php echo $term;?>" class="btn btn-primary btn-sm" href="javascript:void(0);">Edit</a>
+<a href="<?php echo ($examId > 0) ? 'academic/save_pdf.php?std=' . urlencode((string)$row2[0]) . '&term=' . (int)$term . '&exam=' . (int)$examId . '&download=1' : 'javascript:void(0);'; ?>" class="btn btn-primary btn-sm<?php echo $examId > 0 ? '' : ' disabled'; ?>">Report</a>
+<a onclick="del('academic/core/drop_results.php?src=bulk_results&std=<?php echo $row2[0]; ?>&class=<?php echo $class; ?>&term=<?php echo $term; ?>', 'Delete Results?');" href="javascript:void(0);" class="btn btn-danger btn-sm">Delete</a>
 </td>
 
 </tr>

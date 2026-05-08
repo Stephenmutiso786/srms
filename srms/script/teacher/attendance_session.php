@@ -25,17 +25,7 @@ try {
 		throw new RuntimeException("Attendance tables are not installed. Run the Postgres migration 001_rbac_attendance.sql.");
 	}
 
-	// Allowed classes for this teacher.
-	$stmt = $conn->prepare("SELECT class FROM tbl_subject_combinations WHERE teacher = ?");
-	$stmt->execute([(int)$account_id]);
-	$rows = $stmt->fetchAll(PDO::FETCH_NUM);
-	$allowed = [];
-	foreach ($rows as $r) {
-		foreach (app_unserialize($r[0]) as $c) {
-			$allowed[] = (int)$c;
-		}
-	}
-	$allowed = array_values(array_unique($allowed));
+	$allowed = app_staff_class_teacher_ids($conn, (int)$account_id);
 
 	$stmt = $conn->prepare("SELECT s.id, s.class_id, s.session_date, s.term_id, c.name AS class_name
 		FROM tbl_attendance_sessions s
@@ -50,7 +40,7 @@ try {
 
 	$classId = (int)$session['class_id'];
 	if (!in_array($classId, $allowed, true)) {
-		throw new RuntimeException("You are not allowed to view this session.");
+		throw new RuntimeException("Only the assigned class teacher can view this attendance session.");
 	}
 
 	$stmt = $conn->prepare("SELECT id, fname, mname, lname, gender FROM tbl_students WHERE class = ? AND status = 1 ORDER BY id");
@@ -168,4 +158,3 @@ try {
 <?php require_once('const/check-reply.php'); ?>
 </body>
 </html>
-

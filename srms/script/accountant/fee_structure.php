@@ -1,5 +1,5 @@
 <?php
-chdir('../');
+chdir(__DIR__ . '/..');
 session_start();
 require_once('db/config.php');
 require_once('const/school.php');

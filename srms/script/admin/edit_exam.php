@@ -185,7 +185,7 @@ try {
 						<label class="form-label">Assessment Mode</label>
 						<select class="form-control" name="assessment_mode" id="edit_assessment_mode" required>
 							<option value="normal" <?php echo (($exam['assessment_mode'] ?? 'normal') === 'normal') ? 'selected' : ''; ?>>Normal Exam</option>
-							<option value="cbc" <?php echo (($exam['assessment_mode'] ?? 'normal') === 'cbc') ? 'selected' : ''; ?>>CBC Assessment</option>
+							<option value="cbe" <?php echo (($exam['assessment_mode'] ?? 'normal') === 'cbe') ? 'selected' : ''; ?>>CBE Assessment</option>
 							<option value="consolidated" <?php echo (($exam['assessment_mode'] ?? 'normal') === 'consolidated') ? 'selected' : ''; ?>>Consolidated (Average Multiple Exams)</option>
 						</select>
 					</div>
@@ -261,7 +261,7 @@ function filterEditComponentExams() {
 		const status = (option.getAttribute('data-status') || 'draft').toLowerCase();
 		const visible = (!classId || optionClass === classId)
 			&& (!termId || optionTerm === termId)
-			&& mode !== 'cbc'
+			&& mode !== 'cbe'
 			&& mode !== 'consolidated'
 			&& (status === 'finalized' || status === 'published');
 		option.hidden = !visible;

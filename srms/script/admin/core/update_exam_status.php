@@ -6,10 +6,10 @@ require_once('const/check_session.php');
 require_once('const/rbac.php');
 require_once('const/results_notifications.php');
 require_once('const/system_notifications.php');
-
-if ($res != "1" || $level != "0") { header("location:../"); }
-app_require_permission('exams.manage', '../exams');
-app_require_unlocked('exams', '../exams');
+if ($res !== "1") { header("location:../../"); exit; }
+$portalHome = ((string)$level === '1') ? '../../academic' : '../exams';
+app_require_permission('exams.manage', $portalHome);
+app_require_unlocked('exams', $portalHome);
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 	header("location:../exams");
@@ -75,7 +75,7 @@ try {
 		$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_exams
 			WHERE id IN ($placeholders)
 			AND class_id = ? AND term_id = ?
-			AND COALESCE(assessment_mode, 'normal') <> 'cbc'
+			AND COALESCE(assessment_mode, 'normal') <> 'cbe'
 			AND COALESCE(assessment_mode, 'normal') <> 'consolidated'
 			AND COALESCE(status, 'draft') = 'published'");
 		$stmt->execute($params);
@@ -122,19 +122,19 @@ try {
 			if ($readyCount < count($componentExamIds)) {
 				throw new RuntimeException("All selected source exams must be finalized or published before reviewing the consolidated exam.");
 			}
-		} elseif ($assessmentMode === 'cbc') {
-			if (!app_table_exists($conn, 'tbl_cbc_mark_submissions')) {
-				throw new RuntimeException("CBC marks submission workflow is not installed.");
+		} elseif ($assessmentMode === 'cbe') {
+			if (!app_table_exists($conn, 'tbl_cbe_mark_submissions')) {
+				throw new RuntimeException("CBE marks submission workflow is not installed.");
 			}
-			$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_cbc_mark_submissions WHERE class_id = ? AND term_id = ? AND status = 'submitted'");
+			$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_cbe_mark_submissions WHERE class_id = ? AND term_id = ? AND status = 'submitted'");
 			$stmt->execute([(int)$exam['class_id'], (int)$exam['term_id']]);
 			if ((int)$stmt->fetchColumn() > 0) {
-				throw new RuntimeException("Some CBC mark sheets are still awaiting review.");
+				throw new RuntimeException("Some CBE mark sheets are still awaiting review.");
 			}
-			$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_cbc_mark_submissions WHERE class_id = ? AND term_id = ? AND status IN ('approved','finalized')");
+			$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_cbe_mark_submissions WHERE class_id = ? AND term_id = ? AND status IN ('approved','finalized')");
 			$stmt->execute([(int)$exam['class_id'], (int)$exam['term_id']]);
 			if ((int)$stmt->fetchColumn() < 1) {
-				throw new RuntimeException("Approve at least one submitted CBC mark sheet before marking the exam as reviewed.");
+				throw new RuntimeException("Approve at least one submitted CBE mark sheet before marking the exam as reviewed.");
 			}
 		} else {
 			if (!app_table_exists($conn, 'tbl_exam_mark_submissions')) {
@@ -156,21 +156,21 @@ try {
 	if ($status === 'finalized') {
 		if ($assessmentMode === 'consolidated') {
 			$validateConsolidatedSources();
-		} elseif ($assessmentMode === 'cbc') {
-			if (!app_table_exists($conn, 'tbl_cbc_mark_submissions')) {
-				throw new RuntimeException("CBC marks submission workflow is not installed.");
+		} elseif ($assessmentMode === 'cbe') {
+			if (!app_table_exists($conn, 'tbl_cbe_mark_submissions')) {
+				throw new RuntimeException("CBE marks submission workflow is not installed.");
 			}
-			$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_cbc_mark_submissions WHERE class_id = ? AND term_id = ? AND status IN ('draft','submitted','rejected')");
+			$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_cbe_mark_submissions WHERE class_id = ? AND term_id = ? AND status IN ('draft','submitted','rejected')");
 			$stmt->execute([(int)$exam['class_id'], (int)$exam['term_id']]);
 			if ((int)$stmt->fetchColumn() > 0) {
-				throw new RuntimeException("Finalize only after all CBC mark sheets are approved.");
+				throw new RuntimeException("Finalize only after all CBE mark sheets are approved.");
 			}
-			$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_cbc_mark_submissions WHERE class_id = ? AND term_id = ?");
+			$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_cbe_mark_submissions WHERE class_id = ? AND term_id = ?");
 			$stmt->execute([(int)$exam['class_id'], (int)$exam['term_id']]);
 			if ((int)$stmt->fetchColumn() < 1) {
-				throw new RuntimeException("No CBC mark sheets have been submitted for this exam yet.");
+				throw new RuntimeException("No CBE mark sheets have been submitted for this exam yet.");
 			}
-			$stmt = $conn->prepare("UPDATE tbl_cbc_mark_submissions SET status = 'finalized', reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ? WHERE class_id = ? AND term_id = ? AND status = 'approved'");
+			$stmt = $conn->prepare("UPDATE tbl_cbe_mark_submissions SET status = 'finalized', reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ? WHERE class_id = ? AND term_id = ? AND status = 'approved'");
 			$stmt->execute([(int)$account_id, (int)$exam['class_id'], (int)$exam['term_id']]);
 		} else {
 			if (!app_table_exists($conn, 'tbl_exam_mark_submissions')) {
@@ -256,8 +256,8 @@ try {
 	}
 
 	if ($status === 'draft') {
-		if ($assessmentMode === 'cbc' && app_table_exists($conn, 'tbl_cbc_mark_submissions')) {
-			$stmt = $conn->prepare("UPDATE tbl_cbc_mark_submissions SET status = 'draft', reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ? WHERE class_id = ? AND term_id = ? AND status IN ('submitted','approved')");
+		if ($assessmentMode === 'cbe' && app_table_exists($conn, 'tbl_cbe_mark_submissions')) {
+			$stmt = $conn->prepare("UPDATE tbl_cbe_mark_submissions SET status = 'draft', reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ? WHERE class_id = ? AND term_id = ? AND status IN ('submitted','approved')");
 			$stmt->execute([(int)$account_id, (int)$exam['class_id'], (int)$exam['term_id']]);
 		} elseif (app_table_exists($conn, 'tbl_exam_mark_submissions')) {
 			$stmt = $conn->prepare("UPDATE tbl_exam_mark_submissions SET status = 'draft', reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ? WHERE exam_id = ? AND status IN ('submitted','reviewed')");

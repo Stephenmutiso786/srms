@@ -3,11 +3,9 @@ chdir('../../');
 session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
+require_once('const/rbac.php');
 
-if ($res !== "1" || $level !== "0") {
-	header("location:../");
-	exit;
-}
+app_require_authentication([], ['students.manage']);
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 	header("location:../");
@@ -24,7 +22,7 @@ $ids = array_values(array_unique(array_filter($ids, function ($id) {
 })));
 
 if (count($ids) < 1) {
-	$_SESSION['reply'] = array (array("error","Select at least one parent to delete"));
+	$_SESSION['reply'] = array (array("danger","Select at least one parent to delete"));
 	header("location:../parents");
 	exit;
 }
@@ -57,6 +55,8 @@ try {
 		$conn->rollBack();
 	}
 	error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
-	echo "Connection failed.";
+	$_SESSION['reply'] = array(array('danger', 'Failed to delete selected parents.'));
+	header("location:../parents");
+	exit;
 }
 ?>

@@ -66,7 +66,7 @@ try {
 	}
 
 	if ($error === '') {
-		$useCbcAssessment = strtolower(trim((string)($selectedExam['assessment_mode'] ?? ''))) === 'cbc';
+		$useCbeAssessment = strtolower(trim((string)($selectedExam['assessment_mode'] ?? ''))) === 'cbe';
 		$gradingSystemId = report_exam_grading_system_id($conn, $examId > 0 ? $examId : null);
 
 		$sql = "SELECT er.student, er.score, st.fname, st.mname, st.lname, st.school_id
@@ -83,8 +83,8 @@ try {
 		$stmt->execute($args);
 		foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
 			$score = (float)$row['score'];
-			if ($useCbcAssessment) {
-				list($gradeName, $remark) = report_cbc_grade_for_score($conn, $score);
+			if ($useCbeAssessment) {
+				list($gradeName, $remark) = report_cbe_grade_for_score($conn, $score);
 			} else {
 				list($gradeName, $remark) = report_grade_for_score($conn, $score, $gradingSystemId);
 			}

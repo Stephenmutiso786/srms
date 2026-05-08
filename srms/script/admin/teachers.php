@@ -9,21 +9,40 @@ require_once('const/rbac.php');
 $teacherControlAllowed = $res === "1" && ((int)$level === 1 || app_current_user_has_any_permission(['staff.manage', 'academic.manage']));
 if (!$teacherControlAllowed) { header("location:../"); exit; }
 
+$isSuperAdminController = false;
 $teacherStats = [
 	'total' => 0,
 	'active' => 0,
 	'blocked' => 0,
 	'online' => 0,
 ];
+$teacherRows = [];
+$adminRows = [];
+$onlineStaff = [];
 
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	$isSuperAdminController = app_is_super_admin_controller($conn, (string)($account_id ?? ''), (string)($level ?? ''));
 	$onlineMaps = app_online_fetch_maps($conn, 180);
 	$onlineStaff = isset($onlineMaps['staff']) && is_array($onlineMaps['staff']) ? $onlineMaps['staff'] : [];
-	$stmt = $conn->prepare("SELECT id, status FROM tbl_staff WHERE level = 2");
+	$stmt = $conn->prepare("SELECT * FROM tbl_staff WHERE level IN (0,1,2,5,9) ORDER BY status DESC, fname ASC, lname ASC");
 	$stmt->execute();
 	foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $teacherRow) {
+		$rowLevel = (string)($teacherRow['level'] ?? '');
+		$staffId = (int)($teacherRow['id'] ?? 0);
+		if ($rowLevel === '9') {
+			continue;
+		}
+		$designationKey = app_staff_designation_key($conn, $staffId, $rowLevel);
+		if (in_array($designationKey, ['headteacher', 'deputy_headteacher', 'senior_teacher', 'accountant'], true)) {
+			$adminRows[] = $teacherRow;
+			continue;
+		}
+		if ($rowLevel !== '2') {
+			continue;
+		}
+		$teacherRows[] = $teacherRow;
 		$teacherStats['total']++;
 		if ((string)($teacherRow['status'] ?? '0') === "1") {
 			$teacherStats['active']++;
@@ -92,10 +111,12 @@ try {
 <div class="tile-body d-flex flex-wrap gap-2 align-items-center justify-content-between">
 <div>
 <strong>Teacher control panel</strong>
-<div class="text-muted">Use this module to create, edit, block, delete, and impersonate teacher accounts from one place. Admin accounts are created separately with the red button.</div>
+<div class="text-muted">Use this module to create, edit, block, delete, and impersonate staff accounts. Leadership and admin accounts, including the accountant, are reserved for the super admin.</div>
 </div>
 <div class="d-flex flex-wrap gap-2">
+<?php if ($isSuperAdminController) { ?>
 <button class="btn btn-danger btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#addAdminModal">Create Admin Account</button>
+<?php } ?>
 <button class="btn btn-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#addModal">Add Teacher</button>
 <a class="btn btn-outline-primary btn-sm" href="admin/teacher_allocation">Control Subjects</a>
 <a class="btn btn-outline-secondary btn-sm" href="admin/role_matrix">Control Roles</a>
@@ -137,6 +158,7 @@ try {
 </div>
 </div>
 </div>
+<?php if ($isSuperAdminController) { ?>
 <div class="modal fade" id="addAdminModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="addAdminModalLabel" aria-hidden="true">
 <div class="modal-dialog">
 <div class="modal-content">
@@ -146,7 +168,7 @@ try {
 <div class="modal-body">
 <form class="app_frm" method="POST" autocomplete="OFF" action="admin/core/new_user2">
 <div class="alert alert-warning mb-3">
-This creates a full admin account with the same control level as the current admin portal.
+Only the super admin can create and manage these leadership and admin accounts, including Headteacher, Deputy Headteacher, Senior Teacher, and Accountant.
 </div>
 <div class="mb-2">
 <label class="form-label">First Name</label>
@@ -172,7 +194,16 @@ This creates a full admin account with the same control level as the current adm
 <option value="Female">Female</option>
 </select>
 </div>
-<input type="hidden" name="role" value="0">
+<div class="mb-2">
+<label class="form-label">Admin Designation</label>
+<select class="form-control" name="designation" id="adminDesignation" required onchange="syncAdminRole(this.value)">
+<option value="headteacher" selected>Headteacher</option>
+<option value="deputy_headteacher">Deputy Headteacher</option>
+<option value="senior_teacher">Senior Teacher</option>
+<option value="accountant">Accountant</option>
+</select>
+</div>
+<input type="hidden" name="role" id="adminRoleField" value="0">
 <div class="mb-3">
 <label class="form-label">Status</label>
 <select class="form-control" name="status" required>
@@ -188,6 +219,7 @@ This creates a full admin account with the same control level as the current adm
 </div>
 </div>
 </div>
+<?php } ?>
 <div class="modal fade" id="addModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="addModalLabel" aria-hidden="true">
 <div class="modal-dialog">
 <div class="modal-content">
@@ -228,6 +260,7 @@ This form creates teacher accounts only. Use <strong>Create Admin Account</stron
 </select>
 </div>
 <input type="hidden" name="role" value="2">
+<input type="hidden" name="designation" value="teacher">
 
 <div class="mb-3">
 <label class="form-label">Status</label>
@@ -280,9 +313,9 @@ This form creates teacher accounts only. Use <strong>Create Admin Account</stron
 <label class="form-label">Role</label>
 <select id="role" class="form-control" name="role" required>
 <option value="2">Teacher</option>
-<option value="5">Accountant</option>
 </select>
 </div>
+<input type="hidden" name="designation" value="teacher">
 
 
 <div class="mb-3">
@@ -302,6 +335,63 @@ This form creates teacher accounts only. Use <strong>Create Admin Account</stron
 </div>
 </div>
 </div>
+
+<?php if ($isSuperAdminController) { ?>
+<div class="modal fade" id="editAdminModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="editAdminModalLabel" aria-hidden="true">
+<div class="modal-dialog">
+<div class="modal-content">
+<div class="modal-header">
+<h5 class="modal-title" id="editAdminModalLabel">Edit Admin Account</h5>
+</div>
+<div class="modal-body">
+<form class="app_frm" method="POST" autocomplete="OFF" action="admin/core/update_user2">
+<div class="mb-2">
+<label class="form-label">First Name</label>
+<input id="admin_fname" required name="fname" class="form-control" type="text" onkeypress="return lettersOnly(event)" placeholder="Enter first name">
+</div>
+<div class="mb-2">
+<label class="form-label">Last Name</label>
+<input id="admin_lname" required name="lname" class="form-control" type="text" onkeypress="return lettersOnly(event)" placeholder="Enter last name">
+</div>
+<div class="mb-2">
+<label class="form-label">Email Address</label>
+<input id="admin_email" required name="email" class="form-control" type="email" placeholder="Enter email address">
+</div>
+<div class="mb-2">
+<label class="form-label">Gender</label>
+<select id="admin_gender" class="form-control" name="gender" required>
+<option selected disabled value="">Select gender</option>
+<option value="Male">Male</option>
+<option value="Female">Female</option>
+</select>
+</div>
+<div class="mb-2">
+<label class="form-label">Admin Designation</label>
+<select id="admin_designation_edit" class="form-control" name="designation" required onchange="syncAdminEditRole(this.value)">
+<option value="headteacher">Headteacher</option>
+<option value="deputy_headteacher">Deputy Headteacher</option>
+<option value="senior_teacher">Senior Teacher</option>
+<option value="accountant">Accountant</option>
+</select>
+</div>
+<div class="mb-3">
+<label class="form-label">Status</label>
+<select id="admin_status" class="form-control" name="status" required>
+<option value="1">Active</option>
+<option value="0">Blocked</option>
+</select>
+</div>
+<input type="hidden" name="role" id="admin_role_edit" value="0">
+<input type="hidden" name="id" id="admin_id">
+<button type="submit" name="submit" value="1" class="btn btn-danger app_btn">Save Admin Account</button>
+<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+</form>
+</div>
+
+</div>
+</div>
+</div>
+<?php } ?>
 
 <div class="modal fade" id="importModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="importModalLabel" aria-hidden="true">
 <div class="modal-dialog">
@@ -331,6 +421,65 @@ Download excel template from <a download href="templates/import_teachers.xlsx" c
 
 <div class="row">
 <div class="col-md-12">
+<?php if ($isSuperAdminController) { ?>
+<div class="tile">
+<div class="tile-body">
+<div class="table-responsive">
+<h3 class="tile-title">Leadership / Admin Accounts</h3>
+<p class="text-muted">Only the super admin can view and edit these accounts.</p>
+<table class="table table-hover table-bordered" id="adminStaffTable">
+<thead>
+<tr>
+<th>First Name</th>
+<th>Last Name</th>
+<th>School ID</th>
+<th>Email</th>
+<th>Gender</th>
+<th>Designation</th>
+<th>Presence</th>
+<th width="120" align="center">Status</th>
+<th width="120" align="center">Actions</th>
+</tr>
+</thead>
+<tbody>
+<?php foreach ($adminRows as $row) { ?>
+<?php
+$adminStatus = ((string)($row['status'] ?? '0') === "1")
+	? '<span class="me-1 badge badge-pill bg-success">Active</span>'
+	: '<span class="me-1 badge badge-pill bg-danger">Blocked</span>';
+$adminDesignation = ucwords(str_replace('_', ' ', app_staff_designation_key($conn, (int)$row['id'], (string)$row['level'])));
+?>
+<tr>
+<td><?php echo htmlspecialchars((string)$row['fname']); ?></td>
+<td><?php echo htmlspecialchars((string)$row['lname']); ?></td>
+<td><?php echo htmlspecialchars((string)($row['school_id'] ?? '')); ?></td>
+<td><?php echo htmlspecialchars((string)$row['email']); ?></td>
+<td><?php echo htmlspecialchars((string)$row['gender']); ?></td>
+<td><?php echo htmlspecialchars($adminDesignation); ?></td>
+<td>
+<?php if (isset($onlineStaff[(string)$row['id']])) { ?>
+<span class="online-pill"><span class="online-dot"></span>Online</span>
+<?php } else { ?>
+<span class="text-muted">Offline</span>
+<?php } ?>
+</td>
+<td width="100" align="center"><?php echo $adminStatus; ?></td>
+<td width="120" align="center">
+<textarea style="display:none;" id="admin_fname_<?php echo (int)$row['id']; ?>"><?php echo htmlspecialchars((string)$row['fname']); ?></textarea>
+<textarea style="display:none;" id="admin_lname_<?php echo (int)$row['id']; ?>"><?php echo htmlspecialchars((string)$row['lname']); ?></textarea>
+<textarea style="display:none;" id="admin_email_<?php echo (int)$row['id']; ?>"><?php echo htmlspecialchars((string)$row['email']); ?></textarea>
+<textarea style="display:none;" id="admin_designation_<?php echo (int)$row['id']; ?>"><?php echo htmlspecialchars((string)app_staff_designation_key($conn, (int)$row['id'], (string)$row['level'])); ?></textarea>
+<button onclick="set_admin_user('<?php echo (int)$row['id']; ?>', '<?php echo htmlspecialchars((string)$row['gender'], ENT_QUOTES, 'UTF-8'); ?>', '<?php echo htmlspecialchars((string)$row['status'], ENT_QUOTES, 'UTF-8'); ?>');" data-bs-toggle="modal" data-bs-target="#editAdminModal" class="btn btn-danger btn-sm" type="button">Edit</button>
+</td>
+</tr>
+<?php } ?>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<?php } ?>
+
 <div class="tile">
 <div class="tile-body">
 <div class="table-responsive">
@@ -364,26 +513,11 @@ Download excel template from <a download href="templates/import_teachers.xlsx" c
 </tr>
 </thead>
 <tbody>
-
+<?php foreach($teacherRows as $row) { ?>
 <?php
-try {
-$conn = app_db();
-$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-$stmt = $conn->prepare("SELECT * FROM tbl_staff WHERE level IN (2,5) ORDER BY status DESC, fname ASC, lname ASC");
-$stmt->execute();
-$result = $stmt->fetchAll(PDO::FETCH_ASSOC);
-$onlineMaps = app_online_fetch_maps($conn, 180);
-$onlineStaff = isset($onlineMaps['staff']) && is_array($onlineMaps['staff']) ? $onlineMaps['staff'] : [];
-
-foreach($result as $row)
-{
-if ((string)$row['status'] === "1") {
-$st = '<span class="me-1 badge badge-pill bg-success">Active</span>';
-}else{
-$st = '<span class="me-1 badge badge-pill bg-danger">Blocked</span>';
-}
-
+$st = ((string)($row['status'] ?? '0') === "1")
+	? '<span class="me-1 badge badge-pill bg-success">Active</span>'
+	: '<span class="me-1 badge badge-pill bg-danger">Blocked</span>';
 ?>
 <tr>
 <td>
@@ -394,7 +528,7 @@ $st = '<span class="me-1 badge badge-pill bg-danger">Blocked</span>';
 <td><?php echo htmlspecialchars($row['school_id'] ?? ''); ?></td>
 <td><?php echo htmlspecialchars($row['email']);?></td>
 <td><?php echo htmlspecialchars($row['gender']);?></td>
-<td><?php echo ((int)$row['level'] === 5) ? 'Accountant' : 'Teacher'; ?></td>
+<td>Teacher</td>
 <td>
 <?php if (isset($onlineStaff[(string)$row['id']])) { ?>
 <span class="online-pill"><span class="online-dot"></span>Online</span>
@@ -417,15 +551,7 @@ $st = '<span class="me-1 badge badge-pill bg-danger">Blocked</span>';
 <a onclick="del('admin/core/drop_user2?id=<?php echo (int)$row['id']; ?>', 'Delete this staff account?');" href="javascript:void(0);" class="btn btn-danger btn-sm">Delete</a>
 </td>
 </tr>
-<?php
-}
-
-}catch(PDOException $e)
-{
-error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
-echo "Connection failed.";
-}
-?>
+<?php } ?>
 
 </tbody>
 </table>
@@ -446,8 +572,30 @@ echo "Connection failed.";
 <script src="js/forms.js"></script>
 <script type="text/javascript" src="js/plugins/jquery.dataTables.min.js"></script>
 <script type="text/javascript" src="js/plugins/dataTables.bootstrap.min.html"></script>
-<script type="text/javascript">$('#srmsTable').DataTable({"sort" : false});</script>
 <script type="text/javascript">
+$('#srmsTable').DataTable({"sort" : false});
+if ($('#adminStaffTable').length) {
+	$('#adminStaffTable').DataTable({"sort" : false});
+}
+</script>
+<script type="text/javascript">
+function designationRoleValue(designation){
+	switch (designation) {
+		case 'headteacher': return '0';
+		case 'deputy_headteacher': return '1';
+		case 'senior_teacher': return '2';
+		case 'accountant': return '5';
+		default: return '2';
+	}
+}
+function syncAdminRole(designation){
+	var role = document.getElementById('adminRoleField');
+	if (role) { role.value = designationRoleValue(designation); }
+}
+function syncAdminEditRole(designation){
+	var role = document.getElementById('admin_role_edit');
+	if (role) { role.value = designationRoleValue(designation); }
+}
 function set_user(id, gender, status, role){
 	document.getElementById("id").value = id;
 	document.getElementById("fname").value = document.getElementById("fname_"+id).value;
@@ -457,6 +605,17 @@ function set_user(id, gender, status, role){
 	document.getElementById("status").value = status;
 	document.getElementById("role").value = role;
 }
+function set_admin_user(id, gender, status){
+	document.getElementById("admin_id").value = id;
+	document.getElementById("admin_fname").value = document.getElementById("admin_fname_"+id).value;
+	document.getElementById("admin_lname").value = document.getElementById("admin_lname_"+id).value;
+	document.getElementById("admin_email").value = document.getElementById("admin_email_"+id).value;
+	document.getElementById("admin_gender").value = gender;
+	document.getElementById("admin_status").value = status;
+	var designation = document.getElementById("admin_designation_"+id).value || 'headteacher';
+	document.getElementById("admin_designation_edit").value = designation;
+	syncAdminEditRole(designation);
+}
 function resetAddStaffModal(){
 	var role = document.querySelector('#addModal select[name="role"]');
 	var status = document.querySelector('#addModal select[name="status"]');
@@ -465,7 +624,9 @@ function resetAddStaffModal(){
 }
 function resetAddAdminModal(){
 	var role = document.querySelector('#addAdminModal input[name="role"]');
+	var designation = document.getElementById('adminDesignation');
 	var status = document.querySelector('#addAdminModal select[name="status"]');
+	if (designation) { designation.value = 'headteacher'; }
 	if (role) { role.value = '0'; }
 	if (status) { status.value = '1'; }
 }

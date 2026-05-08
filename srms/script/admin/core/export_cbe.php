@@ -22,7 +22,7 @@ try {
 
 	$isPgsql = (defined('DBDriver') && DBDriver === 'pgsql');
 	$sql = "SELECT c.student_id, s.fname, s.lname, c.class_id, cl.name AS class_name, c.learning_area, c.strand, c.level
-		FROM tbl_cbc_assessments c
+		FROM tbl_cbe_assessments c
 		LEFT JOIN tbl_students s ON ".($isPgsql ? "s.id::text = c.student_id::text" : "s.id = c.student_id")."
 		LEFT JOIN tbl_classes cl ON cl.id = c.class_id
 		WHERE c.term_id = ?
@@ -32,7 +32,7 @@ try {
 	$rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 	header('Content-Type: text/csv');
-	header('Content-Disposition: attachment; filename="cbc_assessments.csv"');
+	header('Content-Disposition: attachment; filename="cbe_assessments.csv"');
 	$out = fopen('php://output', 'w');
 	fputcsv($out, ['student_id','student_name','class','learning_area','strand','level']);
 	foreach ($rows as $r) {

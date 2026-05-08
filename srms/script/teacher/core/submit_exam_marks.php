@@ -6,8 +6,23 @@ require_once('const/check_session.php');
 require_once('const/school.php');
 if ($res == "1" && $level == "2") {}else{header("location:../");}
 
+function app_exam_entry_redirect_target(string $portal, string $page): string
+{
+  $portal = strtolower(trim($portal));
+  if (!in_array($portal, ['admin', 'academic', 'teacher'], true)) {
+    $portal = 'teacher';
+  }
+  return '../../' . $portal . '/' . ltrim($page, '/');
+}
+
+$originPortal = strtolower(trim((string)($_POST['origin_portal'] ?? ($_SESSION['exam_entry']['origin_portal'] ?? $_SESSION['exam_entry_portal'] ?? 'teacher'))));
+if (!in_array($originPortal, ['admin', 'academic', 'teacher'], true)) {
+  $originPortal = 'teacher';
+}
+$_SESSION['exam_entry_portal'] = $originPortal;
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-  header("location:../exam_marks_entry");
+  header("location:" . app_exam_entry_redirect_target($originPortal, 'exam_marks_entry'));
   exit;
 }
 
@@ -16,7 +31,7 @@ $subjectComb = (int)($_POST['subject_combination'] ?? 0);
 
 if ($examId < 1 || $subjectComb < 1) {
   $_SESSION['reply'] = array (array("danger", "Missing exam or subject."));
-  header("location:../exam_marks_table");
+  header("location:" . app_exam_entry_redirect_target($originPortal, 'exam_marks_table'));
   exit;
 }
 
@@ -28,7 +43,7 @@ try {
   $stmt = $conn->prepare("SELECT * FROM tbl_exams WHERE id = ? LIMIT 1");
   $stmt->execute([$examId]);
   $exam = $stmt->fetch(PDO::FETCH_ASSOC);
-  if (!$exam || !app_exam_can_enter_marks((string)($exam['status'] ?? 'draft'))) {
+  if (!$exam || !app_exam_teacher_can_reenter($conn, $examId, $subjectComb, (int)$account_id, (string)($exam['status'] ?? 'draft'))) {
     throw new RuntimeException("Exam not found or not active.");
   }
 
@@ -91,11 +106,11 @@ try {
   app_audit_log($conn, 'staff', (string)$account_id, 'exam_marks.submit', 'exam', (string)$examId);
   app_refresh_exam_status($conn, $examId);
   $_SESSION['reply'] = array (array("success", "Marks submitted for review."));
-  header("location:../exam_marks_table");
+  header("location:" . app_exam_entry_redirect_target($originPortal, 'exam_marks_table'));
   exit;
 } catch (Throwable $e) {
 	error_log("[".__FILE__.":".__LINE__." Throwable] " . $e->getMessage());
 	$_SESSION['reply'] = array(array("danger", "Operation failed. Please try again."));
-  header("location:../exam_marks_table");
+  header("location:" . app_exam_entry_redirect_target($originPortal, 'exam_marks_table'));
   exit;
 }

@@ -5,16 +5,38 @@ require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
 require_once('const/academic_dashboard.php');
-if ($res == "1" && $level == "0") {}else{header("location:../");}
+require_once('const/report_engine.php');
+$isSuperAdmin = !empty($super_admin);
+$isLeadershipRole = in_array((int)$level, [0, 1], true);
+if ($res == "1" && ($isLeadershipRole || $isSuperAdmin)) {}else{header("location:../");}
 $students_total = $my_students;
 $teachers_total = $teachers;
+$showMarksEntryShortcut = false;
+$showAttendanceShortcut = false;
+$adminAnnouncements = [];
+$promotionQueue = [];
+$autoPromotionRun = [];
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	app_ensure_promotion_workflow_schema($conn);
+	$autoPromotionRun = app_auto_prepare_year_end_promotions($conn, (int)($account_id ?? 0));
+	$promotionQueue = app_promotion_queue_summary($conn);
 	$students_total = (int)$conn->query("SELECT COUNT(*) FROM tbl_students")->fetchColumn();
 	$teachers_total = (int)$conn->query("SELECT COUNT(*) FROM tbl_staff WHERE level = 2")->fetchColumn();
+	$showMarksEntryShortcut = app_staff_has_active_teaching_assignment($conn, (int)($account_id ?? 0)) && app_has_permission($conn, (string)($account_id ?? ''), (string)($level ?? ''), 'marks.enter');
+	$showAttendanceShortcut = app_staff_has_active_teaching_assignment($conn, (int)($account_id ?? 0)) && app_has_permission($conn, (string)($account_id ?? ''), (string)($level ?? ''), 'attendance.manage');
+	if (app_table_exists($conn, 'tbl_notifications')) {
+		$stmt = $conn->prepare("SELECT title, message, created_at FROM tbl_notifications WHERE audience IN ('all','staff') ORDER BY created_at DESC LIMIT 5");
+		$stmt->execute();
+		$adminAnnouncements = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	}
 } catch (Throwable $e) {
 	// Keep fallback values from academic dashboard.
+}
+$adminFirstName = trim((string)($fname ?? ''));
+if ($adminFirstName === '') {
+	$adminFirstName = 'Administrator';
 }
 ?>
 <!DOCTYPE html>
@@ -52,18 +74,29 @@ try {
 <div class="dashboard-hero">
 	<div class="hero-main">
 		<span class="hero-kicker">Administrator Overview</span>
-		<h1>Welcome back, <?php echo $fname; ?></h1>
+		<h1>Welcome back, <?php echo htmlspecialchars($adminFirstName); ?></h1>
 		<p>Track enrollment, attendance, and finance performance at a glance.</p>
 		<div class="hero-actions">
 			<a class="btn btn-light" href="admin/register_students"><i class="bi bi-plus-circle me-2"></i>New Student</a>
 			<a class="btn btn-outline-light" href="admin/fees"><i class="bi bi-cash-coin me-2"></i>Fees & Finance</a>
 			<a class="btn btn-outline-light" href="admin/attendance"><i class="bi bi-check2-square me-2"></i>Attendance</a>
+			<a class="btn btn-outline-light" href="admin/grading_system"><i class="bi bi-award me-2"></i>Grading Management</a>
+			<?php if ($showMarksEntryShortcut) { ?>
+			<a class="btn btn-outline-light" href="admin/exam_marks_entry"><i class="bi bi-pencil-square me-2"></i>Marks Entry</a>
+			<?php } ?>
+			<?php if ($showAttendanceShortcut) { ?>
+			<a class="btn btn-outline-light" href="admin/attendance_mark"><i class="bi bi-calendar-check me-2"></i>Mark Attendance</a>
+			<?php } ?>
 		</div>
 	</div>
 	<div class="hero-meta">
 		<div class="meta-card">
 			<span class="meta-label">Today</span>
 			<strong class="meta-value"><?php echo date('l, d M Y'); ?></strong>
+		</div>
+		<div class="meta-card">
+			<span class="meta-label">Current Time</span>
+			<strong class="meta-value" id="adminCurrentTime"><?php echo date('H:i:s'); ?></strong>
 		</div>
 		<div class="meta-card">
 			<span class="meta-label">Active Terms</span>
@@ -133,6 +166,21 @@ try {
 
 <div class="dashboard-grid">
 	<div class="tile">
+		<h3 class="tile-title">Announcements</h3>
+		<div class="note-list">
+			<?php if (!$adminAnnouncements) { ?>
+			<div class="note-item text-muted">No announcements right now.</div>
+			<?php } ?>
+			<?php foreach ($adminAnnouncements as $announcement) { ?>
+			<div class="note-item">
+				<div class="fw-bold"><?php echo htmlspecialchars((string)$announcement['title']); ?></div>
+				<div class="small text-muted mt-1"><?php echo htmlspecialchars((string)$announcement['message']); ?></div>
+				<div class="small text-muted mt-2"><?php echo htmlspecialchars((string)$announcement['created_at']); ?></div>
+			</div>
+			<?php } ?>
+		</div>
+	</div>
+	<div class="tile">
 		<h3 class="tile-title">Students by Class</h3>
 		<div id="chartStudentsByClass" class="chart-lg"></div>
 	</div>
@@ -158,6 +206,33 @@ try {
 	</div>
 </div>
 
+<?php if (!empty($promotionQueue)): ?>
+<div class="tile mt-4">
+	<h3 class="tile-title">Promotion Queue</h3>
+	<div class="alert alert-warning mb-3">
+		<strong><?php echo (int)$promotionQueue['pending_review']; ?> batch(es)</strong> waiting for Headteacher or Deputy review.
+	</div>
+	<div class="alert alert-info mb-3">
+		<strong><?php echo (int)$promotionQueue['ready_for_super_admin']; ?> batch(es)</strong> waiting for Super Admin completion.
+	</div>
+	<div class="alert alert-success mb-3">
+		<strong><?php echo (int)$promotionQueue['completed']; ?> batch(es)</strong> already completed.
+	</div>
+	<div class="alert alert-light mb-0">
+		<strong>Auto promotion:</strong> <?php echo !empty($promotionQueue['auto_enabled']) ? 'Enabled' : 'Disabled'; ?>.
+		<?php if ($isSuperAdmin): ?>
+		Your role is to complete reviewed batches.
+		<?php else: ?>
+		Your role is to review pending batches, approve or reject them, then send them to Super Admin.
+		<?php endif; ?>
+		<a href="admin/promotions">Open Promotions</a>.
+		<?php if (!empty($autoPromotionRun['message'])): ?>
+		<span class="ms-2"><?php echo htmlspecialchars((string)$autoPromotionRun['message']); ?></span>
+		<?php endif; ?>
+	</div>
+</div>
+<?php endif; ?>
+
 </main>
 
 <script src="js/jquery-3.7.0.min.js"></script>
@@ -169,6 +244,15 @@ try {
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
 
 <script type="text/javascript">
+(function () {
+  function updateClock() {
+    var node = document.getElementById('adminCurrentTime');
+    if (!node) return;
+    node.textContent = new Intl.DateTimeFormat('en-KE', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false, timeZone:'Africa/Nairobi' }).format(new Date());
+  }
+  updateClock();
+  setInterval(updateClock, 1000);
+})();
 (function () {
   function el(id) { return document.getElementById(id); }
 

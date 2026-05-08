@@ -3,6 +3,13 @@ session_start();
 require_once(__DIR__ . '/_common.php');
 require_once(__DIR__ . '/../const/rand.php');
 
+if (!function_exists('app_upper_session_token')) {
+	function app_upper_session_token(string $value): string
+	{
+		return function_exists('mb_strtoupper') ? mb_strtoupper($value) : strtoupper($value);
+	}
+}
+
 api_apply_cors();
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
@@ -63,8 +70,8 @@ UNION SELECT id, email, password, level, status FROM tbl_students WHERE id = ? O
 
 		$accountId = (string)$row[0];
 		$loginLevel = (int)$row[3];
-		$sessionId = mb_strtoupper(GRS(20));
-		$ip = $_SERVER['REMOTE_ADDR'] ?? '';
+		$sessionId = app_upper_session_token(GRS(20));
+		$ip = app_request_client_ip();
 
 		if ($loginLevel === 4) {
 			if (!$hasParentSessions) {
@@ -109,4 +116,3 @@ UNION SELECT id, email, password, level, status FROM tbl_students WHERE id = ? O
 } catch (Throwable $e) {
 	api_internal_error($e, 'api.login');
 }
-

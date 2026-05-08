@@ -5,9 +5,10 @@ require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
 require_once('const/rbac.php');
-if ($res == "1" && $level == "0") {}else{header("location:../"); exit;}
-app_require_permission('finance.manage', 'admin');
-app_require_unlocked('finance', 'admin');
+if ($res !== "1") { header("location:../"); exit; }
+$portalHome = ((string)$level === '1') ? 'academic' : 'admin';
+app_require_permission('finance.manage', $portalHome);
+app_require_unlocked('finance', $portalHome);
 
 $classes = [];
 $terms = [];

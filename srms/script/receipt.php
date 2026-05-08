@@ -27,6 +27,7 @@ try {
     }
 
     $stmt = $conn->prepare("SELECT r.id, r.receipt_number, r.created_at AS receipt_date,
+        r.verification_code,
         p.id AS payment_id, p.amount, p.method, p.reference, p.paid_at,
         i.id AS invoice_id, i.student_id,
         concat_ws(' ', st.fname, st.mname, st.lname) AS student_name,
@@ -66,6 +67,7 @@ try {
     $totalAmount = (float)($row['total_amount'] ?? 0);
     $totalPaid = (float)($row['total_paid'] ?? 0);
     $balance = max(0, round($totalAmount - $totalPaid, 2));
+    $verificationUrl = app_receipt_verify_url((string)($row['verification_code'] ?? ''));
 
     $pdf = new TCPDF(PDF_PAGE_ORIENTATION, PDF_UNIT, 'A4', true, 'UTF-8', false);
     $pdf->setPrintHeader(false);
@@ -91,10 +93,17 @@ try {
       . '<tr><td><b>Total Paid</b></td><td>KES ' . number_format($totalPaid, 2) . '</td></tr>'
       . '<tr><td><b>Balance Remaining</b></td><td>KES ' . number_format($balance, 2) . '</td></tr>'
       . '<tr><td><b>Received By</b></td><td>' . htmlspecialchars((string)($row['receiver_name'] ?? 'Accounts Office')) . '</td></tr>'
+      . '<tr><td><b>Verification Code</b></td><td>' . htmlspecialchars((string)($row['verification_code'] ?? '')) . '</td></tr>'
       . '</table>'
-      . '<br><p style="font-size:9pt;">Thank you.</p>';
+      . '<br><p style="font-size:9pt;">Thank you. Verify this receipt using the QR code or verification page.</p>';
 
     $pdf->writeHTML($html, true, false, true, false, '');
+    if ($verificationUrl !== '') {
+        $pdf->write2DBarcode($verificationUrl, 'QRCODE,H', 160, 225, 30, 30);
+        $pdf->SetFont('helvetica', '', 8);
+        $pdf->SetXY(145, 257);
+        $pdf->Cell(55, 5, 'Verify: ' . (string)($row['verification_code'] ?? ''), 0, 1, 'C');
+    }
     $pdf->Output('receipt-' . (int)$row['id'] . '.pdf', $forceDownload ? 'D' : 'I');
 } catch (Throwable $e) {
     header('location:./');

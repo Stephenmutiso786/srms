@@ -10,18 +10,7 @@ try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-	$stmt = $conn->prepare("SELECT * FROM tbl_subject_combinations
-LEFT JOIN tbl_subjects ON tbl_subject_combinations.subject = tbl_subjects.id
-LEFT JOIN tbl_staff ON tbl_subject_combinations.teacher = tbl_staff.id WHERE tbl_subject_combinations.teacher = ?");
-	$stmt->execute([$account_id]);
-	$result = $stmt->fetchAll();
-
-	$myclasses = [];
-	foreach ($result as $value) {
-		$class_arr = app_unserialize($value[1]);
-		foreach ($class_arr as $c) { $myclasses[] = $c; }
-	}
-	$myclasses = array_values(array_unique($myclasses));
+	$myclasses = app_staff_class_teacher_ids($conn, (int)$account_id);
 
 	$classes = [];
 	if (count($myclasses) > 0) {
@@ -93,7 +82,7 @@ LEFT JOIN tbl_staff ON tbl_subject_combinations.teacher = tbl_staff.id WHERE tbl
 <div class="tile">
 <h3 class="tile-title">New Attendance Session</h3>
 <?php if (count($classes) < 1) { ?>
-<div class="alert alert-warning">No assigned classes found. Ask admin to assign you to a class/subject combination first.</div>
+<div class="alert alert-warning">No class-teacher assignment found. Only the assigned class teacher can mark student class attendance.</div>
 <?php } ?>
 <form class="row g-3" method="POST" action="teacher/core/new_attendance_session">
 <div class="col-md-4">

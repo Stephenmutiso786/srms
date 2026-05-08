@@ -86,7 +86,7 @@ try {
 				$examSummary = report_exam_summary($conn, $studentId, (int)$class, $termId, (int)$selectedExam['id']);
 				$examBreakdown = report_exam_subject_breakdown($conn, $studentId, (int)$class, $termId, (int)$selectedExam['id']);
 			}
-			$card = report_ensure_card_generated($conn, $studentId, (int)$class, $termId);
+			$card = report_ensure_card_generated($conn, $studentId, (int)$class, $termId, null, $examId);
 			if ($card) {
 				$attendance = report_attendance_summary($conn, $studentId, (int)$class, $termId);
 				$feesBalance = report_fees_balance($conn, $studentId, $termId);

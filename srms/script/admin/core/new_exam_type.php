@@ -4,10 +4,10 @@ session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/rbac.php');
-
-if ($res != "1" || $level != "0") { header("location:../"); }
-app_require_permission('exams.manage', '../exams');
-app_require_unlocked('exams', '../exams');
+if ($res !== "1") { header("location:../../"); exit; }
+$portalHome = ((string)$level === '1') ? '../../academic' : '../exams';
+app_require_permission('exams.manage', $portalHome);
+app_require_unlocked('exams', $portalHome);
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 	header("location:../exams");

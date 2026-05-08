@@ -64,8 +64,8 @@ try {
 		$stmt->execute($ids);
 	}
 
-	if (app_table_exists($conn, 'tbl_cbc_assessments')) {
-		$stmt = $conn->prepare("DELETE FROM tbl_cbc_assessments WHERE student_id IN ($placeholders)");
+	if (app_table_exists($conn, 'tbl_cbe_assessments')) {
+		$stmt = $conn->prepare("DELETE FROM tbl_cbe_assessments WHERE student_id IN ($placeholders)");
 		$stmt->execute($ids);
 	}
 

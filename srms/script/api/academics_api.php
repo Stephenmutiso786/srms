@@ -5,6 +5,7 @@
  */
 
 require_once __DIR__ . '/base_controller.php';
+require_once __DIR__ . '/../const/report_engine.php';
 
 class AcademicsController extends BaseController {
 
@@ -660,17 +661,17 @@ class AcademicsController extends BaseController {
     }
 
     /**
-     * Competency profile for CBC/CBE.
+     * Competency profile for CBE/CBE.
      */
     protected function get_competency_profile() {
         $this->requireAuth();
 
-        if (!$this->tableExists('tbl_cbc_competencies')) {
+        if (!$this->tableExists('tbl_cbe_competencies')) {
             $this->respond([]);
         }
 
         $studentId = $this->getInput('student_id', true);
-        $competencies = $this->db->select('tbl_cbc_competencies', [], ['student_id' => $studentId], 'id DESC');
+        $competencies = $this->db->select('tbl_cbe_competencies', [], ['student_id' => $studentId], 'id DESC');
         $this->respond($competencies);
     }
 
@@ -707,14 +708,25 @@ class AcademicsController extends BaseController {
      * Calculate grade from marks
      */
     private function calculateGrade($marks, $subject_id) {
-        // This would typically use the school's grading system
-        $grade_system = $this->db->getOne('tbl_grade_system', ['class' => 'A']);
-        
-        if ($marks >= 80) return 'A';
-        if ($marks >= 70) return 'B';
-        if ($marks >= 60) return 'C';
-        if ($marks >= 50) return 'D';
-        return 'E';
+        try {
+            $gradingSystemId = function_exists('report_default_grading_system_id')
+                ? report_default_grading_system_id(app_db())
+                : null;
+            if (function_exists('report_grade_for_score')) {
+                list($grade) = report_grade_for_score(app_db(), (float)$marks, $gradingSystemId);
+                return (string)$grade;
+            }
+        } catch (Throwable $e) {
+            // Fall through to a CBE-style default if the grading engine is unavailable.
+        }
+        if ($marks >= 90) return 'EE1';
+        if ($marks >= 75) return 'EE2';
+        if ($marks >= 58) return 'ME1';
+        if ($marks >= 41) return 'ME2';
+        if ($marks >= 31) return 'AE1';
+        if ($marks >= 21) return 'AE2';
+        if ($marks >= 11) return 'BE1';
+        return 'BE2';
     }
 }
 

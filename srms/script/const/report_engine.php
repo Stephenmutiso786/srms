@@ -52,6 +52,9 @@ function report_exam_grading_system_id(PDO $conn, ?int $examId): ?int
 	$hasGradingSystemColumn = app_column_exists($conn, 'tbl_exams', 'grading_system_id');
 	$hasAssessmentModeColumn = app_column_exists($conn, 'tbl_exams', 'assessment_mode');
 	$select = 'id';
+	if (app_column_exists($conn, 'tbl_exams', 'class_id')) {
+		$select .= ', class_id';
+	}
 	if ($hasGradingSystemColumn) {
 		$select .= ', grading_system_id';
 	}
@@ -66,16 +69,20 @@ function report_exam_grading_system_id(PDO $conn, ?int $examId): ?int
 	}
 
 	$assessmentMode = strtolower(trim((string)($examRow['assessment_mode'] ?? 'normal')));
-	$preferredType = $assessmentMode === 'cbc' ? 'cbc' : 'marks';
+	$preferredType = $assessmentMode === 'cbe' ? 'cbe' : 'marks';
 	$defaultSystemId = report_default_grading_system_id($conn, $preferredType);
+	$classId = (int)($examRow['class_id'] ?? 0);
+	$classSystemId = $classId > 0 && function_exists('app_class_grading_system_id')
+		? app_class_grading_system_id($conn, $classId)
+		: null;
 
 	if (!$hasGradingSystemColumn) {
-		return $defaultSystemId;
+		return $classSystemId ?: $defaultSystemId;
 	}
 
 	$examSystemId = (int)($examRow['grading_system_id'] ?? 0);
 	if ($examSystemId < 1) {
-		return $defaultSystemId;
+		return $classSystemId ?: $defaultSystemId;
 	}
 
 	if (!app_table_exists($conn, 'tbl_grading_systems')) {
@@ -84,12 +91,12 @@ function report_exam_grading_system_id(PDO $conn, ?int $examId): ?int
 
 	$stmt = $conn->prepare("SELECT id FROM tbl_grading_systems WHERE id = ? AND is_active = 1 LIMIT 1");
 	$stmt->execute([$examSystemId]);
-	return $stmt->fetchColumn() ? $examSystemId : $defaultSystemId;
+	return $stmt->fetchColumn() ? $examSystemId : ($classSystemId ?: $defaultSystemId);
 }
 
 function report_grading_scales(PDO $conn, ?int $gradingSystemId = null): array
 {
-	// CBC-ONLY: Remove legacy tbl_grade_system and A/B/C fallback. Only use CBC/new grading tables.
+	// CBE-ONLY: Remove legacy tbl_grade_system and A/B/C fallback. Only use CBE/new grading tables.
 	if ($gradingSystemId && app_table_exists($conn, 'tbl_grading_scales')) {
 		$stmt = $conn->prepare("SELECT grade AS name, min_score AS min, max_score AS max, remark, points, sort_order, is_active
 			FROM tbl_grading_scales
@@ -101,8 +108,8 @@ function report_grading_scales(PDO $conn, ?int $gradingSystemId = null): array
 			return $rows;
 		}
 	}
-	if (app_table_exists($conn, 'tbl_cbc_grading')) {
-		$stmt = $conn->prepare("SELECT level, min_mark, max_mark, points FROM tbl_cbc_grading WHERE active = 1 ORDER BY min_mark DESC, sort_order ASC");
+	if (app_table_exists($conn, 'tbl_cbe_grading')) {
+		$stmt = $conn->prepare("SELECT level, min_mark, max_mark, points FROM tbl_cbe_grading WHERE active = 1 ORDER BY min_mark DESC, sort_order ASC");
 		$stmt->execute();
 		$rows = [];
 		foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
@@ -426,6 +433,52 @@ function report_exam_result_matrix(PDO $conn, int $classId, int $termId, ?string
 	return $matrix;
 }
 
+function report_ensure_exam_batch_schema(PDO $conn): void
+{
+	static $done = false;
+	if ($done || !app_table_exists($conn, 'tbl_report_cards')) {
+		return;
+	}
+
+	if (!app_column_exists($conn, 'tbl_report_cards', 'exam_id')) {
+		if (defined('DBDriver') && DBDriver === 'pgsql') {
+			$conn->exec("ALTER TABLE tbl_report_cards ADD COLUMN exam_id integer NULL");
+		} else {
+			$conn->exec("ALTER TABLE tbl_report_cards ADD COLUMN exam_id int NULL");
+		}
+	}
+
+	try {
+		if (defined('DBDriver') && DBDriver === 'pgsql') {
+			$conn->exec("CREATE INDEX IF NOT EXISTS tbl_report_cards_exam_id_idx ON tbl_report_cards (exam_id)");
+		} else {
+			$conn->exec("CREATE INDEX tbl_report_cards_exam_id_idx ON tbl_report_cards (exam_id)");
+		}
+	} catch (Throwable $e) {
+		// best effort; index may already exist
+	}
+
+	$done = true;
+}
+
+function report_find_card_id(PDO $conn, string $studentId, int $termId, int $examId = 0): int
+{
+	if ($studentId === '' || $termId < 1 || !app_table_exists($conn, 'tbl_report_cards')) {
+		return 0;
+	}
+
+	report_ensure_exam_batch_schema($conn);
+	if (app_column_exists($conn, 'tbl_report_cards', 'exam_id')) {
+		$stmt = $conn->prepare("SELECT id FROM tbl_report_cards WHERE student_id = ? AND term_id = ? AND COALESCE(exam_id, 0) = ? LIMIT 1");
+		$stmt->execute([$studentId, $termId, $examId > 0 ? $examId : 0]);
+		return (int)$stmt->fetchColumn();
+	}
+
+	$stmt = $conn->prepare("SELECT id FROM tbl_report_cards WHERE student_id = ? AND term_id = ? LIMIT 1");
+	$stmt->execute([$studentId, $termId]);
+	return (int)$stmt->fetchColumn();
+}
+
 function report_visible_exam_statuses(): array
 {
 	return ['published'];
@@ -522,8 +575,8 @@ function report_exam_subject_breakdown(PDO $conn, string $studentId, int $classI
 		return $scoreBuckets;
 	};
 
-	if ($assessmentMode === 'cbc') {
-		$studentMatrix = report_cbc_score_matrix($conn, $classId, $termId, $subjects, null);
+	if ($assessmentMode === 'cbe') {
+		$studentMatrix = report_cbe_score_matrix($conn, $classId, $termId, $subjects, null);
 		$classTotals = [];
 		$classCounts = [];
 		$subjectRankMaps = [];
@@ -567,8 +620,9 @@ function report_exam_subject_breakdown(PDO $conn, string $studentId, int $classI
 				? round((float)$classTotals[$subjectId] / (int)$classCounts[$subjectId], 2)
 				: 0.0;
 			if ($hasScore) {
-				list($gradeLabel, $gradeRemark, $gradePoints) = report_cbc_grade_for_score($conn, (float)$score);
-				$deviation = round((float)$score - $classMean, 2);
+				list($gradeLabel, $gradeRemark, $gradePoints) = report_cbe_grade_for_score($conn, (float)$score);
+				list(, , $classMeanPoints) = report_cbe_grade_for_score($conn, $classMean);
+				$deviation = round((float)$gradePoints - (float)$classMeanPoints, 2);
 			} else {
 				$gradeLabel = 'N/A';
 				$gradeRemark = 'No marks entered';
@@ -592,7 +646,7 @@ function report_exam_subject_breakdown(PDO $conn, string $studentId, int $classI
 				'grade_points' => (float)$gradePoints,
 				'remark' => (string)$gradeRemark,
 				'progress' => max(0, min(100, $score)),
-				'source' => 'CBC assessment',
+				'source' => 'CBE assessment',
 			];
 		}
 
@@ -691,7 +745,8 @@ function report_exam_subject_breakdown(PDO $conn, string $studentId, int $classI
 			: 0.0;
 		if ($hasScore) {
 			list($gradeLabel, $gradeRemark, $gradePoints) = report_grade_for_score($conn, (float)$score, $gradingSystemId);
-			$deviation = round((float)$score - $classMean, 2);
+			list(, , $classMeanPoints) = report_grade_for_score($conn, $classMean, $gradingSystemId);
+			$deviation = round((float)$gradePoints - (float)$classMeanPoints, 2);
 		} else {
 			$gradeLabel = 'N/A';
 			$gradeRemark = 'No marks entered';
@@ -762,8 +817,8 @@ function report_exam_summary(PDO $conn, string $studentId, int $classId, int $te
 	}
 	$mean = round($total / max(1, count($rows)), 2);
 	$assessmentMode = strtolower(trim((string)($exam['assessment_mode'] ?? 'normal')));
-	if ($assessmentMode === 'cbc') {
-		list($gradeLabel) = report_cbc_grade_for_score($conn, $mean);
+	if ($assessmentMode === 'cbe') {
+		list($gradeLabel) = report_cbe_grade_for_score($conn, $mean);
 	} else {
 		list($gradeLabel) = report_grade_for_score($conn, $mean, report_exam_grading_system_id($conn, $examId));
 	}
@@ -980,7 +1035,7 @@ function report_fetch_subjects_for_class(PDO $conn, int $classId): array
 	return $subjects;
 }
 
-function report_cbc_level_to_score(string $level): float
+function report_cbe_level_to_score(string $level): float
 {
 	$level = strtoupper(trim($level));
 	if ($level === 'EE') return 85.0;
@@ -990,10 +1045,10 @@ function report_cbc_level_to_score(string $level): float
 	return 0.0;
 }
 
-function report_cbc_grading_rows(PDO $conn): array
+function report_cbe_grading_rows(PDO $conn): array
 {
-	if (app_table_exists($conn, 'tbl_cbc_grading')) {
-		$stmt = $conn->prepare("SELECT level, min_mark, max_mark, points FROM tbl_cbc_grading WHERE active = 1 ORDER BY min_mark DESC, sort_order ASC");
+	if (app_table_exists($conn, 'tbl_cbe_grading')) {
+		$stmt = $conn->prepare("SELECT level, min_mark, max_mark, points FROM tbl_cbe_grading WHERE active = 1 ORDER BY min_mark DESC, sort_order ASC");
 		$stmt->execute();
 		$rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 		if (!empty($rows)) {
@@ -1009,9 +1064,9 @@ function report_cbc_grading_rows(PDO $conn): array
 	];
 }
 
-function report_cbc_grade_for_score(PDO $conn, float $score): array
+function report_cbe_grade_for_score(PDO $conn, float $score): array
 {
-	$rows = report_cbc_grading_rows($conn);
+	$rows = report_cbe_grading_rows($conn);
 	foreach ($rows as $row) {
 		$min = (float)($row['min_mark'] ?? 0);
 		$max = (float)($row['max_mark'] ?? 100);
@@ -1076,19 +1131,19 @@ function report_term_assessment_mode(PDO $conn, int $classId, int $termId): stri
 		return $modeCache[$cacheKey];
 	}
 
-	$hasCbc = false;
+	$hasCbe = false;
 	$hasNormal = false;
 	foreach ($rows as $row) {
 		$mode = strtolower(trim((string)($row['assessment_mode'] ?? 'normal')));
-		if ($mode === 'cbc') {
-			$hasCbc = true;
+		if ($mode === 'cbe') {
+			$hasCbe = true;
 		} else {
 			$hasNormal = true;
 		}
 	}
 
-	if ($hasCbc && !$hasNormal) {
-		$modeCache[$cacheKey] = 'cbc';
+	if ($hasCbe && !$hasNormal) {
+		$modeCache[$cacheKey] = 'cbe';
 		return $modeCache[$cacheKey];
 	}
 
@@ -1122,25 +1177,25 @@ function report_attach_computed_metrics(PDO $conn, array $card): array
 	$mode = report_term_assessment_mode($conn, $classId, $termId);
 	$card['assessment_mode'] = $mode;
 
-	if ($mode === 'cbc') {
-		list($cbcGrade, $cbcRemark,) = report_cbc_grade_for_score($conn, (float)($card['mean'] ?? 0));
-		$card['grade'] = $cbcGrade;
+	if ($mode === 'cbe') {
+		list($cbeGrade, $cbeRemark,) = report_cbe_grade_for_score($conn, (float)($card['mean'] ?? 0));
+		$card['grade'] = $cbeGrade;
 		if (empty($card['remark'])) {
-			$card['remark'] = $cbcRemark;
+			$card['remark'] = $cbeRemark;
 		}
 	}
 
 	return $card;
 }
 
-function report_cbc_score_matrix(PDO $conn, int $classId, int $termId, array $subjects, ?string $studentId = null): array
+function report_cbe_score_matrix(PDO $conn, int $classId, int $termId, array $subjects, ?string $studentId = null): array
 {
-	if ($classId < 1 || $termId < 1 || !app_table_exists($conn, 'tbl_cbc_assessments')) {
+	if ($classId < 1 || $termId < 1 || !app_table_exists($conn, 'tbl_cbe_assessments')) {
 		return [];
 	}
 
-	$hasSubjectId = app_column_exists($conn, 'tbl_cbc_assessments', 'subject_id');
-	$hasMarks = app_column_exists($conn, 'tbl_cbc_assessments', 'marks');
+	$hasSubjectId = app_column_exists($conn, 'tbl_cbe_assessments', 'subject_id');
+	$hasMarks = app_column_exists($conn, 'tbl_cbe_assessments', 'marks');
 
 	$subjectNameMap = [];
 	foreach ($subjects as $subject) {
@@ -1157,7 +1212,7 @@ function report_cbc_score_matrix(PDO $conn, int $classId, int $termId, array $su
 		$selectCols .= ', learning_area';
 	}
 
-	$sql = "SELECT $selectCols FROM tbl_cbc_assessments WHERE class_id = ? AND term_id = ?";
+	$sql = "SELECT $selectCols FROM tbl_cbe_assessments WHERE class_id = ? AND term_id = ?";
 	$args = [$classId, $termId];
 	if ($studentId !== null && $studentId !== '') {
 		$sql .= ' AND student_id = ?';
@@ -1190,7 +1245,7 @@ function report_cbc_score_matrix(PDO $conn, int $classId, int $termId, array $su
 		if ($hasMarks && isset($row['marks']) && $row['marks'] !== null && $row['marks'] !== '') {
 			$score = (float)$row['marks'];
 		} else {
-			$score = report_cbc_level_to_score((string)($row['level'] ?? ''));
+			$score = report_cbe_level_to_score((string)($row['level'] ?? ''));
 		}
 
 		if (!isset($sum[$rowStudentId])) {
@@ -1216,24 +1271,24 @@ function report_cbc_score_matrix(PDO $conn, int $classId, int $termId, array $su
 
 function report_fetch_scores(PDO $conn, string $studentId, int $classId, int $termId, array $subjects): array
 {
-	static $classTermCbcCache = [];
-	$cbcKey = $classId . ':' . $termId;
-	if (!isset($classTermCbcCache[$cbcKey])) {
-		$classTermCbcCache[$cbcKey] = report_cbc_score_matrix($conn, $classId, $termId, $subjects, null);
+	static $classTermCbeCache = [];
+	$cbeKey = $classId . ':' . $termId;
+	if (!isset($classTermCbeCache[$cbeKey])) {
+		$classTermCbeCache[$cbeKey] = report_cbe_score_matrix($conn, $classId, $termId, $subjects, null);
 	}
 	static $classTermExamCache = [];
-	if (!isset($classTermExamCache[$cbcKey])) {
-		$classTermExamCache[$cbcKey] = report_exam_result_matrix($conn, $classId, $termId, null);
+	if (!isset($classTermExamCache[$cbeKey])) {
+		$classTermExamCache[$cbeKey] = report_exam_result_matrix($conn, $classId, $termId, null);
 	}
 
 	$subjectMap = [];
 	foreach ($subjects as $subject) {
 		$subjectMap[(int)$subject['combination_id']] = $subject;
 	}
-	$latest = $classTermExamCache[$cbcKey][$studentId] ?? [];
+	$latest = $classTermExamCache[$cbeKey][$studentId] ?? [];
 
-	$cbcMatrix = $classTermCbcCache[$cbcKey];
-	$cbcSubjectScores = $cbcMatrix[$studentId] ?? [];
+	$cbeMatrix = $classTermCbeCache[$cbeKey];
+	$cbeSubjectScores = $cbeMatrix[$studentId] ?? [];
 
 	$scores = [];
 	$gradingCache = [];
@@ -1246,8 +1301,8 @@ function report_fetch_scores(PDO $conn, string $studentId, int $classId, int $te
 			$hasScore = true;
 		} else {
 			$subjectId = (int)$subject['subject'];
-			if (isset($cbcSubjectScores[$subjectId])) {
-				$score = (float)$cbcSubjectScores[$subjectId];
+			if (isset($cbeSubjectScores[$subjectId])) {
+				$score = (float)$cbeSubjectScores[$subjectId];
 				$hasScore = true;
 			}
 		}
@@ -1261,9 +1316,9 @@ function report_fetch_scores(PDO $conn, string $studentId, int $classId, int $te
 			$gradeRemark = 'No marks entered';
 			$gradePoints = null;
 		} else {
-			$usedCbcFallback = (is_array($value) && (!array_key_exists('score', $value) || $value['score'] === null || $value['score'] === '')) && isset($cbcSubjectScores[(int)$subject['subject']]);
-			if ($usedCbcFallback) {
-				list($gradeLabel, $gradeRemark, $gradePoints) = report_cbc_grade_for_score($conn, (float)$score);
+			$usedCbeFallback = (is_array($value) && (!array_key_exists('score', $value) || $value['score'] === null || $value['score'] === '')) && isset($cbeSubjectScores[(int)$subject['subject']]);
+			if ($usedCbeFallback) {
+				list($gradeLabel, $gradeRemark, $gradePoints) = report_cbe_grade_for_score($conn, (float)$score);
 			} else {
 				list($gradeLabel, $gradeRemark, $gradePoints) = report_grade_for_score($conn, (float)$score, $gradingSystemId);
 			}
@@ -1600,13 +1655,13 @@ function report_rank_students(PDO $conn, int $classId, int $termId): array
 		$subjectByCombination[(int)$subject['combination_id']] = (int)$subject['subject'];
 	}
 	$examMatrix = report_exam_result_matrix($conn, $classId, $termId, null);
-	$cbcMatrix = report_cbc_score_matrix($conn, $classId, $termId, $subjects, null);
+	$cbeMatrix = report_cbe_score_matrix($conn, $classId, $termId, $subjects, null);
 
 	if (!empty($students) && !empty($subjectByCombination)) {
 		foreach ($students as $studentId) {
 			$totalPoints = 0.0;
 			$examBySubject = $examMatrix[$studentId] ?? [];
-			$cbcBySubject = $cbcMatrix[$studentId] ?? [];
+			$cbeBySubject = $cbeMatrix[$studentId] ?? [];
 			foreach ($subjectByCombination as $combinationId => $subjectId) {
 				$points = null;
 				if (isset($examBySubject[$combinationId])) {
@@ -1619,8 +1674,8 @@ function report_rank_students(PDO $conn, int $classId, int $termId): array
 						list(, , $gradePoints) = report_grade_for_score($conn, (float)$examRow['score'], report_exam_grading_system_id($conn, (int)($examRow['exam_id'] ?? 0)));
 						$points = (float)$gradePoints;
 					}
-				} elseif (isset($cbcBySubject[$subjectId])) {
-					list(, , $gradePoints) = report_cbc_grade_for_score($conn, (float)$cbcBySubject[$subjectId]);
+				} elseif (isset($cbeBySubject[$subjectId])) {
+					list(, , $gradePoints) = report_cbe_grade_for_score($conn, (float)$cbeBySubject[$subjectId]);
 					$points = (float)$gradePoints;
 				}
 				if ($points !== null) {
@@ -1707,6 +1762,12 @@ function report_load_card(PDO $conn, int $reportId): ?array
 				$subject['class_mean'] = isset($row['class_mean']) ? (float)$row['class_mean'] : ($subject['class_mean'] ?? null);
 				$subject['deviation'] = isset($row['deviation']) ? (float)$row['deviation'] : ($subject['deviation'] ?? null);
 				$subject['trend'] = (string)($row['trend'] ?? ($subject['trend'] ?? '-'));
+				$subject['grade_points'] = isset($row['grade_points']) && $row['grade_points'] !== null && $row['grade_points'] !== ''
+					? (float)$row['grade_points']
+					: ($subject['grade_points'] ?? null);
+				$subject['points'] = isset($row['points']) && $row['points'] !== null && $row['points'] !== ''
+					? (float)$row['points']
+					: ($subject['points'] ?? $subject['grade_points'] ?? null);
 				$subject['remark'] = (string)($row['remark'] ?? ($subject['remark'] ?? ''));
 			}
 			unset($subject);
@@ -1801,6 +1862,9 @@ function report_subject_breakdown(PDO $conn, string $studentId, int $classId, in
 	$subjects = report_fetch_subjects_for_class($conn, $classId);
 	$weights = report_get_weight_map($conn);
 	$settings = report_get_settings($conn);
+	$classGradingSystemId = function_exists('app_class_grading_system_id')
+		? app_class_grading_system_id($conn, $classId)
+		: null;
 	$rows = [];
 	$subjectRankMaps = [];
 	$normalSubjectScores = [];
@@ -1821,8 +1885,8 @@ function report_subject_breakdown(PDO $conn, string $studentId, int $classId, in
 	$previousMeans = [];
 	$currentMatrix = report_exam_result_matrix($conn, $classId, $termId, null);
 	$previousMatrix = $prevTermId > 0 ? report_exam_result_matrix($conn, $classId, $prevTermId, null) : [];
-	$cbcCurrent = report_cbc_score_matrix($conn, $classId, $termId, $subjects, null);
-	$cbcPrevious = $prevTermId > 0 ? report_cbc_score_matrix($conn, $classId, $prevTermId, $subjects, null) : [];
+	$cbeCurrent = report_cbe_score_matrix($conn, $classId, $termId, $subjects, null);
+	$cbePrevious = $prevTermId > 0 ? report_cbe_score_matrix($conn, $classId, $prevTermId, $subjects, null) : [];
 
 	if (!empty($combinationIds)) {
 		foreach ($combinationIds as $combinationId) {
@@ -1878,15 +1942,15 @@ function report_subject_breakdown(PDO $conn, string $studentId, int $classId, in
 		}
 	}
 
-	$cbcCurrentStudent = $cbcCurrent[$studentId] ?? [];
-	$cbcPreviousStudent = $cbcPrevious[$studentId] ?? [];
-	$cbcCurrentClassMeans = [];
-	$cbcRankMaps = [];
-	if (!empty($cbcCurrent)) {
+	$cbeCurrentStudent = $cbeCurrent[$studentId] ?? [];
+	$cbePreviousStudent = $cbePrevious[$studentId] ?? [];
+	$cbeCurrentClassMeans = [];
+	$cbeRankMaps = [];
+	if (!empty($cbeCurrent)) {
 		$sum = [];
 		$cnt = [];
 		$scoresBySubject = [];
-		foreach ($cbcCurrent as $sid => $subjectScores) {
+		foreach ($cbeCurrent as $sid => $subjectScores) {
 			foreach ($subjectScores as $subjectId => $score) {
 				$sum[$subjectId] = (float)($sum[$subjectId] ?? 0) + (float)$score;
 				$cnt[$subjectId] = (int)($cnt[$subjectId] ?? 0) + 1;
@@ -1895,7 +1959,7 @@ function report_subject_breakdown(PDO $conn, string $studentId, int $classId, in
 		}
 		foreach ($sum as $subjectId => $total) {
 			if ((int)$cnt[$subjectId] > 0) {
-				$cbcCurrentClassMeans[$subjectId] = round($total / (int)$cnt[$subjectId], 2);
+				$cbeCurrentClassMeans[$subjectId] = round($total / (int)$cnt[$subjectId], 2);
 			}
 		}
 		foreach ($scoresBySubject as $subjectId => $studentScores) {
@@ -1904,23 +1968,23 @@ function report_subject_breakdown(PDO $conn, string $studentId, int $classId, in
 			$position = 0;
 			$prev = null;
 			$total = count($studentScores);
-			$cbcRankMaps[(int)$subjectId] = [];
+			$cbeRankMaps[(int)$subjectId] = [];
 			foreach ($studentScores as $rowStudentId => $rowScore) {
 				$position++;
 				if ($prev === null || (float)$rowScore !== (float)$prev) {
 					$rank = $position;
 					$prev = (float)$rowScore;
 				}
-				$cbcRankMaps[(int)$subjectId][(string)$rowStudentId] = $rank . '/' . $total;
+				$cbeRankMaps[(int)$subjectId][(string)$rowStudentId] = $rank . '/' . $total;
 			}
 		}
 	}
 
-	$cbcPreviousClassMeans = [];
-	if ($prevTermId > 0 && !empty($cbcPrevious)) {
+	$cbePreviousClassMeans = [];
+	if ($prevTermId > 0 && !empty($cbePrevious)) {
 		$sum = [];
 		$cnt = [];
-		foreach ($cbcPrevious as $sid => $subjectScores) {
+		foreach ($cbePrevious as $sid => $subjectScores) {
 			foreach ($subjectScores as $subjectId => $score) {
 				$sum[$subjectId] = (float)($sum[$subjectId] ?? 0) + (float)$score;
 				$cnt[$subjectId] = (int)($cnt[$subjectId] ?? 0) + 1;
@@ -1928,7 +1992,7 @@ function report_subject_breakdown(PDO $conn, string $studentId, int $classId, in
 		}
 		foreach ($sum as $subjectId => $total) {
 			if ((int)$cnt[$subjectId] > 0) {
-				$cbcPreviousClassMeans[$subjectId] = round($total / (int)$cnt[$subjectId], 2);
+				$cbePreviousClassMeans[$subjectId] = round($total / (int)$cnt[$subjectId], 2);
 			}
 		}
 	}
@@ -1936,36 +2000,55 @@ function report_subject_breakdown(PDO $conn, string $studentId, int $classId, in
 	foreach ($subjects as $subject) {
 		$combinationId = (int)$subject['combination_id'];
 		$subjectId = (int)$subject['subject'];
-		$hasCurrentScore = array_key_exists($combinationId, $currentStudentScores) || array_key_exists($subjectId, $cbcCurrentStudent);
-		$currentScore = $hasCurrentScore ? (float)($currentStudentScores[$combinationId] ?? ($cbcCurrentStudent[$subjectId] ?? 0.0)) : 0.0;
-		$hasPreviousScore = array_key_exists($combinationId, $previousStudentScores) && $previousStudentScores[$combinationId] !== null;
-		if (!$hasPreviousScore && array_key_exists($subjectId, $cbcPreviousStudent)) {
-			$hasPreviousScore = true;
-		}
+		$hasExamCurrentScore = isset($currentMatrix[$studentId][$combinationId]);
+		$hasCbeCurrentScore = array_key_exists($subjectId, $cbeCurrentStudent);
+		$hasCurrentScore = $hasExamCurrentScore || $hasCbeCurrentScore;
+		$currentScore = $hasCurrentScore ? (float)($currentStudentScores[$combinationId] ?? ($cbeCurrentStudent[$subjectId] ?? 0.0)) : 0.0;
+		$hasExamPreviousScore = array_key_exists($combinationId, $previousStudentScores) && $previousStudentScores[$combinationId] !== null;
+		$hasCbePreviousScore = array_key_exists($subjectId, $cbePreviousStudent);
+		$hasPreviousScore = $hasExamPreviousScore || $hasCbePreviousScore;
 		$previousScore = $hasPreviousScore
-			? (float)($previousStudentScores[$combinationId] ?? $cbcPreviousStudent[$subjectId])
+			? (float)($previousStudentScores[$combinationId] ?? $cbePreviousStudent[$subjectId])
 			: null;
-		$classMean = (float)($currentMeans[$combinationId] ?? ($cbcCurrentClassMeans[$subjectId] ?? 0.0));
-		$previousMean = (float)($previousMeans[$combinationId] ?? ($cbcPreviousClassMeans[$subjectId] ?? 0.0));
+		$classMean = (float)($currentMeans[$combinationId] ?? ($cbeCurrentClassMeans[$subjectId] ?? 0.0));
+		$previousMean = (float)($previousMeans[$combinationId] ?? ($cbePreviousClassMeans[$subjectId] ?? 0.0));
 
-		$change = ($hasCurrentScore && $hasPreviousScore)
-			? round($currentScore - (float)$previousScore, 2)
-			: 0.0;
-		if (!$hasCurrentScore) {
-			$trend = '-';
-		} elseif (!$hasPreviousScore) {
-			$trend = 'new';
-		} else {
-			$trend = $change > 0 ? 'up' : ($change < 0 ? 'down' : 'steady');
-		}
 		$weight = (!empty($settings['use_weights']) && isset($weights[(int)$subject['subject']])) ? (float)$weights[(int)$subject['subject']] : 1.0;
+		$gradePoints = null;
+		$previousGradePoints = null;
+		$classMeanPoints = null;
 		if ($hasCurrentScore) {
-			list($grade, $remark) = report_grade_for_score($conn, $currentScore);
+			if ($hasExamCurrentScore) {
+				list($grade, $remark, $gradePoints) = report_grade_for_score($conn, $currentScore, $classGradingSystemId);
+				list(, , $classMeanPoints) = report_grade_for_score($conn, $classMean, $classGradingSystemId);
+			} else {
+				list($grade, $remark, $gradePoints) = report_cbe_grade_for_score($conn, $currentScore);
+				list(, , $classMeanPoints) = report_cbe_grade_for_score($conn, $classMean);
+			}
 		} else {
 			$grade = 'N/A';
 			$remark = 'No marks entered';
 		}
-		$deviation = round($currentScore - $classMean, 2);
+		if ($hasPreviousScore) {
+			if ($hasExamPreviousScore) {
+				list(, , $previousGradePoints) = report_grade_for_score($conn, (float)$previousScore, $classGradingSystemId);
+			} else {
+				list(, , $previousGradePoints) = report_cbe_grade_for_score($conn, (float)$previousScore);
+			}
+		}
+		$change = ($gradePoints !== null && $previousGradePoints !== null)
+			? round((float)$gradePoints - (float)$previousGradePoints, 2)
+			: 0.0;
+		if (!$hasCurrentScore) {
+			$trend = '-';
+		} elseif ($previousGradePoints === null) {
+			$trend = 'new';
+		} else {
+			$trend = $change > 0 ? 'up' : ($change < 0 ? 'down' : 'steady');
+		}
+		$deviation = ($gradePoints !== null && $classMeanPoints !== null)
+			? round((float)$gradePoints - (float)$classMeanPoints, 2)
+			: null;
 		$rankLabel = isset($subjectRankMaps[$combinationId][$studentId])
 			? (string)$subjectRankMaps[$combinationId][$studentId]
 			: '-';
@@ -2015,13 +2098,14 @@ function report_subject_breakdown(PDO $conn, string $studentId, int $classId, in
 			'deviation' => $deviation,
 			'rank' => $rankLabel,
 			'position' => $rankLabel,
-			'previous_mean' => $previousScore ?? 0.0,
+			'previous_mean' => $previousGradePoints ?? 0.0,
 			'previous_score' => $previousScore,
 			'change' => $change,
 			'trend' => $trend,
 			'grade' => $grade,
-				'remark' => $remark,
-				'points' => report_grade_points_from_label((string)$grade),
+			'grade_points' => $gradePoints !== null ? (float)$gradePoints : null,
+			'points' => $gradePoints !== null ? (float)$gradePoints : report_grade_points_from_label((string)$grade),
+			'remark' => $remark,
 			'ai_comment' => $aiSubjectComment,
 			'weight' => $weight,
 			'progress' => max(0, min(100, $classMean)),
@@ -2031,14 +2115,16 @@ function report_subject_breakdown(PDO $conn, string $studentId, int $classId, in
 	return $rows;
 }
 
-function report_store_card(PDO $conn, string $studentId, int $classId, int $termId, array $report, array $positions, int $totalStudents, ?int $generatedBy = null): int
+function report_store_card(PDO $conn, string $studentId, int $classId, int $termId, array $report, array $positions, int $totalStudents, ?int $generatedBy = null, int $examId = 0): int
 {
+	report_ensure_exam_batch_schema($conn);
 	$position = $positions[$studentId] ?? 0;
 	$code = report_generate_code($studentId);
 	$payload = [
 		'student_id' => $studentId,
 		'class_id' => $classId,
 		'term_id' => $termId,
+		'exam_id' => $examId > 0 ? $examId : 0,
 		'total' => $report['total'],
 		'mean' => $report['mean'],
 		'grade' => $report['grade'],
@@ -2047,50 +2133,94 @@ function report_store_card(PDO $conn, string $studentId, int $classId, int $term
 	$hash = report_generate_hash($payload);
 	$trend = $report['trend'];
 
-	$stmt = $conn->prepare("SELECT id, verification_code FROM tbl_report_cards WHERE student_id = ? AND term_id = ? LIMIT 1");
-	$stmt->execute([$studentId, $termId]);
-	$existing = $stmt->fetch(PDO::FETCH_ASSOC);
-	$reportId = 0;
+	$reportId = report_find_card_id($conn, $studentId, $termId, $examId);
+	$existing = null;
+	if ($reportId > 0) {
+		$stmt = $conn->prepare("SELECT id, verification_code FROM tbl_report_cards WHERE id = ? LIMIT 1");
+		$stmt->execute([$reportId]);
+		$existing = $stmt->fetch(PDO::FETCH_ASSOC);
+	}
 	if ($existing) {
 		$reportId = (int)$existing['id'];
 		$existingCode = trim((string)($existing['verification_code'] ?? ''));
 		if ($existingCode === '') {
 			$existingCode = $code;
 		}
-		$stmt = $conn->prepare("UPDATE tbl_report_cards
-			SET total = ?, mean = ?, grade = ?, remark = ?, position = ?, total_students = ?, trend = ?, report_hash = ?, verification_code = ?, generated_by = ?, generated_at = CURRENT_TIMESTAMP
-			WHERE id = ?");
-		$stmt->execute([
-			$report['total'],
-			$report['mean'],
-			$report['grade'],
-			$report['remark'],
-			$position,
-			$totalStudents,
-			$trend,
-			$hash,
-			$existingCode,
-			$generatedBy,
-			$reportId
-		]);
+		if (app_column_exists($conn, 'tbl_report_cards', 'exam_id')) {
+			$stmt = $conn->prepare("UPDATE tbl_report_cards
+				SET total = ?, mean = ?, grade = ?, remark = ?, position = ?, total_students = ?, trend = ?, report_hash = ?, verification_code = ?, generated_by = ?, exam_id = ?, generated_at = CURRENT_TIMESTAMP
+				WHERE id = ?");
+			$stmt->execute([
+				$report['total'],
+				$report['mean'],
+				$report['grade'],
+				$report['remark'],
+				$position,
+				$totalStudents,
+				$trend,
+				$hash,
+				$existingCode,
+				$generatedBy,
+				$examId > 0 ? $examId : null,
+				$reportId
+			]);
+		} else {
+			$stmt = $conn->prepare("UPDATE tbl_report_cards
+				SET total = ?, mean = ?, grade = ?, remark = ?, position = ?, total_students = ?, trend = ?, report_hash = ?, verification_code = ?, generated_by = ?, generated_at = CURRENT_TIMESTAMP
+				WHERE id = ?");
+			$stmt->execute([
+				$report['total'],
+				$report['mean'],
+				$report['grade'],
+				$report['remark'],
+				$position,
+				$totalStudents,
+				$trend,
+				$hash,
+				$existingCode,
+				$generatedBy,
+				$reportId
+			]);
+		}
 	} else {
-		$stmt = $conn->prepare("INSERT INTO tbl_report_cards (student_id, class_id, term_id, total, mean, grade, remark, position, total_students, trend, verification_code, report_hash, generated_by)
-			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)");
-		$stmt->execute([
-			$studentId,
-			$classId,
-			$termId,
-			$report['total'],
-			$report['mean'],
-			$report['grade'],
-			$report['remark'],
-			$position,
-			$totalStudents,
-			$trend,
-			$code,
-			$hash,
-			$generatedBy
-		]);
+		if (app_column_exists($conn, 'tbl_report_cards', 'exam_id')) {
+			$stmt = $conn->prepare("INSERT INTO tbl_report_cards (student_id, class_id, term_id, exam_id, total, mean, grade, remark, position, total_students, trend, verification_code, report_hash, generated_by)
+				VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+			$stmt->execute([
+				$studentId,
+				$classId,
+				$termId,
+				$examId > 0 ? $examId : null,
+				$report['total'],
+				$report['mean'],
+				$report['grade'],
+				$report['remark'],
+				$position,
+				$totalStudents,
+				$trend,
+				$code,
+				$hash,
+				$generatedBy
+			]);
+		} else {
+			$stmt = $conn->prepare("INSERT INTO tbl_report_cards (student_id, class_id, term_id, total, mean, grade, remark, position, total_students, trend, verification_code, report_hash, generated_by)
+				VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)");
+			$stmt->execute([
+				$studentId,
+				$classId,
+				$termId,
+				$report['total'],
+				$report['mean'],
+				$report['grade'],
+				$report['remark'],
+				$position,
+				$totalStudents,
+				$trend,
+				$code,
+				$hash,
+				$generatedBy
+			]);
+		}
 		$reportId = (int)$conn->lastInsertId();
 	}
 
@@ -2113,15 +2243,14 @@ function report_store_card(PDO $conn, string $studentId, int $classId, int $term
 	return $reportId;
 }
 
-function report_ensure_card_generated(PDO $conn, string $studentId, int $classId, int $termId, ?int $generatedBy = null): ?array
+function report_ensure_card_generated(PDO $conn, string $studentId, int $classId, int $termId, ?int $generatedBy = null, int $examId = 0): ?array
 {
+	report_ensure_exam_batch_schema($conn);
 	if (!app_table_exists($conn, 'tbl_report_cards') || !report_term_is_published($conn, $classId, $termId)) {
 		return null;
 	}
 
-	$stmt = $conn->prepare("SELECT id FROM tbl_report_cards WHERE student_id = ? AND term_id = ? LIMIT 1");
-	$stmt->execute([$studentId, $termId]);
-	$reportId = (int)$stmt->fetchColumn();
+	$reportId = report_find_card_id($conn, $studentId, $termId, $examId);
 	if ($reportId > 0) {
 		$card = report_load_card($conn, $reportId);
 		if ($card && !empty($card['subjects'])) {
@@ -2149,7 +2278,7 @@ function report_ensure_card_generated(PDO $conn, string $studentId, int $classId
 
 	$rankData = report_rank_students($conn, $classId, $termId);
 	$report = report_compute_for_student($conn, $studentId, $classId, $termId);
-	$reportId = report_store_card($conn, $studentId, $classId, $termId, $report, $rankData['positions'], (int)$rankData['total_students'], $generatedBy);
+	$reportId = report_store_card($conn, $studentId, $classId, $termId, $report, $rankData['positions'], (int)$rankData['total_students'], $generatedBy, $examId);
 	return report_load_card($conn, $reportId);
 }
 
@@ -2209,17 +2338,20 @@ function report_get_student_identity(PDO $conn, string $studentId): ?array
 	];
 }
 
-function report_class_merit_list(PDO $conn, int $classId, int $termId, ?int $generatedBy = null): array
+function report_class_merit_list(PDO $conn, int $classId, int $termId, ?int $generatedBy = null, int $examId = 0): array
 {
+	report_ensure_exam_batch_schema($conn);
 	if ($classId < 1 || $termId < 1 || !app_table_exists($conn, 'tbl_students') || !app_table_exists($conn, 'tbl_report_cards')) {
 		return [
 			'rows' => [],
 			'total_students' => 0,
 			'positions' => [],
+			'subjects' => [],
 		];
 	}
 
-	$stmt = $conn->prepare("SELECT id, school_id, fname, mname, lname FROM tbl_students WHERE class = ? ORDER BY fname, lname, id");
+	$subjects = report_fetch_subjects_for_class($conn, $classId);
+	$stmt = $conn->prepare("SELECT id, school_id, fname, mname, lname, gender FROM tbl_students WHERE class = ? ORDER BY fname, lname, id");
 	$stmt->execute([$classId]);
 	$studentRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	if (!$studentRows) {
@@ -2227,6 +2359,7 @@ function report_class_merit_list(PDO $conn, int $classId, int $termId, ?int $gen
 			'rows' => [],
 			'total_students' => 0,
 			'positions' => [],
+			'subjects' => $subjects,
 		];
 	}
 	$studentIds = array_map(static function ($row) {
@@ -2243,6 +2376,7 @@ function report_class_merit_list(PDO $conn, int $classId, int $termId, ?int $gen
 			'school_id' => (string)($studentRow['school_id'] ?? ''),
 			'name' => trim((string)($studentRow['fname'] ?? '') . ' ' . (string)($studentRow['mname'] ?? '') . ' ' . (string)($studentRow['lname'] ?? '')),
 			'class_name' => $className,
+			'gender' => (string)($studentRow['gender'] ?? ''),
 		];
 	}
 
@@ -2250,28 +2384,57 @@ function report_class_merit_list(PDO $conn, int $classId, int $termId, ?int $gen
 	$rows = [];
 	foreach ($studentIds as $studentId) {
 		$report = report_compute_for_student($conn, $studentId, $classId, $termId);
-		$reportId = report_store_card($conn, $studentId, $classId, $termId, $report, $rankData['positions'], (int)$rankData['total_students'], $generatedBy);
+		$breakdown = report_subject_breakdown($conn, $studentId, $classId, $termId);
+		$subjectScores = [];
+		$subjectGrades = [];
+		$subjectLookup = [];
+		foreach ($breakdown as $subjectRow) {
+			$subjectLookup[(int)($subjectRow['subject_id'] ?? 0)] = $subjectRow;
+		}
+		foreach ($subjects as $subjectMeta) {
+			$subjectId = (int)($subjectMeta['subject'] ?? 0);
+			$subjectRow = $subjectLookup[$subjectId] ?? null;
+			$scoreValue = null;
+			$gradeValue = '';
+			if (is_array($subjectRow)) {
+				if (isset($subjectRow['points']) && $subjectRow['points'] !== null && $subjectRow['points'] !== '') {
+					$scoreValue = (float)$subjectRow['points'];
+				} elseif (isset($subjectRow['grade_points']) && $subjectRow['grade_points'] !== null && $subjectRow['grade_points'] !== '') {
+					$scoreValue = (float)$subjectRow['grade_points'];
+				} elseif (isset($subjectRow['score']) && $subjectRow['score'] !== null && $subjectRow['score'] !== '') {
+					$scoreValue = (float)$subjectRow['score'];
+				}
+				$gradeValue = (string)($subjectRow['grade'] ?? '');
+			}
+			$subjectScores[$subjectId] = $scoreValue;
+			$subjectGrades[$subjectId] = $gradeValue;
+		}
+		$reportId = report_store_card($conn, $studentId, $classId, $termId, $report, $rankData['positions'], (int)$rankData['total_students'], $generatedBy, $examId);
 		$stmt = $conn->prepare("SELECT verification_code FROM tbl_report_cards WHERE id = ? LIMIT 1");
 		$stmt->execute([$reportId]);
 		$verificationCode = (string)$stmt->fetchColumn();
-		$identity = $identityMap[$studentId] ?? ['school_id' => '', 'name' => '', 'class_name' => $className];
+		$identity = $identityMap[$studentId] ?? ['school_id' => '', 'name' => '', 'class_name' => $className, 'gender' => ''];
 			$rows[] = [
 				'report_id' => $reportId,
 				'student_id' => $studentId,
 				'school_id' => (string)($identity['school_id'] ?? ''),
 				'student_name' => (string)($identity['name'] ?? ''),
+				'gender' => (string)($identity['gender'] ?? ''),
 				'class_name' => (string)($identity['class_name'] ?? ''),
 				'position' => (int)($rankData['positions'][$studentId] ?? 0),
+				'position_text' => ((int)($rankData['positions'][$studentId] ?? 0)) . '/' . (int)$rankData['total_students'],
 				'total_students' => (int)$rankData['total_students'],
 				'total' => (float)($report['total'] ?? 0),
 				'mean' => (float)($report['mean'] ?? 0),
 				'total_points' => (float)($report['total_points'] ?? 0),
 				'mean_points' => (float)($report['mean_points'] ?? 0),
-				'cbc_band' => (string)($report['grade'] ?? ''),
+				'cbe_band' => (string)($report['grade'] ?? ''),
 				'grade' => (string)($report['grade'] ?? ''),
 				'remark' => (string)($report['remark'] ?? ''),
 				'trend' => (string)($report['trend'] ?? ''),
 				'verification_code' => $verificationCode,
+				'subject_scores' => $subjectScores,
+				'subject_grades' => $subjectGrades,
 			];
 		}
 
@@ -2289,5 +2452,6 @@ function report_class_merit_list(PDO $conn, int $classId, int $termId, ?int $gen
 		'rows' => $rows,
 		'total_students' => count($studentIds),
 		'positions' => $rankData['positions'],
+		'subjects' => $subjects,
 	];
 }

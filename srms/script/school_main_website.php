@@ -5,7 +5,7 @@ require_once('const/public_media.php');
 
 $schoolName = (defined('WBName') && trim((string)WBName) !== '') ? (string)WBName : (defined('APP_NAME') && trim((string)APP_NAME) !== '' ? (string)APP_NAME : 'ELIMU HUB');
 $schoolLogo = (defined('WBLogo') && trim((string)WBLogo) !== '') ? 'images/logo/' . trim((string)WBLogo) : 'images/logo/school_logo1711003619.png';
-$schoolMotto = 'Nurturing Excellence Through CBC Education';
+$schoolMotto = 'Nurturing Excellence Through CBE Education';
 $schoolTagline = 'A trusted learning community shaping future-ready leaders.';
 $schoolLocation = 'Kiunduani, Kibwezi West';
 $schoolMapUrl = 'https://maps.app.goo.gl/fqhaetnW4G6hBmHs7';
@@ -14,7 +14,7 @@ $schoolEmail = (defined('WBEmail') && trim((string)WBEmail) !== '') ? (string)WB
 $portalLoginHref = 'index.php';
 $learnerElearningLoginHref = 'index.php?redirect_to=elearning';
 
-$aboutText = $schoolName . ' is a learning institution in ' . $schoolLocation . ' committed to quality CBC education. We nurture every learner through academic excellence, character development, creativity, and practical life skills.';
+$aboutText = $schoolName . ' is a learning institution in ' . $schoolLocation . ' committed to quality CBE education. We nurture every learner through academic excellence, character development, creativity, and practical life skills.';
 $visionText = 'To develop responsible, skilled, and confident learners for tomorrow.';
 $missionText = 'To deliver inclusive, learner-centered education through strong teaching, mentorship, and community partnership.';
 $coreValues = 'Integrity, Discipline, Respect, Teamwork, and Excellence.';
@@ -101,7 +101,7 @@ if (isset($conn) && $conn instanceof PDO) {
 
 $captions = array(
 	'A Conducive Learning Environment',
-	'CBC Learning in Action',
+	'CBE Learning in Action',
 	'Developing Future Leaders',
 	'Modern Classrooms',
 	'Sports and Co-curricular Activities',

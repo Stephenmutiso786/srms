@@ -16,7 +16,7 @@ $settings = [
 ];
 $subjects = [];
 $weights = [];
-$cbcGrading = [];
+$cbeGrading = [];
 $appSettings = [
 	'school_motto' => '',
 	'school_code' => '',
@@ -29,10 +29,15 @@ $appSettings = [
 	'current_session_label' => 'January ' . date('Y') . ' - December ' . date('Y'),
 	'session_start_date' => date('Y-01-01'),
 	'session_end_date' => date('Y-12-31'),
+	'auto_promotion_enabled' => '0',
+	'promotion_review_start_date' => '',
+	'promotion_finalization_date' => '',
+	'promotion_auto_last_generated_year' => '',
+	'promotion_auto_last_generated_at' => '',
 	'current_term_id' => '',
 	'admission_start_number' => '1',
 	'ranking_enabled' => '1',
-	'cbc_public_ranking_enabled' => '0',
+	'cbe_public_ranking_enabled' => '0',
 	'allow_mark_adjustments' => '1',
 	'require_review_before_finalizing' => '1',
 	'block_finalization_on_missing_marks' => '1',
@@ -51,7 +56,7 @@ $appSettings = [
 	'top_banner_text' => '',
 	'maintenance_mode_enabled' => '0',
 	'maintenance_mode_message' => 'System is under maintenance. Please try again later.',
-	'public_school_motto' => 'Nurturing Excellence Through CBC Education',
+	'public_school_motto' => 'Nurturing Excellence Through CBE Education',
 	'public_school_tagline' => 'A trusted learning community shaping future-ready leaders.',
 	'public_school_location' => 'Kiunduani, Kibwezi West',
 	'public_school_location_map_url' => 'https://maps.app.goo.gl/fqhaetnW4G6hBmHs7',
@@ -78,6 +83,10 @@ try {
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 	app_ensure_current_mode_mysql_schema($conn);
 	app_ensure_overall_grading_defaults($conn);
+	app_ensure_promotion_workflow_schema($conn);
+	if (!empty($account_id)) {
+		app_auto_prepare_year_end_promotions($conn, (int)$account_id);
+	}
 
 	if (app_table_exists($conn, 'tbl_result_settings')) {
 		$stmt = $conn->prepare("SELECT best_of, use_weights, require_fees_clear FROM tbl_result_settings ORDER BY id DESC LIMIT 1");
@@ -102,10 +111,10 @@ try {
 		}
 	}
 
-	if (app_table_exists($conn, 'tbl_cbc_grading')) {
-		$stmt = $conn->prepare("SELECT id, level, min_mark, max_mark, points, sort_order, active FROM tbl_cbc_grading ORDER BY sort_order, min_mark DESC");
+	if (app_table_exists($conn, 'tbl_cbe_grading')) {
+		$stmt = $conn->prepare("SELECT id, level, min_mark, max_mark, points, sort_order, active FROM tbl_cbe_grading ORDER BY sort_order, min_mark DESC");
 		$stmt->execute();
-		$cbcGrading = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		$cbeGrading = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
 
 	$stmt = $conn->prepare("SELECT id, name FROM tbl_terms ORDER BY id");
@@ -131,17 +140,16 @@ try {
 	// defaults only
 }
 
-if (count($cbcGrading) < 1) {
-	$cbcGrading = [
+if (count($cbeGrading) < 1) {
+	$cbeGrading = [
 		['id' => 0, 'level' => 'EE1', 'min_mark' => 90, 'max_mark' => 100, 'points' => 8, 'sort_order' => 1, 'active' => 1],
-		['id' => 0, 'level' => 'EE2', 'min_mark' => 75, 'max_mark' => 89, 'points' => 7, 'sort_order' => 2, 'active' => 1],
-		['id' => 0, 'level' => 'ME1', 'min_mark' => 58, 'max_mark' => 74, 'points' => 6, 'sort_order' => 3, 'active' => 1],
-		['id' => 0, 'level' => 'ME2', 'min_mark' => 41, 'max_mark' => 57, 'points' => 5, 'sort_order' => 4, 'active' => 1],
-		['id' => 0, 'level' => 'AE1', 'min_mark' => 31, 'max_mark' => 40, 'points' => 4, 'sort_order' => 5, 'active' => 1],
-		['id' => 0, 'level' => 'AE2', 'min_mark' => 21, 'max_mark' => 30, 'points' => 3, 'sort_order' => 6, 'active' => 1],
-		['id' => 0, 'level' => 'BE1', 'min_mark' => 11, 'max_mark' => 20, 'points' => 2, 'sort_order' => 7, 'active' => 1],
-		['id' => 0, 'level' => 'BE2', 'min_mark' => 1, 'max_mark' => 10, 'points' => 1, 'sort_order' => 8, 'active' => 1],
-		['id' => 0, 'level' => 'BE2', 'min_mark' => 0, 'max_mark' => 0, 'points' => 0, 'sort_order' => 9, 'active' => 1],
+		['id' => 0, 'level' => 'EE2', 'min_mark' => 75, 'max_mark' => 89.99, 'points' => 7, 'sort_order' => 2, 'active' => 1],
+		['id' => 0, 'level' => 'ME1', 'min_mark' => 58, 'max_mark' => 74.99, 'points' => 6, 'sort_order' => 3, 'active' => 1],
+		['id' => 0, 'level' => 'ME2', 'min_mark' => 41, 'max_mark' => 57.99, 'points' => 5, 'sort_order' => 4, 'active' => 1],
+		['id' => 0, 'level' => 'AE1', 'min_mark' => 31, 'max_mark' => 40.99, 'points' => 4, 'sort_order' => 5, 'active' => 1],
+		['id' => 0, 'level' => 'AE2', 'min_mark' => 21, 'max_mark' => 30.99, 'points' => 3, 'sort_order' => 6, 'active' => 1],
+		['id' => 0, 'level' => 'BE1', 'min_mark' => 11, 'max_mark' => 20.99, 'points' => 2, 'sort_order' => 7, 'active' => 1],
+		['id' => 0, 'level' => 'BE2', 'min_mark' => 0, 'max_mark' => 10.99, 'points' => 1, 'sort_order' => 8, 'active' => 1],
 	];
 }
 ?>
@@ -230,7 +238,7 @@ if (count($cbcGrading) < 1) {
 
 <div class="form-group mb-3">
 <label class="control-label">Captions (optional, one caption per line)</label>
-<textarea class="form-control" name="showcase_captions" rows="4" placeholder="Modern Classrooms&#10;CBC Learning in Action&#10;Co-curricular Activities"></textarea>
+<textarea class="form-control" name="showcase_captions" rows="4" placeholder="Modern Classrooms&#10;CBE Learning in Action&#10;Co-curricular Activities"></textarea>
 </div>
 
 <div class="form-check mb-2">
@@ -502,12 +510,35 @@ if (count($cbcGrading) < 1) {
 <input class="form-control" type="date" name="settings[session_end_date]" value="<?php echo htmlspecialchars($appSettings['session_end_date']); ?>">
 </div>
 <div class="col-md-4 mb-3">
+<label class="form-label">Auto Promotion After Year End</label>
+<select class="form-control" name="settings[auto_promotion_enabled]">
+<option value="1" <?php echo $appSettings['auto_promotion_enabled'] === '1' ? 'selected' : ''; ?>>Yes</option>
+<option value="0" <?php echo $appSettings['auto_promotion_enabled'] === '0' ? 'selected' : ''; ?>>No</option>
+</select>
+</div>
+<div class="col-md-4 mb-3">
+<label class="form-label">Promotion Review Start Date</label>
+<input class="form-control" type="date" name="settings[promotion_review_start_date]" value="<?php echo htmlspecialchars($appSettings['promotion_review_start_date']); ?>">
+</div>
+<div class="col-md-4 mb-3">
+<label class="form-label">Promotion Finalization Date</label>
+<input class="form-control" type="date" name="settings[promotion_finalization_date]" value="<?php echo htmlspecialchars($appSettings['promotion_finalization_date']); ?>">
+</div>
+<div class="col-md-4 mb-3">
 <label class="form-label">Admission Start Number</label>
 <input class="form-control" type="number" min="1" name="settings[admission_start_number]" value="<?php echo htmlspecialchars($appSettings['admission_start_number']); ?>">
 </div>
 <div class="col-md-12 mb-3">
 <div class="alert alert-info mb-0">
 Manage school terms directly from <a href="admin/terms">Academic Terms</a>. Current term and academic session values here are used across exams, admissions, and timetable planning.
+</div>
+</div>
+<div class="col-md-12 mb-3">
+<div class="alert alert-warning mb-0">
+<strong>Auto promotion flow:</strong> When the academic year end date passes, the system will automatically create year-end promotion batches for classes with active students. Headteacher or Deputy reviews them first, then Super Admin completes the final promotion.
+<?php if (trim((string)$appSettings['promotion_auto_last_generated_at']) !== ''): ?>
+Last auto-generation: <strong><?php echo htmlspecialchars((string)$appSettings['promotion_auto_last_generated_at']); ?></strong>.
+<?php endif; ?>
 </div>
 </div>
 <div class="col-md-4 mb-3">
@@ -522,10 +553,10 @@ Manage school terms directly from <a href="admin/terms">Academic Terms</a>. Curr
 </select>
 </div>
 <div class="col-md-3 mb-3">
-<label class="form-label">CBC Public Ranking</label>
-<select class="form-control" name="settings[cbc_public_ranking_enabled]">
-<option value="1" <?php echo $appSettings['cbc_public_ranking_enabled'] === '1' ? 'selected' : ''; ?>>Yes</option>
-<option value="0" <?php echo $appSettings['cbc_public_ranking_enabled'] === '0' ? 'selected' : ''; ?>>No</option>
+<label class="form-label">CBE Public Ranking</label>
+<select class="form-control" name="settings[cbe_public_ranking_enabled]">
+<option value="1" <?php echo $appSettings['cbe_public_ranking_enabled'] === '1' ? 'selected' : ''; ?>>Yes</option>
+<option value="0" <?php echo $appSettings['cbe_public_ranking_enabled'] === '0' ? 'selected' : ''; ?>>No</option>
 </select>
 </div>
 <div class="col-md-3 mb-3">
@@ -642,7 +673,7 @@ Manage school terms directly from <a href="admin/terms">Academic Terms</a>. Curr
 <input type="hidden" name="grading_system_id" value="0">
 <div class="row">
 <div class="col-md-4 mb-3"><label class="form-label">System Name</label><input class="form-control" name="name" required placeholder="Overall Grading System" value="Overall Grading System"></div>
-<div class="col-md-2 mb-3"><label class="form-label">Type</label><select class="form-control" name="type"><option value="cbc" selected>CBC</option><option value="marks">Marks</option></select></div>
+<div class="col-md-2 mb-3"><label class="form-label">Type</label><select class="form-control" name="type"><option value="cbe" selected>CBE</option><option value="marks">Marks</option></select></div>
 <div class="col-md-4 mb-3"><label class="form-label">Description</label><input class="form-control" name="description" placeholder="System-wide default competency grading" value="System-wide default competency grading"></div>
 <div class="col-md-2 mb-3"><label class="form-label">Default</label><select class="form-control" name="is_default"><option value="1" selected>Yes</option><option value="0">No</option></select></div>
 <div class="col-md-12">
@@ -675,7 +706,7 @@ Manage school terms directly from <a href="admin/terms">Academic Terms</a>. Curr
 <input type="hidden" name="grading_system_id" value="<?php echo (int)$system['id']; ?>">
 <div class="row">
 <div class="col-md-3 mb-3"><label class="form-label">System Name</label><input class="form-control" name="name" value="<?php echo htmlspecialchars($system['name']); ?>" required></div>
-<div class="col-md-2 mb-3"><label class="form-label">Type</label><select class="form-control" name="type"><option value="marks" <?php echo $system['type'] === 'marks' ? 'selected' : ''; ?>>Marks</option><option value="cbc" <?php echo $system['type'] === 'cbc' ? 'selected' : ''; ?>>CBC</option></select></div>
+<div class="col-md-2 mb-3"><label class="form-label">Type</label><select class="form-control" name="type"><option value="marks" <?php echo $system['type'] === 'marks' ? 'selected' : ''; ?>>Marks</option><option value="cbe" <?php echo $system['type'] === 'cbe' ? 'selected' : ''; ?>>CBE</option></select></div>
 <div class="col-md-5 mb-3"><label class="form-label">Description</label><input class="form-control" name="description" value="<?php echo htmlspecialchars((string)($system['description'] ?? '')); ?>"></div>
 <div class="col-md-2 mb-3"><label class="form-label">Active / Default</label><div class="d-flex gap-2"><select class="form-control" name="is_active"><option value="1" <?php echo (int)$system['is_active'] === 1 ? 'selected' : ''; ?>>Active</option><option value="0" <?php echo (int)$system['is_active'] === 0 ? 'selected' : ''; ?>>Inactive</option></select><select class="form-control" name="is_default"><option value="0" <?php echo (int)$system['is_default'] === 0 ? 'selected' : ''; ?>>Normal</option><option value="1" <?php echo (int)$system['is_default'] === 1 ? 'selected' : ''; ?>>Default</option></select></div></div>
 <div class="col-md-12">
@@ -710,9 +741,9 @@ Manage school terms directly from <a href="admin/terms">Academic Terms</a>. Curr
 <div class="row">
 <div class="col-md-12">
 <div class="tile">
-<h3 class="tile-title">CBC Grading Bands (Marks → Levels)</h3>
-<p class="text-muted">These default CBC bands are now aligned with the Overall Grading System and used across the system.</p>
-<form class="app_frm" action="admin/core/save_cbc_grading" method="POST">
+<h3 class="tile-title">CBE Grading Bands (Marks → Levels)</h3>
+<p class="text-muted">These default CBE bands are now aligned with the Overall Grading System and used across the system.</p>
+<form class="app_frm" action="admin/core/save_cbe_grading" method="POST">
 <input type="hidden" name="return" value="system">
 <div class="table-responsive">
 <table class="table table-hover">
@@ -727,7 +758,7 @@ Manage school terms directly from <a href="admin/terms">Academic Terms</a>. Curr
 </tr>
 </thead>
 <tbody>
-<?php foreach ($cbcGrading as $row): ?>
+<?php foreach ($cbeGrading as $row): ?>
 <tr>
 <td>
 <input type="hidden" name="id[]" value="<?php echo (int)$row['id']; ?>">
@@ -748,9 +779,9 @@ Manage school terms directly from <a href="admin/terms">Academic Terms</a>. Curr
 </tbody>
 </table>
 </div>
-<button class="btn btn-primary app_btn">Save CBC Grading</button>
+<button class="btn btn-primary app_btn">Save CBE Grading</button>
 </form>
-<div class="text-muted mt-2">These bands are used for marks-based entry and automatic CBC level mapping.</div>
+<div class="text-muted mt-2">These bands are used for marks-based entry and automatic CBE level mapping.</div>
 </div>
 </div>
 </div>

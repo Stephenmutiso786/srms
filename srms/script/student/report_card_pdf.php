@@ -25,7 +25,7 @@ try {
         exit;
     }
 
-    $card = report_ensure_card_generated($conn, $studentId, (int)$class, $termId);
+    $card = report_ensure_card_generated($conn, $studentId, (int)$class, $termId, null, $examId);
     if (!$card) {
         header('location:report_card?term=' . $termId);
         exit;

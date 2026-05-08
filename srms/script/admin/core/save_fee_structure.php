@@ -3,11 +3,14 @@ chdir('../../');
 session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
+require_once('const/rbac.php');
 
-if (!isset($res) || $res !== "1" || !isset($level) || ($level !== "0" && $level !== "5")) {
+if (!isset($res) || $res !== "1" || !isset($level)) {
 	header("location:../../");
 	exit;
 }
+$portalHome = ((string)$level === '5') ? '../../accountant' : '../fee_structure';
+app_require_permission('finance.manage', $portalHome);
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 	header("location:../fee_structure");

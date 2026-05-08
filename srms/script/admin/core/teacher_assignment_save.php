@@ -52,6 +52,12 @@ try {
 		throw new RuntimeException("Teacher assignment table not installed. Run migrations.");
 	}
 
+	$teacherCheck = $conn->prepare("SELECT id FROM tbl_staff WHERE id = ? AND COALESCE(status, 1) = 1 AND COALESCE(level, '') IN ('0', '1', '2') LIMIT 1");
+	$teacherCheck->execute([$teacherId]);
+	if (!$teacherCheck->fetchColumn()) {
+		throw new RuntimeException("Select a valid instructional staff account for subject allocation.");
+	}
+
 	if ($assignmentId > 0) {
 		if (count($subjectIds) !== 1) {
 			throw new RuntimeException("Select exactly one subject when editing an existing allocation.");

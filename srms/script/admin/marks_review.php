@@ -4,12 +4,13 @@ session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/rbac.php');
-if ($res != "1" || $level != "0") { header("location:../"); }
-app_require_permission('marks.review', 'admin');
-app_require_unlocked('exams', 'admin');
+if ($res !== "1") { header("location:../"); exit; }
+$portalHome = ((string)$level === '1') ? 'academic' : 'admin';
+app_require_permission('marks.review', $portalHome);
+app_require_unlocked('exams', $portalHome);
 
 $examSubmissions = [];
-$cbcSubmissions = [];
+$cbeSubmissions = [];
 
 try {
 	$conn = app_db();
@@ -29,15 +30,15 @@ try {
 		$examSubmissions = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
 
-	if (app_table_exists($conn, 'tbl_cbc_mark_submissions')) {
+	if (app_table_exists($conn, 'tbl_cbe_mark_submissions')) {
 		$stmt = $conn->prepare("SELECT s.*, c.name AS class_name, t.name AS term_name, sb.name AS subject_name
-			FROM tbl_cbc_mark_submissions s
+			FROM tbl_cbe_mark_submissions s
             LEFT JOIN tbl_classes c ON c.id = s.class_id
 			LEFT JOIN tbl_terms t ON t.id = s.term_id
 			LEFT JOIN tbl_subjects sb ON sb.id = s.subject_id
       ORDER BY (s.submitted_at IS NULL) ASC, s.submitted_at DESC, s.id DESC");
 		$stmt->execute();
-		$cbcSubmissions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		$cbeSubmissions = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
 } catch (Throwable $e) {
 	$_SESSION['reply'] = array (array("danger", "Failed to load marks submissions."));
@@ -121,7 +122,7 @@ try {
 </div>
 
 <div class="tile">
-<h3 class="tile-title">CBC Marks Submissions</h3>
+<h3 class="tile-title">CBE Marks Submissions</h3>
 <div class="table-responsive">
 <table class="table table-hover">
 <thead>
@@ -130,7 +131,7 @@ try {
 </tr>
 </thead>
 <tbody>
-<?php foreach ($cbcSubmissions as $row): ?>
+<?php foreach ($cbeSubmissions as $row): ?>
 <tr>
 <td><?php echo htmlspecialchars($row['class_name'] ?? ''); ?></td>
 <td><?php echo htmlspecialchars($row['subject_name'] ?? ''); ?></td>
@@ -139,14 +140,14 @@ try {
 <td><?php echo htmlspecialchars($row['submitted_at'] ?? ''); ?></td>
 <td class="d-flex gap-2 flex-wrap">
   <?php if ($row['status'] === 'submitted') { ?>
-    <form method="POST" action="admin/core/approve_cbc_marks">
+    <form method="POST" action="admin/core/approve_cbe_marks">
       <input type="hidden" name="submission_id" value="<?php echo (int)$row['id']; ?>">
       <button class="btn btn-sm btn-success">Approve</button>
     </form>
-    <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#rejectCBCModal" data-submission-id="<?php echo (int)$row['id']; ?>">Reject</button>
+    <button class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#rejectCBEModal" data-submission-id="<?php echo (int)$row['id']; ?>">Reject</button>
   <?php } ?>
   <?php if ($row['status'] === 'approved' && (int)$level === 9) { ?>
-    <form method="POST" action="admin/core/unlock_cbc_marks">
+    <form method="POST" action="admin/core/unlock_cbe_marks">
       <input type="hidden" name="submission_id" value="<?php echo (int)$row['id']; ?>">
       <button class="btn btn-sm btn-outline-warning">Unlock</button>
     </form>
@@ -190,20 +191,20 @@ try {
   </div>
 </div>
 
-<!-- CBC Rejection Feedback Modal -->
-<div class="modal fade" id="rejectCBCModal" tabindex="-1" aria-labelledby="rejectCBCModalLabel" aria-hidden="true">
+<!-- CBE Rejection Feedback Modal -->
+<div class="modal fade" id="rejectCBEModal" tabindex="-1" aria-labelledby="rejectCBEModalLabel" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="rejectCBCModalLabel">Return Marks to Teacher</h5>
+        <h5 class="modal-title" id="rejectCBEModalLabel">Return Marks to Teacher</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <form method="POST" action="admin/core/reject_cbc_marks">
+      <form method="POST" action="admin/core/reject_cbe_marks">
         <div class="modal-body">
-          <input type="hidden" name="submission_id" id="cbcSubmissionId" value="">
+          <input type="hidden" name="submission_id" id="cbeSubmissionId" value="">
           <div class="mb-3">
-            <label for="cbcRejectionReason" class="form-label">Reason for Rejection <span class="text-danger">*</span></label>
-            <textarea class="form-control" id="cbcRejectionReason" name="reason" rows="3" placeholder="e.g., Please review the performance levels for competencies..." required></textarea>
+            <label for="cbeRejectionReason" class="form-label">Reason for Rejection <span class="text-danger">*</span></label>
+            <textarea class="form-control" id="cbeRejectionReason" name="reason" rows="3" placeholder="e.g., Please review the performance levels for competencies..." required></textarea>
             <small class="text-muted">Be specific so teachers know what to correct. This message will be displayed to the teacher.</small>
           </div>
         </div>
@@ -226,12 +227,12 @@ if (rejectModal) {
   });
 }
 
-const rejectCBCModal = document.getElementById('rejectCBCModal');
-if (rejectCBCModal) {
-  rejectCBCModal.addEventListener('show.bs.modal', function(e) {
+const rejectCBEModal = document.getElementById('rejectCBEModal');
+if (rejectCBEModal) {
+  rejectCBEModal.addEventListener('show.bs.modal', function(e) {
     const submissionId = e.relatedTarget.getAttribute('data-submission-id');
-    document.getElementById('cbcSubmissionId').value = submissionId;
-    document.getElementById('cbcRejectionReason').value = '';
+    document.getElementById('cbeSubmissionId').value = submissionId;
+    document.getElementById('cbeRejectionReason').value = '';
   });
 }
 </script>

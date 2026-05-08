@@ -29,6 +29,7 @@ try {
 			LEFT JOIN tbl_classes c ON c.id = i.class_id
 			WHERE i.id = ? LIMIT 1");
 	} else {
+		app_sync_student_finance_class_links($conn);
 		$stmt = $conn->prepare("SELECT i.id, i.student_id, concat_ws(' ', s.fname, s.mname, s.lname) AS student_name,
 			t.name AS term_name, c.name AS class_name,
 			COALESCE((SELECT SUM(l.amount) FROM tbl_invoice_lines l WHERE l.invoice_id = i.id), 0) AS total,
@@ -36,7 +37,7 @@ try {
 			FROM tbl_invoices i
 			JOIN tbl_students s ON s.id = i.student_id
 			JOIN tbl_terms t ON t.id = i.term_id
-			JOIN tbl_classes c ON c.id = i.class_id
+			JOIN tbl_classes c ON c.id = s.class
 			WHERE i.id = ? LIMIT 1");
 	}
 	$stmt->execute([$invoiceId]);
@@ -136,4 +137,3 @@ try {
 <?php require_once('const/check-reply.php'); ?>
 </body>
 </html>
-

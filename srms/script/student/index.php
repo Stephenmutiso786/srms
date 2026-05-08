@@ -187,7 +187,7 @@ try {
 		}
 
 		if (app_table_exists($conn, 'tbl_announcements')) {
-			$stmt = $conn->prepare("SELECT * FROM tbl_announcements WHERE level = '1' OR level = '2' ORDER BY id DESC LIMIT 5");
+			$stmt = $conn->prepare("SELECT * FROM tbl_announcements WHERE level IN ('1','2','3') ORDER BY id DESC LIMIT 5");
 			$stmt->execute();
 			$announcements = $stmt->fetchAll(PDO::FETCH_ASSOC);
 		}
@@ -322,6 +322,7 @@ body.app{background:var(--student-bg)}
 						<span class="insight-switch"><i class="bi bi-calendar2-event me-1"></i><?php echo htmlspecialchars($selectedTermName !== '' ? $selectedTermName : 'Latest published term'); ?></span>
 						<?php if ($selectedExam) { ?><span class="insight-switch"><i class="bi bi-journal-text me-1"></i><?php echo htmlspecialchars((string)$selectedExam['name']); ?></span><?php } ?>
 						<span class="insight-switch"><i class="bi bi-person-badge me-1"></i><?php echo htmlspecialchars($studentClassId > 0 ? 'Class ' . (string)$studentClassId : 'Class not set'); ?></span>
+						<span class="insight-switch"><i class="bi bi-clock me-1"></i><span id="studentCurrentTime"><?php echo date('H:i:s'); ?></span></span>
 					</div>
 				</div>
 				<div class="hero-summary">
@@ -575,11 +576,15 @@ if (historyEl) {
 let pauseRefresh = false;
 document.addEventListener('focusin', function() { pauseRefresh = true; });
 document.addEventListener('focusout', function() { pauseRefresh = false; });
-setInterval(function() {
-	if (!pauseRefresh) {
-		window.location.reload();
+(function () {
+	function updateClock() {
+		var node = document.getElementById('studentCurrentTime');
+		if (!node) return;
+		node.textContent = new Intl.DateTimeFormat('en-KE', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false, timeZone:'Africa/Nairobi' }).format(new Date());
 	}
-}, 5000);
+	updateClock();
+	setInterval(updateClock, 1000);
+})();
 </script>
 </body>
 </html>

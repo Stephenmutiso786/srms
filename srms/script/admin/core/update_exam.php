@@ -28,7 +28,7 @@ $subjectIds = is_array($subjectIds) ? array_values(array_unique(array_filter(arr
 $componentExamIds = is_array($componentExamIds) ? array_values(array_unique(array_filter(array_map('intval', $componentExamIds)))) : [];
 
 $assessmentMode = strtolower(trim((string)($_POST['assessment_mode'] ?? 'normal')));
-if (!in_array($assessmentMode, ['normal', 'cbc', 'consolidated'], true)) {
+if (!in_array($assessmentMode, ['normal', 'cbe', 'consolidated'], true)) {
 	$assessmentMode = 'normal';
 }
 
@@ -43,9 +43,15 @@ try {
 	app_ensure_exam_weights_table($conn);
 
 	if ($gradingSystemId < 1 && app_table_exists($conn, 'tbl_grading_systems')) {
-		$stmt = $conn->prepare("SELECT id FROM tbl_grading_systems WHERE is_active = 1 ORDER BY is_default DESC, id ASC LIMIT 1");
-		$stmt->execute();
+		$preferredType = in_array($assessmentMode, ['cbe', 'consolidated'], true) ? 'cbe' : 'marks';
+		$stmt = $conn->prepare("SELECT id FROM tbl_grading_systems WHERE is_active = 1 AND type = ? ORDER BY is_default DESC, id ASC LIMIT 1");
+		$stmt->execute([$preferredType]);
 		$gradingSystemId = (int)$stmt->fetchColumn();
+		if ($gradingSystemId < 1) {
+			$stmt = $conn->prepare("SELECT id FROM tbl_grading_systems WHERE is_active = 1 ORDER BY is_default DESC, id ASC LIMIT 1");
+			$stmt->execute();
+			$gradingSystemId = (int)$stmt->fetchColumn();
+		}
 	}
 	if ($examId < 1 || $name === '' || $classId < 1 || $termId < 1 || $gradingSystemId < 1) {
 		$_SESSION['reply'] = array(array("danger", "Fill all required fields."));
@@ -67,6 +73,33 @@ try {
 	$exam = $stmt->fetch(PDO::FETCH_ASSOC);
 	if (!$exam) {
 		throw new RuntimeException("Exam not found.");
+	}
+
+	$classStmt = $conn->prepare("SELECT name FROM tbl_classes WHERE id = ? LIMIT 1");
+	$classStmt->execute([$classId]);
+	$className = (string)($classStmt->fetchColumn() ?? '');
+
+	$classGradingSystemId = (int)(app_class_grading_system_id($conn, $classId) ?? 0);
+	if ($classGradingSystemId > 0) {
+		$gradingSystemId = $classGradingSystemId;
+	}
+	if ($classGradingSystemId < 1 && $assessmentMode === 'kjsea' && app_table_exists($conn, 'tbl_grading_systems')) {
+		$systemStmt = $conn->prepare("SELECT id FROM tbl_grading_systems WHERE is_active = 1 AND name = ? LIMIT 1");
+		$systemStmt->execute(['CBE KJSEA System']);
+		$kjseaSystemId = (int)$systemStmt->fetchColumn();
+		if ($kjseaSystemId > 0) {
+			$gradingSystemId = $kjseaSystemId;
+		}
+	}
+
+	$recommendedGradingSystemId = app_class_recommended_grading_system_id($conn, $className);
+	if ($classGradingSystemId < 1 && $recommendedGradingSystemId && app_class_recommended_exam_mode($className) === 'cbe') {
+		$selectedTypeStmt = $conn->prepare("SELECT type FROM tbl_grading_systems WHERE id = ? LIMIT 1");
+		$selectedTypeStmt->execute([$gradingSystemId]);
+		$selectedType = strtolower(trim((string)($selectedTypeStmt->fetchColumn() ?? '')));
+		if (($gradingSystemId < 1 || $selectedType === '' || $selectedType === 'marks')) {
+			$gradingSystemId = $recommendedGradingSystemId;
+		}
 	}
 
 	if (in_array((string)$exam['status'], ['finalized', 'published'], true)) {
@@ -105,7 +138,7 @@ try {
 		$componentSubjects = [];
 		$placeholders = implode(',', array_fill(0, count($componentExamIds), '?'));
 		$params = array_merge([$classId, $termId, $examId], $componentExamIds);
-		$stmt = $conn->prepare("SELECT id FROM tbl_exams WHERE class_id = ? AND term_id = ? AND id <> ? AND id IN ($placeholders) AND COALESCE(assessment_mode, 'normal') <> 'cbc' AND COALESCE(assessment_mode, 'normal') <> 'consolidated' AND status IN ('finalized', 'published')");
+		$stmt = $conn->prepare("SELECT id FROM tbl_exams WHERE class_id = ? AND term_id = ? AND id <> ? AND id IN ($placeholders) AND COALESCE(assessment_mode, 'normal') <> 'cbe' AND COALESCE(assessment_mode, 'normal') <> 'consolidated' AND status IN ('finalized', 'published')");
 		$stmt->execute($params);
 		$validComponentExamIds = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
 		if (count($validComponentExamIds) < 2) {

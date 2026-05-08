@@ -30,7 +30,7 @@ if ($res == "1" && $level == "1") {}else{header("location:../");}
 
 <li class="dropdown"><a class="app-nav__item" href="#" data-bs-toggle="dropdown" aria-label="Open Profile Menu"><i class="bi bi-person fs-4"></i></a>
 <ul class="dropdown-menu settings-menu dropdown-menu-right">
-<li><a class="dropdown-item" href="academic/profile"><i class="bi bi-person me-2 fs-5"></i> Profile</a></li>
+<li><a class="dropdown-item" href="academic/profile.php"><i class="bi bi-person me-2 fs-5"></i> Profile</a></li>
 <li><a class="dropdown-item" href="logout"><i class="bi bi-box-arrow-right me-2 fs-5"></i> Logout</a></li>
 </ul>
 </li>
@@ -55,7 +55,7 @@ if ($res == "1" && $level == "1") {}else{header("location:../");}
 <h5 class="modal-title" id="addModalLabel">Add Subject</h5>
 </div>
 <div class="modal-body">
-<form class="app_frm" method="POST" autocomplete="OFF" action="academic/core/new_subject">
+<form class="app_frm" method="POST" autocomplete="OFF" action="academic/core/new_subject.php">
 <div class="mb-3">
 <label class="form-label">Subject Name</label>
 <input required name="name" class="form-control" type="text" placeholder="Enter Subject Name">
@@ -77,7 +77,7 @@ if ($res == "1" && $level == "1") {}else{header("location:../");}
 <h5 class="modal-title" id="editModalLabel">Edit Subject</h5>
 </div>
 <div class="modal-body">
-<form class="app_frm" method="POST" autocomplete="OFF" action="academic/core/update_subject">
+<form class="app_frm" method="POST" autocomplete="OFF" action="academic/core/update_subject.php">
 <div class="mb-3">
 <label class="form-label">Subject Name</label>
 <input id="name" required name="name" class="form-control" type="text" placeholder="Enter Subject Name">
@@ -124,7 +124,7 @@ foreach($result as $row)
 <td><?php echo $row[1]; ?></td>
 <td align="center">
 <a onclick="set_subject('<?php echo $row[0]; ?>');" class="btn btn-primary btn-sm" href="javascript:void(0);" data-bs-toggle="modal" data-bs-target="#editModal">Edit</a>
-<a onclick="del('academic/core/drop_subject?id=<?php echo $row[0]; ?>', 'Delete Subject?');" class="btn btn-danger btn-sm" href="javascript:void(0);">Delete</a>
+<a onclick="del('academic/core/drop_subject.php?id=<?php echo $row[0]; ?>', 'Delete Subject?');" class="btn btn-danger btn-sm" href="javascript:void(0);">Delete</a>
 </td>
 </tr>
 <?php

@@ -93,9 +93,7 @@ try {
 		}
 
 		if ($selectedTermId > 0 && report_term_is_published($conn, (int)$selectedStudent['class_id'], $selectedTermId)) {
-			$stmt = $conn->prepare("SELECT id FROM tbl_report_cards WHERE student_id = ? AND term_id = ? LIMIT 1");
-			$stmt->execute([$selectedStudentId, $selectedTermId]);
-			$reportId = (int)$stmt->fetchColumn();
+			$reportId = report_find_card_id($conn, (string)$selectedStudentId, $selectedTermId);
 			if ($reportId > 0) {
 				$card = report_load_card($conn, $reportId);
 				$summary['avg_score'] = (float)($card['mean'] ?? 0);
@@ -245,6 +243,7 @@ body.app{background:linear-gradient(180deg,#eef5f3 0%,#f4f7f6 40%,#eef3f1 100%)}
 						<?php foreach ($publishedTerms as $term): ?><option value="<?php echo (int)$term['id']; ?>" <?php echo $selectedTermId===(int)$term['id']?'selected':''; ?>><?php echo htmlspecialchars($term['name']); ?></option><?php endforeach; ?>
 					</select>
 					<div class="glass-input d-flex align-items-center"><?php echo htmlspecialchars((string)($selectedStudent['school_id'] ?? $selectedStudentId)); ?></div>
+					<div class="glass-input d-flex align-items-center" id="parentCurrentTime"><?php echo date('H:i:s'); ?></div>
 					<a class="btn btn-light" href="parent/report_card<?php echo $selectedStudentId !== '' ? '?student='.urlencode($selectedStudentId).'&term='.$selectedTermId : ''; ?>">Open Report Card</a>
 				</form>
 			</div>
@@ -316,6 +315,15 @@ body.app{background:linear-gradient(180deg,#eef5f3 0%,#f4f7f6 40%,#eef3f1 100%)}
 <script src="js/bootstrap.min.js"></script>
 <script src="js/main.js"></script>
 <script>
+(function () {
+	function updateClock() {
+		var node = document.getElementById('parentCurrentTime');
+		if (!node) return;
+		node.textContent = new Intl.DateTimeFormat('en-KE', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false, timeZone:'Africa/Nairobi' }).format(new Date());
+	}
+	updateClock();
+	setInterval(updateClock, 1000);
+})();
 const parentTrend = <?php echo json_encode($history); ?>;
 const parentTrendEl = document.getElementById('parentTrendChart');
 if (parentTrendEl) {
@@ -332,11 +340,6 @@ if (parentTrendEl) {
 let pauseRefresh = false;
 document.addEventListener('focusin', function() { pauseRefresh = true; });
 document.addEventListener('focusout', function() { pauseRefresh = false; });
-setInterval(function() {
-	if (!pauseRefresh) {
-		window.location.reload();
-	}
-}, 5000);
 </script>
 </body>
 </html>

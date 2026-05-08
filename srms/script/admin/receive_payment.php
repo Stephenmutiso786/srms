@@ -5,9 +5,10 @@ require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
 require_once('const/rbac.php');
-if ($res == "1" && $level == "0") {} else { header("location:../"); exit; }
-app_require_permission('finance.manage', 'admin');
-app_require_unlocked('finance', 'admin');
+if ($res !== "1") { header("location:../"); exit; }
+$portalHome = ((string)$level === '1') ? 'academic' : 'admin';
+app_require_permission('finance.manage', $portalHome);
+app_require_unlocked('finance', $portalHome);
 
 $classes = [];
 $terms = [];
@@ -21,6 +22,7 @@ try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 	app_ensure_finance_tables($conn);
+	app_sync_student_finance_class_links($conn);
 
 	if (!app_table_exists($conn, 'tbl_invoices') || !app_table_exists($conn, 'tbl_invoice_lines') || !app_table_exists($conn, 'tbl_payments')) {
 		throw new RuntimeException('Fees module is not installed. Run migration 003_fees_finance.sql.');
@@ -41,10 +43,10 @@ try {
 			FROM tbl_invoices i
 			JOIN tbl_students s ON s.id = i.student_id
 			LEFT JOIN tbl_invoice_lines l ON l.invoice_id = i.id
-			WHERE i.class_id = ? AND i.term_id = ? AND i.status != 'void'";
+			WHERE s.class = ? AND i.term_id = ? AND i.status != 'void'";
 		$params = [$filterClass, $filterTerm];
 		if ($studentQuery !== '') {
-			$sql .= " AND (CAST(i.student_id AS CHAR) LIKE ? OR s.fname LIKE ? OR s.mname LIKE ? OR s.lname LIKE ? OR concat_ws(' ', s.fname, s.mname, s.lname) LIKE ? )";
+			$sql .= " AND (i.student_id LIKE ? OR s.fname LIKE ? OR s.mname LIKE ? OR s.lname LIKE ? OR concat_ws(' ', s.fname, s.mname, s.lname) LIKE ? )";
 			$like = '%' . $studentQuery . '%';
 			$params[] = $like;
 			$params[] = $like;

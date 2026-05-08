@@ -6,8 +6,23 @@ require_once('const/check_session.php');
 require_once('const/school.php');
 if ($res == "1" && $level == "2") {}else{header("location:../");}
 
+function app_exam_entry_redirect_target(string $portal, string $page): string
+{
+  $portal = strtolower(trim($portal));
+  if (!in_array($portal, ['admin', 'academic', 'teacher'], true)) {
+    $portal = 'teacher';
+  }
+  return '../../' . $portal . '/' . ltrim($page, '/');
+}
+
+$originPortal = strtolower(trim((string)($_POST['origin_portal'] ?? ($_SESSION['cbe_entry']['origin_portal'] ?? $_SESSION['exam_entry_portal'] ?? 'teacher'))));
+if (!in_array($originPortal, ['admin', 'academic', 'teacher'], true)) {
+  $originPortal = 'teacher';
+}
+$_SESSION['exam_entry_portal'] = $originPortal;
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-  header("location:../marks_entry");
+  header("location:" . app_exam_entry_redirect_target($originPortal, 'exam_marks_entry'));
   exit;
 }
 
@@ -18,7 +33,7 @@ $subjectId = (int)($_POST['subject_id'] ?? 0);
 
 if ($termId < 1 || $classId < 1 || $subjectComb < 1 || $subjectId < 1) {
   $_SESSION['reply'] = array (array("danger", "Missing submission details."));
-  header("location:../cbc_entry");
+  header("location:" . app_exam_entry_redirect_target($originPortal, 'cbe_entry'));
   exit;
 }
 
@@ -50,18 +65,18 @@ try {
     throw new RuntimeException("No students found for this class.");
   }
 
-  $stmt = $conn->prepare("SELECT COUNT(DISTINCT student_id) FROM tbl_cbc_assessments WHERE class_id = ? AND term_id = ? AND subject_id = ?");
+  $stmt = $conn->prepare("SELECT COUNT(DISTINCT student_id) FROM tbl_cbe_assessments WHERE class_id = ? AND term_id = ? AND subject_id = ?");
   $stmt->execute([$classId, $termId, $subjectId]);
   $filled = (int)$stmt->fetchColumn();
   if ($filled < $total) {
     throw new RuntimeException("Marks missing for ".($total - $filled)." students.");
   }
 
-  if (!app_table_exists($conn, 'tbl_cbc_mark_submissions')) {
+  if (!app_table_exists($conn, 'tbl_cbe_mark_submissions')) {
     throw new RuntimeException("Marks submission table not installed.");
   }
 
-  $stmt = $conn->prepare("SELECT id, status FROM tbl_cbc_mark_submissions WHERE term_id = ? AND class_id = ? AND subject_combination_id = ? LIMIT 1");
+  $stmt = $conn->prepare("SELECT id, status FROM tbl_cbe_mark_submissions WHERE term_id = ? AND class_id = ? AND subject_combination_id = ? LIMIT 1");
   $stmt->execute([$termId, $classId, $subjectComb]);
   $existing = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -69,17 +84,17 @@ try {
     if (in_array($existing['status'], ['submitted','approved'], true)) {
       throw new RuntimeException("Marks already submitted.");
     }
-    $stmt = $conn->prepare("UPDATE tbl_cbc_mark_submissions SET status = 'submitted', submitted_at = CURRENT_TIMESTAMP, reviewed_at = NULL, reviewed_by = NULL, review_note = NULL WHERE id = ?");
+    $stmt = $conn->prepare("UPDATE tbl_cbe_mark_submissions SET status = 'submitted', submitted_at = CURRENT_TIMESTAMP, reviewed_at = NULL, reviewed_by = NULL, review_note = NULL WHERE id = ?");
     $stmt->execute([$existing['id']]);
   } else {
-    $stmt = $conn->prepare("INSERT INTO tbl_cbc_mark_submissions (term_id, class_id, subject_id, subject_combination_id, teacher_id, status, submitted_at) VALUES (?,?,?,?,?,'submitted',CURRENT_TIMESTAMP)");
+    $stmt = $conn->prepare("INSERT INTO tbl_cbe_mark_submissions (term_id, class_id, subject_id, subject_combination_id, teacher_id, status, submitted_at) VALUES (?,?,?,?,?,'submitted',CURRENT_TIMESTAMP)");
     $stmt->execute([$termId, $classId, $subjectId, $subjectComb, (int)$account_id]);
   }
 
-  app_audit_log($conn, 'staff', (string)$account_id, 'cbc_marks.submit', 'cbc', $classId.':'.$termId);
+  app_audit_log($conn, 'staff', (string)$account_id, 'cbe_marks.submit', 'cbe', $classId.':'.$termId);
 
   if (app_table_exists($conn, 'tbl_exams')) {
-    $examStmt = $conn->prepare("SELECT id FROM tbl_exams WHERE class_id = ? AND term_id = ? AND COALESCE(assessment_mode, 'normal') = 'cbc'");
+    $examStmt = $conn->prepare("SELECT id FROM tbl_exams WHERE class_id = ? AND term_id = ? AND COALESCE(assessment_mode, 'normal') = 'cbe'");
     $examStmt->execute([$classId, $termId]);
     foreach ($examStmt->fetchAll(PDO::FETCH_COLUMN) as $examId) {
       app_refresh_exam_status($conn, (int)$examId);
@@ -87,11 +102,11 @@ try {
   }
 
   $_SESSION['reply'] = array (array("success", "Marks submitted for review."));
-  header("location:../cbc_entry");
+  header("location:" . app_exam_entry_redirect_target($originPortal, 'cbe_entry'));
   exit;
 } catch (Throwable $e) {
 	error_log("[".__FILE__.":".__LINE__." Throwable] " . $e->getMessage());
 	$_SESSION['reply'] = array(array("danger", "Operation failed. Please try again."));
-  header("location:../cbc_entry");
+  header("location:" . app_exam_entry_redirect_target($originPortal, 'cbe_entry'));
   exit;
 }

@@ -5,9 +5,10 @@ require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
 require_once('const/rbac.php');
-if ($res == "1" && $level == "0") {}else{header("location:../"); exit;}
-app_require_permission('finance.manage', 'admin');
-app_require_unlocked('finance', 'admin');
+if ($res !== "1") { header("location:../"); exit; }
+$portalHome = ((string)$level === '1') ? 'academic' : 'admin';
+app_require_permission('finance.manage', $portalHome);
+app_require_unlocked('finance', $portalHome);
 
 $counts = ['invoiced' => 0, 'paid' => 0, 'balance' => 0, 'open_invoices' => 0];
 $topDefaulters = [];
@@ -17,6 +18,7 @@ try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 	app_ensure_finance_tables($conn);
+	app_sync_student_finance_class_links($conn);
 
 	if (!app_table_exists($conn, 'tbl_invoices') || !app_table_exists($conn, 'tbl_invoice_lines') || !app_table_exists($conn, 'tbl_payments')) {
 		throw new RuntimeException("Fees module is not installed. Run migration 003_fees_finance.sql.");
@@ -39,15 +41,23 @@ try {
 	$stmt = $conn->prepare("SELECT i.student_id,
 		concat_ws(' ', s.fname, s.mname, s.lname) AS student_name,
 		c.name AS class_name,
-		COALESCE(SUM(l.amount),0) - COALESCE(SUM(p.amount),0) AS balance
+		COALESCE(SUM(line_totals.total_amount),0) - COALESCE(SUM(payment_totals.total_paid),0) AS balance
 		FROM tbl_invoices i
 		JOIN tbl_students s ON s.id = i.student_id
-		LEFT JOIN tbl_classes c ON c.id = i.class_id
-		LEFT JOIN tbl_invoice_lines l ON l.invoice_id = i.id
-		LEFT JOIN tbl_payments p ON p.invoice_id = i.id
+		LEFT JOIN tbl_classes c ON c.id = s.class
+		LEFT JOIN (
+			SELECT invoice_id, SUM(amount) AS total_amount
+			FROM tbl_invoice_lines
+			GROUP BY invoice_id
+		) AS line_totals ON line_totals.invoice_id = i.id
+		LEFT JOIN (
+			SELECT invoice_id, SUM(amount) AS total_paid
+			FROM tbl_payments
+			GROUP BY invoice_id
+		) AS payment_totals ON payment_totals.invoice_id = i.id
 		WHERE i.status = 'open'
 		GROUP BY i.student_id, student_name, class_name
-		HAVING (COALESCE(SUM(l.amount),0) - COALESCE(SUM(p.amount),0)) > 0
+		HAVING (COALESCE(SUM(line_totals.total_amount),0) - COALESCE(SUM(payment_totals.total_paid),0)) > 0
 		ORDER BY balance DESC
 		LIMIT 8");
 	$stmt->execute();

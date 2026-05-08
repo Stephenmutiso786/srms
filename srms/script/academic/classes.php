@@ -5,6 +5,29 @@ require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
 if ($res == "1" && $level == "1") {}else{header("location:../");}
+$gradingSystems = [];
+$classGradingMap = [];
+try {
+	$conn = app_db();
+	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	app_ensure_class_cbe_level_schema($conn);
+	app_ensure_exam_grading_schema($conn);
+	if (app_table_exists($conn, 'tbl_grading_systems')) {
+		$stmt = $conn->prepare("SELECT id, name, type FROM tbl_grading_systems WHERE is_active = 1 ORDER BY is_default DESC, name ASC");
+		$stmt->execute();
+		$gradingSystems = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	}
+	if (app_table_exists($conn, 'tbl_classes')) {
+		$stmt = $conn->prepare("SELECT id FROM tbl_classes");
+		$stmt->execute();
+		foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $classId) {
+			$classGradingMap[(int)$classId] = app_class_grading_system_id($conn, (int)$classId);
+		}
+	}
+} catch (Throwable $e) {
+	$gradingSystems = [];
+	$classGradingMap = [];
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -30,7 +53,7 @@ if ($res == "1" && $level == "1") {}else{header("location:../");}
 
 <li class="dropdown"><a class="app-nav__item" href="#" data-bs-toggle="dropdown" aria-label="Open Profile Menu"><i class="bi bi-person fs-4"></i></a>
 <ul class="dropdown-menu settings-menu dropdown-menu-right">
-<li><a class="dropdown-item" href="academic/profile"><i class="bi bi-person me-2 fs-5"></i> Profile</a></li>
+<li><a class="dropdown-item" href="academic/profile.php"><i class="bi bi-person me-2 fs-5"></i> Profile</a></li>
 <li><a class="dropdown-item" href="logout"><i class="bi bi-box-arrow-right me-2 fs-5"></i> Logout</a></li>
 </ul>
 </li>
@@ -55,10 +78,19 @@ if ($res == "1" && $level == "1") {}else{header("location:../");}
 <h5 class="modal-title" id="addModalLabel">Add Class</h5>
 </div>
 <div class="modal-body">
-<form class="app_frm" method="POST" autocomplete="OFF" action="academic/core/new_class">
+<form class="app_frm" method="POST" autocomplete="OFF" action="academic/core/new_class.php">
 <div class="mb-3">
 <label class="form-label">Class Name</label>
 <input required name="name" class="form-control" type="text" placeholder="Enter Class Name">
+</div>
+<div class="mb-3">
+<label class="form-label">Grading System</label>
+<select name="grading_system_id" class="form-control">
+<option value="">Use system default / auto</option>
+<?php foreach ($gradingSystems as $gradingSystem): ?>
+<option value="<?php echo (int)$gradingSystem['id']; ?>"><?php echo htmlspecialchars((string)$gradingSystem['name'] . ' (' . strtoupper((string)$gradingSystem['type']) . ')'); ?></option>
+<?php endforeach; ?>
+</select>
 </div>
 
 <button type="submit" name="submit" value="1" class="btn btn-primary app_btn">Add</button>
@@ -77,10 +109,19 @@ if ($res == "1" && $level == "1") {}else{header("location:../");}
 <h5 class="modal-title" id="editModalLabel">Edit Class</h5>
 </div>
 <div class="modal-body">
-<form class="app_frm" method="POST" autocomplete="OFF" action="academic/core/update_class">
+<form class="app_frm" method="POST" autocomplete="OFF" action="academic/core/update_class.php">
 <div class="mb-3">
 <label class="form-label">Class Name</label>
 <input id="name" required name="name" class="form-control" type="text" placeholder="Enter Class Name">
+</div>
+<div class="mb-3">
+<label class="form-label">Grading System</label>
+<select id="grading_system_id" name="grading_system_id" class="form-control">
+<option value="">Use system default / auto</option>
+<?php foreach ($gradingSystems as $gradingSystem): ?>
+<option value="<?php echo (int)$gradingSystem['id']; ?>"><?php echo htmlspecialchars((string)$gradingSystem['name'] . ' (' . strtoupper((string)$gradingSystem['type']) . ')'); ?></option>
+<?php endforeach; ?>
+</select>
 </div>
 <input type="hidden" name="id" id="id">
 <button type="submit" name="submit" value="1" class="btn btn-primary app_btn">Save</button>
@@ -102,6 +143,7 @@ if ($res == "1" && $level == "1") {}else{header("location:../");}
 <thead>
 <tr>
 <th>Name</th>
+<th>Grading System</th>
 <th>Added On</th>
 <th width="120" align="center"></th>
 </tr>
@@ -119,14 +161,24 @@ $result = $stmt->fetchAll();
 
 foreach($result as $row)
 {
+	$classGradingSystemId = (int)($classGradingMap[(int)$row[0]] ?? 0);
+	$classGradingLabel = 'Auto / Default';
+	foreach ($gradingSystems as $gradingSystem) {
+		if ((int)$gradingSystem['id'] === $classGradingSystemId) {
+			$classGradingLabel = (string)$gradingSystem['name'] . ' (' . strtoupper((string)$gradingSystem['type']) . ')';
+			break;
+		}
+	}
 ?>
 <textarea style="display:none;" id="class_<?php echo $row[0]; ?>"><?php echo $row[1]; ?></textarea>
+<textarea style="display:none;" id="class_grading_<?php echo $row[0]; ?>"><?php echo $classGradingSystemId; ?></textarea>
 <tr>
 <td><?php echo $row[1]; ?></td>
+<td><?php echo htmlspecialchars($classGradingLabel); ?></td>
 <td><?php echo $row[2]; ?></td>
 <td align="center">
 <a onclick="set_class('<?php echo $row[0]; ?>');" class="btn btn-primary btn-sm" href="javascript:void(0);" data-bs-toggle="modal" data-bs-target="#editModal">Edit</a>
-<a onclick="del('academic/core/drop_class?id=<?php echo $row[0]; ?>', 'Delete Class?');" class="btn btn-danger btn-sm" href="javascript:void(0);">Delete</a>
+<a onclick="del('academic/core/drop_class.php?id=<?php echo $row[0]; ?>', 'Delete Class?');" class="btn btn-danger btn-sm" href="javascript:void(0);">Delete</a>
 </td>
 </tr>
 <?php
@@ -159,6 +211,13 @@ echo "Connection failed.";
 <script type="text/javascript" src="js/plugins/jquery.dataTables.min.js"></script>
 <script type="text/javascript" src="js/plugins/dataTables.bootstrap.min.html"></script>
 <script type="text/javascript">$('#srmsTable').DataTable({"sort" : false});</script>
+<script>
+function set_class(id) {
+	$('#id').val(id);
+	$('#name').val($('#class_' + id).val());
+	$('#grading_system_id').val($('#class_grading_' + id).val());
+}
+</script>
 <?php require_once('const/check-reply.php'); ?>
 </body>
 

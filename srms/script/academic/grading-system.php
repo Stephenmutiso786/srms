@@ -10,7 +10,7 @@ if ($res == "1" && $level == "1") {}else{header("location:../");}
 <html lang="en">
 <meta http-equiv="content-type" content="text/html;charset=utf-8" />
 <head>
-<title><?php echo APP_NAME; ?> - CBC Grading System</title>
+<title><?php echo APP_NAME; ?> - CBE Grading System</title>
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -30,7 +30,7 @@ if ($res == "1" && $level == "1") {}else{header("location:../");}
 
 <li class="dropdown"><a class="app-nav__item" href="#" data-bs-toggle="dropdown" aria-label="Open Profile Menu"><i class="bi bi-person fs-4"></i></a>
 <ul class="dropdown-menu settings-menu dropdown-menu-right">
-<li><a class="dropdown-item" href="academic/profile"><i class="bi bi-person me-2 fs-5"></i> Profile</a></li>
+<li><a class="dropdown-item" href="academic/profile.php"><i class="bi bi-person me-2 fs-5"></i> Profile</a></li>
 <li><a class="dropdown-item" href="logout"><i class="bi bi-box-arrow-right me-2 fs-5"></i> Logout</a></li>
 </ul>
 </li>
@@ -41,8 +41,8 @@ if ($res == "1" && $level == "1") {}else{header("location:../");}
 <main class="app-content">
 <div class="app-title">
 <div>
-<h1>CBC Grading System</h1>
-<p class="text-muted">Competency-Based Curriculum (CBC) grading bands - these are standardized and cannot be modified.</p>
+<h1>CBE Grading System</h1>
+<p class="text-muted">View-only grading reference. All grading setup, editing, updates, and deletion are controlled by the admin in Grading Management.</p>
 </div>
 </div>
 
@@ -51,7 +51,7 @@ if ($res == "1" && $level == "1") {}else{header("location:../");}
 <div class="tile">
 <div class="tile-body">
 <div class="table-responsive">
-<h3 class="tile-title">CBC Grading Bands (National Standard)</h3>
+<h3 class="tile-title">CBE Grading Bands (National Standard)</h3>
 <table class="table table-hover table-bordered" id="srmsTable">
 <thead>
 <tr>
@@ -70,12 +70,12 @@ try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-// Use the CBC grading system from report_engine.php
+// Use the CBE grading system from report_engine.php
 require_once('const/report_engine.php');
 $gradingSystemId = report_default_grading_system_id($conn, 'marks');
 $grades = report_grading_scales($conn, $gradingSystemId);
 
-// If no grades found in new system, show the default CBC grades
+// If no grades found in new system, show the default CBE grades
 if (empty($grades)) {
 $grades = [
 ['name' => 'EE', 'min' => 90, 'max' => 100, 'points' => 4, 'remark' => 'Exceeding Expectation', 'is_active' => 1],
@@ -104,7 +104,7 @@ $statusBadge = $isActive ? '<span class="badge bg-success">Active</span>' : '<sp
 }catch(PDOException $e)
 {
 error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
-// Show default CBC grades if database fails
+// Show default CBE grades if database fails
 $defaultGrades = [
 ['name' => 'EE', 'min' => 90, 'max' => 100, 'points' => 4, 'remark' => 'Exceeding Expectation'],
 ['name' => 'ME', 'min' => 75, 'max' => 89, 'points' => 3, 'remark' => 'Meeting Expectation'],
@@ -140,8 +140,8 @@ foreach($defaultGrades as $grade)
 <div class="col-md-12">
 <div class="tile">
 <div class="tile-body">
-<h4 class="tile-title">About CBC Grading</h4>
-<p>The Competency-Based Curriculum (CBC) uses a standards-referenced grading system that focuses on what learners can do rather than how they compare to others.</p>
+<h4 class="tile-title">About CBE Grading</h4>
+<p>The Competency-Based Curriculum (CBE) uses a standards-referenced grading system that focuses on what learners can do rather than how they compare to others.</p>
 <ul class="mt-3">
 <li><strong>EE (Exceeding Expectation):</strong> The learner has exceeded the expected learning outcomes and demonstrates advanced understanding.</li>
 <li><strong>ME (Meeting Expectation):</strong> The learner has met the expected learning outcomes and demonstrates competent understanding.</li>
@@ -150,7 +150,7 @@ foreach($defaultGrades as $grade)
 </ul>
 <div class="alert alert-info mt-3">
 <i class="bi bi-info-circle me-2"></i>
-<strong>Note:</strong> CBC grading bands are standardized nationally and cannot be modified in this system. This ensures consistency with national education standards.
+<strong>Note:</strong> CBE grading bands are standardized nationally and cannot be modified in this system. This ensures consistency with national education standards.
 </div>
 </div>
 </div>

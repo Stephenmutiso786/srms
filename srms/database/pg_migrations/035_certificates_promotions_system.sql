@@ -1,5 +1,5 @@
 -- Migration 035: Enhanced Certificates and Promotion System
--- Adds CBC competencies, merit classification, and promotion workflow
+-- Adds CBE competencies, merit classification, and promotion workflow
 -- Created: 2026-04-12
 
 -- ============================================================================
@@ -157,13 +157,13 @@ BEGIN
 END $$;
 
 -- ============================================================================
--- CREATE tbl_cbc_competencies: Store CBC competency framework
+-- CREATE tbl_cbe_competencies: Store CBE competency framework
 -- ============================================================================
 
 DO $$
 BEGIN
     BEGIN
-        CREATE TABLE IF NOT EXISTS tbl_cbc_competencies (
+        CREATE TABLE IF NOT EXISTS tbl_cbe_competencies (
             id SERIAL PRIMARY KEY,
             school_id INT DEFAULT NULL,
             competency_name VARCHAR(100) NOT NULL,
@@ -186,10 +186,10 @@ BEGIN
     IF to_regclass('public.tbl_school') IS NOT NULL
        AND NOT EXISTS (
             SELECT 1 FROM pg_constraint
-            WHERE conname = 'tbl_cbc_competencies_school_fk'
+            WHERE conname = 'tbl_cbe_competencies_school_fk'
        ) THEN
-        ALTER TABLE tbl_cbc_competencies
-            ADD CONSTRAINT tbl_cbc_competencies_school_fk
+        ALTER TABLE tbl_cbe_competencies
+            ADD CONSTRAINT tbl_cbe_competencies_school_fk
             FOREIGN KEY (school_id) REFERENCES tbl_school(id) ON DELETE CASCADE;
     END IF;
 END $$;
@@ -197,13 +197,13 @@ END $$;
 DO $$
 BEGIN
     IF to_regclass('public.tbl_students') IS NOT NULL
-       AND to_regclass('public.tbl_cbc_competencies') IS NOT NULL
+       AND to_regclass('public.tbl_cbe_competencies') IS NOT NULL
        AND to_regclass('public.tbl_exams') IS NOT NULL THEN
         BEGIN
             CREATE TABLE IF NOT EXISTS tbl_student_competencies (
                 id SERIAL PRIMARY KEY,
                 student_id VARCHAR(64) NOT NULL REFERENCES tbl_students(id) ON DELETE CASCADE,
-                competency_id INT NOT NULL REFERENCES tbl_cbc_competencies(id) ON DELETE CASCADE,
+                competency_id INT NOT NULL REFERENCES tbl_cbe_competencies(id) ON DELETE CASCADE,
                 exam_id INT DEFAULT NULL REFERENCES tbl_exams(id) ON DELETE SET NULL,
                 achievement_level VARCHAR(20) DEFAULT 'developing' 
                     CHECK (achievement_level IN ('developing', 'proficient', 'advanced', 'excellent')),
@@ -274,34 +274,34 @@ BEGIN
 END $$;
 
 -- ============================================================================
--- SEED: Default CBC Competencies (Kenya Primary/Secondary)
+-- SEED: Default CBE Competencies (Kenya Primary/Secondary)
 -- ============================================================================
 
 DO $$
 BEGIN
-    IF to_regclass('public.tbl_cbc_competencies') IS NOT NULL THEN
+    IF to_regclass('public.tbl_cbe_competencies') IS NOT NULL THEN
         BEGIN
-            INSERT INTO tbl_cbc_competencies (school_id, competency_name, competency_code, description, strand, grade_range, status)
+            INSERT INTO tbl_cbe_competencies (school_id, competency_name, competency_code, description, strand, grade_range, status)
             VALUES (NULL, 'Communication and Collaboration', 'CC-001', 'Ability to communicate effectively and collaborate with others', 'Core Competency', 'G1-G6', 'active')
             ON CONFLICT (competency_code) DO NOTHING;
 
-            INSERT INTO tbl_cbc_competencies (school_id, competency_name, competency_code, description, strand, grade_range, status)
+            INSERT INTO tbl_cbe_competencies (school_id, competency_name, competency_code, description, strand, grade_range, status)
             VALUES (NULL, 'Critical Thinking and Problem Solving', 'CTPS-001', 'Ability to analyze problems and find creative solutions', 'Core Competency', 'G1-G6', 'active')
             ON CONFLICT (competency_code) DO NOTHING;
 
-            INSERT INTO tbl_cbc_competencies (school_id, competency_name, competency_code, description, strand, grade_range, status)
+            INSERT INTO tbl_cbe_competencies (school_id, competency_name, competency_code, description, strand, grade_range, status)
             VALUES (NULL, 'Creativity and Imagination', 'CI-001', 'Ability to think creatively and generate new ideas', 'Core Competency', 'G1-G6', 'active')
             ON CONFLICT (competency_code) DO NOTHING;
 
-            INSERT INTO tbl_cbc_competencies (school_id, competency_name, competency_code, description, strand, grade_range, status)
+            INSERT INTO tbl_cbe_competencies (school_id, competency_name, competency_code, description, strand, grade_range, status)
             VALUES (NULL, 'Citizenship and Personal Development', 'CPD-001', 'Understanding of civic responsibilities and personal values', 'Core Competency', 'G1-G6', 'active')
             ON CONFLICT (competency_code) DO NOTHING;
 
-            INSERT INTO tbl_cbc_competencies (school_id, competency_name, competency_code, description, strand, grade_range, status)
+            INSERT INTO tbl_cbe_competencies (school_id, competency_name, competency_code, description, strand, grade_range, status)
             VALUES (NULL, 'Digital Literacy', 'DL-001', 'Proficiency with digital tools and technologies', 'Core Competency', 'G1-G6', 'active')
             ON CONFLICT (competency_code) DO NOTHING;
 
-            INSERT INTO tbl_cbc_competencies (school_id, competency_name, competency_code, description, strand, grade_range, status)
+            INSERT INTO tbl_cbe_competencies (school_id, competency_name, competency_code, description, strand, grade_range, status)
             VALUES (NULL, 'Learning Outcomes Achievement', 'LOA-001', 'Achievement of subject-specific learning outcomes', 'Academic', 'G1-G6', 'active')
             ON CONFLICT (competency_code) DO NOTHING;
         EXCEPTION

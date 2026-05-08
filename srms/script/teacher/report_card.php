@@ -55,7 +55,7 @@ try {
 	if (app_table_exists($conn, 'tbl_results_locks') && !app_results_locked($conn, (int)$student['class_id'], $termId)) {
 		$card = null;
 	} else {
-		$card = report_ensure_card_generated($conn, $studentId, (int)$student['class_id'], $termId, (int)$account_id);
+		$card = report_ensure_card_generated($conn, $studentId, (int)$student['class_id'], $termId, (int)$account_id, $examId);
 		$payload = idcard_student_payload($conn, $studentId);
 		if ($payload) {
 			$photoPath = (string)$payload['photo_path'];

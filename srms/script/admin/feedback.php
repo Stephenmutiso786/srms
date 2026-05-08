@@ -134,7 +134,7 @@ try {
   <div class="bot-shell__header">
     <div>
       <div class="bot-shell__title">Edu Bot</div>
-      <div class="bot-shell__meta">Memory-backed school assistant for reports, attendance, CBC points, and analytics.</div>
+      <div class="bot-shell__meta">Memory-backed school assistant for reports, attendance, CBE points, and analytics.</div>
     </div>
     <div class="bot-shell__pill"><i class="bi bi-chat-dots"></i> <?php echo (int)$edubotStats['messages']; ?> stored messages • <?php echo (int)$edubotStats['actors']; ?> users</div>
   </div>
@@ -146,7 +146,7 @@ try {
       <button type="button" data-bot-prompt="Weak students">Weak students</button>
       <button type="button" data-bot-prompt="Class performance">Class performance</button>
       <button type="button" data-bot-prompt="Attendance summary">Attendance summary</button>
-      <button type="button" data-bot-prompt="Explain CBC points and grades">CBC help</button>
+      <button type="button" data-bot-prompt="Explain CBE points and grades">CBE help</button>
     </div>
     <div class="bot-composer">
       <textarea id="botMessage" placeholder="Ask Edu Bot about school data or type a greeting..."></textarea>
@@ -286,7 +286,7 @@ try {
       renderMessage(role, item.text || '', item.created_at || '');
     });
     if (!historyEl.children.length) {
-      renderMessage('bot', 'Hello, I am Edu Bot. Ask me about CBC points, grades, attendance, fees, report cards, or school analytics.', 'ready');
+      renderMessage('bot', 'Hello, I am Edu Bot. Ask me about CBE points, grades, attendance, fees, report cards, or school analytics.', 'ready');
     }
   }
 

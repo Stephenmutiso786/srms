@@ -18,6 +18,16 @@ if ($id < 1) {
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	$isSuperAdminController = app_is_super_admin_controller($conn, (string)($account_id ?? ''), (string)($level ?? ''));
+	$stmt = $conn->prepare("SELECT level FROM tbl_staff WHERE id = ? LIMIT 1");
+	$stmt->execute([$id]);
+	$targetLevel = (string)($stmt->fetchColumn() ?: '');
+	if ($targetLevel === '') {
+		app_reply_redirect('danger', 'Staff record not found.', '../teachers');
+	}
+	if (app_staff_is_admin_managed($conn, $id, $targetLevel) && !$isSuperAdminController) {
+		app_reply_redirect('danger', 'Only the super admin can delete leadership or admin accounts.', '../teachers');
+	}
 	$conn->beginTransaction();
 	app_delete_staff($conn, [(string)$id]);
 	$conn->commit();

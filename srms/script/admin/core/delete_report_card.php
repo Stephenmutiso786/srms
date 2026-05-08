@@ -20,6 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $reportId = (int)($_POST['report_id'] ?? 0);
 $listClassId = (int)($_POST['list_class_id'] ?? 0);
 $listTermId = (int)($_POST['list_term_id'] ?? 0);
+$listExamId = (int)($_POST['list_exam_id'] ?? 0);
 if ($reportId < 1) {
 	$_SESSION['reply'] = array(array('danger', 'Invalid report card selected.'));
 	header('location:../report');
@@ -64,6 +65,9 @@ if ($listClassId > 0) {
 }
 if ($listTermId > 0) {
 	$query['list_term_id'] = $listTermId;
+}
+if ($listExamId > 0) {
+	$query['list_exam_id'] = $listExamId;
 }
 $redirect = '../report';
 if (!empty($query)) {

@@ -13,22 +13,37 @@ $subjects = [];
 $classSubjectMap = [];
 $classTeacherMap = [];
 $streamGroups = [];
+$classMetaMap = [];
+$gradingSystems = [];
+$classGradingMap = [];
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	app_ensure_class_cbe_level_schema($conn);
+	app_ensure_exam_grading_schema($conn);
 	app_ensure_class_teachers_table($conn);
-	$stmt = $conn->prepare("SELECT id, fname, lname FROM tbl_staff WHERE level = 2 AND status = 1 ORDER BY fname, lname");
-	$stmt->execute();
-	$teachers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	$teachers = app_staff_instructional_picker_rows($conn);
 	$stmt = $conn->prepare("SELECT id, name FROM tbl_subjects ORDER BY name");
 	$stmt->execute();
 	$subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	if (app_table_exists($conn, 'tbl_grading_systems')) {
+		$stmt = $conn->prepare("SELECT id, name, type FROM tbl_grading_systems WHERE is_active = 1 ORDER BY is_default DESC, name ASC");
+		$stmt->execute();
+		$gradingSystems = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	}
 	$stmt = $conn->prepare("SELECT id, name FROM tbl_classes ORDER BY name");
 	$stmt->execute();
 	foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $classRow) {
 		$classId = (int)$classRow['id'];
+		$band = app_cbe_class_band((string)$classRow['name']);
+		$classMetaMap[$classId] = [
+			'grade_level' => app_grade_level_from_class_name((string)$classRow['name']),
+			'cbe_level' => $band !== '' ? app_cbe_band_label($band) : 'Unknown Level',
+			'cbe_band' => $band,
+		];
 		$classSubjectMap[$classId] = app_class_subject_ids($conn, $classId);
 		$classTeacherMap[$classId] = app_class_subject_teacher_rows($conn, $classId);
+		$classGradingMap[$classId] = app_class_grading_system_id($conn, $classId);
 		$parts = app_class_display_parts((string)$classRow['name']);
 		$gradeKey = $parts['grade'] !== '' ? $parts['grade'] : (string)$classRow['name'];
 		$streamGroups[$gradeKey][] = [
@@ -54,6 +69,13 @@ try {
 <link rel="icon" href="images/icon.ico">
 <link rel="stylesheet" type="text/css" href="cdn.jsdelivr.net/npm/bootstrap-icons%401.10.5/font/bootstrap-icons.css">
 <link rel="stylesheet" href="cdn.datatables.net/v/bs5/dt-1.13.4/datatables.min.css">
+<style>
+.cbe-badge{padding:5px 10px;border-radius:999px;color:#fff;font-size:12px;font-weight:700;display:inline-block}
+.cbe-badge.lower-primary{background-color:#28a745}
+.cbe-badge.upper-primary{background-color:#007bff}
+.cbe-badge.junior-secondary{background-color:#6f42c1}
+.cbe-badge.unknown-level{background-color:#6c757d}
+</style>
 </head>
 <body class="app sidebar-mini">
 <header class="app-header"><a class="app-header__logo" href="javascript:void(0);"><?php echo APP_NAME; ?></a><a class="app-sidebar__toggle" href="#" data-toggle="sidebar" aria-label="Hide Sidebar"></a><ul class="app-nav"><li class="dropdown"><a class="app-nav__item" href="#" data-bs-toggle="dropdown" aria-label="Open Profile Menu"><i class="bi bi-person fs-4"></i></a><ul class="dropdown-menu settings-menu dropdown-menu-right"><li><a class="dropdown-item" href="admin/profile"><i class="bi bi-person me-2 fs-5"></i> Profile</a></li><li><a class="dropdown-item" href="logout"><i class="bi bi-box-arrow-right me-2 fs-5"></i> Logout</a></li></ul></li></ul></header>
@@ -65,9 +87,10 @@ try {
 <p>Create grades, add streams under them, then keep class teachers and subjects ready for teacher allocation, exams, and report cards.</p>
 </div>
 <ul class="app-breadcrumb breadcrumb">
+<li class="breadcrumb-item"><a class="btn btn-outline-primary btn-sm" href="admin/grading_system">Grading Management</a></li>
 <li class="breadcrumb-item">
-<form method="POST" action="admin/core/apply_cbc_structure" onsubmit="return confirm('Apply the Kenya CBC primary + junior class structure and replace unused extra classes/subjects?');">
-<button class="btn btn-outline-success btn-sm" type="submit">Apply Kenya CBC Defaults</button>
+<form method="POST" action="admin/core/apply_cbe_structure" onsubmit="return confirm('Apply the Kenya CBE primary + junior class structure and replace unused extra classes/subjects?');">
+<button class="btn btn-outline-success btn-sm" type="submit">Apply Kenya CBE Defaults</button>
 </form>
 </li>
 <li class="breadcrumb-item"><button class="btn btn-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#addModal">Add Grade / Stream</button></li>
@@ -80,7 +103,9 @@ try {
 <div class="alert alert-info mb-0">
 <strong>Class management is now the main setup point:</strong> create the grade, add streams under it, set the class teacher, and choose the subjects here. Subject teachers are listed per class below for easier management, while <a href="admin/teacher_allocation">Teacher Allocation</a> still handles the actual teacher-to-subject assignment records.
 <hr class="my-2">
-<span class="small">Need the Kenya CBC primary + junior setup quickly? Use <strong>Apply Kenya CBC Defaults</strong> above to load PP1 to Grade 9, attach the recommended subjects per level, and clear unused extras that are not already in active use.</span>
+<span class="small">Need the Kenya CBE primary + junior setup quickly? Use <strong>Apply Kenya CBE Defaults</strong> above to load PP1 to Grade 9, attach the recommended subjects per level, and clear unused extras that are not already in active use.</span>
+<hr class="my-2">
+<span class="small">CBE levels are now auto-classified and stored as <strong>Lower Primary</strong>, <strong>Upper Primary</strong>, or <strong>Junior Secondary</strong> based on the class grade.</span>
 </div>
 </div>
 </div>
@@ -97,6 +122,12 @@ try {
 <div class="d-flex justify-content-between align-items-start mb-2">
 <div>
 <div class="fw-bold"><?php echo htmlspecialchars($gradeName); ?></div>
+<?php
+	$overviewBand = app_cbe_class_band((string)$gradeName);
+	$overviewBandClass = $overviewBand !== '' ? str_replace('_', '-', $overviewBand) : 'unknown-level';
+	$overviewBandLabel = $overviewBand !== '' ? app_cbe_band_label($overviewBand) : 'Unknown Level';
+?>
+<div class="my-1"><span class="cbe-badge <?php echo htmlspecialchars($overviewBandClass); ?>"><?php echo htmlspecialchars($overviewBandLabel); ?></span></div>
 <div class="small text-muted"><?php echo count($streams); ?> <?php echo count($streams) === 1 && !empty($streams[0]['is_independent']) ? 'class' : 'stream(s)'; ?></div>
 </div>
 <button
@@ -126,6 +157,7 @@ try {
 <div class="mb-3"><label class="form-label">Grade / Class</label><input required name="grade_name" class="form-control" type="text" placeholder="e.g. Grade 8"></div>
 <div class="mb-3"><label class="form-label">Stream / Section</label><input name="stream_name" class="form-control" type="text" placeholder="e.g. A"></div>
 <div class="mb-3"><label class="form-label">Class Teacher</label><select name="class_teacher_id" class="form-control"><option value="">Select class teacher (optional)</option><?php foreach ($teachers as $teacher) { ?><option value="<?php echo (int)$teacher['id']; ?>"><?php echo htmlspecialchars(trim(($teacher['fname'] ?? '').' '.($teacher['lname'] ?? ''))); ?></option><?php } ?></select></div>
+<div class="mb-3"><label class="form-label">Grading System</label><select name="grading_system_id" class="form-control"><option value="">Use system default / auto</option><?php foreach ($gradingSystems as $gradingSystem) { ?><option value="<?php echo (int)$gradingSystem['id']; ?>"><?php echo htmlspecialchars((string)$gradingSystem['name'] . ' (' . strtoupper((string)$gradingSystem['type']) . ')'); ?></option><?php } ?></select><div class="form-text">Set the grading system here per class so exams and report cards use the right grading automatically.</div></div>
 <div class="mb-3"><label class="form-label">Subjects for this Class / Stream</label><select name="subject_ids[]" class="form-control" multiple size="8"><?php foreach ($subjects as $subject) { ?><option value="<?php echo (int)$subject['id']; ?>"><?php echo htmlspecialchars((string)$subject['name']); ?></option><?php } ?></select><div class="form-text">Select the subjects this class or stream will do. This becomes the source of truth for exams and teacher allocation.</div></div>
 <div class="form-text mb-3">The system will save this as one class name, for example <strong>Grade 8 A</strong>.</div>
 <input type="hidden" name="name" value="">
@@ -149,6 +181,7 @@ try {
 </div>
 <div class="mb-3"><label class="form-label">New Stream / Section</label><input required name="stream_name" class="form-control" type="text" placeholder="e.g. East"></div>
 <div class="mb-3"><label class="form-label">Class Teacher</label><select name="class_teacher_id" class="form-control"><option value="">Select class teacher (optional)</option><?php foreach ($teachers as $teacher) { ?><option value="<?php echo (int)$teacher['id']; ?>"><?php echo htmlspecialchars(trim(($teacher['fname'] ?? '').' '.($teacher['lname'] ?? ''))); ?></option><?php } ?></select></div>
+<div class="mb-3"><label class="form-label">Grading System</label><select name="grading_system_id" class="form-control"><option value="">Use system default / auto</option><?php foreach ($gradingSystems as $gradingSystem) { ?><option value="<?php echo (int)$gradingSystem['id']; ?>"><?php echo htmlspecialchars((string)$gradingSystem['name'] . ' (' . strtoupper((string)$gradingSystem['type']) . ')'); ?></option><?php } ?></select></div>
 <div class="mb-3"><label class="form-label">Subjects for this Stream</label><select name="subject_ids[]" class="form-control" multiple size="8"><?php foreach ($subjects as $subject) { ?><option value="<?php echo (int)$subject['id']; ?>"><?php echo htmlspecialchars((string)$subject['name']); ?></option><?php } ?></select></div>
 <div class="form-text mb-3">Use this when the grade already exists and you only want to add another stream under it.</div>
 <input type="hidden" name="name" value="">
@@ -164,6 +197,7 @@ try {
 <div class="mb-3"><label class="form-label">Grade / Class</label><input id="grade_name" required name="grade_name" class="form-control" type="text" placeholder="e.g. Grade 8"></div>
 <div class="mb-3"><label class="form-label">Stream / Section</label><input id="stream_name" name="stream_name" class="form-control" type="text" placeholder="e.g. A"></div>
 <div class="mb-3"><label class="form-label">Class Teacher</label><select id="class_teacher_id" name="class_teacher_id" class="form-control"><option value="">Select class teacher (optional)</option><?php foreach ($teachers as $teacher) { ?><option value="<?php echo (int)$teacher['id']; ?>"><?php echo htmlspecialchars(trim(($teacher['fname'] ?? '').' '.($teacher['lname'] ?? ''))); ?></option><?php } ?></select></div>
+<div class="mb-3"><label class="form-label">Grading System</label><select id="grading_system_id" name="grading_system_id" class="form-control"><option value="">Use system default / auto</option><?php foreach ($gradingSystems as $gradingSystem) { ?><option value="<?php echo (int)$gradingSystem['id']; ?>"><?php echo htmlspecialchars((string)$gradingSystem['name'] . ' (' . strtoupper((string)$gradingSystem['type']) . ')'); ?></option><?php } ?></select></div>
 <div class="mb-3"><label class="form-label">Subjects for this Class / Stream</label><select id="edit_subject_ids" name="subject_ids[]" class="form-control" multiple size="8"><?php foreach ($subjects as $subject) { ?><option value="<?php echo (int)$subject['id']; ?>"><?php echo htmlspecialchars((string)$subject['name']); ?></option><?php } ?></select></div>
 <div class="form-text mb-3">Edit grade and stream separately; the system combines them into one class name.</div>
 <input id="name" name="name" type="hidden">
@@ -176,9 +210,9 @@ try {
 
 <div class="row"><div class="col-md-12"><div class="tile"><div class="tile-body"><div class="table-responsive">
 <h3 class="tile-title">Classes, Subjects, and Teachers</h3>
-<p class="text-muted">Each CBC grade such as `PP1`, `PP2`, `Grade 1`, and `Grade 2` can stand on its own as a full class. Only names like `Grade 6 East` and `Grade 6 West` are treated as streams under the same grade.</p>
+<p class="text-muted">Each CBE grade such as `PP1`, `PP2`, `Grade 1`, and `Grade 2` can stand on its own as a full class. Only names like `Grade 6 East` and `Grade 6 West` are treated as streams under the same grade.</p>
 <table class="table table-hover table-bordered" id="srmsTable">
-<thead><tr><th>Grade</th><th>Stream</th><th>Saved Class Name</th><th>Class Teacher</th><th>Subjects</th><th>Subject Teachers</th><th>Added On</th><th width="140"></th></tr></thead>
+<thead><tr><th>Grade</th><th>Level</th><th>Stream</th><th>Saved Class Name</th><th>Class Teacher</th><th>Grading System</th><th>Subjects</th><th>Subject Teachers</th><th>Added On</th><th width="140"></th></tr></thead>
 <tbody>
 <?php
 try {
@@ -192,6 +226,8 @@ try {
 	$stmt->execute();
 	foreach($stmt->fetchAll() as $row) {
 		$parts = app_class_display_parts((string)$row[1]);
+		$meta = $classMetaMap[(int)$row[0]] ?? ['grade_level' => 0, 'cbe_level' => 'Unknown Level', 'cbe_band' => ''];
+		$badgeClass = !empty($meta['cbe_band']) ? str_replace('_', '-', (string)$meta['cbe_band']) : 'unknown-level';
 		$subjectIds = $classSubjectMap[(int)$row[0]] ?? [];
 		$subjectNames = [];
 		foreach ($subjects as $subject) {
@@ -200,6 +236,14 @@ try {
 			}
 		}
 		$teacherRows = $classTeacherMap[(int)$row[0]] ?? [];
+		$classGradingSystemId = (int)($classGradingMap[(int)$row[0]] ?? 0);
+		$classGradingLabel = 'Auto / Default';
+		foreach ($gradingSystems as $gradingSystem) {
+			if ((int)$gradingSystem['id'] === $classGradingSystemId) {
+				$classGradingLabel = (string)$gradingSystem['name'] . ' (' . strtoupper((string)$gradingSystem['type']) . ')';
+				break;
+			}
+		}
 		$teacherLines = [];
 		foreach ($teacherRows as $teacherRow) {
 			$teacherLines[] = $teacherRow['subject_name'] . ': ' . (!empty($teacherRow['teachers']) ? implode(', ', $teacherRow['teachers']) : 'Not assigned');
@@ -207,9 +251,11 @@ try {
 ?>
 <tr>
 <td><?php echo htmlspecialchars($parts['grade']); ?></td>
+<td><span class="cbe-badge <?php echo htmlspecialchars($badgeClass); ?>"><?php echo htmlspecialchars((string)$meta['cbe_level']); ?></span></td>
 <td><?php echo htmlspecialchars($parts['stream'] !== '' ? $parts['stream'] : '—'); ?></td>
 <td><?php echo htmlspecialchars($row[1]); ?></td>
 <td><?php echo htmlspecialchars(trim(($row['teacher_fname'] ?? '').' '.($row['teacher_lname'] ?? '')) ?: '—'); ?></td>
+<td><?php echo htmlspecialchars($classGradingLabel); ?></td>
 <td><?php echo htmlspecialchars(!empty($subjectNames) ? implode(', ', $subjectNames) : 'No subjects set'); ?></td>
 <td><?php echo htmlspecialchars(!empty($teacherLines) ? implode(' | ', $teacherLines) : 'No subject teachers assigned'); ?></td>
 <td><?php echo htmlspecialchars($row[2] ?? ''); ?></td>
@@ -222,6 +268,7 @@ try {
 	data-grade="<?php echo htmlspecialchars($parts['grade']); ?>"
 	data-stream="<?php echo htmlspecialchars($parts['stream']); ?>"
 	data-class-teacher-id="<?php echo (int)($row['teacher_id'] ?? 0); ?>"
+	data-grading-system-id="<?php echo $classGradingSystemId; ?>"
 	data-subject-ids="<?php echo htmlspecialchars(json_encode($subjectIds)); ?>"
 	data-bs-toggle="modal"
 	data-bs-target="#editModal">Edit</button>
@@ -231,7 +278,7 @@ try {
 <?php
 	}
 } catch (Throwable $e) {
-	echo '<tr><td colspan="8">Failed to load classes.</td></tr>';
+	echo '<tr><td colspan="10">Failed to load classes.</td></tr>';
 }
 ?>
 </tbody>
@@ -253,6 +300,7 @@ $('.edit-class').on('click', function () {
 	$('#grade_name').val($(this).data('grade'));
 	$('#stream_name').val($(this).data('stream'));
 	$('#class_teacher_id').val($(this).data('class-teacher-id'));
+	$('#grading_system_id').val($(this).data('grading-system-id'));
 	$('#edit_subject_ids option').prop('selected', false);
 	const selectedSubjects = $(this).data('subject-ids');
 	if (Array.isArray(selectedSubjects)) {

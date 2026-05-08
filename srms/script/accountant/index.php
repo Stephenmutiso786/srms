@@ -1,20 +1,23 @@
 <?php
-chdir('../');
+chdir(__DIR__ . '/..');
 session_start();
 require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
 require_once('const/rbac.php');
 if ($res == "1" && $level == "5") {}else{header("location:../"); exit;}
-$summary = ['open_invoices' => 0, 'paid_today' => 0, 'outstanding' => 0, 'payments_month' => 0];
+$summary = ['open_invoices' => 0, 'paid_today' => 0, 'outstanding' => 0, 'payments_month' => 0, 'debtors' => 0, 'expenses_month' => 0, 'salary_month' => 0, 'mpesa_today' => 0];
 $roleNames = [];
 $visibleModules = [];
 $allocatedModules = [];
+$recentTransactions = [];
+$financeAlerts = [];
 
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 	app_ensure_finance_tables($conn);
+	app_sync_student_finance_class_links($conn);
 
 	if (app_table_exists($conn, 'tbl_invoices')) {
 		$summary['open_invoices'] = (int)$conn->query("SELECT COUNT(*) FROM tbl_invoices WHERE status = 'open'")->fetchColumn();
@@ -32,9 +35,17 @@ try {
 		$currentMonth = date('Y-m');
 
 		$summary['paid_today'] = (float)$conn->query("SELECT COALESCE(SUM(amount),0) FROM tbl_payments WHERE $todayExpr = $todayValue")->fetchColumn();
+		$summary['mpesa_today'] = (float)$conn->query("SELECT COALESCE(SUM(amount),0) FROM tbl_payments WHERE LOWER(method) = 'mpesa' AND $todayExpr = $todayValue")->fetchColumn();
 		$stmt = $conn->prepare("SELECT COALESCE(SUM(amount),0) FROM tbl_payments WHERE $monthExpr = ?");
 		$stmt->execute([$currentMonth]);
 		$summary['payments_month'] = (float)$stmt->fetchColumn();
+		$stmt = $conn->prepare("SELECT p.paid_at, p.amount, p.method, p.reference, i.student_id
+			FROM tbl_payments p
+			LEFT JOIN tbl_invoices i ON i.id = p.invoice_id
+			ORDER BY p.id DESC
+			LIMIT 8");
+		$stmt->execute();
+		$recentTransactions = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
 
 	if (app_table_exists($conn, 'tbl_invoice_lines') && app_table_exists($conn, 'tbl_invoices')) {
@@ -57,6 +68,46 @@ try {
 			$stmt->execute();
 			$summary['outstanding'] = (float)$stmt->fetchColumn();
 		}
+	}
+	if (app_table_exists($conn, 'tbl_invoices') && app_table_exists($conn, 'tbl_invoice_lines')) {
+		$stmt = $conn->prepare("SELECT COUNT(*) FROM (
+			SELECT i.student_id
+			FROM tbl_invoices i
+			LEFT JOIN tbl_invoice_lines l ON l.invoice_id = i.id
+			LEFT JOIN (
+				SELECT invoice_id, SUM(amount) AS total_paid
+				FROM tbl_payments
+				GROUP BY invoice_id
+			) paid ON paid.invoice_id = i.id
+			GROUP BY i.student_id
+			HAVING COALESCE(SUM(l.amount),0) > COALESCE(SUM(paid.total_paid),0)
+		) debtors");
+		$stmt->execute();
+		$summary['debtors'] = (int)$stmt->fetchColumn();
+	}
+	if (app_table_exists($conn, 'tbl_finance_expenses')) {
+		$stmt = $conn->prepare("SELECT COALESCE(SUM(amount),0) FROM tbl_finance_expenses WHERE DATE_FORMAT(expense_date, '%Y-%m') = ?");
+		try {
+			$stmt->execute([date('Y-m')]);
+		} catch (Throwable $mysqlDateError) {
+			$stmt = $conn->prepare("SELECT COALESCE(SUM(amount),0) FROM tbl_finance_expenses WHERE TO_CHAR(expense_date, 'YYYY-MM') = ?");
+			$stmt->execute([date('Y-m')]);
+		}
+		$summary['expenses_month'] = (float)$stmt->fetchColumn();
+	}
+	if (app_table_exists($conn, 'tbl_finance_salary_records')) {
+		$stmt = $conn->prepare("SELECT COALESCE(SUM(net_amount),0) FROM tbl_finance_salary_records WHERE payroll_month = ?");
+		$stmt->execute([date('Y-m')]);
+		$summary['salary_month'] = (float)$stmt->fetchColumn();
+	}
+	if ($summary['debtors'] > 0) {
+		$financeAlerts[] = $summary['debtors'] . ' student fee account(s) still have arrears.';
+	}
+	if ($summary['outstanding'] > 0) {
+		$financeAlerts[] = 'Outstanding balances need follow-up and reminders.';
+	}
+	if ($summary['salary_month'] <= 0) {
+		$financeAlerts[] = 'No salary records have been posted for ' . date('F Y') . '.';
 	}
 } catch (Throwable $e) {
 	// keep defaults
@@ -121,11 +172,24 @@ try {
 			<strong class="meta-value"><?php echo date('l, d M Y'); ?></strong>
 		</div>
 		<div class="meta-card">
+			<span class="meta-label">Current Time</span>
+			<strong class="meta-value" id="accountantCurrentTime"><?php echo date('H:i:s'); ?></strong>
+		</div>
+		<div class="meta-card">
 			<span class="meta-label">Month Total</span>
 			<strong class="meta-value"><?php echo number_format((float)$summary['payments_month'], 2); ?></strong>
 		</div>
 	</div>
 </div>
+
+<?php if (!empty($financeAlerts)): ?>
+<div class="tile mb-3">
+	<h3 class="tile-title">Finance Alerts</h3>
+	<?php foreach ($financeAlerts as $alertText): ?>
+	<div class="alert alert-warning mb-2"><?php echo htmlspecialchars($alertText); ?></div>
+	<?php endforeach; ?>
+</div>
+<?php endif; ?>
 
 <div class="access-grid">
 	<div class="access-card roles">
@@ -168,6 +232,10 @@ try {
 	<div class="stat-card"><div><div class="stat-label">Paid Today</div><div class="stat-value"><?php echo number_format((float)$summary['paid_today'], 2); ?></div></div><div class="stat-icon"><i class="bi bi-cash-stack"></i></div></div>
 	<div class="stat-card"><div><div class="stat-label">Outstanding</div><div class="stat-value"><?php echo number_format((float)$summary['outstanding'], 2); ?></div></div><div class="stat-icon"><i class="bi bi-wallet2"></i></div></div>
 	<div class="stat-card"><div><div class="stat-label">Month Total</div><div class="stat-value"><?php echo number_format((float)$summary['payments_month'], 2); ?></div></div><div class="stat-icon"><i class="bi bi-bar-chart-2"></i></div></div>
+	<div class="stat-card"><div><div class="stat-label">Debtors</div><div class="stat-value"><?php echo number_format((int)$summary['debtors']); ?></div></div><div class="stat-icon"><i class="bi bi-exclamation-circle"></i></div></div>
+	<div class="stat-card"><div><div class="stat-label">Expenses This Month</div><div class="stat-value"><?php echo number_format((float)$summary['expenses_month'], 2); ?></div></div><div class="stat-icon"><i class="bi bi-cart"></i></div></div>
+	<div class="stat-card"><div><div class="stat-label">Salary Expenses</div><div class="stat-value"><?php echo number_format((float)$summary['salary_month'], 2); ?></div></div><div class="stat-icon"><i class="bi bi-people"></i></div></div>
+	<div class="stat-card"><div><div class="stat-label">M-Pesa Today</div><div class="stat-value"><?php echo number_format((float)$summary['mpesa_today'], 2); ?></div></div><div class="stat-icon"><i class="bi bi-phone"></i></div></div>
 </div>
 
 <div class="row">
@@ -179,7 +247,38 @@ try {
 		<a class="btn btn-outline-primary" href="accountant/receive_payment"><i class="bi bi-plus-circle me-1"></i>Record Fee Payment</a>
 		<a class="btn btn-outline-primary" href="accountant/fee_structure"><i class="bi bi-sliders me-1"></i>Fee Structure</a>
 		<a class="btn btn-outline-primary" href="accountant/invoices"><i class="bi bi-file-text me-1"></i>Invoices & Payments</a>
+		<a class="btn btn-outline-primary" href="accountant/expenses"><i class="bi bi-cart me-1"></i>Expenses</a>
+		<a class="btn btn-outline-primary" href="accountant/cashbook"><i class="bi bi-bank me-1"></i>Cashbook & Banking</a>
+		<a class="btn btn-outline-primary" href="accountant/payroll"><i class="bi bi-people me-1"></i>Payroll</a>
+		<a class="btn btn-outline-primary" href="accountant/financial_reports"><i class="bi bi-bar-chart me-1"></i>Financial Reports</a>
+		<a class="btn btn-outline-primary" href="accountant/budgets"><i class="bi bi-pie-chart me-1"></i>Budgeting</a>
+		<a class="btn btn-outline-primary" href="accountant/bursaries"><i class="bi bi-heart me-1"></i>Bursaries</a>
+		<a class="btn btn-outline-primary" href="accountant/mpesa"><i class="bi bi-phone me-1"></i>M-Pesa</a>
 		<a class="btn btn-outline-primary" href="accountant/ledger"><i class="bi bi-journal-bookmark me-1"></i>General Ledger</a>
+	  </div>
+	</div>
+  </div>
+  <div class="col-lg-8 mb-3">
+	<div class="tile">
+	  <h3 class="tile-title">Recent Transactions</h3>
+	  <div class="table-responsive">
+		<table class="table table-hover table-striped">
+		  <thead><tr><th>Time</th><th>Student</th><th>Method</th><th>Reference</th><th>Amount</th></tr></thead>
+		  <tbody>
+		  <?php if (!$recentTransactions) { ?>
+		  <tr><td colspan="5" class="text-muted">No recent payments recorded.</td></tr>
+		  <?php } ?>
+		  <?php foreach ($recentTransactions as $transaction): ?>
+		  <tr>
+			<td><?php echo htmlspecialchars((string)$transaction['paid_at']); ?></td>
+			<td><?php echo htmlspecialchars((string)($transaction['student_id'] ?? '')); ?></td>
+			<td><?php echo htmlspecialchars(ucfirst((string)($transaction['method'] ?? 'cash'))); ?></td>
+			<td><?php echo htmlspecialchars((string)($transaction['reference'] ?? '')); ?></td>
+			<td><?php echo number_format((float)($transaction['amount'] ?? 0), 2); ?></td>
+		  </tr>
+		  <?php endforeach; ?>
+		  </tbody>
+		</table>
 	  </div>
 	</div>
   </div>
@@ -190,5 +289,16 @@ try {
 <script src="js/jquery-3.7.0.min.js"></script>
 <script src="js/bootstrap.min.js"></script>
 <script src="js/main.js"></script>
+<script>
+(function () {
+	function updateClock() {
+		var node = document.getElementById('accountantCurrentTime');
+		if (!node) return;
+		node.textContent = new Intl.DateTimeFormat('en-KE', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false, timeZone:'Africa/Nairobi' }).format(new Date());
+	}
+	updateClock();
+	setInterval(updateClock, 1000);
+})();
+</script>
 </body>
 </html>

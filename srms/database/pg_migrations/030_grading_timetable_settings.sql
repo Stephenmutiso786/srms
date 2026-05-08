@@ -101,14 +101,14 @@ WHERE gs.is_default = 1
   );
 
 INSERT INTO tbl_grading_systems (name, type, description, is_default, is_active)
-SELECT 'CBC Term System', 'cbc', 'CBC competency grading used for Junior School assessments', 0, 1
-WHERE NOT EXISTS (SELECT 1 FROM tbl_grading_systems WHERE type = 'cbc');
+SELECT 'CBE Term System', 'cbe', 'CBE competency grading used for Junior School assessments', 0, 1
+WHERE NOT EXISTS (SELECT 1 FROM tbl_grading_systems WHERE type = 'cbe');
 
 INSERT INTO tbl_grading_scales (grading_system_id, min_score, max_score, grade, points, remark, sort_order, is_active)
 SELECT gs.id, c.min_mark, c.max_mark, c.level, c.points, c.level, c.sort_order, c.active
 FROM tbl_grading_systems gs
-JOIN tbl_cbc_grading c ON 1=1
-WHERE gs.type = 'cbc'
+JOIN tbl_cbe_grading c ON 1=1
+WHERE gs.type = 'cbe'
   AND NOT EXISTS (
     SELECT 1 FROM tbl_grading_scales s WHERE s.grading_system_id = gs.id
   );
@@ -125,7 +125,7 @@ VALUES
   ('current_academic_year', '2026'),
   ('current_term_id', ''),
   ('ranking_enabled', '1'),
-  ('cbc_public_ranking_enabled', '0'),
+  ('cbe_public_ranking_enabled', '0'),
   ('allow_mark_adjustments', '1'),
   ('require_review_before_finalizing', '1'),
   ('block_finalization_on_missing_marks', '1'),

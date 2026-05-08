@@ -60,7 +60,7 @@ try {
 <a class="app-sidebar__toggle" href="#" data-toggle="sidebar" aria-label="Hide Sidebar"></a></header>
 <?php include('admin/partials/sidebar.php'); ?>
 <main class="app-content">
-<div class="app-title"><div><h1>🎓 School Certificates</h1><p>Generate Kenya Primary School Leaving, completion, conduct, merit, and transfer certificates with CBC competency tracking.</p></div></div>
+<div class="app-title"><div><h1>🎓 School Certificates</h1><p>Generate Kenya Primary School Leaving, completion, conduct, merit, and transfer certificates with CBE competency tracking.</p></div></div>
 
 <div class="tile mb-3">
 <h3 class="tile-title"><i class="bi bi-plus-circle"></i> Generate New Certificate</h3>
@@ -110,10 +110,10 @@ try {
 </div>
 
 <div class="col-md-12" id="competenciesField" style="display:none;">
-<label class="form-label">🧩 CBC Competencies Status</label>
+<label class="form-label">🧩 CBE Competencies Status</label>
 <div class="row g-2">
 <?php 
-$competencies = app_cbc_competencies();
+$competencies = app_cbe_competencies();
 foreach ($competencies as $key => $comp):
 ?>
 <div class="col-md-4">
@@ -161,7 +161,7 @@ foreach ($competencies as $key => $comp):
 <div class="tab-pane fade show active" id="allCerts" role="tabpanel">
 <div class="table-responsive-md">
 <table class="table table-sm table-hover">
-<thead><tr><th>#</th><th>Student</th><th>Class</th><th>Type</th><th>Mean</th><th>Grade</th><th>Issued</th><th>Status</th><th>Action</th></tr></thead>
+<thead><tr><th>#</th><th>Student</th><th>Class</th><th>Type</th><th>Mean</th><th>Report Grade</th><th>Issued</th><th>Status</th><th>Action</th></tr></thead>
 <tbody>
 <?php foreach ($certificates as $row): ?>
 <tr<?php echo $row['locked'] ? ' class="table-secondary"' : ''; ?>>
@@ -203,7 +203,7 @@ $catCerts = array_filter($certificates, function($c) use ($cat) { return ($c['ce
 <div class="tab-pane fade" id="cat<?php echo htmlspecialchars($cat); ?>" role="tabpanel">
 <div class="table-responsive-md">
 <table class="table table-sm table-hover">
-<thead><tr><th>#</th><th>Student</th><th>Class</th><th>Mean</th><th>Grade</th><th>Issued</th><th>Action</th></tr></thead>
+<thead><tr><th>#</th><th>Student</th><th>Class</th><th>Mean</th><th>Report Grade</th><th>Issued</th><th>Action</th></tr></thead>
 <tbody>
 <?php foreach ($catCerts as $row): ?>
 <tr<?php echo $row['locked'] ? ' class="table-secondary"' : ''; ?>>
@@ -245,8 +245,8 @@ $catCerts = array_filter($certificates, function($c) use ($cat) { return ($c['ce
 <div class="col-md-3">
 <div class="tile tile-colored bg-success">
 <div class="tile-body">
-<h4><?php echo count(array_filter($certificates, fn($c) => $c['merit_grade'] === 'A')); ?></h4>
-<p>Grade A Certificates</p>
+<h4><?php echo count(array_filter($certificates, fn($c) => trim((string)($c['merit_grade'] ?? '')) !== '')); ?></h4>
+<p>Certificates With Saved Grade</p>
 </div>
 </div>
 </div>

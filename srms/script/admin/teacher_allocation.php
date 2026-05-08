@@ -20,9 +20,7 @@ try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-	$stmt = $conn->prepare("SELECT id, fname, lname FROM tbl_staff WHERE level = '2' ORDER BY fname, lname");
-	$stmt->execute();
-	$teachers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	$teachers = app_staff_instructional_picker_rows($conn);
 
 	$stmt = $conn->prepare("SELECT id, name FROM tbl_classes ORDER BY name");
 	$stmt->execute();

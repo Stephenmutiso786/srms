@@ -6,18 +6,33 @@ require_once('const/check_session.php');
 require_once('const/school.php');
 if ($res == "1" && $level == "2") {}else{header("location:../");}
 
+function app_exam_entry_redirect_target(string $portal, string $page): string
+{
+  $portal = strtolower(trim($portal));
+  if (!in_array($portal, ['admin', 'academic', 'teacher'], true)) {
+    $portal = 'teacher';
+  }
+  return '../../' . $portal . '/' . ltrim($page, '/');
+}
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-  header("location:../exam_marks_entry");
+  $originPortal = strtolower(trim((string)($_SESSION['exam_entry_portal'] ?? 'teacher')));
+  header("location:" . app_exam_entry_redirect_target($originPortal, 'exam_marks_entry'));
   exit;
 }
 
 $examId = (int)($_POST['exam_id'] ?? 0);
 $subjectComb = (int)($_POST['subject_combination'] ?? 0);
-$assessmentMode = strtolower(trim((string)($_POST['assessment_mode'] ?? 'normal'))) === 'cbc' ? 'cbc' : 'normal';
+$assessmentMode = strtolower(trim((string)($_POST['assessment_mode'] ?? 'normal'))) === 'cbe' ? 'cbe' : 'normal';
+$originPortal = strtolower(trim((string)($_POST['origin_portal'] ?? ($_SESSION['exam_entry_portal'] ?? 'teacher'))));
+if (!in_array($originPortal, ['admin', 'academic', 'teacher'], true)) {
+  $originPortal = 'teacher';
+}
+$_SESSION['exam_entry_portal'] = $originPortal;
 
 if ($examId < 1 || $subjectComb < 1) {
   $_SESSION['reply'] = array (array("danger", "Missing exam or subject."));
-  header("location:../exam_marks_entry");
+  header("location:" . app_exam_entry_redirect_target($originPortal, 'exam_marks_entry'));
   exit;
 }
 
@@ -84,19 +99,20 @@ try {
   if ($examMode === 'consolidated') {
     throw new RuntimeException("Consolidated exams are auto-computed from selected source exams and do not accept direct mark entry.");
   }
-  if ($assessmentMode === 'cbc' || $examMode === 'cbc') {
-    $cbcEntryMode = 'cbc';
-    if (app_table_exists($conn, 'tbl_cbc_assessments') && app_column_exists($conn, 'tbl_cbc_assessments', 'marks')) {
-      $cbcEntryMode = 'marks';
+  if ($assessmentMode === 'cbe' || $examMode === 'cbe') {
+    $cbeEntryMode = 'cbe';
+    if (app_table_exists($conn, 'tbl_cbe_assessments') && app_column_exists($conn, 'tbl_cbe_assessments', 'marks')) {
+      $cbeEntryMode = 'marks';
     }
-    $_SESSION['cbc_entry'] = [
+    $_SESSION['cbe_entry'] = [
       'term' => (int)$exam['term_id'],
       'class' => (int)$exam['class_id'],
       'subject' => (int)$combo['id'],
-      'mode' => $cbcEntryMode,
+      'mode' => $cbeEntryMode,
       'exam_id' => (int)$exam['id'],
+      'origin_portal' => $originPortal,
     ];
-    header("location:../cbc_entry");
+    header("location:" . app_exam_entry_redirect_target($originPortal, 'cbe_entry'));
     exit;
   }
 
@@ -104,14 +120,15 @@ try {
     'exam_id' => (int)$exam['id'],
     'class_id' => (int)$exam['class_id'],
     'term_id' => (int)$exam['term_id'],
-    'subject_combination' => (int)$combo['id']
+    'subject_combination' => (int)$combo['id'],
+    'origin_portal' => $originPortal,
   ];
 
-  header("location:../exam_marks_table");
+  header("location:" . app_exam_entry_redirect_target($originPortal, 'exam_marks_table'));
   exit;
 } catch (Throwable $e) {
 	error_log("[".__FILE__.":".__LINE__." Throwable] " . $e->getMessage());
-	$_SESSION['reply'] = array(array("danger", "Operation failed. Please try again."));
-  header("location:../exam_marks_entry");
+	$_SESSION['reply'] = array(array("danger", $e->getMessage() !== '' ? $e->getMessage() : "Operation failed. Please try again."));
+  header("location:" . app_exam_entry_redirect_target($originPortal, 'exam_marks_entry'));
   exit;
 }

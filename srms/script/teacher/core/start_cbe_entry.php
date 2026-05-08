@@ -14,7 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $term = (int)($_POST['term'] ?? 0);
 $class = (int)($_POST['class'] ?? 0);
 $subject = (int)($_POST['subject'] ?? 0);
-$mode = ($_POST['mode'] ?? 'cbc') === 'marks' ? 'marks' : 'cbc';
+$mode = ($_POST['mode'] ?? 'cbe') === 'marks' ? 'marks' : 'cbe';
 
 if ($term < 1 || $class < 1 || $subject < 1) {
 	$_SESSION['reply'] = array (array("error","Select term, class, and subject."));
@@ -22,12 +22,12 @@ if ($term < 1 || $class < 1 || $subject < 1) {
 	exit;
 }
 
-$_SESSION['cbc_entry'] = [
+$_SESSION['cbe_entry'] = [
 	'term' => $term,
 	'class' => $class,
 	'subject' => $subject,
 	'mode' => $mode,
 ];
 
-header("location:../cbc_entry");
+header("location:../cbe_entry");
 ?>

@@ -1,0 +1,481 @@
+<?php
+chdir('../');
+session_start();
+require_once('db/config.php');
+require_once('const/school.php');
+require_once('const/check_session.php');
+require_once('const/rbac.php');
+if ($res != "1") {header("location:../"); exit;}
+app_require_permission('marks.enter', '../academic');
+
+if (!isset($_SESSION['cbe_entry'])) {
+	header("location:./exam_marks_entry");
+	exit;
+}
+
+$term = (int)$_SESSION['cbe_entry']['term'];
+$class = (int)$_SESSION['cbe_entry']['class'];
+$subjectComb = (int)$_SESSION['cbe_entry']['subject'];
+$mode = $_SESSION['cbe_entry']['mode'] ?? 'cbe';
+$mode = $mode === 'marks' ? 'marks' : 'cbe';
+
+$termData = null;
+$classData = null;
+$subjectData = null;
+$subjectId = 0;
+$subjectName = '';
+$strands = [];
+$students = [];
+$entries = [];
+$error = '';
+$isLocked = false;
+$grading = [];
+$levels = [];
+$submissionStatus = 'draft';
+$rejectionReason = '';
+
+try {
+	$conn = app_db();
+	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+	$stmt = $conn->prepare("SELECT * FROM tbl_terms WHERE id = ?");
+	$stmt->execute([$term]);
+	$termData = $stmt->fetch(PDO::FETCH_ASSOC);
+
+	$stmt = $conn->prepare("SELECT * FROM tbl_classes WHERE id = ?");
+	$stmt->execute([$class]);
+	$classData = $stmt->fetch(PDO::FETCH_ASSOC);
+
+	$stmt = $conn->prepare("SELECT * FROM tbl_subject_combinations
+		LEFT JOIN tbl_subjects ON tbl_subject_combinations.subject = tbl_subjects.id
+		WHERE tbl_subject_combinations.id = ?");
+	$stmt->execute([$subjectComb]);
+	$subjectData = $stmt->fetch(PDO::FETCH_ASSOC);
+
+	if (!$subjectData) {
+		throw new RuntimeException("Subject combination not found.");
+	}
+
+	if ((int)$subjectData['teacher'] !== (int)$account_id) {
+		throw new RuntimeException("Not allowed to enter marks for this subject.");
+	}
+
+	$classList = app_unserialize($subjectData['class']);
+	if (!in_array((string)$class, array_map('strval', $classList), true)) {
+		throw new RuntimeException("Subject not assigned to selected class.");
+	}
+
+	$subjectId = (int)$subjectData['subject'];
+	$subjectName = (string)$subjectData['name'];
+
+	if (app_table_exists($conn, 'tbl_cbe_strands')) {
+		$stmt = $conn->prepare("SELECT id, name FROM tbl_cbe_strands WHERE subject_id = ? AND status = 1 ORDER BY name");
+		$stmt->execute([$subjectId]);
+		$strands = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	}
+
+	$stmt = $conn->prepare("SELECT id, fname, mname, lname FROM tbl_students WHERE class = ? ORDER BY id");
+	$stmt->execute([$class]);
+	$students = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+	if (app_table_exists($conn, 'tbl_cbe_assessments')) {
+		$useSubjectId = app_column_exists($conn, 'tbl_cbe_assessments', 'subject_id');
+    if ($mode !== 'marks' && app_column_exists($conn, 'tbl_cbe_assessments', 'marks')) {
+      $mode = 'marks';
+    }
+		if ($useSubjectId) {
+			$stmt = $conn->prepare("SELECT student_id, strand, level, marks, points
+				FROM tbl_cbe_assessments
+				WHERE class_id = ? AND term_id = ? AND subject_id = ?");
+			$stmt->execute([$class, $term, $subjectId]);
+		} else {
+			$stmt = $conn->prepare("SELECT student_id, strand, level, NULL as marks, 0 as points
+				FROM tbl_cbe_assessments
+				WHERE class_id = ? AND term_id = ? AND learning_area = ?");
+			$stmt->execute([$class, $term, $subjectName]);
+		}
+		foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+			$entries[$row['student_id']][$row['strand']] = $row;
+		}
+	}
+
+	if (app_table_exists($conn, 'tbl_cbe_grading')) {
+		$stmt = $conn->prepare("SELECT level, min_mark, max_mark, points, sort_order FROM tbl_cbe_grading WHERE active = 1 ORDER BY sort_order, min_mark DESC");
+		$stmt->execute();
+		$grading = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	}
+
+	$isLocked = app_results_locked($conn, $class, $term);
+	$submissionStatus = app_cbe_submission_status($conn, $term, $class, $subjectComb);
+	
+	// Load rejection reason if marks were rejected
+	if ($submissionStatus === 'rejected' && app_table_exists($conn, 'tbl_cbe_mark_submissions')) {
+		$stmt = $conn->prepare("SELECT review_note FROM tbl_cbe_mark_submissions WHERE term_id = ? AND class_id = ? AND subject_combination_id = ? LIMIT 1");
+		$stmt->execute([$term, $class, $subjectComb]);
+		$rejectionReason = (string)($stmt->fetchColumn() ?? '');
+	}
+} catch (Throwable $e) {
+	error_log("[".__FILE__.":".__LINE__." Throwable] " . $e->getMessage());
+	$error = "An internal error occurred.";
+}
+
+if (count($grading) < 1) {
+	$grading = [
+    ['level' => 'EE', 'min_mark' => 90, 'max_mark' => 100, 'points' => 4, 'sort_order' => 1],
+    ['level' => 'ME', 'min_mark' => 75, 'max_mark' => 89, 'points' => 3, 'sort_order' => 2],
+    ['level' => 'AE', 'min_mark' => 50, 'max_mark' => 74, 'points' => 2, 'sort_order' => 3],
+    ['level' => 'BE', 'min_mark' => 0, 'max_mark' => 49, 'points' => 1, 'sort_order' => 4],
+	];
+}
+
+foreach ($grading as $row) {
+	$levels[] = strtoupper((string)$row['level']);
+}
+$levels = array_values(array_unique($levels));
+?>
+<!DOCTYPE html>
+<html lang="en">
+<meta http-equiv="content-type" content="text/html;charset=utf-8" />
+<head>
+<title><?php echo APP_NAME; ?> - Assessment Marks Entry</title>
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<base href="../">
+<link rel="stylesheet" type="text/css" href="css/main.css">
+<link rel="icon" href="images/icon.ico">
+<link rel="stylesheet" type="text/css" href="cdn.jsdelivr.net/npm/bootstrap-icons%401.10.5/font/bootstrap-icons.css">
+<style>
+.cbe-table select,.cbe-table input{min-width:110px;}
+.cbe-badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:12px;color:#fff;}
+.cbe-ee{background:#198754;}
+.cbe-me{background:#0d6efd;}
+.cbe-ae{background:#fd7e14;}
+.cbe-be{background:#dc3545;}
+.cbe-status{font-size:12px;color:#6c757d;}
+.cbe-missing{background:#fff8e1;}
+</style>
+</head>
+<body class="app sidebar-mini">
+
+<header class="app-header"><a class="app-header__logo" href="javascript:void(0);"><?php echo APP_NAME; ?></a>
+<a class="app-sidebar__toggle" href="#" data-toggle="sidebar" aria-label="Hide Sidebar"></a>
+
+<ul class="app-nav">
+<li class="dropdown"><a class="app-nav__item" href="#" data-bs-toggle="dropdown" aria-label="Open Profile Menu"><i class="bi bi-person fs-4"></i></a>
+<ul class="dropdown-menu settings-menu dropdown-menu-right">
+<li><a class="dropdown-item" href="academic/profile.php"><i class="bi bi-person me-2 fs-5"></i> Profile</a></li>
+<li><a class="dropdown-item" href="logout"><i class="bi bi-box-arrow-right me-2 fs-5"></i> Logout</a></li>
+</ul>
+</li>
+</ul>
+</header>
+
+<?php include("academic/partials/sidebar.php"); ?>
+
+<main class="app-content">
+<div class="app-title">
+<div>
+<h1>Assessment Marks Entry</h1>
+<p>Mode: <b><?php echo $mode === 'marks' ? 'Marks → CBE Auto' : 'CBE Levels'; ?></b></p>
+</div>
+<div class="cbe-status" id="saveStatus">Ready</div>
+</div>
+
+<?php if ($error !== '') { ?>
+  <div class="tile"><div class="alert alert-danger mb-0"><?php echo htmlspecialchars($error); ?></div></div>
+<?php } else { ?>
+<?php if ($isLocked) { ?>
+  <div class="tile"><div class="alert alert-warning mb-0">Results are locked for this class and term. Edits are disabled.</div></div>
+<?php } ?>
+<?php if (!$isLocked && in_array($submissionStatus, ['submitted','approved'], true)) { ?>
+  <div class="tile"><div class="alert alert-info mb-0">Marks are <?php echo htmlspecialchars($submissionStatus); ?> and read-only.</div></div>
+<?php } ?>
+<?php if ($submissionStatus === 'rejected') { ?>
+  <div class="tile"><div class="alert alert-danger mb-0">
+    <div class="fw-bold mb-2"><i class="bi bi-exclamation-triangle me-2"></i>Your marks were returned for revision</div>
+    <?php if ($rejectionReason !== '') { ?>
+      <div class="alert alert-light mb-0" style="border-left: 3px solid #dc3545;">
+        <strong>Admin Feedback:</strong><br>
+        <?php echo htmlspecialchars($rejectionReason); ?>
+      </div>
+    <?php } ?>
+    <div class="mt-2 small text-muted">Please review the feedback above, make necessary corrections, and resubmit your marks.</div>
+  </div></div>
+<?php } ?>
+
+<div class="row mb-2">
+<div class="col-md-4">
+<div class="tile">
+<div class="tile-body">
+<div><b>Class:</b> <?php echo htmlspecialchars($classData['name'] ?? ''); ?></div>
+<div><b>Term:</b> <?php echo htmlspecialchars($termData['name'] ?? ''); ?></div>
+<div><b>Subject:</b> <?php echo htmlspecialchars($subjectName); ?></div>
+<div><b>Status:</b> <?php echo htmlspecialchars(ucfirst($submissionStatus)); ?></div>
+</div>
+</div>
+</div>
+<div class="col-md-8">
+<div class="tile">
+<div class="tile-body d-flex align-items-center justify-content-between">
+<div>Progress: <b id="progressCount">0</b>/<b id="progressTotal">0</b> entries</div>
+<div>
+<a class="btn btn-outline-secondary btn-sm" href="academic/exam_marks_entry.php"><i class="bi bi-arrow-left"></i> Change Selection</a>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<div class="row">
+<div class="col-md-5">
+<div class="tile">
+<h3 class="tile-title">Add Strand / Competency</h3>
+<form class="app_frm" action="teacher/core/add_cbe_strand" method="POST">
+<input type="hidden" name="subject_id" value="<?php echo $subjectId; ?>">
+<div class="mb-3">
+<label class="form-label">Strand Name</label>
+<input class="form-control" name="name" required placeholder="Numbers, Geometry, etc.">
+</div>
+<button class="btn btn-primary">Add Strand</button>
+</form>
+</div>
+</div>
+
+<div class="col-md-7">
+<div class="tile">
+<h3 class="tile-title">Bulk Upload (CSV)</h3>
+<form class="app_frm" enctype="multipart/form-data" method="POST" action="teacher/core/import_cbe_csv">
+<input type="hidden" name="term_id" value="<?php echo $term; ?>">
+<input type="hidden" name="class_id" value="<?php echo $class; ?>">
+<input type="hidden" name="subject_id" value="<?php echo $subjectId; ?>">
+<input type="hidden" name="learning_area" value="<?php echo htmlspecialchars($subjectName); ?>">
+<input type="hidden" name="mode" value="<?php echo $mode; ?>">
+<input type="hidden" name="origin_portal" value="academic">
+<div class="mb-2">CSV columns: student_id, strand, <?php echo $mode === 'marks' ? 'marks' : 'level'; ?></div>
+<div class="mb-3">
+<input required accept=".csv" type="file" name="file" class="form-control">
+</div>
+<button class="btn btn-outline-primary">Import CSV</button>
+</form>
+</div>
+</div>
+</div>
+
+<div class="tile">
+<h3 class="tile-title">Marks Entry Table</h3>
+<?php if (count($strands) < 1) { ?>
+  <div class="alert alert-info mb-0">Add at least one strand/competency to start entry.</div>
+<?php } else { ?>
+<div class="table-responsive">
+<table class="table table-hover table-bordered cbe-table" id="cbeTable">
+<thead>
+<tr>
+<th>Student</th>
+<?php foreach ($strands as $st): ?>
+<th><?php echo htmlspecialchars($st['name']); ?></th>
+<?php endforeach; ?>
+</tr>
+</thead>
+<tbody>
+<?php foreach ($students as $st): ?>
+<tr>
+<td><?php echo htmlspecialchars($st['id'].' — '.$st['fname'].' '.$st['mname'].' '.$st['lname']); ?></td>
+<?php foreach ($strands as $strand): 
+	$key = $strand['name'];
+	$cell = $entries[$st['id']][$key] ?? null;
+	$level = $cell['level'] ?? '';
+	$marks = $cell['marks'] ?? '';
+	$prefix = strtoupper(substr((string)$level, 0, 2));
+	if (!in_array($prefix, ['EE','ME','AE','BE'], true)) { $prefix = 'ME'; }
+?>
+<td class="<?php echo $level === '' ? 'cbe-missing' : ''; ?>">
+<?php if ($mode === 'marks') { ?>
+  <div class="d-flex align-items-center gap-2">
+	<input type="number" class="form-control form-control-sm cbe-marks" min="0" max="100" step="0.1"
+	  data-student="<?php echo $st['id']; ?>" data-strand="<?php echo htmlspecialchars($key); ?>"
+	  value="<?php echo htmlspecialchars((string)$marks); ?>" placeholder="0-100">
+	<span class="cbe-badge <?php echo $level ? 'cbe-'.strtolower($prefix) : 'cbe-be'; ?>" data-badge>
+	  <?php echo $level ?: 'BE'; ?>
+	</span>
+  </div>
+<?php } else { ?>
+  <select class="form-control form-control-sm cbe-level" data-student="<?php echo $st['id']; ?>" data-strand="<?php echo htmlspecialchars($key); ?>">
+	<option value="" <?php echo $level === '' ? 'selected' : ''; ?>>--</option>
+	<?php foreach ($levels as $opt): ?>
+	  <option value="<?php echo htmlspecialchars($opt); ?>" <?php echo strtoupper($level) === $opt ? 'selected' : ''; ?>><?php echo htmlspecialchars($opt); ?></option>
+	<?php endforeach; ?>
+  </select>
+<?php } ?>
+</td>
+<?php endforeach; ?>
+</tr>
+<?php endforeach; ?>
+</tbody>
+</table>
+</div>
+<?php } ?>
+</div>
+
+<?php } ?>
+</main>
+
+<?php if (!$isLocked && in_array($submissionStatus, ['draft','rejected'], true)) { ?>
+<div class="app-content">
+  <form class="app_frm" method="POST" action="teacher/core/submit_cbe_marks">
+    <input type="hidden" name="term_id" value="<?php echo (int)$term; ?>">
+    <input type="hidden" name="class_id" value="<?php echo (int)$class; ?>">
+    <input type="hidden" name="subject_combination" value="<?php echo (int)$subjectComb; ?>">
+    <input type="hidden" name="subject_id" value="<?php echo (int)$subjectId; ?>">
+    <input type="hidden" name="origin_portal" value="academic">
+    <button class="btn btn-outline-success">Submit Marks</button>
+  </form>
+</div>
+<?php } ?>
+
+<script src="js/jquery-3.7.0.min.js"></script>
+<script src="js/bootstrap.min.js"></script>
+<script src="js/main.js"></script>
+<script>
+const saveStatus = document.getElementById('saveStatus');
+const mode = "<?php echo $mode; ?>";
+const payloadBase = {
+  term_id: <?php echo $term; ?>,
+  class_id: <?php echo $class; ?>,
+  subject_id: <?php echo $subjectId; ?>,
+  learning_area: "<?php echo htmlspecialchars($subjectName); ?>",
+  combination_id: <?php echo $subjectComb; ?>
+};
+const grading = <?php echo json_encode($grading); ?>;
+
+function markStatus(text, ok=true){
+  if (!saveStatus) return;
+  saveStatus.textContent = text;
+  saveStatus.style.color = ok ? '#198754' : '#dc3545';
+}
+
+function mapMarks(mark){
+  for (const row of grading) {
+    const min = parseFloat(row.min_mark);
+    const max = parseFloat(row.max_mark);
+    if (mark >= min && mark <= max) {
+      return { level: row.level, points: parseInt(row.points || 0, 10) };
+    }
+  }
+  return { level: 'BE', points: 0 };
+}
+
+function updateProgress(){
+  const total = document.querySelectorAll('<?php echo $mode === 'marks' ? '.cbe-marks' : '.cbe-level'; ?>').length;
+  let filled = 0;
+  if (mode === 'marks') {
+    document.querySelectorAll('.cbe-marks').forEach((el) => {
+      if (el.value !== '') filled++;
+    });
+  } else {
+    document.querySelectorAll('.cbe-level').forEach((el) => {
+      if (el.value !== '') filled++;
+    });
+  }
+  document.getElementById('progressTotal').textContent = total;
+  document.getElementById('progressCount').textContent = filled;
+}
+
+async function saveEntry(studentId, strand, level, marks, points){
+  markStatus('Saving...', true);
+  const body = Object.assign({}, payloadBase, {
+    student_id: studentId,
+    strand: strand,
+    level: level,
+    marks: marks,
+    points: points,
+    mode: mode
+  });
+  const res = await fetch('teacher/core/save_cbe_entry', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body)
+  });
+  const data = await res.json().catch(() => ({ ok: false }));
+  if (data && data.ok) {
+    markStatus('Saved', true);
+  } else {
+    markStatus(data.message || 'Save failed', false);
+  }
+}
+
+function levelPrefix(level){
+  const upper = (level || '').toUpperCase();
+  const prefix = upper.substring(0, 2);
+  if (['EE','ME','AE','BE'].includes(prefix)) return prefix;
+  return 'ME';
+}
+
+function applyLevelBadge(badge, level){
+  if (!badge) return;
+  badge.textContent = level;
+  const prefix = levelPrefix(level).toLowerCase();
+  badge.classList.remove('cbe-ee','cbe-me','cbe-ae','cbe-be');
+  badge.classList.add('cbe-' + prefix);
+}
+
+document.querySelectorAll('.cbe-level').forEach((el) => {
+  if (<?php echo ($isLocked || in_array($submissionStatus, ['submitted','approved'], true)) ? 'true' : 'false'; ?>) { el.disabled = true; }
+  el.addEventListener('change', async (e) => {
+    const studentId = e.target.dataset.student;
+    const strand = e.target.dataset.strand;
+    const level = e.target.value;
+    await saveEntry(studentId, strand, level, null, 0);
+    updateProgress();
+  });
+});
+
+document.querySelectorAll('.cbe-marks').forEach((el) => {
+  if (<?php echo ($isLocked || in_array($submissionStatus, ['submitted','approved'], true)) ? 'true' : 'false'; ?>) { el.disabled = true; }
+  el.addEventListener('input', (e) => {
+    const raw = e.target.value;
+    if (raw === '') {
+      return;
+    }
+    let mark = parseFloat(raw);
+    if (!Number.isFinite(mark)) {
+      e.target.value = '';
+      markStatus('Enter a valid mark', false);
+      return;
+    }
+    if (mark > 100) {
+      mark = 100;
+      e.target.value = '100';
+      markStatus('Marks cannot exceed 100', false);
+    }
+    if (mark < 0) {
+      mark = 0;
+      e.target.value = '0';
+      markStatus('Marks cannot be below 0', false);
+    }
+  });
+  el.addEventListener('change', async (e) => {
+    const studentId = e.target.dataset.student;
+    const strand = e.target.dataset.strand;
+    if (e.target.value === '') {
+      markStatus('Marks required', false);
+      return;
+    }
+    const mark = parseFloat(e.target.value || '0');
+    if (!Number.isFinite(mark) || mark < 0 || mark > 100) {
+      markStatus('Marks must be between 0 and 100', false);
+      return;
+    }
+    const mapped = mapMarks(mark);
+    const badge = e.target.parentElement.querySelector('[data-badge]');
+    applyLevelBadge(badge, mapped.level);
+    await saveEntry(studentId, strand, mapped.level, mark, mapped.points);
+    updateProgress();
+  });
+});
+
+updateProgress();
+</script>
+<?php require_once('const/check-reply.php'); ?>
+</body>
+</html>

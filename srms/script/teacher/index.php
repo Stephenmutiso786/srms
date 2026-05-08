@@ -14,9 +14,11 @@ $assignments = [];
 $classOptions = [];
 $subjectOptions = [];
 $termOptions = [];
+$examOptions = [];
 $selectedClass = (int)($_GET['class_id'] ?? 0);
 $selectedSubject = (int)($_GET['subject_id'] ?? 0);
 $selectedTerm = (int)($_GET['term_id'] ?? 0);
+$selectedExam = (int)($_GET['exam_id'] ?? 0);
 $summary = ['subjects' => 0, 'classes' => 0, 'students' => 0, 'avg' => 0, 'best' => 0];
 $rows = [];
 $trendPoints = [];
@@ -24,6 +26,9 @@ $recentDiscipline = [];
 $roleNames = [];
 $visibleModules = [];
 $allocatedModules = [];
+$promotionQueue = [];
+$autoPromotionRun = [];
+$isSeniorTeacher = false;
 $error = '';
 
 try {
@@ -53,6 +58,12 @@ try {
 	}
 
 	$roleNames = app_staff_role_names($conn, (int)$account_id);
+	$isSeniorTeacher = in_array('Senior Teacher', $roleNames, true) || app_staff_has_role_name($conn, (int)$account_id, 'Senior Teacher');
+	if ($isSeniorTeacher) {
+		app_ensure_promotion_workflow_schema($conn);
+		$autoPromotionRun = app_auto_prepare_year_end_promotions($conn, (int)($account_id ?? 0));
+		$promotionQueue = app_promotion_queue_summary($conn);
+	}
 	$visibleModules = app_teacher_portal_visible_modules($conn, (string)$account_id, (string)$level);
 	$allocatedModules = app_teacher_portal_allocated_modules($conn, (string)$account_id, (string)$level);
 
@@ -88,13 +99,31 @@ try {
 		$selectedTerm = (int)array_key_first($termOptions);
 	}
 
+	if ($selectedClass > 0 && $selectedTerm > 0 && app_table_exists($conn, 'tbl_exams')) {
+		$stmt = $conn->prepare("SELECT id, name, status, COALESCE(assessment_mode, 'normal') AS assessment_mode
+			FROM tbl_exams
+			WHERE class_id = ? AND term_id = ? AND COALESCE(status, 'draft') <> 'draft'
+			ORDER BY created_at DESC, id DESC");
+		$stmt->execute([$selectedClass, $selectedTerm]);
+		foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $examRow) {
+			$examOptions[(int)$examRow['id']] = $examRow;
+		}
+		if ($selectedExam < 1 && !empty($examOptions)) {
+			$selectedExam = (int)array_key_first($examOptions);
+		}
+		if ($selectedExam > 0 && !isset($examOptions[$selectedExam])) {
+			$selectedExam = !empty($examOptions) ? (int)array_key_first($examOptions) : 0;
+		}
+	}
+
 	if ($selectedClass > 0 && $selectedSubject > 0 && $selectedTerm > 0) {
 		$stmt = $conn->prepare("SELECT sc.id FROM tbl_subject_combinations sc
 			WHERE sc.teacher = ? AND sc.subject = ? LIMIT 1");
 		$stmt->execute([(int)$account_id, $selectedSubject]);
 		$combinationId = (int)$stmt->fetchColumn();
 		if ($combinationId > 0) {
-			$stmt = $conn->prepare("SELECT st.id AS student_id, st.school_id,
+			$hasExamId = app_column_exists($conn, 'tbl_exam_results', 'exam_id');
+			$sql = "SELECT st.id AS student_id, st.school_id,
 				concat_ws(' ', st.fname, st.mname, st.lname) AS student_name,
 				COALESCE(er.score, 0) AS score
 				FROM tbl_students st
@@ -102,10 +131,17 @@ try {
 					ON er.student = st.id
 					AND er.class = st.class
 					AND er.term = ?
-					AND er.subject_combination = ?
-				WHERE st.class = ?
-				ORDER BY student_name");
-			$stmt->execute([$selectedTerm, $combinationId, $selectedClass]);
+					AND er.subject_combination = ?";
+			$args = [$selectedTerm, $combinationId];
+			if ($hasExamId && $selectedExam > 0) {
+				$sql .= " AND er.exam_id = ?";
+				$args[] = $selectedExam;
+			}
+			$sql .= " WHERE st.class = ?
+				ORDER BY student_name";
+			$args[] = $selectedClass;
+			$stmt = $conn->prepare($sql);
+			$stmt->execute($args);
 			foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
 				list($grade,) = report_grade_for_score($conn, (float)$row['score']);
 				$rows[] = [
@@ -129,11 +165,19 @@ try {
 			ORDER BY t.id ASC");
 		$stmt->execute([$selectedTerm]);
 		foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $term) {
-			$stmt2 = $conn->prepare("SELECT AVG(er.score)
+			$sql = "SELECT AVG(er.score)
 				FROM tbl_exam_results er
 				JOIN tbl_subject_combinations sc ON sc.id = er.subject_combination
-				WHERE er.class = ? AND er.term = ? AND sc.teacher = ? AND sc.subject = ?");
-			$stmt2->execute([$selectedClass, (int)$term['id'], (int)$account_id, $selectedSubject]);
+				WHERE er.class = ? AND er.term = ? AND sc.teacher = ? AND sc.subject = ?";
+			$args = [$selectedClass, (int)$term['id'], (int)$account_id, $selectedSubject];
+			if ($hasExamId && $selectedExam > 0 && !empty($examOptions[$selectedExam]['name'])) {
+				$sql .= " AND er.exam_id IN (SELECT id FROM tbl_exams WHERE class_id = ? AND term_id = ? AND name = ?)";
+				$args[] = $selectedClass;
+				$args[] = (int)$term['id'];
+				$args[] = (string)$examOptions[$selectedExam]['name'];
+			}
+			$stmt2 = $conn->prepare($sql);
+			$stmt2->execute($args);
 			$trendPoints[] = [
 				'term_name' => (string)$term['name'],
 				'mean' => round((float)$stmt2->fetchColumn(), 2)
@@ -163,7 +207,7 @@ try {
 	}
 
 	if (app_table_exists($conn, 'tbl_announcements')) {
-		$stmt = $conn->prepare("SELECT * FROM tbl_announcements WHERE level = '0' OR level = '2' ORDER BY id DESC LIMIT 5");
+		$stmt = $conn->prepare("SELECT * FROM tbl_announcements WHERE level IN ('0','2','3') ORDER BY id DESC LIMIT 5");
 		$stmt->execute();
 		$announcements = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
@@ -216,7 +260,7 @@ body.app{background:#f4f7f6}
 .hero-kicker{display:inline-block;font-size:.72rem;text-transform:uppercase;letter-spacing:.1em;font-weight:800;opacity:.82;margin-bottom:8px}
 .hero-main h2{font-weight:900;letter-spacing:-.02em}
 .hero-main p{max-width:72ch;opacity:.93;line-height:1.6;margin:0}
-.hero-actions{margin-top:18px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.hero-actions{margin-top:18px;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
 .hero-actions .btn,.hero-actions .glass-input{min-height:44px;border-radius:12px;font-weight:700}
 .dashboard-stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;margin-bottom:18px}
 .dashboard-grid{display:grid;grid-template-columns:1fr;gap:16px}
@@ -278,7 +322,11 @@ body.app{background:#f4f7f6}
 					<div class="hero-main">
 						<span class="hero-kicker">Teacher Dashboard</span>
 						<h2 class="mb-1">Track class or subject performance</h2>
-						<p>Choose the class, subject, and term you want to review. Exams stay visible and accessible from the left menu.</p>
+						<p>Choose the class, subject, term, and exam you want to review from one place.</p>
+					</div>
+					<div class="text-end">
+						<div class="small opacity-75">Current Time</div>
+						<div class="fw-bold" id="teacherCurrentTime"><?php echo date('H:i:s'); ?></div>
 					</div>
 				</div>
 				<form method="GET" action="teacher" class="hero-actions">
@@ -290,6 +338,17 @@ body.app{background:#f4f7f6}
 					</select>
 					<select class="glass-input" name="term_id" onchange="this.form.submit()">
 						<?php foreach ($termOptions as $id => $name): ?><option value="<?php echo (int)$id; ?>" <?php echo $selectedTerm===$id?'selected':''; ?>><?php echo htmlspecialchars($name); ?></option><?php endforeach; ?>
+					</select>
+					<select class="glass-input" name="exam_id" onchange="this.form.submit()">
+						<?php if (!empty($examOptions)): ?>
+							<?php foreach ($examOptions as $id => $exam): ?>
+								<option value="<?php echo (int)$id; ?>" <?php echo $selectedExam===$id?'selected':''; ?>>
+									<?php echo htmlspecialchars((string)$exam['name'] . ' [' . strtoupper((string)$exam['status']) . ']'); ?>
+								</option>
+							<?php endforeach; ?>
+						<?php else: ?>
+							<option value="0">No Exam Found</option>
+						<?php endif; ?>
 					</select>
 					<a class="btn btn-light" href="teacher/exam_marks_entry">Open Exams</a>
 				</form>
@@ -398,6 +457,28 @@ body.app{background:#f4f7f6}
 						</div>
 						<a class="btn btn-outline-primary btn-sm" href="teacher/discipline">Open Discipline Module</a>
 					</section>
+					<?php if ($isSeniorTeacher && !empty($promotionQueue)): ?>
+					<section class="tile mt-3">
+						<h3 class="tile-title">Promotion Queue</h3>
+						<div class="alert alert-warning mb-3">
+							<strong><?php echo (int)$promotionQueue['pending_review']; ?> batch(es)</strong> waiting for Headteacher or Deputy review.
+						</div>
+						<div class="alert alert-info mb-3">
+							<strong><?php echo (int)$promotionQueue['ready_for_super_admin']; ?> batch(es)</strong> waiting for Super Admin completion.
+						</div>
+						<div class="alert alert-success mb-3">
+							<strong><?php echo (int)$promotionQueue['completed']; ?> batch(es)</strong> already completed.
+						</div>
+						<div class="alert alert-light mb-0">
+							<strong>Auto promotion:</strong> <?php echo !empty($promotionQueue['auto_enabled']) ? 'Enabled' : 'Disabled'; ?>.
+							Your role is to monitor the queue and support the leadership review process.
+							<a href="admin/promotions">Open Promotions</a>.
+							<?php if (!empty($autoPromotionRun['message'])): ?>
+							<span class="ms-2"><?php echo htmlspecialchars((string)$autoPromotionRun['message']); ?></span>
+							<?php endif; ?>
+						</div>
+					</section>
+					<?php endif; ?>
 			<?php } ?>
 </main>
 <script src="js/jquery-3.7.0.min.js"></script>
@@ -420,6 +501,15 @@ if (teacherTrendEl) {
 let pauseRefresh = false;
 document.addEventListener('focusin', function() { pauseRefresh = true; });
 document.addEventListener('focusout', function() { pauseRefresh = false; });
+(function () {
+	function updateClock() {
+		var node = document.getElementById('teacherCurrentTime');
+		if (!node) return;
+		node.textContent = new Intl.DateTimeFormat('en-KE', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false, timeZone:'Africa/Nairobi' }).format(new Date());
+	}
+	updateClock();
+	setInterval(updateClock, 1000);
+})();
 </script>
 </body>
 </html>

@@ -45,7 +45,7 @@ try {
   if (!$exam) {
     throw new RuntimeException("Exam not found.");
   }
-  if (!app_exam_can_enter_marks((string)($exam['status'] ?? 'draft'))) {
+  if (!app_exam_teacher_can_reenter($conn, $examId, $subjectComb, (int)$account_id, (string)($exam['status'] ?? 'draft'))) {
     throw new RuntimeException("Exam is not active for mark entry.");
   }
 

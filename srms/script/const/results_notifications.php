@@ -7,15 +7,15 @@ require_once('tcpdf/tcpdf.php');
 
 function app_results_competency_summary(PDO $conn, string $studentId, int $classId, int $termId): array
 {
-    if (!app_table_exists($conn, 'tbl_cbc_assessments')) {
+    if (!app_table_exists($conn, 'tbl_cbe_assessments')) {
         return [];
     }
 
-    $hasMarks = app_column_exists($conn, 'tbl_cbc_assessments', 'marks');
+    $hasMarks = app_column_exists($conn, 'tbl_cbe_assessments', 'marks');
     $selectScore = $hasMarks ? 'AVG(COALESCE(marks,0))' : "AVG(CASE UPPER(level) WHEN 'EE' THEN 85 WHEN 'ME' THEN 70 WHEN 'AE' THEN 50 WHEN 'BE' THEN 30 ELSE 0 END)";
 
     $stmt = $conn->prepare("SELECT learning_area, $selectScore AS score
-        FROM tbl_cbc_assessments
+        FROM tbl_cbe_assessments
         WHERE student_id = ? AND class_id = ? AND term_id = ?
         GROUP BY learning_area
         ORDER BY learning_area ASC
@@ -98,7 +98,7 @@ function app_results_email_html(array $ctx): string
 {
     $competencyHtml = '';
     if (!empty($ctx['competencies'])) {
-        $competencyHtml .= '<p><strong>CBC Competencies:</strong></p><ul>';
+        $competencyHtml .= '<p><strong>CBE Competencies:</strong></p><ul>';
         foreach ($ctx['competencies'] as $row) {
             $competencyHtml .= '<li>' . htmlspecialchars($row['name']) . ': ' . htmlspecialchars($row['label']) . '</li>';
         }

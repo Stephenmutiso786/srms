@@ -107,7 +107,7 @@ try {
             renderLeavingCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verifyUrl);
             break;
         case 'merit':
-          // CBC-ONLY: Legacy merit certificates now use general template (no merit grade/position shown)
+          // CBE-ONLY: Legacy merit certificates now use general template (no merit grade/position shown)
           renderGeneralCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verifyUrl);
           break;
         default:
@@ -138,7 +138,7 @@ function renderPrimaryCompletionCertificate($pdf, $cert, $studentPhoto, $logoHtm
         <td width="80%" style="text-align:center;">
           <div style="font-size:14pt;font-weight:bold;color:#1a3a52;">REPUBLIC OF KENYA</div>
           <div style="font-size:12pt;font-weight:bold;color:#1a3a52;">MINISTRY OF EDUCATION</div>
-          <div style="font-size:10pt;">Under the Competency Based Curriculum (CBC)</div>
+          <div style="font-size:10pt;">Under the Competency Based Curriculum (CBE)</div>
         </td>
       </tr>
     </table>
@@ -154,7 +154,7 @@ function renderPrimaryCompletionCertificate($pdf, $cert, $studentPhoto, $logoHtm
         ' . htmlspecialchars((string)$cert['student_name']) . '
       </div>
       <p>Admission No: <strong>' . htmlspecialchars((string)($cert['school_id'] ?: $cert['student_id'])) . '</strong></p>
-      <p>has successfully completed Primary Education under the Competency Based Curriculum (CBC)</p>
+      <p>has successfully completed Primary Education under the Competency Based Curriculum (CBE)</p>
     </div>
     
     <table width="100%" cellpadding="4" cellspacing="0" style="margin-top:10px;background:#f0f4f8;border:1px solid #ccc;">
@@ -170,7 +170,7 @@ function renderPrimaryCompletionCertificate($pdf, $cert, $studentPhoto, $logoHtm
       </tr>
     </table>' . 
     (count($competencies) > 0 ? '
-    <p style="font-size:11pt;font-weight:bold;margin-top:8px;">CBC COMPETENCIES ACHIEVED:</p>
+    <p style="font-size:11pt;font-weight:bold;margin-top:8px;">CBE COMPETENCIES ACHIEVED:</p>
     <table width="100%" cellpadding="4" cellspacing="1" style="background:#ddd;">
       ' . implode('', array_map(function($comp, $key) {
           $level = $comp['achievement_level'] ?? 'Not Assessed';
@@ -488,7 +488,7 @@ function renderTransferCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verif
 /**
  * Render Merit Certificate
  */
-// CBC-ONLY: Merit certificate template removed
+// CBE-ONLY: Merit certificate template removed
 
 /**
  * Render General / Default Certificate

@@ -9,7 +9,7 @@ if ($res != "1" || $level != "3") { header("location:../"); exit; }
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<title><?php echo APP_NAME; ?> - CBC Grading System</title>
+<title><?php echo APP_NAME; ?> - CBE Grading System</title>
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -38,8 +38,8 @@ if ($res != "1" || $level != "3") { header("location:../"); exit; }
 <main class="app-content">
 <div class="app-title">
 <div>
-<h1>CBC Grading System</h1>
-<p class="text-muted">Understand how your work is assessed using CBC standards.</p>
+<h1>CBE Grading System</h1>
+<p class="text-muted">Understand how your work is assessed using CBE standards.</p>
 </div>
 </div>
 

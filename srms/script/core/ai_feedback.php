@@ -127,7 +127,7 @@ function app_ai_suffix(string $response): string
 	return $response . ' School Assistant';
 }
 
-function app_cbc_grade_from_points(float $points): string
+function app_cbe_grade_from_points(float $points): string
 {
 	if ($points >= 3.5) {
 		return 'EE';
@@ -290,8 +290,8 @@ function app_detect_intent(string $message): string
 	if (strpos($lower, 'live class') !== false || strpos($lower, 'meeting') !== false) {
 		return 'live';
 	}
-	if (strpos($lower, 'cbc') !== false || strpos($lower, 'point') !== false || strpos($lower, 'grade') !== false) {
-		return 'cbc';
+	if (strpos($lower, 'cbe') !== false || strpos($lower, 'point') !== false || strpos($lower, 'grade') !== false) {
+		return 'cbe';
 	}
 	return 'general';
 }
@@ -390,7 +390,7 @@ function app_student_summary(PDO $conn, string $studentId, ?int $classId): array
 		'attendance_rate' => null,
 		'avg_score' => null,
 		'top_subjects' => [],
-		'cbc_levels' => [],
+		'cbe_levels' => [],
 		'fees' => null,
 		'assignments' => null,
 		'live_classes' => [],
@@ -428,14 +428,14 @@ function app_student_summary(PDO $conn, string $studentId, ?int $classId): array
 		}
 	}
 
-	if (app_table_exists($conn, 'tbl_cbc_assessments')) {
+	if (app_table_exists($conn, 'tbl_cbe_assessments')) {
 		$stmt = $conn->prepare("SELECT learning_area, level, COUNT(*) AS entries
-			FROM tbl_cbc_assessments
+			FROM tbl_cbe_assessments
 			WHERE student_id = ?
 			GROUP BY learning_area, level
 			ORDER BY learning_area");
 		$stmt->execute([$studentId]);
-		$summary['cbc_levels'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		$summary['cbe_levels'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
 
 	if ($classId && app_table_exists($conn, 'tbl_assignments') && app_table_exists($conn, 'tbl_courses')) {
@@ -625,7 +625,7 @@ function app_generate_ai_reply(string $message, array $scope, string $role, stri
 		$greetings = [
 			'Hello, I\'m Edu Bot. How can I help you today?',
 			'Hi there. I can help with reports, attendance, fees, and school analytics.',
-			'Good day. Ask me about students, results, CBC points, or school reports.'
+			'Good day. Ask me about students, results, CBE points, or school reports.'
 		];
 		return $greetings[array_rand($greetings)];
 	}
@@ -760,7 +760,7 @@ function app_generate_ai_reply(string $message, array $scope, string $role, stri
 			foreach ($rows as $row) {
 				$name = trim((string)($row['name'] ?? 'Student'));
 				$points = round((float)($row['mean'] ?? 0), 2);
-				$grade = trim((string)($row['grade'] ?? app_cbc_grade_from_points($points)));
+				$grade = trim((string)($row['grade'] ?? app_cbe_grade_from_points($points)));
 				$lines[] = $name . ' - ' . $points . ' points (' . $grade . ')';
 			}
 			return "Top performing learners:\n" . implode("\n", $lines);
@@ -788,7 +788,7 @@ function app_generate_ai_reply(string $message, array $scope, string $role, stri
 			foreach ($rows as $row) {
 				$name = trim((string)($row['name'] ?? 'Student'));
 				$points = round((float)($row['mean'] ?? 0), 2);
-				$grade = trim((string)($row['grade'] ?? app_cbc_grade_from_points($points)));
+				$grade = trim((string)($row['grade'] ?? app_cbe_grade_from_points($points)));
 				$lines[] = $name . ' - ' . $points . ' points (' . $grade . ')';
 			}
 			return "Students who may need support:\n" . implode("\n", $lines);
@@ -853,8 +853,8 @@ function app_generate_ai_reply(string $message, array $scope, string $role, stri
 		}
 	}
 
-	if ($intent === 'cbc') {
-		return 'CBC reporting uses points and grades together. Example: 4 = EE, 3 = ME, 2 = AE, 1 = BE.';
+	if ($intent === 'cbe') {
+		return 'CBE reporting uses points and grades together. Example: 4 = EE, 3 = ME, 2 = AE, 1 = BE.';
 	}
 
 	if ($intent === 'learning') {
@@ -896,7 +896,7 @@ function app_openai_reply(string $message, array $scope, string $role, string $i
 
 	$systemPrompt = "You are the school's AI assistant. Follow role-based access. Role: ".$role.". ".
 		"Never reveal data outside the allowed scope. Do not invent names or statistics. ".
-		"Use CBC levels (EE/ME/AE/BE) and points (4, 3, 2, 1) when relevant. If data is missing, say so.";
+		"Use CBE levels (EE/ME/AE/BE) and points (4, 3, 2, 1) when relevant. If data is missing, say so.";
 
 	$context = json_encode($scope, JSON_UNESCAPED_SLASHES);
 	$userPrompt = "User question: ".$message."\nIntent: ".$intent."\nAllowed data (JSON): ".$context;

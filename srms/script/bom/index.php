@@ -78,7 +78,7 @@ try {
 </aside>
 
 <main class="app-content">
-<div class="app-title"><div><h1>BOM Portal</h1><p>Meetings, approvals, and governance documents.</p></div></div>
+<div class="app-title"><div><h1>BOM Portal</h1><p>Meetings, approvals, and governance documents.</p></div><div><strong id="bomCurrentTime"><?php echo date('H:i:s'); ?></strong></div></div>
 
 <div class="tile mb-3">
 <h3 class="tile-title">Quick Module Access</h3>
@@ -142,6 +142,17 @@ try {
 <script src="js/jquery-3.7.0.min.js"></script>
 <script src="js/bootstrap.min.js"></script>
 <script src="js/main.js"></script>
+<script>
+(function () {
+	function updateClock() {
+		var node = document.getElementById('bomCurrentTime');
+		if (!node) return;
+		node.textContent = new Intl.DateTimeFormat('en-KE', { hour:'2-digit', minute:'2-digit', second:'2-digit', hour12:false, timeZone:'Africa/Nairobi' }).format(new Date());
+	}
+	updateClock();
+	setInterval(updateClock, 1000);
+})();
+</script>
 <?php require_once('const/check-reply.php'); ?>
 </body>
 </html>

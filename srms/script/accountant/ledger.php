@@ -1,13 +1,13 @@
 <?php
-chdir('../../');
+chdir(__DIR__ . '/..');
 session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/rbac.php');
 
 if ($level != "5") { header("location:../"); exit; }
-app_require_permission('finance.manage', '../finances');
-app_require_unlocked('finance', '../finances');
+app_require_permission('finance.manage', '../fees');
+app_require_unlocked('finance', '../fees');
 
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
@@ -28,19 +28,17 @@ try {
 		$stmt->execute();
 		$accounts = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-		if ($tab === 'trial_balance') {
+		if ($tab === 'trial_balance' && app_table_exists($conn, 'tbl_gl_entries')) {
 			// Load trial balance data
 			$stmt = $conn->prepare("SELECT id, code, name, type FROM tbl_chart_of_accounts ORDER BY type, code ASC");
 			$stmt->execute();
 			foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $account) {
-				$bal = $conn->prepare("SELECT
+				$stmtBalance = $conn->prepare("SELECT
 					COALESCE(SUM(debit), 0) as total_debit,
 					COALESCE(SUM(credit), 0) as total_credit
-					FROM tbl_gl_entries WHERE account_id = ?")->execute([(int)$account['id']]);
-				$sums = $conn->prepare("SELECT
-					COALESCE(SUM(debit), 0) as total_debit,
-					COALESCE(SUM(credit), 0) as total_credit
-					FROM tbl_gl_entries WHERE account_id = ?")->fetch(PDO::FETCH_ASSOC);
+					FROM tbl_gl_entries WHERE account_id = ?");
+				$stmtBalance->execute([(int)$account['id']]);
+				$sums = $stmtBalance->fetch(PDO::FETCH_ASSOC) ?: [];
 				
 				$debit = (float)($sums['total_debit'] ?? 0);
 				$credit = (float)($sums['total_credit'] ?? 0);
@@ -66,7 +64,7 @@ try {
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<base href="../../">
+<base href="../">
 <link rel="stylesheet" type="text/css" href="css/main.css">
 <link rel="icon" href="images/icon.ico">
 <link rel="stylesheet" type="text/css" href="cdn.jsdelivr.net/npm/bootstrap-icons%401.10.5/font/bootstrap-icons.css">
@@ -88,7 +86,7 @@ try {
 </ul>
 </header>
 
-<?php include('accountant/partials/sidebar.php'); ?>
+<?php include(__DIR__ . '/partials/sidebar.php'); ?>
 
 <main class="app-content">
 <div class="app-title">
@@ -97,13 +95,15 @@ try {
 </div>
 </div>
 
+<div id="ledgerFeedback" style="display:none;"></div>
+
 <div class="row">
 <div class="col-md-12">
 <div class="tabs-wrapper">
 <ul class="nav nav-tabs mb-3" role="tablist">
-<li class="nav-item"><a class="nav-link<?php echo $tab === 'accounts' ? ' active' : ''; ?>" href="?tab=accounts" role="tab">Chart of Accounts</a></li>
-<li class="nav-item"><a class="nav-link<?php echo $tab === 'entries' ? ' active' : ''; ?>" href="?tab=entries" role="tab">Journal Entries</a></li>
-<li class="nav-item"><a class="nav-link<?php echo $tab === 'trial_balance' ? ' active' : ''; ?>" href="?tab=trial_balance" role="tab">Trial Balance</a></li>
+<li class="nav-item"><a class="nav-link<?php echo $tab === 'accounts' ? ' active' : ''; ?>" href="accountant/ledger?tab=accounts" role="tab">Chart of Accounts</a></li>
+<li class="nav-item"><a class="nav-link<?php echo $tab === 'entries' ? ' active' : ''; ?>" href="accountant/ledger?tab=entries" role="tab">Journal Entries</a></li>
+<li class="nav-item"><a class="nav-link<?php echo $tab === 'trial_balance' ? ' active' : ''; ?>" href="accountant/ledger?tab=trial_balance" role="tab">Trial Balance</a></li>
 </ul>
 
 <div class="tab-content">
@@ -166,7 +166,7 @@ try {
 </thead>
 <tbody>
 <?php
-if (!empty($accounts)) {
+if (!empty($accounts) && app_table_exists($conn, 'tbl_gl_entries')) {
 	$stmt = $conn->prepare("SELECT e.id, e.account_id, e.date, e.description, e.debit, e.credit, e.created_by,
 		a.code, a.name, CONCAT(s.fname, ' ', s.lname) as creator
 		FROM tbl_gl_entries e
@@ -268,6 +268,54 @@ foreach ($trial_balance as $acct):
 
 </main>
 
+<!-- Edit Account Modal -->
+<div class="modal fade" id="editAccountModal">
+<div class="modal-dialog">
+<div class="modal-content">
+<div class="modal-header">
+<h5 class="modal-title">Edit Account</h5>
+<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+</div>
+<form id="editAccountForm" method="post">
+<div class="modal-body">
+<input type="hidden" name="account_id" id="editAccountId">
+<div class="form-group mb-3">
+<label>Account Code</label>
+<input type="text" class="form-control" id="editAccountCode" readonly>
+</div>
+<div class="form-group mb-3">
+<label>Account Name</label>
+<input type="text" class="form-control" name="name" id="editAccountName" required>
+</div>
+<div class="form-group mb-3">
+<label>Account Type</label>
+<select class="form-control" name="type" id="editAccountType" required>
+<option value="asset">Asset</option>
+<option value="liability">Liability</option>
+<option value="equity">Equity</option>
+<option value="income">Income</option>
+<option value="expense">Expense</option>
+</select>
+</div>
+<div class="form-group mb-3">
+<label>Parent Account</label>
+<select class="form-control" name="parent_id" id="editAccountParent">
+<option value="">No Parent</option>
+<?php foreach ($accounts as $acct): ?>
+<option value="<?php echo (int)$acct['id']; ?>"><?php echo htmlspecialchars($acct['code'] . ' - ' . $acct['name']); ?></option>
+<?php endforeach; ?>
+</select>
+</div>
+</div>
+<div class="modal-footer">
+<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+<button type="submit" class="btn btn-primary">Save Changes</button>
+</div>
+</form>
+</div>
+</div>
+</div>
+
 <!-- Add Account Modal -->
 <div class="modal fade" id="addAccountModal">
 <div class="modal-dialog">
@@ -367,6 +415,43 @@ foreach ($trial_balance as $acct):
 $('.select2').select2();
 $('#accountsTable').DataTable({"sort": false});
 $('#entriesTable').DataTable({"sort": false});
+var editAccountModalEl = document.getElementById('editAccountModal');
+var editAccountModal = editAccountModalEl ? new bootstrap.Modal(editAccountModalEl) : null;
+var ledgerFeedbackEl = document.getElementById('ledgerFeedback');
+
+function setLedgerFlash(type, text) {
+	sessionStorage.setItem('ledgerFlash', JSON.stringify({type: type, text: text}));
+}
+
+function renderLedgerFlash(type, text) {
+	if (!ledgerFeedbackEl) {
+		return;
+	}
+	var safeType = ['success', 'danger', 'warning', 'info'].indexOf(type) !== -1 ? type : 'info';
+	ledgerFeedbackEl.innerHTML = '<div class="alert alert-' + safeType + ' alert-dismissible fade show" role="alert">' +
+		text +
+		'<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>' +
+		'</div>';
+	ledgerFeedbackEl.style.display = '';
+}
+
+function loadLedgerFlash() {
+	try {
+		var raw = sessionStorage.getItem('ledgerFlash');
+		if (!raw) {
+			return;
+		}
+		sessionStorage.removeItem('ledgerFlash');
+		var flash = JSON.parse(raw);
+		if (flash && flash.text) {
+			renderLedgerFlash(flash.type || 'info', flash.text);
+		}
+	} catch (err) {
+		sessionStorage.removeItem('ledgerFlash');
+	}
+}
+
+loadLedgerFlash();
 
 function postToAPI(e, url) {
 	e.preventDefault();
@@ -381,12 +466,17 @@ function postToAPI(e, url) {
 	.then(r => r.json())
 	.then(result => {
 		if (result.success) {
-			Swal.fire({text: result.message || 'Operation successful', icon: 'success'}).then(() => location.reload());
+			setLedgerFlash('success', result.message || 'Operation successful');
+			location.reload();
 		} else {
+			renderLedgerFlash('danger', result.error || 'Operation failed');
 			Swal.fire({text: result.error || 'Operation failed', icon: 'error'});
 		}
 	})
-	.catch(err => Swal.fire({text: err.message, icon: 'error'}));
+	.catch(err => {
+		renderLedgerFlash('danger', err.message);
+		Swal.fire({text: err.message, icon: 'error'});
+	});
 	return false;
 }
 
@@ -402,15 +492,66 @@ function deleteAccount(id) {
 			fetch(`api/accounting_api.php?action=delete_account&id=${id}`, {method: 'DELETE'})
 			.then(r => r.json())
 			.then(result => {
-				Swal.fire({text: result.message || result.error, icon: result.success ? 'success' : 'error'}).then(() => location.reload());
+				if (result.success) {
+					setLedgerFlash('success', result.message || 'Account deleted');
+					location.reload();
+					return;
+				}
+				renderLedgerFlash('danger', result.error || 'Delete failed');
+				Swal.fire({text: result.error || 'Delete failed', icon: 'error'});
 			});
 		}
 	});
 }
 
 function editAccount(id) {
-	Swal.fire({text: 'Edit functionality coming soon', icon: 'info'});
+	fetch(`api/accounting_api.php?action=get_account&id=${id}`)
+	.then(r => r.json())
+	.then(result => {
+		if (!result.success || !result.account) {
+			throw new Error(result.error || 'Failed to load account details');
+		}
+		const account = result.account;
+		document.getElementById('editAccountId').value = account.id || '';
+		document.getElementById('editAccountCode').value = account.code || '';
+		document.getElementById('editAccountName').value = account.name || '';
+		document.getElementById('editAccountType').value = account.type || 'asset';
+		document.getElementById('editAccountParent').value = (account.parent_id && parseInt(account.parent_id, 10) > 0) ? String(account.parent_id) : '';
+		if (editAccountModal) {
+			editAccountModal.show();
+		}
+	})
+	.catch(err => Swal.fire({text: err.message, icon: 'error'}));
 }
+
+document.getElementById('editAccountForm').addEventListener('submit', function (e) {
+	e.preventDefault();
+	const accountId = document.getElementById('editAccountId').value;
+	const formData = new FormData(e.target);
+	const data = Object.fromEntries(formData);
+	if (data.parent_id === '') {
+		data.parent_id = null;
+	}
+	fetch(`api/accounting_api.php?action=update_account&id=${accountId}`, {
+		method: 'POST',
+		headers: {'Content-Type': 'application/json'},
+		body: JSON.stringify(data)
+	})
+	.then(r => r.json())
+	.then(result => {
+		if (result.success) {
+			setLedgerFlash('success', result.message || 'Account updated');
+			location.reload();
+		} else {
+			renderLedgerFlash('danger', result.error || 'Update failed');
+			Swal.fire({text: result.error || 'Update failed', icon: 'error'});
+		}
+	})
+	.catch(err => {
+		renderLedgerFlash('danger', err.message);
+		Swal.fire({text: err.message, icon: 'error'});
+	});
+});
 </script>
 </body>
 </html>

@@ -104,9 +104,14 @@ function app_report_card_pdf_html(PDO $conn, array $payload): string
     $totalPoints = 0.0;
     $subjectCount = count($rows);
     foreach ($rows as $subjectRow) {
-        $totalPoints += report_grade_points_from_label((string)($subjectRow['grade'] ?? ''));
+        $subjectPoints = app_report_card_subject_points_value((array)$subjectRow);
+        if ($subjectPoints !== null) {
+            $totalPoints += $subjectPoints;
+        }
     }
     $meanPoints = $subjectCount > 0 ? ($totalPoints / $subjectCount) : 0.0;
+    $displayTotalScore = isset($card['total_points']) ? (float)$card['total_points'] : $totalPoints;
+    $displayMeanScore = isset($card['mean_points']) ? (float)$card['mean_points'] : $meanPoints;
     $attendanceText = '';
     if (is_array($attendance)) {
         $attendanceText = trim((string)($attendance['rate_text'] ?? $attendance['attendance_rate_text'] ?? $attendance['percentage'] ?? ''));
@@ -139,7 +144,7 @@ function app_report_card_pdf_html(PDO $conn, array $payload): string
     $subjectRows = '';
     foreach ($displayRows as $subject) {
         $subjectName = (string)($subject['subject_name'] ?? '');
-        $score = (string)($subject['score'] ?? '');
+        $score = app_report_card_subject_points_display((array)$subject);
         $grade = (string)($subject['grade'] ?? '');
         $subjectRows .= '<tr>'
             . '<td style="padding:4px 5px;border:1px solid #88939c;">' . htmlspecialchars($subjectName, ENT_QUOTES, 'UTF-8') . '</td>'
@@ -189,7 +194,7 @@ function app_report_card_pdf_html(PDO $conn, array $payload): string
         . '<tr><td class="label">Exam</td><td>' . htmlspecialchars($examName, ENT_QUOTES, 'UTF-8') . '</td><td class="label">KCPE</td><td>' . htmlspecialchars($kcpeScore, ENT_QUOTES, 'UTF-8') . '</td></tr>'
         . '</table>'
         . '<table class="stats">'
-        . '<tr><td class="label">Overall Grade</td><td>' . htmlspecialchars($overallGrade, ENT_QUOTES, 'UTF-8') . '</td><td class="label">Total Points</td><td>' . number_format($totalPoints, 1) . '</td><td class="label">Mean Points</td><td>' . number_format($meanPoints, 2) . '</td><td class="label">Attendance</td><td>' . htmlspecialchars($attendanceText, ENT_QUOTES, 'UTF-8') . '</td></tr>'
+        . '<tr><td class="label">Overall Grade</td><td>' . htmlspecialchars($overallGrade, ENT_QUOTES, 'UTF-8') . '</td><td class="label">Total Score</td><td>' . number_format($displayTotalScore, 1) . '</td><td class="label">Mean Score</td><td>' . number_format($displayMeanScore, 2) . '</td><td class="label">Attendance</td><td>' . htmlspecialchars($attendanceText, ENT_QUOTES, 'UTF-8') . '</td></tr>'
         . '<tr><td class="label">Fees Balance</td><td>' . htmlspecialchars($feesText, ENT_QUOTES, 'UTF-8') . '</td><td class="label">Subjects</td><td>' . (int)$subjectCount . '</td><td class="label">Shown</td><td>' . count($displayRows) . '</td><td class="label">Status</td><td>One-page model</td></tr>'
         . '</table>'
         . '<table class="subjects">'
@@ -229,8 +234,14 @@ function app_output_single_page_report_pdf(PDO $conn, TCPDF $pdf, array $payload
     $examName = (string)($examSummary['exam_name'] ?? 'END TERM COMBINED');
     $assessmentMode = strtolower(trim((string)($card['assessment_mode'] ?? ($examSummary['assessment_mode'] ?? 'normal'))));
     $overallGrade = (string)($examSummary['grade'] ?? ($card['grade'] ?? 'N/A'));
-    $currentMean = (float)($card['mean'] ?? ($examSummary['mean'] ?? 0));
-    $totalMarks = (float)($card['total'] ?? ($examSummary['total'] ?? 0));
+    $currentMean = (float)($card['mean_points'] ?? 0);
+    if ($currentMean <= 0 && isset($examSummary['mean_points'])) {
+        $currentMean = (float)$examSummary['mean_points'];
+    }
+    $totalMarks = (float)($card['total_points'] ?? 0);
+    if ($totalMarks <= 0 && isset($examSummary['total_points'])) {
+        $totalMarks = (float)$examSummary['total_points'];
+    }
     $position = (string)($card['position'] ?? ($examSummary['position'] ?? '-'));
     $generatedDate = gmdate('d M Y');
     $academicYear = gmdate('Y');
@@ -461,17 +472,17 @@ function app_output_single_page_report_pdf(PDO $conn, TCPDF $pdf, array $payload
     // Calculate cell width (4 equal columns with padding)
     $gridCellW = ($innerW - 6) / 4;
 
-    // Row 1: Name, Class, ADM No, Total Marks
+    // Row 1: Name, Class, ADM No, Total Score
     $pdf->SetX($margin + 2);
     $pdf->Cell($gridCellW, 5.0, 'Name: ' . $studentName, 0, 0, 'L', true);
     $pdf->Cell($gridCellW, 5.0, 'Class: ' . $className, 0, 0, 'L', true);
     $pdf->Cell($gridCellW, 5.0, 'ADM No: ' . ($schoolId !== '' ? $schoolId : $studentId), 0, 0, 'L', true);
-    $pdf->Cell($gridCellW, 5.0, 'Total: ' . (is_numeric($totalMarks) ? number_format($totalMarks, 1) : (string)$totalMarks), 0, 1, 'L', true);
+    $pdf->Cell($gridCellW, 5.0, 'Total Score: ' . (is_numeric($totalMarks) ? number_format($totalMarks, 1) : (string)$totalMarks), 0, 1, 'L', true);
 
-    // Row 2: Mean, Grade, Position, Term
+    // Row 2: Mean Score, Grade, Position, Term
     $pdf->SetX($margin + 2);
     $pdf->SetFont('helvetica', 'B', 7.4);
-    $pdf->Cell($gridCellW, 5.0, 'Mean: ' . number_format($currentMean, 2), 0, 0, 'L', true);
+    $pdf->Cell($gridCellW, 5.0, 'Mean Score: ' . number_format($currentMean, 2), 0, 0, 'L', true);
     $pdf->Cell($gridCellW, 5.0, 'Grade: ' . $overallGrade, 0, 0, 'L', true);
     $pdf->Cell($gridCellW, 5.0, 'Position: ' . $position, 0, 0, 'L', true);
     $pdf->Cell($gridCellW, 5.0, 'Term: ' . $termName, 0, 1, 'L', true);
@@ -487,12 +498,12 @@ function app_output_single_page_report_pdf(PDO $conn, TCPDF $pdf, array $payload
     $pdf->SetY($pdf->GetY() + 4);
 
     if (!empty($rows)) {
-        // New table columns: Subject | Score | Grade | Position | Dev | Trend
+        // Subject | Score | Grade | Position | Dev | Trend
         $pdf->SetX($tableX);
-        $pdf->Cell($tableW * 0.30, 4.8, 'Subject', 1, 0, 'L', true);
-        $pdf->Cell($tableW * 0.08, 4.8, 'Score', 1, 0, 'C', true);
-        $pdf->Cell($tableW * 0.08, 4.8, 'Grade', 1, 0, 'C', true);
-        $pdf->Cell($tableW * 0.16, 4.8, 'Position', 1, 0, 'C', true);
+        $pdf->Cell($tableW * 0.32, 4.8, 'Subject', 1, 0, 'L', true);
+        $pdf->Cell($tableW * 0.12, 4.8, 'Score', 1, 0, 'C', true);
+        $pdf->Cell($tableW * 0.10, 4.8, 'Grade', 1, 0, 'C', true);
+        $pdf->Cell($tableW * 0.14, 4.8, 'Position', 1, 0, 'C', true);
         $pdf->Cell($tableW * 0.08, 4.8, 'Dev', 1, 0, 'C', true);
         $pdf->Cell($tableW * 0.10, 4.8, 'Trend', 1, 1, 'C', true);
 
@@ -534,11 +545,11 @@ function app_output_single_page_report_pdf(PDO $conn, TCPDF $pdf, array $payload
             $trendVal = (string)($subjectRow['trend'] ?? '-');
             $subjectLabel = (string)($subjectRow['subject_name'] ?? '');
 
-            $pdf->Cell($tableW * 0.30, 5.0, $subjectLabel, 1, 0, 'L');
-            $scoreVal = isset($subjectRow['points']) ? (int)$subjectRow['points'] : (isset($subjectRow['score']) && $subjectRow['score'] !== null ? (int)round((float)$subjectRow['score'] / 25) : '-');
-            $pdf->Cell($tableW * 0.08, 5.0, $scoreVal, 1, 0, 'C');
-            $pdf->Cell($tableW * 0.08, 5.0, $gradeText, 1, 0, 'C');
-            $pdf->Cell($tableW * 0.16, 5.0, $rankVal, 1, 0, 'C');
+            $pdf->Cell($tableW * 0.32, 5.0, $subjectLabel, 1, 0, 'L');
+            $scoreVal = app_report_card_subject_points_display((array)$subjectRow);
+            $pdf->Cell($tableW * 0.12, 5.0, $scoreVal, 1, 0, 'C');
+            $pdf->Cell($tableW * 0.10, 5.0, $gradeText, 1, 0, 'C');
+            $pdf->Cell($tableW * 0.14, 5.0, $rankVal, 1, 0, 'C');
             $pdf->Cell($tableW * 0.08, 5.0, $devText, 1, 0, 'C');
             $pdf->Cell($tableW * 0.10, 5.0, $trendVal, 1, 1, 'C');
 

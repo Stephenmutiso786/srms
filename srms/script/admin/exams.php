@@ -5,9 +5,10 @@ require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/rbac.php');
 require_once('const/report_engine.php');
-if ($res != "1" || $level != "0") { header("location:../"); }
-app_require_permission('exams.manage', 'admin');
-app_require_unlocked('exams', 'admin');
+if ($res !== "1") { header("location:../"); exit; }
+$portalHome = ((string)$level === '1') ? 'academic' : 'admin';
+app_require_permission('exams.manage', $portalHome);
+app_require_unlocked('exams', $portalHome);
 
 $types = [];
 $exams = [];
@@ -71,8 +72,8 @@ try {
 			e.created_at, t.name AS term_name, c.name AS class_name, et.name AS type_name,
 			gs.name AS grading_name, COALESCE(e.assessment_mode, 'normal') AS assessment_mode,
 			CASE
-				WHEN COALESCE(e.assessment_mode, 'normal') = 'cbc' THEN
-					COALESCE((SELECT COUNT(*) FROM tbl_cbc_mark_submissions cms WHERE cms.class_id = e.class_id AND cms.term_id = e.term_id), 0)
+				WHEN COALESCE(e.assessment_mode, 'normal') = 'cbe' THEN
+					COALESCE((SELECT COUNT(*) FROM tbl_cbe_mark_submissions cms WHERE cms.class_id = e.class_id AND cms.term_id = e.term_id), 0)
 				ELSE
 					COALESCE((SELECT COUNT(*) FROM tbl_exam_mark_submissions ms WHERE ms.exam_id = e.id), 0)
 			END AS submission_count
@@ -140,14 +141,19 @@ try {
 <div class="app-title">
 <div>
 <h1>Exam Management</h1>
-<p>Create one assessment flow here for both normal exams and CBC assessments, using the subjects already selected in Class Management.</p>
+<p>Create one assessment flow here for both normal exams and CBE assessments, using the subjects already selected in Class Management.</p>
 </div>
+<ul class="app-breadcrumb breadcrumb">
+<li class="breadcrumb-item"><a class="btn btn-outline-primary btn-sm" href="admin/grading_system">Grading Management</a></li>
+</ul>
 </div>
 
 <div class="tile mb-3">
 <div class="tile-body">
 <div class="alert alert-info mb-0">
-<strong>Exam source of truth:</strong> classes, streams, class teachers, and class subjects come from <a href="admin/classes">Class Management</a>. This page only creates one assessment flow from that setup, whether the mode is normal or CBC.
+<strong>Exam source of truth:</strong> classes, streams, class teachers, and class subjects come from <a href="admin/classes">Class Management</a>. This page only creates one assessment flow from that setup, whether the mode is normal or CBE.
+<hr class="my-2">
+<span class="small">Need to create or change the grading rules first? Open <a href="admin/grading_system">Grading Management</a>, then assign the grading system to each class in <a href="admin/classes">Class Management</a>.</span>
 </div>
 </div>
 </div>
@@ -195,7 +201,7 @@ try {
 <div class="col-md-7">
 <div class="tile">
 <h3 class="tile-title">Create Exam</h3>
-<p class="text-muted">Create the assessment structure first, choose whether it is a normal exam, CBC assessment, or a consolidated average. Consolidated exams are auto-computed from selected exams, so they skip manual mark review and go straight to finalization and publishing.</p>
+<p class="text-muted">Create the assessment structure first, choose whether it is a normal exam, CBE assessment, or a consolidated average. Consolidated exams are auto-computed from selected exams, so they skip manual mark review and go straight to finalization and publishing.</p>
 <div class="d-flex flex-wrap gap-2 mb-3">
 	<a class="btn btn-outline-primary btn-sm" href="admin/exam_timetable"><i class="bi bi-calendar-event me-1"></i>Manage Timetable</a>
 	<a class="btn btn-outline-secondary btn-sm" href="admin/results_locks"><i class="bi bi-lock me-1"></i>Results Locks</a>
@@ -250,12 +256,12 @@ try {
 <label class="form-label">Assessment Mode</label>
 <select class="form-control" name="assessment_mode" id="assessmentModeSelect" required>
 <option value="normal" selected>Normal Exam</option>
-<option value="cbc">CBC Assessment</option>
+<option value="cbe">CBE Assessment</option>
 <option value="KPSEA">KPSEA (Grade 6 National Assessment)</option>
 <option value="KJSEA">KJSEA (Grade 9 National Assessment)</option>
 <option value="consolidated">Consolidated (Average Multiple Exams)</option>
 </select>
-<div class="small text-muted mt-1">Use one exam module for both normal and CBC workflows. National assessments have fixed structures and prerequisites.</div>
+<div class="small text-muted mt-1">Use one exam module for both normal and CBE workflows. National assessments have fixed structures and prerequisites.</div>
 </div>
 <div class="col-md-12 mb-3" id="kjseaWarning" style="display:none;">
 <div class="alert alert-warning" role="alert">
@@ -431,7 +437,7 @@ function filterComponentExams() {
 		const status = (option.getAttribute('data-status') || 'draft').toLowerCase();
 		const classMatches = selectedClasses.length === 0 || selectedClasses.includes(classId);
 		const termMatches = !selectedTerm || termId === selectedTerm;
-		const modeAllowed = mode !== 'cbc' && mode !== 'consolidated';
+		const modeAllowed = mode !== 'cbe' && mode !== 'consolidated';
 		const statusAllowed = status === 'finalized' || status === 'published';
 		option.hidden = !(classMatches && termMatches && modeAllowed && statusAllowed);
 		if (option.hidden) {
@@ -493,7 +499,7 @@ function toggleAssessmentModeFields() {
 			option.selected = false;
 		});
 	} else {
-		// Normal or CBC mode
+		// Normal or CBE mode
 		examNameInput.disabled = false;
 		examClassSelect.disabled = false;
 		kjseaWarning.style.display = 'none';

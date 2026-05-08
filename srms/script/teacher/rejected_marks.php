@@ -113,9 +113,13 @@ try {
     $stmt = $conn->prepare("SELECT * FROM tbl_exams WHERE id = ? LIMIT 1");
     $stmt->execute([$examId]);
     $exam = $stmt->fetch(PDO::FETCH_ASSOC);
-    if (!$exam || !in_array((string)($exam['status'] ?? ''), ['active','open'], true)) {
+    if (!$exam) {
       $openable = false;
-      $openReason = 'Exam not found or not open for mark entry.';
+      $openReason = 'Exam not found.';
+    }
+    if ($openable && !app_exam_teacher_can_reenter($conn, (int)$exam['id'], $subjectCombId, (int)$account_id, (string)($exam['status'] ?? ''))) {
+      $openable = false;
+      $openReason = 'This rejected submission is not available for correction right now.';
     }
     if ($openable) {
       $stmt = $conn->prepare("SELECT id, class, teacher, subject FROM tbl_subject_combinations WHERE id = ? LIMIT 1");

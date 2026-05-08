@@ -16,11 +16,18 @@ $fname = ucfirst(trim((string)($_POST['fname'] ?? '')));
 $lname = ucfirst(trim((string)($_POST['lname'] ?? '')));
 $email = trim((string)($_POST['email'] ?? ''));
 $gender = trim((string)($_POST['gender'] ?? ''));
-$role = (string)($_POST['role'] ?? '2');
-$allowedRoles = ['2', '5'];
-if (!in_array($role, $allowedRoles, true)) {
-	$role = '2';
+$designation = strtolower(trim((string)($_POST['designation'] ?? 'teacher')));
+$designationMap = [
+	'teacher' => ['role' => '2', 'label' => 'Teacher'],
+	'headteacher' => ['role' => '0', 'label' => 'Headteacher'],
+	'deputy_headteacher' => ['role' => '1', 'label' => 'Deputy Headteacher'],
+	'senior_teacher' => ['role' => '2', 'label' => 'Senior Teacher'],
+	'accountant' => ['role' => '5', 'label' => 'Accountant'],
+];
+if (!isset($designationMap[$designation])) {
+	$designation = 'teacher';
 }
+$role = $designationMap[$designation]['role'];
 $id = (int)($_POST['id'] ?? 0);
 $status = (string)($_POST['status'] ?? '1');
 
@@ -33,6 +40,30 @@ if ($id < 1 || $fname === '' || $lname === '' || $email === '') {
 try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$isSuperAdminController = app_is_super_admin_controller($conn, (string)($account_id ?? ''), (string)($level ?? ''));
+
+$staffStmt = $conn->prepare("SELECT id, level FROM tbl_staff WHERE id = ? LIMIT 1");
+$staffStmt->execute([$id]);
+$currentStaff = $staffStmt->fetch(PDO::FETCH_ASSOC);
+if (!$currentStaff) {
+	$_SESSION['reply'] = array (array("danger",'Staff record not found.'));
+	header("location:../teachers");
+	exit;
+}
+
+$currentLevel = (string)($currentStaff['level'] ?? '');
+$currentIsAdminManaged = app_staff_is_admin_managed($conn, $id, $currentLevel);
+$requestedIsAdminManaged = in_array($designation, ['headteacher', 'deputy_headteacher', 'senior_teacher', 'accountant'], true);
+if (($currentIsAdminManaged || $requestedIsAdminManaged) && !$isSuperAdminController) {
+	$_SESSION['reply'] = array (array("danger",'Only the super admin can edit leadership or admin accounts.'));
+	header("location:../teachers");
+	exit;
+}
+
+if (!$isSuperAdminController && $designation !== 'teacher') {
+	$designation = 'teacher';
+	$role = '2';
+}
 
 $isPgsql = (defined('DBDriver') && DBDriver === 'pgsql');
 $stmt = $isPgsql
@@ -46,10 +77,16 @@ $_SESSION['reply'] = array (array("error",'Email is already added'));
 header("location:../teachers");
 }else{
 
-$stmt = $conn->prepare("UPDATE tbl_staff SET fname=?, lname=?, gender=?, email=?, level=?, status=? WHERE id = ? AND level IN (2,5)");
+$stmt = $conn->prepare("UPDATE tbl_staff SET fname=?, lname=?, gender=?, email=?, level=?, status=? WHERE id = ?");
 $stmt->execute([$fname, $lname, $gender, $email, (int)$role, $status, $id]);
 
-$_SESSION['reply'] = array (array("success",'Staff updated successfully'));
+if ($designation === 'senior_teacher') {
+	app_assign_staff_role_name($conn, $id, 'Senior Teacher');
+} else {
+	app_remove_staff_role_name($conn, $id, 'Senior Teacher');
+}
+
+$_SESSION['reply'] = array (array("success",$designationMap[$designation]['label'] . ' account updated successfully'));
 header("location:../teachers");
 }
 

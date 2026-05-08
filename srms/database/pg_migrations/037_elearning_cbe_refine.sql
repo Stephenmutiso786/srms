@@ -1,5 +1,5 @@
--- Migration 037: E-learning CBC refinement
--- Adds CBC lesson metadata, offline content flags, and learner progress tracking.
+-- Migration 037: E-learning CBE refinement
+-- Adds CBE lesson metadata, offline content flags, and learner progress tracking.
 
 ALTER TABLE IF EXISTS tbl_lessons
     ADD COLUMN IF NOT EXISTS learning_outcome VARCHAR(255) DEFAULT '';

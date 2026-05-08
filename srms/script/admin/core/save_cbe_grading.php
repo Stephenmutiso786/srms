@@ -33,19 +33,19 @@ try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-	if (!app_table_exists($conn, 'tbl_cbc_grading')) {
-		$_SESSION['reply'] = array (array("danger", "CBC grading table missing. Run migration 015."));
+	if (!app_table_exists($conn, 'tbl_cbe_grading')) {
+		$_SESSION['reply'] = array (array("danger", "CBE grading table missing. Run migration 015."));
 		header("location:".$returnTo);
 		exit;
 	}
 
 	app_ensure_overall_grading_defaults($conn);
-	$_SESSION['reply'] = array (array("success", "CBC grading bands reset to the default Overall Grading System."));
+	$_SESSION['reply'] = array (array("success", "CBE grading bands reset to the default Overall Grading System."));
 	header("location:".$returnTo);
 } catch (Throwable $e) {
 	if (isset($conn) && $conn instanceof PDO && $conn->inTransaction()) {
 		$conn->rollBack();
 	}
-	$_SESSION['reply'] = array (array("danger", "Failed to save CBC grading: " . $e->getMessage()));
+	$_SESSION['reply'] = array (array("danger", "Failed to save CBE grading: " . $e->getMessage()));
 	header("location:".$returnTo);
 }

@@ -6,7 +6,8 @@ require_once('const/check_session.php');
 require_once('const/rbac.php');
 
 if ($res != '1') { header('location:../'); exit; }
-app_require_permission('finance.view', '../');
+$portalHome = ((string)$level === '1') ? 'academic' : ((string)$level === '5' ? 'accountant' : 'admin');
+app_require_permission('finance.view', $portalHome);
 
 $report_type = trim((string)($_GET['type'] ?? 'summary'));
 $class_id = (int)($_GET['class'] ?? 0);
@@ -27,6 +28,7 @@ try {
     $conn = app_db();
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     app_ensure_finance_tables($conn);
+    app_sync_student_finance_class_links($conn);
     $driver = $conn->getAttribute(PDO::ATTR_DRIVER_NAME);
     $openInvoiceExpr = $driver === 'pgsql'
         ? "COUNT(DISTINCT i.id) FILTER (WHERE i.status = 'open')"
@@ -183,7 +185,7 @@ try {
                 {$studentDaysOverdueExpr} as days_overdue
             FROM tbl_students s
             LEFT JOIN tbl_invoices i ON i.student_id = s.id AND i.status = 'open'
-            LEFT JOIN tbl_classes c ON c.id = i.class_id
+            LEFT JOIN tbl_classes c ON c.id = s.class
             LEFT JOIN tbl_invoice_lines il ON il.invoice_id = i.id
             LEFT JOIN (
                 SELECT invoice_id, SUM(amount) as amount FROM tbl_payments GROUP BY invoice_id

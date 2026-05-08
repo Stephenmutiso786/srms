@@ -8,6 +8,18 @@ require_once('const/rbac.php');
 
 if ($res != "1" || !in_array((string)$level, ['0', '1'], true)) { header("location:../"); exit; }
 app_require_permission('system.manage', '../admin');
+
+$terms = [];
+try {
+	$conn = app_db();
+	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	app_ensure_terms_academic_year_schema($conn);
+	$stmt = $conn->prepare("SELECT * FROM tbl_terms ORDER BY id DESC");
+	$stmt->execute();
+	$terms = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Throwable $e) {
+	$terms = [];
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -59,8 +71,12 @@ app_require_permission('system.manage', '../admin');
 <div class="modal-body">
 <form class="app_frm" method="POST" autocomplete="OFF" action="admin/core/new_term">
 <div class="mb-2">
-<label class="form-label">Academic Term</label>
-<input required name="name" class="form-control" type="text" placeholder="Enter Academic Term">
+<label class="form-label">Term Name</label>
+<input required name="name" class="form-control" type="text" placeholder="Enter Term Name e.g. Term One">
+</div>
+<div class="mb-2">
+<label class="form-label">Academic Year</label>
+<input required name="academic_year" class="form-control" type="text" placeholder="Enter Academic Year e.g. 2026 or 2026/2027">
 </div>
 <div class="mb-3">
 <label class="form-label">Status</label>
@@ -87,8 +103,12 @@ app_require_permission('system.manage', '../admin');
 <div class="modal-body">
 <form class="app_frm" method="POST" autocomplete="OFF" action="admin/core/update_term">
 <div class="mb-2">
-<label class="form-label">Academic Term</label>
-<input id="term" required name="name" class="form-control" type="text" placeholder="Enter Academic Term">
+<label class="form-label">Term Name</label>
+<input id="term" required name="name" class="form-control" type="text" placeholder="Enter Term Name e.g. Term One">
+</div>
+<div class="mb-2">
+<label class="form-label">Academic Year</label>
+<input id="academic_year" required name="academic_year" class="form-control" type="text" placeholder="Enter Academic Year e.g. 2026 or 2026/2027">
 </div>
 <div class="mb-3">
 <label class="form-label">Status</label>
@@ -116,35 +136,37 @@ app_require_permission('system.manage', '../admin');
 <table class="table table-hover table-bordered" id="srmsTable">
 <thead>
 <tr>
-<th>Name</th>
+<th>Term</th>
+<th>Academic Year</th>
+<th>Stored Name</th>
 <th width="120" align="center">Status</th>
 <th width="120" align="center"></th>
 </tr>
 </thead>
 <tbody>
+<?php foreach ($terms as $row): ?>
 <?php
-try {
-$conn = app_db();
-$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-$stmt = $conn->prepare("SELECT * FROM tbl_terms ORDER BY id DESC");
-$stmt->execute();
-foreach($stmt->fetchAll() as $row) {
+$termId = (int)($row['id'] ?? 0);
+$storedName = (string)($row['name'] ?? '');
+$baseName = app_term_base_name($storedName);
+$academicYear = trim((string)($row['academic_year'] ?? app_extract_academic_year($storedName)));
 ?>
-<textarea style="display:none;" id="term_<?php echo $row[0]; ?>"><?php echo $row[1]; ?></textarea>
+<textarea style="display:none;" id="term_<?php echo $termId; ?>"><?php echo htmlspecialchars($baseName); ?></textarea>
+<textarea style="display:none;" id="term_year_<?php echo $termId; ?>"><?php echo htmlspecialchars($academicYear); ?></textarea>
 <tr>
-<td><?php echo htmlspecialchars($row[1]); ?></td>
-<td align="center"><?php if ($row[2] == "1") { print '<span class="me-1 badge badge-pill bg-success">ACTIVE</span>'; }else{ print '<span class="me-1 badge badge-pill bg-danger">INACTIVE</span>'; } ?></td>
+<td><?php echo htmlspecialchars($baseName !== '' ? $baseName : $storedName); ?></td>
+<td><?php echo htmlspecialchars($academicYear); ?></td>
+<td><small><?php echo htmlspecialchars($storedName); ?></small></td>
+<td align="center"><?php if (($row['status'] ?? '') == "1") { print '<span class="me-1 badge badge-pill bg-success">ACTIVE</span>'; }else{ print '<span class="me-1 badge badge-pill bg-danger">INACTIVE</span>'; } ?></td>
 <td align="center">
-<a onclick="set_term('<?php echo $row[0]; ?>', '<?php echo $row[2]; ?>');" class="btn btn-primary btn-sm" href="javascript:void(0);" data-bs-toggle="modal" data-bs-target="#editModal">Edit</a>
-<a onclick="del('admin/core/drop_term?id=<?php echo $row[0]; ?>', 'Delete Academic Term?');" class="btn btn-danger btn-sm" href="javascript:void(0);">Delete</a>
+<a onclick="set_term('<?php echo $termId; ?>', '<?php echo htmlspecialchars((string)($row['status'] ?? '0')); ?>');" class="btn btn-primary btn-sm" href="javascript:void(0);" data-bs-toggle="modal" data-bs-target="#editModal">Edit</a>
+<a onclick="del('admin/core/drop_term?id=<?php echo $termId; ?>', 'Delete Academic Term?');" class="btn btn-danger btn-sm" href="javascript:void(0);">Delete</a>
 </td>
 </tr>
-<?php
-}
-} catch (Throwable $e) {
-echo '<tr><td colspan="3">Unable to load academic terms right now.</td></tr>';
-}
-?>
+<?php endforeach; ?>
+<?php if (!$terms): ?>
+<tr><td colspan="5">Unable to load academic terms right now.</td></tr>
+<?php endif; ?>
 </tbody>
 </table>
 </div>
@@ -169,6 +191,7 @@ echo '<tr><td colspan="3">Unable to load academic terms right now.</td></tr>';
 function set_term(id, status) {
 	document.getElementById('id').value = id;
 	document.getElementById('term').value = document.getElementById('term_' + id).value;
+	document.getElementById('academic_year').value = document.getElementById('term_year_' + id).value;
 	document.getElementById('status').value = status;
 }
 </script>

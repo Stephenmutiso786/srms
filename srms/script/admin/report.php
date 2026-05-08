@@ -4,6 +4,7 @@ session_start();
 require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
+require_once('const/report_engine.php');
 require_once('const/rbac.php');
 
 if ($res == "1" && $level == "0") {}else{header("location:../");}
@@ -13,8 +14,10 @@ app_require_unlocked('reports', 'admin');
 $classes = [];
 $terms = [];
 $generatedCards = [];
+$reportGroups = [];
 $listClassId = (int)($_GET['list_class_id'] ?? 0);
 $listTermId = (int)($_GET['list_term_id'] ?? 0);
+$listExamId = (int)($_GET['list_exam_id'] ?? 0);
 $hasStudentEmail = false;
 
 try {
@@ -29,6 +32,7 @@ try {
 	$stmt->execute();
 	$terms = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	$hasStudentEmail = app_column_exists($conn, 'tbl_students', 'email');
+	report_ensure_exam_batch_schema($conn);
 
 	if (app_table_exists($conn, 'tbl_report_cards')) {
 		$where = [];
@@ -41,14 +45,21 @@ try {
 			$where[] = 'rc.term_id = ?';
 			$params[] = $listTermId;
 		}
+		if ($listExamId > 0 && app_column_exists($conn, 'tbl_report_cards', 'exam_id')) {
+			$where[] = 'rc.exam_id = ?';
+			$params[] = $listExamId;
+		}
 
 		$sql = "SELECT rc.id, rc.student_id, rc.class_id, rc.term_id, rc.mean, rc.grade, rc.position, rc.total_students,
-			rc.verification_code, rc.generated_at, COALESCE(rc.downloads, 0) AS downloads,
+			rc.verification_code, rc.generated_at, COALESCE(rc.downloads, 0) AS downloads, " . (app_column_exists($conn, 'tbl_report_cards', 'exam_id') ? 'COALESCE(rc.exam_id, 0) AS exam_id,' : '0 AS exam_id,') . "
+			COALESCE(ex.name, 'Unclassified') AS exam_name, COALESCE(et.name, '') AS exam_type,
 			st.school_id, st.fname, st.mname, st.lname" . ($hasStudentEmail ? ', st.email AS student_email' : '') . ", c.name AS class_name, t.name AS term_name
 			FROM tbl_report_cards rc
 			LEFT JOIN tbl_students st ON st.id = rc.student_id
 			LEFT JOIN tbl_classes c ON c.id = rc.class_id
-			LEFT JOIN tbl_terms t ON t.id = rc.term_id";
+			LEFT JOIN tbl_terms t ON t.id = rc.term_id
+			LEFT JOIN tbl_exams ex ON ex.id = rc.exam_id
+			LEFT JOIN tbl_exam_types et ON et.id = ex.exam_type_id";
 		if (!empty($where)) {
 			$sql .= " WHERE " . implode(' AND ', $where);
 		}
@@ -57,6 +68,31 @@ try {
 		$stmt = $conn->prepare($sql);
 		$stmt->execute($params);
 		$generatedCards = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+		foreach ($generatedCards as $cardRow) {
+			$groupKey = implode('|', [
+				(int)($cardRow['term_id'] ?? 0),
+				(string)($cardRow['exam_name'] ?? 'Unclassified'),
+				(string)($cardRow['exam_type'] ?? ''),
+			]);
+			if (!isset($reportGroups[$groupKey])) {
+				$reportGroups[$groupKey] = [
+					'term_id' => (int)($cardRow['term_id'] ?? 0),
+					'term_name' => (string)($cardRow['term_name'] ?? ''),
+					'exam_name' => (string)($cardRow['exam_name'] ?? 'Unclassified'),
+					'exam_type' => (string)($cardRow['exam_type'] ?? ''),
+					'classes' => [],
+					'rows' => [],
+					'downloads' => 0,
+				];
+			}
+			$classId = (int)($cardRow['class_id'] ?? 0);
+			if ($classId > 0 && !isset($reportGroups[$groupKey]['classes'][$classId])) {
+				$reportGroups[$groupKey]['classes'][$classId] = (string)($cardRow['class_name'] ?? ('Class ' . $classId));
+			}
+			$reportGroups[$groupKey]['rows'][] = $cardRow;
+			$reportGroups[$groupKey]['downloads'] += (int)($cardRow['downloads'] ?? 0);
+		}
 	}
 } catch (Throwable $e) {
 	error_log("[".__FILE__.":".__LINE__." Throwable] " . $e->getMessage());
@@ -198,12 +234,44 @@ try {
 
 <div class="col-12 mt-3">
 <div class="tile">
-<div class="tile-body d-flex justify-content-between align-items-center flex-wrap gap-2">
+<div class="tile-body">
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
 <div>
 <h3 class="tile-title mb-1">Merit List</h3>
-<p class="text-muted mb-0">Generate a ranked class merit list and export it as a printable PDF.</p>
+<p class="text-muted mb-0">Generate and open a ranked class merit list directly from the report tool.</p>
 </div>
-<a class="btn btn-primary" href="admin/merit_list"><i class="bi bi-trophy me-2"></i>Open Merit List</a>
+<a class="btn btn-outline-primary" href="admin/merit_list"><i class="bi bi-trophy me-2"></i>Open Merit List Page</a>
+</div>
+<form class="row g-2 align-items-end" method="GET" action="admin/merit_list">
+<div class="col-md-3">
+<label class="form-label">Select Class</label>
+<select class="form-control select2" name="class_id" id="meritToolClassSelect" required style="width: 100%;" onchange="loadPublishedExams('meritToolClassSelect','meritToolTermSelect','meritToolExamSelect');">
+<option value="" selected disabled>Select One</option>
+<?php foreach ($classes as $row) { ?>
+<option value="<?php echo (int)$row['id']; ?>"><?php echo htmlspecialchars((string)$row['name']); ?></option>
+<?php } ?>
+</select>
+</div>
+<div class="col-md-3">
+<label class="form-label">Select Term</label>
+<select class="form-control select2" name="term_id" id="meritToolTermSelect" required style="width: 100%;" onchange="loadPublishedExams('meritToolClassSelect','meritToolTermSelect','meritToolExamSelect');">
+<option value="" selected disabled>Select One</option>
+<?php foreach ($terms as $row) { ?>
+<option value="<?php echo (int)$row['id']; ?>"><?php echo htmlspecialchars((string)$row['name']); ?></option>
+<?php } ?>
+</select>
+</div>
+<div class="col-md-3">
+<label class="form-label">Select Exam</label>
+<select class="form-control select2" name="exam_id" id="meritToolExamSelect" style="width: 100%;">
+<option value="">All Published Exams / Term</option>
+</select>
+</div>
+<div class="col-md-3 d-flex gap-2">
+<button class="btn btn-primary flex-fill" type="submit"><i class="bi bi-trophy me-2"></i>Generate Merit List</button>
+<button class="btn btn-outline-primary" type="submit" formaction="admin/merit_list_pdf" formtarget="_blank"><i class="bi bi-download me-2"></i>PDF</button>
+</div>
+</form>
 </div>
 </div>
 </div>
@@ -216,6 +284,53 @@ try {
 <p class="text-muted mb-0">Open the class results view, print all results, or export the bulk sheet for a selected class and term.</p>
 </div>
 <a class="btn btn-danger" href="admin/bulk_results"><i class="bi bi-printer me-2"></i>Open Bulk Results</a>
+</div>
+</div>
+</div>
+
+<div class="col-12 mt-3">
+<div class="tile">
+<div class="tile-body">
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+<div>
+<h3 class="tile-title mb-1">Bulk Report Card Downloads</h3>
+<p class="text-muted mb-0">Visible bulk actions for report cards. Select the class, term, and exam batch you want, then print or download directly from the report tool.</p>
+</div>
+</div>
+
+<form class="row g-2 align-items-end" method="GET" action="admin/class_report_pdf">
+<div class="col-md-3">
+<label class="form-label">Select Class</label>
+<select class="form-control select2" name="class_id" id="bulkClassSelect" required style="width: 100%;" onchange="loadPublishedExams('bulkClassSelect','bulkTermSelect','bulkExamSelect');">
+<option value="" selected disabled>Select One</option>
+<?php foreach ($classes as $row) { ?>
+<option value="<?php echo (int)$row['id']; ?>"><?php echo htmlspecialchars((string)$row['name']); ?></option>
+<?php } ?>
+</select>
+</div>
+
+<div class="col-md-3">
+<label class="form-label">Select Term</label>
+<select class="form-control select2" name="term_id" id="bulkTermSelect" required style="width: 100%;" onchange="loadPublishedExams('bulkClassSelect','bulkTermSelect','bulkExamSelect');">
+<option selected disabled value="">Select One</option>
+<?php foreach ($terms as $row) { ?>
+<option value="<?php echo (int)$row['id']; ?>"><?php echo htmlspecialchars((string)$row['name']); ?></option>
+<?php } ?>
+</select>
+</div>
+
+<div class="col-md-3">
+<label class="form-label">Select Exam</label>
+<select class="form-control select2" name="exam_id" id="bulkExamSelect" required style="width: 100%;">
+<option selected disabled value="">Select class and term first</option>
+</select>
+</div>
+
+<div class="col-md-3 d-flex gap-2">
+<button class="btn btn-outline-primary" type="submit" formaction="admin/class_report_cards_pdf" formtarget="_blank"><i class="bi bi-printer me-1"></i>Print Class Batch</button>
+<button class="btn btn-primary" type="submit" formaction="admin/class_report_cards_pdf" name="download" value="1" formtarget="_blank"><i class="bi bi-download me-1"></i>Download Class PDF</button>
+</div>
+</form>
 </div>
 </div>
 </div>
@@ -239,10 +354,7 @@ try {
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
 <div>
 <h3 class="tile-title mb-1">Generated Report Cards</h3>
-<p class="text-muted mb-0">View generated report cards and download PDFs directly from this report tool.</p>
-</div>
-<div>
-<a class="btn btn-secondary" href="admin/core/download_all_reports?list_class_id=<?php echo (int)$listClassId; ?>&list_term_id=<?php echo (int)$listTermId; ?>"><i class="bi bi-download me-2"></i>Download All Reports</a>
+<p class="text-muted mb-0">Generated batches are now separated by exam name and exam type so new report cards do not mix with old ones.</p>
 </div>
 </div>
 
@@ -271,6 +383,46 @@ try {
 </div>
 </form>
 
+<?php if ($reportGroups): ?>
+<div class="row g-3 mb-4">
+<?php foreach ($reportGroups as $group): ?>
+<div class="col-12">
+<div class="border rounded p-3 bg-light">
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-3">
+<div>
+<h5 class="mb-1"><?php echo htmlspecialchars($group['exam_name']); ?></h5>
+<p class="text-muted mb-1"><?php echo htmlspecialchars($group['term_name']); ?><?php echo $group['exam_type'] !== '' ? ' • ' . htmlspecialchars($group['exam_type']) : ''; ?></p>
+<small class="text-muted"><?php echo count($group['rows']); ?> report cards across <?php echo count($group['classes']); ?> class(es)</small>
+</div>
+<div class="d-flex flex-wrap gap-2">
+<a class="btn btn-primary btn-sm" target="_blank" href="admin/core/download_all_reports?batch_term_id=<?php echo (int)$group['term_id']; ?>&batch_exam_name=<?php echo urlencode($group['exam_name']); ?>&batch_exam_type=<?php echo urlencode($group['exam_type']); ?>&view=1"><i class="bi bi-printer me-1"></i>Print/View All</a>
+<a class="btn btn-outline-primary btn-sm" href="admin/core/download_all_reports?batch_term_id=<?php echo (int)$group['term_id']; ?>&batch_exam_name=<?php echo urlencode($group['exam_name']); ?>&batch_exam_type=<?php echo urlencode($group['exam_type']); ?>&download=1"><i class="bi bi-download me-1"></i>Download All PDF</a>
+</div>
+</div>
+
+<form class="row g-2 align-items-end" method="GET" action="admin/core/download_all_reports">
+<input type="hidden" name="batch_term_id" value="<?php echo (int)$group['term_id']; ?>">
+<input type="hidden" name="batch_exam_name" value="<?php echo htmlspecialchars($group['exam_name']); ?>">
+<input type="hidden" name="batch_exam_type" value="<?php echo htmlspecialchars($group['exam_type']); ?>">
+<input type="hidden" name="download" value="1">
+<div class="col-md-8">
+<label class="form-label">Download Selected Classes Only</label>
+<select class="form-control select2" name="class_ids[]" multiple data-placeholder="Choose one or more classes">
+<?php foreach ($group['classes'] as $classId => $className): ?>
+<option value="<?php echo (int)$classId; ?>"><?php echo htmlspecialchars($className); ?></option>
+<?php endforeach; ?>
+</select>
+</div>
+<div class="col-md-4 d-flex gap-2">
+<button class="btn btn-success" type="submit"><i class="bi bi-file-earmark-pdf me-1"></i>Download Selected Bulk PDF</button>
+</div>
+</form>
+</div>
+</div>
+<?php endforeach; ?>
+</div>
+<?php endif; ?>
+
 <div class="table-responsive">
 <table class="table table-hover">
 <thead>
@@ -278,6 +430,7 @@ try {
 <th>Student</th>
 <th>Class</th>
 <th>Term</th>
+<th>Exam</th>
 <th>Mean Band</th>
 <th>Grade</th>
 <th>Position</th>
@@ -298,26 +451,28 @@ try {
 </td>
 <td><?php echo htmlspecialchars((string)($cardRow['class_name'] ?? '')); ?></td>
 <td><?php echo htmlspecialchars((string)($cardRow['term_name'] ?? '')); ?></td>
+<td><?php echo htmlspecialchars((string)($cardRow['exam_name'] ?? 'Unclassified')); ?><?php echo !empty($cardRow['exam_type']) ? '<br><small class="text-muted">' . htmlspecialchars((string)$cardRow['exam_type']) . '</small>' : ''; ?></td>
 <td><?php echo htmlspecialchars((string)$cardRow['grade']); ?></td>
 <td><span class="badge bg-primary"><?php echo htmlspecialchars((string)$cardRow['grade']); ?></span></td>
 <td><?php echo (int)$cardRow['position']; ?> / <?php echo (int)$cardRow['total_students']; ?></td>
 <td><?php echo htmlspecialchars((string)$cardRow['generated_at']); ?></td>
 <td><?php echo (int)$cardRow['downloads']; ?></td>
 <td>
-<a class="btn btn-sm btn-primary" target="_blank" href="admin/save_pdf?std=<?php echo urlencode((string)$cardRow['student_id']); ?>&term=<?php echo (int)$cardRow['term_id']; ?>&download=1"><i class="bi bi-download me-1"></i>PDF</a>
+<a class="btn btn-sm btn-primary" target="_blank" href="admin/save_pdf?std=<?php echo urlencode((string)$cardRow['student_id']); ?>&term=<?php echo (int)$cardRow['term_id']; ?><?php echo (int)($cardRow['exam_id'] ?? 0) > 0 ? '&exam=' . (int)$cardRow['exam_id'] : ''; ?>&download=1"><i class="bi bi-download me-1"></i>PDF</a>
 <button class="btn btn-sm btn-info" type="button" onclick="openEmailModal('report_card', <?php echo (int)$cardRow['id']; ?>, '<?php echo htmlspecialchars(addslashes($studentName)); ?>', '<?php echo htmlspecialchars(addslashes((string)($cardRow['student_email'] ?? ''))); ?>')" title="Send via Email"><i class="bi bi-envelope me-1"></i>Email</button>
 <!-- Verify button removed as requested -->
 <form method="POST" action="admin/core/delete_report_card" class="d-inline" onsubmit="return confirm('Delete this generated report card? This cannot be undone.');">
 <input type="hidden" name="report_id" value="<?php echo (int)$cardRow['id']; ?>">
 <input type="hidden" name="list_class_id" value="<?php echo (int)$listClassId; ?>">
 <input type="hidden" name="list_term_id" value="<?php echo (int)$listTermId; ?>">
+<input type="hidden" name="list_exam_id" value="<?php echo (int)$listExamId; ?>">
 <button class="btn btn-sm btn-danger" type="submit"><i class="bi bi-trash me-1"></i>Delete</button>
 </form>
 </td>
 </tr>
 <?php endforeach; ?>
 <?php if (!$generatedCards): ?>
-<tr><td colspan="9" class="text-muted text-center">No generated report cards found for the selected filter.</td></tr>
+<tr><td colspan="10" class="text-muted text-center">No generated report cards found for the selected filter.</td></tr>
 <?php endif; ?>
 </tbody>
 </table>

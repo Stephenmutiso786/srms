@@ -12,6 +12,7 @@ function app_default_permissions_for_level(int $level): array
 				'system.manage', 'audit.view', 'staff.manage', 'students.manage', 'academic.manage',
 				'teacher.allocate', 'classes.assign', 'timetable.manage', 'attendance.manage',
 				'exams.manage', 'marks.review', 'results.approve', 'report.generate', 'report.view',
+				'student.leadership.manage',
 				'finance.manage', 'finance.view', 'communication.manage', 'communication.send',
 				'bom.manage', 'bom.view', 'sms.wallet.manage'
 			];
@@ -19,8 +20,9 @@ function app_default_permissions_for_level(int $level): array
 			return [
 				'academic.manage', 'teacher.allocate', 'classes.assign', 'timetable.manage',
 				'attendance.manage', 'exams.manage', 'marks.review', 'results.approve',
-				'report.generate', 'report.view', 'students.manage', 'communication.manage',
-				'communication.send'
+				'results.lock', 'results.unlock', 'report.generate', 'report.view', 'students.manage',
+				'student.leadership.manage', 'communication.manage', 'communication.send',
+				'finance.manage', 'finance.view'
 			];
 		case 2:
 			return ['attendance.manage', 'marks.enter', 'report.view', 'communication.send'];
@@ -29,7 +31,7 @@ function app_default_permissions_for_level(int $level): array
 		case 4:
 			return ['report.view', 'finance.view'];
 		case 5:
-			return ['finance.manage', 'finance.view', 'sms.wallet.manage'];
+			return ['finance.manage', 'finance.view', 'sms.wallet.manage', 'communication.send'];
 		case 6:
 			return ['staff.manage'];
 		case 7:
@@ -50,6 +52,15 @@ function app_get_permissions(PDO $conn, string $staffId, string $level): array
 	}
 	$levelInt = (int)$level;
 	$defaults = app_default_permissions_for_level($levelInt);
+	if ($staffId !== '' && function_exists('app_staff_has_active_teaching_assignment')) {
+		try {
+			if (app_staff_has_active_teaching_assignment($conn, (int)$staffId)) {
+				$defaults = array_values(array_unique(array_merge($defaults, app_default_permissions_for_level(2))));
+			}
+		} catch (Throwable $e) {
+			// Keep baseline permissions if teaching-assignment lookup fails.
+		}
+	}
 	if (in_array('*', $defaults, true)) {
 		return ['*'];
 	}
@@ -521,7 +532,7 @@ function app_teacher_portal_module_catalog(): array
 		['key' => 'dashboard', 'label' => 'Dashboard', 'href' => 'teacher', 'icon' => 'feather icon-monitor', 'description' => 'Overview and quick actions', 'permissions' => [], 'core' => true, 'routes' => ['teacher/index']],
 		['key' => 'terms', 'label' => 'Academic Terms', 'href' => 'teacher/terms', 'icon' => 'feather icon-folder', 'description' => 'View term structure', 'permissions' => [], 'core' => true],
 		['key' => 'attendance', 'label' => 'Attendance', 'href' => 'teacher/attendance', 'icon' => 'feather icon-check-square', 'description' => 'Class attendance and monitoring', 'permissions' => ['attendance.manage'], 'core' => true, 'routes' => ['teacher/attendance_session']],
-		['key' => 'marks_entry', 'label' => 'Marks Entry', 'href' => 'teacher/exam_marks_entry', 'icon' => 'feather icon-edit-3', 'description' => 'Enter exam and CBC marks', 'permissions' => ['marks.enter'], 'core' => true, 'routes' => ['teacher/marks_entry', 'teacher/exam_marks_table', 'teacher/cbc_entry', 'teacher/import_results']],
+		['key' => 'marks_entry', 'label' => 'Marks Entry', 'href' => 'teacher/exam_marks_entry', 'icon' => 'feather icon-edit-3', 'description' => 'Enter exam and CBE marks', 'permissions' => ['marks.enter'], 'core' => true, 'routes' => ['teacher/marks_entry', 'teacher/exam_marks_table', 'teacher/cbe_entry', 'teacher/import_results']],
 		['key' => 'results', 'label' => 'Results', 'href' => 'teacher/manage_results', 'icon' => 'feather icon-graph', 'description' => 'Review and publish results', 'permissions' => ['report.view', 'report.generate', 'marks.review', 'results.approve'], 'core' => true, 'routes' => ['teacher/results', 'teacher/report_card', 'teacher/class_report', 'teacher/published_analytics', 'teacher/print_mark_sheet', 'teacher/report_card_pdf']],
 		['key' => 'discipline', 'label' => 'Discipline', 'href' => 'teacher/discipline', 'icon' => 'feather icon-alert-triangle', 'description' => 'Learner welfare and discipline', 'permissions' => ['student.leadership.manage'], 'core' => true],
 		['key' => 'students', 'label' => 'Students', 'href' => 'teacher/students', 'icon' => 'feather icon-users', 'description' => 'Student directory and class lists', 'permissions' => ['students.manage', 'report.view'], 'core' => true, 'routes' => ['teacher/list_students', 'teacher/export_students', 'teacher/certificates']],
@@ -593,7 +604,7 @@ function app_portal_module_catalog(string $portal): array
 			['key' => 'parents', 'label' => 'Parents', 'href' => 'admin/parents', 'icon' => 'feather icon-user-plus', 'description' => 'Parent records', 'permissions' => ['students.manage'], 'core' => false],
 			['key' => 'attendance', 'label' => 'Attendance', 'href' => 'admin/attendance', 'icon' => 'feather icon-check-square', 'description' => 'Student attendance', 'permissions' => ['attendance.manage'], 'core' => true, 'routes' => ['admin/attendance_session']],
 			['key' => 'staff_attendance', 'label' => 'Staff Attendance', 'href' => 'admin/staff_attendance', 'icon' => 'feather icon-clock', 'description' => 'Staff attendance', 'permissions' => ['attendance.manage'], 'core' => true],
-			['key' => 'fees', 'label' => 'Fees & Finance', 'href' => 'admin/fees', 'icon' => 'feather icon-credit-card', 'description' => 'Fee and finance tools', 'permissions' => ['finance.manage', 'finance.view'], 'core' => true, 'routes' => ['admin/financial_reports', 'admin/installment_plans', 'admin/fee_structure', 'admin/invoices']],
+			['key' => 'fees', 'label' => 'Fees & Finance', 'href' => 'admin/fees', 'icon' => 'feather icon-credit-card', 'description' => 'Fee and finance tools', 'permissions' => ['finance.manage', 'finance.view'], 'core' => true, 'routes' => ['admin/financial_reports', 'admin/installment_plans', 'admin/fee_structure', 'admin/invoices', 'admin/expense_approvals']],
 			['key' => 'import_export', 'label' => 'Import / Export', 'href' => 'admin/import_export', 'icon' => 'feather icon-upload-cloud', 'description' => 'Data import and export', 'permissions' => ['system.manage'], 'core' => false],
 			['key' => 'communication', 'label' => 'Communication', 'href' => 'admin/communication', 'icon' => 'feather icon-message-circle', 'description' => 'Announcements and messages', 'permissions' => ['communication.manage'], 'core' => true],
 			['key' => 'sms_topup', 'label' => 'SMS Tokens', 'href' => 'admin/sms_topup', 'icon' => 'feather icon-credit-card', 'description' => 'SMS wallet', 'permissions' => ['communication.manage', 'finance.manage'], 'core' => false],
@@ -603,6 +614,8 @@ function app_portal_module_catalog(string $portal): array
 			['key' => 'inventory', 'label' => 'Inventory', 'href' => 'admin/inventory', 'icon' => 'feather icon-box', 'description' => 'Asset inventory', 'permissions' => ['inventory.manage'], 'core' => false],
 			['key' => 'transport', 'label' => 'Transport', 'href' => 'admin/transport', 'icon' => 'feather icon-truck', 'description' => 'Fleet management', 'permissions' => ['transport.manage'], 'core' => false],
 			['key' => 'exams', 'label' => 'Exams', 'href' => 'admin/exams', 'icon' => 'feather icon-file-text', 'description' => 'Exam setup', 'permissions' => ['exams.manage'], 'core' => true, 'routes' => ['admin/edit_exam']],
+			['key' => 'grading_management', 'label' => 'Grading Management', 'href' => 'admin/grading_system', 'icon' => 'feather icon-award', 'description' => 'Admin grading systems and class linkage', 'permissions' => ['exams.manage'], 'core' => true, 'routes' => ['admin/grading_system']],
+			['key' => 'marks_entry', 'label' => 'Marks Entry', 'href' => 'admin/exam_marks_entry', 'icon' => 'feather icon-edit-3', 'description' => 'Open marks entry for allocated classes and subjects', 'permissions' => ['marks.enter'], 'core' => true, 'routes' => ['admin/exam_marks_entry', 'admin/exam_marks_table', 'admin/cbe_entry']],
 			['key' => 'exam_timetable', 'label' => 'Exam Timetable', 'href' => 'admin/exam_timetable', 'icon' => 'feather icon-calendar', 'description' => 'Exam timetable', 'permissions' => ['exams.manage', 'timetable.manage'], 'core' => true],
 			['key' => 'marks_review', 'label' => 'Marks Review', 'href' => 'admin/marks_review', 'icon' => 'feather icon-edit-3', 'description' => 'Marks moderation', 'permissions' => ['marks.review'], 'core' => false],
 			['key' => 'publish_results', 'label' => 'Publish Results', 'href' => 'admin/publish_results', 'icon' => 'feather icon-share-2', 'description' => 'Publish results', 'permissions' => ['results.approve'], 'core' => false],
@@ -643,20 +656,30 @@ function app_portal_module_catalog(string $portal): array
 
 	if ($portal === 'academic') {
 		return [
-			['key' => 'dashboard', 'label' => 'Dashboard', 'href' => 'academic', 'icon' => 'feather icon-monitor', 'description' => 'Academic overview', 'permissions' => [], 'core' => true],
-			['key' => 'terms', 'label' => 'Academic Terms', 'href' => 'academic/terms', 'icon' => 'feather icon-folder', 'description' => 'Manage academic terms', 'permissions' => ['academic.manage'], 'core' => true],
-			['key' => 'classes', 'label' => 'Classes', 'href' => 'academic/classes', 'icon' => 'feather icon-home', 'description' => 'Class setup and structure', 'permissions' => ['classes.assign', 'academic.manage'], 'core' => true],
-			['key' => 'subjects', 'label' => 'Subjects', 'href' => 'academic/subjects', 'icon' => 'feather icon-book', 'description' => 'Subject setup', 'permissions' => ['academic.manage'], 'core' => true],
-			['key' => 'teacher_control', 'label' => 'Teachers', 'href' => 'admin/teachers', 'icon' => 'feather icon-user', 'description' => 'Manage and impersonate teacher accounts', 'permissions' => ['academic.manage', 'staff.manage'], 'core' => true],
-			['key' => 'combinations', 'label' => 'Subject Combinations', 'href' => 'academic/combinations', 'icon' => 'feather icon-book-open', 'description' => 'Teacher-subject allocation', 'permissions' => ['teacher.allocate', 'academic.manage'], 'core' => true],
-			['key' => 'students', 'label' => 'Student Promotion', 'href' => 'academic/promote_students', 'icon' => 'feather icon-users', 'description' => 'Promote and manage learners', 'permissions' => ['students.manage', 'academic.manage'], 'core' => true],
-			['key' => 'results_manage', 'label' => 'Manage Results', 'href' => 'academic/manage_results', 'icon' => 'feather icon-file-text', 'description' => 'Results entry and approval', 'permissions' => ['marks.enter', 'marks.review', 'results.approve'], 'core' => true, 'routes' => ['academic/bulk_results', 'academic/single_results']],
-			['key' => 'individual_results', 'label' => 'Individual Results', 'href' => 'academic/individual_results', 'icon' => 'feather icon-user-check', 'description' => 'Single-student result review', 'permissions' => ['report.view', 'report.generate'], 'core' => true],
-			['key' => 'report_tool', 'label' => 'Report Tool', 'href' => 'academic/report', 'icon' => 'feather icon-bar-chart-2', 'description' => 'Class report analysis', 'permissions' => ['report.generate', 'report.view'], 'core' => true, 'routes' => ['academic/save_pdf', 'academic/save_report']],
-			['key' => 'grading_system', 'label' => 'Grading System', 'href' => 'academic/grading-system', 'icon' => 'feather icon-award', 'description' => 'Grade scale and grading rules', 'permissions' => ['exams.manage', 'academic.manage'], 'core' => true],
-			['key' => 'division_system', 'label' => 'Division System', 'href' => 'academic/division-system', 'icon' => 'feather icon-layers', 'description' => 'Division and performance bands', 'permissions' => ['academic.manage', 'report.generate'], 'core' => true],
-			['key' => 'announcements', 'label' => 'Announcements', 'href' => 'academic/announcement', 'icon' => 'feather icon-bell', 'description' => 'Publish academic notices', 'permissions' => ['communication.manage', 'communication.send'], 'core' => false],
-			['key' => 'profile', 'label' => 'Profile', 'href' => 'academic/profile', 'icon' => 'feather icon-user', 'description' => 'My academic staff profile', 'permissions' => [], 'core' => true],
+			['key' => 'dashboard', 'label' => 'Dashboard', 'href' => 'academic', 'icon' => 'feather icon-monitor', 'description' => 'Academic overview', 'permissions' => [], 'core' => true, 'routes' => ['academic/index']],
+			['key' => 'terms', 'label' => 'Academic Terms', 'href' => 'academic/terms.php', 'icon' => 'feather icon-folder', 'description' => 'Manage academic terms', 'permissions' => ['academic.manage'], 'core' => true],
+			['key' => 'classes', 'label' => 'Classes', 'href' => 'academic/classes.php', 'icon' => 'feather icon-home', 'description' => 'Class setup and structure', 'permissions' => ['classes.assign', 'academic.manage'], 'core' => true],
+			['key' => 'subjects', 'label' => 'Subjects', 'href' => 'academic/subjects.php', 'icon' => 'feather icon-book', 'description' => 'Subject setup', 'permissions' => ['academic.manage'], 'core' => true],
+			['key' => 'teacher_control', 'label' => 'Teachers', 'href' => 'admin/teachers.php', 'icon' => 'feather icon-user', 'description' => 'Manage and impersonate teacher accounts', 'permissions' => ['academic.manage', 'staff.manage'], 'core' => true],
+			['key' => 'combinations', 'label' => 'Subject Combinations', 'href' => 'academic/combinations.php', 'icon' => 'feather icon-book-open', 'description' => 'Teacher-subject allocation', 'permissions' => ['teacher.allocate', 'academic.manage'], 'core' => true],
+			['key' => 'attendance', 'label' => 'Attendance', 'href' => 'academic/attendance.php', 'icon' => 'feather icon-check-square', 'description' => 'Class attendance and monitoring', 'permissions' => ['attendance.manage'], 'core' => true, 'routes' => ['academic/attendance_session']],
+			['key' => 'students', 'label' => 'Student Promotion', 'href' => 'academic/promote_students.php', 'icon' => 'feather icon-users', 'description' => 'Promote and manage learners', 'permissions' => ['students.manage', 'academic.manage'], 'core' => true],
+			['key' => 'discipline', 'label' => 'Discipline Cases', 'href' => 'academic/discipline.php', 'icon' => 'feather icon-alert-triangle', 'description' => 'Deputy discipline case manager and hearings', 'permissions' => ['student.leadership.manage', 'students.manage'], 'core' => true, 'routes' => ['academic/discipline_letter']],
+			['key' => 'results_manage', 'label' => 'Manage Results', 'href' => 'academic/manage_results.php', 'icon' => 'feather icon-file-text', 'description' => 'Results entry and approval', 'permissions' => ['marks.enter', 'marks.review', 'results.approve'], 'core' => true, 'routes' => ['academic/bulk_results', 'academic/single_results']],
+			['key' => 'marks_entry', 'label' => 'Marks Entry', 'href' => 'academic/exam_marks_entry.php', 'icon' => 'feather icon-edit-3', 'description' => 'Open marks entry for your allocated classes and subjects', 'permissions' => ['marks.enter'], 'core' => true, 'routes' => ['academic/exam_marks_entry', 'academic/exam_marks_table', 'academic/cbe_entry']],
+			['key' => 'exams', 'label' => 'Exams', 'href' => 'admin/exams.php', 'icon' => 'feather icon-file-text', 'description' => 'Create and manage exams', 'permissions' => ['exams.manage'], 'core' => true, 'routes' => ['admin/edit_exam']],
+			['key' => 'exam_timetable', 'label' => 'Exam Timetable', 'href' => 'admin/exam_timetable.php', 'icon' => 'feather icon-calendar', 'description' => 'Exam timetable planning', 'permissions' => ['exams.manage', 'timetable.manage'], 'core' => true],
+			['key' => 'marks_review', 'label' => 'Marks Review', 'href' => 'admin/marks_review.php', 'icon' => 'feather icon-edit-3', 'description' => 'Review submitted exam marks', 'permissions' => ['marks.review'], 'core' => true],
+			['key' => 'publish_results', 'label' => 'Publish Results', 'href' => 'admin/publish_results.php', 'icon' => 'feather icon-share-2', 'description' => 'Approve and publish exam results', 'permissions' => ['results.approve'], 'core' => true],
+			['key' => 'results_analytics', 'label' => 'Results Analytics', 'href' => 'admin/results_analytics.php', 'icon' => 'feather icon-bar-chart-2', 'description' => 'Performance analytics', 'permissions' => ['report.view'], 'core' => true],
+			['key' => 'results_locks', 'label' => 'Results Locks', 'href' => 'admin/results_locks.php', 'icon' => 'feather icon-lock', 'description' => 'Lock and unlock results', 'permissions' => ['results.approve', 'results.lock', 'results.unlock'], 'core' => true],
+			['key' => 'individual_results', 'label' => 'Individual Results', 'href' => 'academic/individual_results.php', 'icon' => 'feather icon-user-check', 'description' => 'Single-student result review', 'permissions' => ['report.view', 'report.generate'], 'core' => true],
+			['key' => 'report_tool', 'label' => 'Report Tool', 'href' => 'academic/report.php', 'icon' => 'feather icon-bar-chart-2', 'description' => 'Class report analysis', 'permissions' => ['report.generate', 'report.view'], 'core' => true, 'routes' => ['academic/save_pdf', 'academic/save_report']],
+			['key' => 'grading_system', 'label' => 'Grading System', 'href' => 'academic/grading-system.php', 'icon' => 'feather icon-award', 'description' => 'View grading rules set by admin', 'permissions' => ['exams.manage', 'academic.manage'], 'core' => true],
+			['key' => 'division_system', 'label' => 'Division System', 'href' => 'academic/division-system.php', 'icon' => 'feather icon-layers', 'description' => 'Division and performance bands', 'permissions' => ['academic.manage', 'report.generate'], 'core' => true],
+			['key' => 'fees', 'label' => 'Fees & Finance', 'href' => 'admin/fees.php', 'icon' => 'feather icon-credit-card', 'description' => 'Finance and fee operations', 'permissions' => ['finance.manage', 'finance.view'], 'core' => true, 'routes' => ['admin/financial_reports', 'admin/fee_structure', 'admin/invoices']],
+			['key' => 'announcements', 'label' => 'Announcements', 'href' => 'academic/announcement.php', 'icon' => 'feather icon-bell', 'description' => 'Publish academic notices', 'permissions' => ['communication.manage', 'communication.send'], 'core' => false],
+			['key' => 'profile', 'label' => 'Profile', 'href' => 'academic/profile.php', 'icon' => 'feather icon-user', 'description' => 'My academic staff profile', 'permissions' => [], 'core' => true],
 		];
 	}
 
@@ -667,6 +690,13 @@ function app_portal_module_catalog(string $portal): array
 			['key' => 'receive_payment', 'label' => 'Receive Payment', 'href' => 'accountant/receive_payment', 'icon' => 'feather icon-plus-circle', 'description' => 'Quick fee collection entry', 'permissions' => ['finance.manage', 'finance.view'], 'core' => true, 'routes' => ['accountant/add_payment']],
 			['key' => 'fee_structure', 'label' => 'Fee Structure', 'href' => 'accountant/fee_structure', 'icon' => 'feather icon-sliders', 'description' => 'Fee setup and policies', 'permissions' => ['finance.manage'], 'core' => true],
 			['key' => 'invoices', 'label' => 'Invoices', 'href' => 'accountant/invoices', 'icon' => 'feather icon-file-text', 'description' => 'Invoices and collections', 'permissions' => ['finance.manage', 'finance.view'], 'core' => true],
+			['key' => 'expenses', 'label' => 'Expenses', 'href' => 'accountant/expenses', 'icon' => 'feather icon-shopping-cart', 'description' => 'Track school expenses', 'permissions' => ['finance.manage', 'finance.view'], 'core' => true],
+			['key' => 'cashbook', 'label' => 'Cashbook & Banking', 'href' => 'accountant/cashbook', 'icon' => 'feather icon-briefcase', 'description' => 'Cash movement and balances', 'permissions' => ['finance.manage', 'finance.view'], 'core' => true],
+			['key' => 'payroll', 'label' => 'Payroll', 'href' => 'accountant/payroll', 'icon' => 'feather icon-users', 'description' => 'Salary and deduction records', 'permissions' => ['finance.manage', 'finance.view'], 'core' => true],
+			['key' => 'financial_reports', 'label' => 'Financial Reports', 'href' => 'accountant/financial_reports', 'icon' => 'feather icon-bar-chart-2', 'description' => 'Collections, balances, and summaries', 'permissions' => ['finance.manage', 'finance.view'], 'core' => true],
+			['key' => 'budgets', 'label' => 'Budgeting', 'href' => 'accountant/budgets', 'icon' => 'feather icon-pie-chart', 'description' => 'Budget planning and tracking', 'permissions' => ['finance.manage', 'finance.view'], 'core' => true],
+			['key' => 'bursaries', 'label' => 'Bursaries', 'href' => 'accountant/bursaries', 'icon' => 'feather icon-heart', 'description' => 'Scholarship and sponsor support', 'permissions' => ['finance.manage', 'finance.view'], 'core' => true],
+			['key' => 'mpesa', 'label' => 'M-Pesa', 'href' => 'accountant/mpesa', 'icon' => 'feather icon-smartphone', 'description' => 'M-Pesa reconciliation and totals', 'permissions' => ['finance.manage', 'finance.view'], 'core' => true],
 			['key' => 'ledger', 'label' => 'General Ledger', 'href' => 'accountant/ledger', 'icon' => 'feather icon-book-open', 'description' => 'Ledger and journal entries', 'permissions' => ['finance.manage', 'finance.view'], 'core' => true],
 			['key' => 'profile', 'label' => 'Profile', 'href' => 'accountant/profile', 'icon' => 'feather icon-user', 'description' => 'My accountant profile', 'permissions' => [], 'core' => true],
 		];
@@ -750,6 +780,87 @@ function app_teacher_portal_allocated_modules(PDO $conn, string $staffId, string
 	return app_portal_allocated_modules($conn, 'teacher', $staffId, $level);
 }
 
+function app_render_access_error_page(string $title, string $message, int $status = 403, array $details = []): void
+{
+	if (!headers_sent()) {
+		http_response_code($status);
+		header('Content-Type: text/html; charset=utf-8');
+	}
+
+	$appName = defined('APP_NAME') ? (string)APP_NAME : 'SRMS';
+	$requestUri = (string)($_SERVER['REQUEST_URI'] ?? '');
+	$safeTitle = htmlspecialchars($title, ENT_QUOTES, 'UTF-8');
+	$safeMessage = nl2br(htmlspecialchars($message, ENT_QUOTES, 'UTF-8'));
+	echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>'
+		. $safeTitle . ' | ' . htmlspecialchars($appName, ENT_QUOTES, 'UTF-8')
+		. '</title><style>body{margin:0;font-family:Arial,sans-serif;background:#f5f7fb;color:#152033}.wrap{max-width:900px;margin:48px auto;padding:0 20px}.card{background:#fff;border:1px solid #d8e1ee;border-radius:18px;box-shadow:0 18px 50px rgba(20,32,51,.08);padding:28px}.pill{display:inline-block;padding:6px 12px;border-radius:999px;background:#fee2e2;color:#991b1b;font-weight:700;font-size:12px;letter-spacing:.04em;text-transform:uppercase}.title{margin:16px 0 10px;font-size:30px;line-height:1.2}.msg{font-size:16px;line-height:1.6}.meta{margin-top:18px;padding:14px 16px;border-radius:12px;background:#f8fafc;border:1px solid #e2e8f0}.meta code{font-family:monospace}.actions{margin-top:20px}.btn{display:inline-block;padding:10px 16px;border-radius:10px;background:#0f5fa8;color:#fff;text-decoration:none;font-weight:700}</style></head><body><div class="wrap"><div class="card"><span class="pill">HTTP '
+		. (int)$status . '</span><h1 class="title">' . $safeTitle . '</h1><div class="msg">' . $safeMessage . '</div>';
+
+	if ($requestUri !== '' || !empty($details)) {
+		echo '<div class="meta">';
+		if ($requestUri !== '') {
+			echo '<div><strong>Request:</strong> <code>' . htmlspecialchars($requestUri, ENT_QUOTES, 'UTF-8') . '</code></div>';
+		}
+		foreach ($details as $key => $value) {
+			if ($value === '' || $value === null) {
+				continue;
+			}
+			echo '<div><strong>' . htmlspecialchars((string)$key, ENT_QUOTES, 'UTF-8') . ':</strong> <code>' . htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8') . '</code></div>';
+		}
+		echo '</div>';
+	}
+
+	echo '<div class="actions"><a class="btn" href="javascript:history.back()">Go Back</a></div></div></div></body></html>';
+	exit;
+}
+
+function app_require_authentication(array $allowedLevels = [], array $permissions = []): void
+{
+	$res = (string)($GLOBALS['res'] ?? '0');
+	if ($res !== '1') {
+		$error = function_exists('app_get_auth_error') ? app_get_auth_error() : [
+			'status' => 401,
+			'title' => 'Login required',
+			'message' => 'No active session was found for this request.',
+			'details' => [],
+		];
+		app_render_access_error_page((string)$error['title'], (string)$error['message'], (int)$error['status'], (array)($error['details'] ?? []));
+	}
+
+	if (empty($allowedLevels) && empty($permissions)) {
+		return;
+	}
+
+	$currentLevel = (string)($GLOBALS['level'] ?? '');
+	if (!empty($allowedLevels) && in_array($currentLevel, $allowedLevels, true)) {
+		return;
+	}
+
+	if (!empty($permissions)) {
+		try {
+			$conn = app_db();
+			$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+			foreach ($permissions as $permission) {
+				if (app_has_permission($conn, (string)($GLOBALS['account_id'] ?? ''), $currentLevel, (string)$permission)) {
+					return;
+				}
+			}
+		} catch (Throwable $e) {
+			app_render_access_error_page('Permission check failed', 'The system could not verify access permissions: ' . $e->getMessage(), 500);
+		}
+	}
+
+	$detail = [];
+	if (!empty($allowedLevels)) {
+		$detail['allowed_levels'] = implode(', ', $allowedLevels);
+	}
+	if (!empty($permissions)) {
+		$detail['accepted_permissions'] = implode(', ', $permissions);
+	}
+	$detail['current_level'] = $currentLevel;
+	app_render_access_error_page('Access denied', 'This account is authenticated but does not have access to this page.', 403, $detail);
+}
+
 function app_require_permission(string $permission, string $redirect = '../'): void
 {
 	if (!isset($_SESSION)) {
@@ -757,9 +868,13 @@ function app_require_permission(string $permission, string $redirect = '../'): v
 	}
 
 	if (!isset($GLOBALS['account_id']) || !isset($GLOBALS['level'])) {
-		$redirect = app_normalize_redirect_target($redirect);
-		header("location:$redirect");
-		exit;
+		$error = function_exists('app_get_auth_error') ? app_get_auth_error() : [
+			'status' => 401,
+			'title' => 'Login required',
+			'message' => 'No active session was found for this request.',
+			'details' => [],
+		];
+		app_render_access_error_page((string)$error['title'], (string)$error['message'], (int)$error['status'], (array)($error['details'] ?? []));
 	}
 
 	try {
@@ -767,17 +882,63 @@ function app_require_permission(string $permission, string $redirect = '../'): v
 		$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 		$allowed = app_has_permission($conn, (string)$GLOBALS['account_id'], (string)$GLOBALS['level'], $permission);
 		if (!$allowed) {
-			$_SESSION['reply'] = array (array("danger", "Access denied: missing permission ($permission)."));
-			$redirect = app_normalize_redirect_target($redirect);
-			header("location:$redirect");
-			exit;
+			app_render_access_error_page('Access denied', 'Missing required permission: ' . $permission . '.', 403, [
+				'permission' => $permission,
+				'current_level' => (string)$GLOBALS['level'],
+				'account_id' => (string)$GLOBALS['account_id'],
+			]);
 		}
 	} catch (Throwable $e) {
-		$_SESSION['reply'] = array (array("danger", "Permission check failed."));
-		$redirect = app_normalize_redirect_target($redirect);
-		header("location:$redirect");
-		exit;
+		app_render_access_error_page('Permission check failed', 'The system could not verify access permissions: ' . $e->getMessage(), 500, [
+			'permission' => $permission,
+		]);
 	}
+}
+
+function app_require_any_permission(array $permissions): void
+{
+	if (!isset($GLOBALS['account_id']) || !isset($GLOBALS['level'])) {
+		$error = function_exists('app_get_auth_error') ? app_get_auth_error() : [
+			'status' => 401,
+			'title' => 'Login required',
+			'message' => 'No active session was found for this request.',
+			'details' => [],
+		];
+		app_render_access_error_page((string)$error['title'], (string)$error['message'], (int)$error['status'], (array)($error['details'] ?? []));
+	}
+
+	$normalizedPermissions = array_values(array_filter(array_map(static function ($permission): string {
+		return trim((string)$permission);
+	}, $permissions), static function (string $permission): bool {
+		return $permission !== '';
+	}));
+	if (empty($normalizedPermissions)) {
+		return;
+	}
+
+	try {
+		$conn = app_db();
+		$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+		foreach ($normalizedPermissions as $permission) {
+			if (app_has_permission($conn, (string)$GLOBALS['account_id'], (string)$GLOBALS['level'], $permission)) {
+				return;
+			}
+		}
+		app_render_access_error_page('Access denied', 'None of the required permissions were granted for this page.', 403, [
+			'accepted_permissions' => implode(', ', $normalizedPermissions),
+			'current_level' => (string)$GLOBALS['level'],
+			'account_id' => (string)$GLOBALS['account_id'],
+		]);
+	} catch (Throwable $e) {
+		app_render_access_error_page('Permission check failed', 'The system could not verify the required permissions: ' . $e->getMessage(), 500, [
+			'accepted_permissions' => implode(', ', $normalizedPermissions),
+		]);
+	}
+}
+
+function app_require_discipline_access(): void
+{
+	app_require_authentication(['2'], ['student.leadership.manage', 'students.manage']);
 }
 
 function app_request_route_from_portal(string $portal): string
@@ -933,26 +1094,35 @@ function app_enforce_portal_route_permission(PDO $conn, string $portal, string $
 			if (session_status() === PHP_SESSION_ACTIVE) {
 				$_SESSION['reply'] = array(array('danger', 'Access denied: module not allocated to your role.'));
 			}
-			$redirect = app_normalize_redirect_target($portalHome !== '' ? $portalHome : $redirect);
-			header("location:$redirect");
-			exit;
+			app_render_access_error_page('Module not allocated', 'This route matches a valid module, but that module is not allocated to your role.', 403, [
+				'portal' => $portal,
+				'route' => $requestRoute,
+				'module' => (string)($module['key'] ?? ''),
+				'portal_home' => $portalHome,
+			]);
 		}
 
 		if (session_status() === PHP_SESSION_ACTIVE) {
 			$_SESSION['reply'] = array(array('danger', 'Access denied: missing required permissions for this module.'));
 		}
-		$redirect = app_normalize_redirect_target($portalHome !== '' ? $portalHome : $redirect);
-		header("location:$redirect");
-		exit;
+		app_render_access_error_page('Module permission denied', 'This route matches a valid module, but the logged-in account does not have the required permission for it.', 403, [
+			'portal' => $portal,
+			'route' => $requestRoute,
+			'module' => (string)($module['key'] ?? ''),
+			'required_permissions' => implode(', ', $requiredPermissions),
+			'portal_home' => $portalHome,
+		]);
 	}
 
 	if (!$matchedModule) {
 		if (session_status() === PHP_SESSION_ACTIVE) {
 			$_SESSION['reply'] = array(array('danger', 'Access denied: this route is not registered as an authorized module.'));
 		}
-		$redirect = app_normalize_redirect_target($portalHome !== '' ? $portalHome : $redirect);
-		header("location:$redirect");
-		exit;
+		app_render_access_error_page('Unregistered route', 'This route is not registered as an authorized module in the current portal catalog.', 403, [
+			'portal' => $portal,
+			'route' => $requestRoute,
+			'portal_home' => $portalHome,
+		]);
 	}
 }
 
@@ -977,9 +1147,13 @@ function app_require_unlocked(string $module, string $redirect = '../'): void
 	}
 
 	if (!isset($GLOBALS['account_id']) || !isset($GLOBALS['level'])) {
-		$redirect = app_normalize_redirect_target($redirect);
-		header("location:$redirect");
-		exit;
+		$error = function_exists('app_get_auth_error') ? app_get_auth_error() : [
+			'status' => 401,
+			'title' => 'Login required',
+			'message' => 'No active session was found for this request.',
+			'details' => [],
+		];
+		app_render_access_error_page((string)$error['title'], (string)$error['message'], (int)$error['status'], (array)($error['details'] ?? []));
 	}
 
 	try {

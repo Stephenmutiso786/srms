@@ -44,7 +44,7 @@ try {
         exit;
     }
 
-    $card = report_ensure_card_generated($conn, $studentId, $classId, $termId);
+    $card = report_ensure_card_generated($conn, $studentId, $classId, $termId, null, $examId);
     if (!$card) {
         header('location:report_card?term=' . $termId . '&student=' . urlencode($studentId));
         exit;

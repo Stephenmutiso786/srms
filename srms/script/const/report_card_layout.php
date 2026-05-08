@@ -417,8 +417,32 @@ function app_report_card_point_display(PDO $conn, $value): string
         return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
     }
 
-    list(, , $points) = report_cbc_grade_for_score($conn, (float)$value);
+    list(, , $points) = report_cbe_grade_for_score($conn, (float)$value);
     $points = (float)$points;
+    return number_format($points, $points === floor($points) ? 0 : 1);
+}
+
+function app_report_card_subject_points_value(array $subject): ?float
+{
+    if (isset($subject['grade_points']) && $subject['grade_points'] !== null && $subject['grade_points'] !== '') {
+        return (float)$subject['grade_points'];
+    }
+    if (isset($subject['points']) && $subject['points'] !== null && $subject['points'] !== '') {
+        return (float)$subject['points'];
+    }
+    $grade = trim((string)($subject['grade'] ?? ''));
+    if ($grade === '' || strtoupper($grade) === 'N/A') {
+        return null;
+    }
+    return (float)report_grade_points_from_label($grade);
+}
+
+function app_report_card_subject_points_display(array $subject): string
+{
+    $points = app_report_card_subject_points_value($subject);
+    if ($points === null) {
+        return '-';
+    }
     return number_format($points, $points === floor($points) ? 0 : 1);
 }
 
@@ -485,30 +509,33 @@ function app_report_card_render(PDO $conn, array $payload): string
     $totalPoints = 0.0;
     foreach ($rows as $subjectRow) {
         $classMeanTotal += (float)($subjectRow['class_mean'] ?? 0);
-        $totalPoints += report_grade_points_from_label((string)($subjectRow['grade'] ?? ''));
+        $subjectPoints = app_report_card_subject_points_value((array)$subjectRow);
+        if ($subjectPoints !== null) {
+            $totalPoints += $subjectPoints;
+        }
     }
     $classMeanAvg = $subjectCount > 0 ? ($classMeanTotal / $subjectCount) : 0.0;
     $pointsMax = max(12, $subjectCount * 12);
     $classPointEstimate = ($classMeanAvg / 100) * $pointsMax;
     $meanPoints = $subjectCount > 0 ? ($totalPoints / $subjectCount) : 0.0;
+    $displayTotalScore = isset($card['total_points']) ? (float)$card['total_points'] : $totalPoints;
+    $displayMeanScore = isset($card['mean_points']) ? (float)$card['mean_points'] : $meanPoints;
     $classMeanPoints = $subjectCount > 0 ? ($classPointEstimate / $subjectCount) : 0.0;
-    $meanDev = $meanPoints - $classMeanPoints;
-    $pointsDev = $totalPoints - $classPointEstimate;
+    $meanDev = $displayMeanScore - $classMeanPoints;
+    $pointsDev = $displayTotalScore - $classPointEstimate;
 
     $rowHtml = '';
 	foreach ($displayRows as $subject) {
         $cat1 = $subject['cat1'] ?? ($subject['cat_1'] ?? '-');
         $cat2 = $subject['cat2'] ?? ($subject['cat_2'] ?? '-');
         $classMean = (float)($subject['class_mean'] ?? 0);
-        $subjectPoints = report_grade_points_from_label((string)($subject['grade'] ?? ''));
-        list(, , $classMeanPointsRow) = report_cbc_grade_for_score($conn, $classMean);
-        $dev = $subjectPoints - (float)$classMeanPointsRow;
+        $subjectPoints = app_report_card_subject_points_value((array)$subject);
+        list(, , $classMeanPointsRow) = report_cbe_grade_for_score($conn, $classMean);
+        $dev = ($subjectPoints ?? 0.0) - (float)$classMeanPointsRow;
 		if ($pdfOnePage) {
 			$rowHtml .= '<tr>'
 				. '<td>' . htmlspecialchars((string)($subject['subject_name'] ?? ''), ENT_QUOTES, 'UTF-8') . '</td>'
-				. '<td class="center">' . (is_numeric($cat1) ? app_report_card_point_display($conn, $cat1) : htmlspecialchars((string)$cat1, ENT_QUOTES, 'UTF-8')) . '</td>'
-				. '<td class="center">' . (is_numeric($cat2) ? app_report_card_point_display($conn, $cat2) : htmlspecialchars((string)$cat2, ENT_QUOTES, 'UTF-8')) . '</td>'
-				. '<td class="center">' . number_format($subjectPoints, $subjectPoints === floor($subjectPoints) ? 0 : 1) . '</td>'
+				. '<td class="center">' . app_report_card_subject_points_display((array)$subject) . '</td>'
 				. '<td class="center">' . htmlspecialchars((string)($subject['grade'] ?? ''), ENT_QUOTES, 'UTF-8') . '</td>'
 				. '</tr>';
 			continue;
@@ -516,9 +543,7 @@ function app_report_card_render(PDO $conn, array $payload): string
 
         $rowHtml .= '<tr>'
             . '<td>' . htmlspecialchars((string)($subject['subject_name'] ?? ''), ENT_QUOTES, 'UTF-8') . '</td>'
-            . '<td class="center">' . (is_numeric($cat1) ? app_report_card_point_display($conn, $cat1) : htmlspecialchars((string)$cat1, ENT_QUOTES, 'UTF-8')) . '</td>'
-            . '<td class="center">' . (is_numeric($cat2) ? app_report_card_point_display($conn, $cat2) : htmlspecialchars((string)$cat2, ENT_QUOTES, 'UTF-8')) . '</td>'
-            . '<td class="center">' . number_format($subjectPoints, $subjectPoints === floor($subjectPoints) ? 0 : 1) . '</td>'
+            . '<td class="center">' . app_report_card_subject_points_display((array)$subject) . '</td>'
 			. '<td class="center">' . htmlspecialchars((string)($subject['grade'] ?? ''), ENT_QUOTES, 'UTF-8') . '</td>'
 			. '<td>' . htmlspecialchars((string)($subject['remark'] ?? ''), ENT_QUOTES, 'UTF-8') . '</td>'
 			. '<td>' . htmlspecialchars((string)($subject['teacher_name'] ?? ''), ENT_QUOTES, 'UTF-8') . '</td>'
@@ -526,7 +551,7 @@ function app_report_card_render(PDO $conn, array $payload): string
     }
 
     if ($rowHtml === '') {
-		$rowHtml = '<tr><td colspan="' . ($pdfOnePage ? 5 : 7) . '" class="center">No subject data available.</td></tr>';
+		$rowHtml = '<tr><td colspan="' . ($pdfOnePage ? 3 : 5) . '" class="center">No subject data available.</td></tr>';
 	}
     $chartHtml = '';
     foreach (array_slice($rows, 0, 6) as $chartRow) {
@@ -575,12 +600,12 @@ function app_report_card_render(PDO $conn, array $payload): string
 		. '<div class="performance-chart"><p>Subject Performance - Student vs Class</p><div class="chart-placeholder">' . $chartHtml . '</div></div>'
         . '</section>'
         . '<div class="stats-row">'
-        . '<div class="stat-card">Mean: <strong>' . htmlspecialchars($overallGrade, ENT_QUOTES, 'UTF-8') . '</strong><span class="dev ' . ($meanDev > 0 ? 'up' : ($meanDev < 0 ? 'down' : 'flat')) . '">' . ($meanDev > 0 ? '+' : '') . number_format($meanDev, 2) . ' pts</span></div>'
-        . '<div class="stat-card">Total Points: <strong>' . number_format($totalPoints, 1) . '/' . number_format($pointsMax, 0) . '</strong><span class="dev ' . ($pointsDev > 0 ? 'up' : ($pointsDev < 0 ? 'down' : 'flat')) . '">' . ($pointsDev > 0 ? '+' : '') . number_format($pointsDev, 1) . '</span></div>'
+        . '<div class="stat-card">Mean Score: <strong>' . number_format($displayMeanScore, 1) . '</strong><span class="dev ' . ($meanDev > 0 ? 'up' : ($meanDev < 0 ? 'down' : 'flat')) . '">' . ($meanDev > 0 ? '+' : '') . number_format($meanDev, 2) . ' pts</span></div>'
+        . '<div class="stat-card">Total Score: <strong>' . number_format($displayTotalScore, 1) . '/' . number_format($pointsMax, 0) . '</strong><span class="dev ' . ($pointsDev > 0 ? 'up' : ($pointsDev < 0 ? 'down' : 'flat')) . '">' . ($pointsDev > 0 ? '+' : '') . number_format($pointsDev, 1) . '</span></div>'
         . '<div class="stat-card">QR Status: <strong>' . ($verificationCode !== '' ? 'Ready' : 'Pending') . '</strong><span class="dev flat">verification</span></div>'
         . '</div>'
 		. '<table class="report-table"><thead>'
-		. '<tr><th>Subject</th><th class="center">Cat 1</th><th class="center">Cat 2</th><th class="center">Points</th><th class="center">Grade</th>' . ($pdfOnePage ? '' : '<th>Comment</th><th>Teacher</th>') . '</tr>'
+		. '<tr><th>Subject</th><th class="center">Score</th><th class="center">Grade</th>' . ($pdfOnePage ? '' : '<th>Comment</th><th>Teacher</th>') . '</tr>'
         . '</thead><tbody>' . $rowHtml . '</tbody></table>'
 		. ($pdfOnePage ? '' : '<footer class="remarks-section">'
 		. '<div class="remarks"><p><strong>Remarks</strong></p><p><strong>Class Teacher:</strong> ' . htmlspecialchars($teacherComment, ENT_QUOTES, 'UTF-8') . '</p><p><strong>Principal:</strong> ' . htmlspecialchars($headComment, ENT_QUOTES, 'UTF-8') . '</p></div>'

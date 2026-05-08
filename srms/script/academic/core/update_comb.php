@@ -22,6 +22,11 @@ try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
+$stmt = $conn->prepare("SELECT id FROM tbl_staff WHERE id = ? AND COALESCE(status, 1) = 1 AND COALESCE(level, '') IN ('0', '1', '2') LIMIT 1");
+$stmt->execute([$teacher]);
+if (!$stmt->fetchColumn()) {
+throw new RuntimeException('Select a valid instructional staff account for this subject combination.');
+}
 
 $stmt = $conn->prepare("UPDATE tbl_subject_combinations SET class=?, subject=?, teacher=? WHERE id = ?");
 $stmt->execute([$class, $subject, $teacher, $id]);
@@ -30,10 +35,11 @@ $_SESSION['reply'] = array (array("success",'Subject combination updated success
 header("location:../combinations");
 
 
-}catch(PDOException $e)
+}catch(Throwable $e)
 {
-error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
-echo "Connection failed.";
+error_log("[".__FILE__.":".__LINE__." Throwable] " . $e->getMessage());
+$_SESSION['reply'] = array (array("danger", $e->getMessage() !== '' ? $e->getMessage() : 'Failed to update subject combination'));
+header("location:../combinations");
 }
 
 

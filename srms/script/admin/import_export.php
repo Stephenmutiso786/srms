@@ -146,13 +146,13 @@ try {
 
 <div class="col-md-6">
 <div class="tile">
-<h3 class="tile-title">Import CBC Assessments (CSV)</h3>
+<h3 class="tile-title">Import CBE Assessments (CSV)</h3>
 <p class="text-muted">Headers: student_id,class_id,term_id,learning_area,strand,level(EE/ME/AE/BE)</p>
-<form class="app_frm" action="admin/core/import_cbc_csv" method="POST" enctype="multipart/form-data">
+<form class="app_frm" action="admin/core/import_cbe_csv" method="POST" enctype="multipart/form-data">
 <div class="mb-3">
 <input class="form-control" type="file" name="file" accept=".csv" required>
 </div>
-<button class="btn btn-primary">Import CBC</button>
+<button class="btn btn-primary">Import CBE</button>
 </form>
 </div>
 </div>
@@ -195,7 +195,7 @@ try {
 <button class="btn btn-outline-primary">Export Results</button>
 </form>
 <hr>
-<form class="d-flex flex-wrap gap-2 align-items-end" action="admin/core/export_cbc" method="GET">
+<form class="d-flex flex-wrap gap-2 align-items-end" action="admin/core/export_cbe" method="GET">
 <div>
 <label class="form-label">Term</label>
 <select class="form-control" name="term_id" required>
@@ -211,7 +211,7 @@ try {
 <option value="csv">CSV</option>
 </select>
 </div>
-<button class="btn btn-outline-primary">Export CBC</button>
+<button class="btn btn-outline-primary">Export CBE</button>
 </form>
 </div>
 </div>

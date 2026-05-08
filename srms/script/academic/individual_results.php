@@ -31,7 +31,7 @@ if ($res == "1" && $level == "1") {}else{header("location:../");}
 
 <li class="dropdown"><a class="app-nav__item" href="#" data-bs-toggle="dropdown" aria-label="Open Profile Menu"><i class="bi bi-person fs-4"></i></a>
 <ul class="dropdown-menu settings-menu dropdown-menu-right">
-<li><a class="dropdown-item" href="academic/profile"><i class="bi bi-person me-2 fs-5"></i> Profile</a></li>
+<li><a class="dropdown-item" href="academic/profile.php"><i class="bi bi-person me-2 fs-5"></i> Profile</a></li>
 <li><a class="dropdown-item" href="logout"><i class="bi bi-box-arrow-right me-2 fs-5"></i> Logout</a></li>
 </ul>
 </li>
@@ -53,7 +53,7 @@ if ($res == "1" && $level == "1") {}else{header("location:../");}
 <div class="tile-body">
 <div class="table-responsive">
 <h3 class="tile-title">Individual Results</h3>
-<form enctype="multipart/form-data" action="academic/core/start_edit" class="app_frm" method="POST" autocomplete="OFF">
+<form enctype="multipart/form-data" action="academic/core/start_edit.php" class="app_frm" method="POST" autocomplete="OFF">
 
 <div class="mb-2">
 <label class="form-label">Select Student</label>

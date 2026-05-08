@@ -4,8 +4,10 @@ session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
 
+header('Content-Type: application/json');
+
 // Only accountant can search
-if ((int)$level !== 5) {
+if (!isset($res) || $res !== "1" || (int)$level !== 5) {
 	http_response_code(403);
 	echo json_encode(['success' => false, 'message' => 'Unauthorized']);
 	exit;
@@ -28,7 +30,7 @@ try {
 		SELECT id, CONCAT_WS(' ', fname, mname, lname) AS name
 		FROM tbl_students
 		WHERE (id LIKE ? OR fname LIKE ? OR mname LIKE ? OR lname LIKE ?)
-		AND status = 'active'
+		AND status = 1
 		LIMIT 20
 	");
 	
@@ -39,6 +41,4 @@ try {
 } catch (Throwable $e) {
 	error_log("[" . __FILE__ . ":" . __LINE__ . "] " . $e->getMessage());
 }
-
-header('Content-Type: application/json');
 echo json_encode(['students' => $students]);

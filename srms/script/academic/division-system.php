@@ -30,7 +30,7 @@ if ($res == "1" && $level == "1") {}else{header("location:../");}
 
 <li class="dropdown"><a class="app-nav__item" href="#" data-bs-toggle="dropdown" aria-label="Open Profile Menu"><i class="bi bi-person fs-4"></i></a>
 <ul class="dropdown-menu settings-menu dropdown-menu-right">
-<li><a class="dropdown-item" href="academic/profile"><i class="bi bi-person me-2 fs-5"></i> Profile</a></li>
+<li><a class="dropdown-item" href="academic/profile.php"><i class="bi bi-person me-2 fs-5"></i> Profile</a></li>
 <li><a class="dropdown-item" href="logout"><i class="bi bi-box-arrow-right me-2 fs-5"></i> Logout</a></li>
 </ul>
 </li>
@@ -55,7 +55,7 @@ if ($res == "1" && $level == "1") {}else{header("location:../");}
 <h5 class="modal-title" id="addModalLabel">Add Division</h5>
 </div>
 <div class="modal-body">
-<form class="app_frm" method="POST" autocomplete="OFF" action="academic/core/new_div">
+<form class="app_frm" method="POST" autocomplete="OFF" action="academic/core/new_div.php">
 <div class="mb-2">
 <label class="form-label">Division</label>
 <input required type="text" name="div" class="form-control txt-cap" placeholder="Enter division">
@@ -97,7 +97,7 @@ if ($res == "1" && $level == "1") {}else{header("location:../");}
 <h5 class="modal-title" id="editModalLabel">Edit Grade</h5>
 </div>
 <div class="modal-body">
-<form class="app_frm" method="POST" autocomplete="OFF" action="academic/core/update_div">
+<form class="app_frm" method="POST" autocomplete="OFF" action="academic/core/update_div.php">
 <div class="mb-2">
 <label class="form-label">Division</label>
 <input id="division" required type="text" name="div" class="form-control txt-cap" placeholder="Enter division">
@@ -184,7 +184,7 @@ foreach($result as $row)
 
 
 <a onclick="set_division('<?php echo $row[0]; ?>');" class="btn btn-primary btn-sm" href="javascript:void(0);" data-bs-toggle="modal" data-bs-target="#editModal">Edit</a>
-<a onclick="del('academic/core/drop_division?id=<?php echo $row[0]; ?>', 'Delete Division?');" class="btn btn-danger btn-sm" href="javascript:void(0);">Delete</a>
+<a onclick="del('academic/core/drop_division.php?id=<?php echo $row[0]; ?>', 'Delete Division?');" class="btn btn-danger btn-sm" href="javascript:void(0);">Delete</a>
 </td>
 </tr>
 <?php

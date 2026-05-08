@@ -470,7 +470,7 @@ body.print-sheet-page{background:linear-gradient(180deg,#eef5f2 0%,#f7fbf9 42%,#
   <div class="col-md-4 d-flex align-items-end">
     <div class="form-check">
       <input class="form-check-input" type="checkbox" value="1" name="show_codes" id="showCodes" <?php echo $showCodes ? 'checked' : ''; ?>>
-      <label class="form-check-label" for="showCodes">Include CBC code column (EE/ME/AE/BE)</label>
+      <label class="form-check-label" for="showCodes">Include CBE code column (EE/ME/AE/BE)</label>
     </div>
   </div>
   <div class="col-12 d-flex gap-2">

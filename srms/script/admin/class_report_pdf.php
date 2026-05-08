@@ -48,11 +48,11 @@ try {
         if ($studentId === '') { continue; }
 
         // Ensure report card exists and is up-to-date
-        $card = report_ensure_card_generated($conn, $studentId, $classId, $termId, (int)$account_id);
+        $card = report_ensure_card_generated($conn, $studentId, $classId, $termId, (int)$account_id, $examId);
         if (!$card) {
-            $rankData = report_rank_students($conn, $classId, $termId);
-            $report = report_compute_for_student($conn, $studentId, $classId, $termId);
-            $reportId = report_store_card($conn, $studentId, $classId, $termId, $report, $rankData['positions'], (int)$rankData['total_students'], (int)$account_id);
+            $rankData = report_rank_students($conn, $classId, $termId, $examId);
+            $report = report_compute_for_student($conn, $studentId, $classId, $termId, $examId);
+            $reportId = report_store_card($conn, $studentId, $classId, $termId, $report, $rankData['positions'], (int)$rankData['total_students'], (int)$account_id, $examId);
             $card = report_load_card($conn, $reportId);
         }
 

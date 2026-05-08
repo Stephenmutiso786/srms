@@ -16,7 +16,7 @@ $name = trim((string)($_POST['name'] ?? ''));
 
 if ($subjectId < 1 || $name === '') {
 	$_SESSION['reply'] = array (array("error","Provide strand name."));
-	header("location:../cbc_entry");
+	header("location:../cbe_entry");
 	exit;
 }
 
@@ -24,16 +24,16 @@ try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-	if (!app_table_exists($conn, 'tbl_cbc_strands')) {
-		throw new RuntimeException("CBC strands table missing. Run migration 014.");
+	if (!app_table_exists($conn, 'tbl_cbe_strands')) {
+		throw new RuntimeException("CBE strands table missing. Run migration 014.");
 	}
 
-	$stmt = $conn->prepare("INSERT INTO tbl_cbc_strands (subject_id, name, status, created_by) VALUES (?,?,1,?) ON CONFLICT (subject_id, name) DO NOTHING");
+	$stmt = $conn->prepare("INSERT INTO tbl_cbe_strands (subject_id, name, status, created_by) VALUES (?,?,1,?) ON CONFLICT (subject_id, name) DO NOTHING");
 	$stmt->execute([$subjectId, $name, $account_id]);
 
 	$_SESSION['reply'] = array (array("success","Strand added."));
-	header("location:../cbc_entry");
+	header("location:../cbe_entry");
 } catch (Throwable $e) {
 	$_SESSION['reply'] = array (array("danger","Failed to add strand: ".$e->getMessage()));
-	header("location:../cbc_entry");
+	header("location:../cbe_entry");
 }

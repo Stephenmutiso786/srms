@@ -4,7 +4,10 @@ session_start();
 require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
-if ($res == "1" && $level == "0") {}else{header("location:../"); exit;}
+require_once('const/rbac.php');
+if ($res !== "1") { header("location:../"); exit; }
+$portalHome = ((string)$level === '1') ? 'academic' : 'admin';
+app_require_permission('exams.manage', $portalHome);
 
 $classes = [];
 $terms = [];

@@ -76,7 +76,7 @@ try {
 			throw new RuntimeException('No learners have saved scores for the selected exam.');
 		}
 
-		// Use CBC grading system instead of legacy tbl_grade_system
+		// Use CBE grading system instead of legacy tbl_grade_system
 		$gradingSystemId = report_default_grading_system_id($conn, 'marks');
 		$grading = report_grading_scales($conn, $gradingSystemId);
 		if (empty($grading)) {

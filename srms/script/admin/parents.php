@@ -5,7 +5,9 @@ require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
 require_once('const/online_presence.php');
-if ($res == "1" && $level == "0") {}else{header("location:../"); exit;}
+require_once('const/rbac.php');
+
+app_require_authentication([], ['students.manage']);
 
 $parents = [];
 $links = [];
@@ -156,16 +158,31 @@ try {
 	  <?php foreach ($parents as $p) {
 		$pid = (int)$p['id'];
 		$linked = $links[$pid] ?? [];
+		$updateFormId = 'parent-update-' . $pid;
 	  ?>
 		<tr>
 		  <td>
 			<input class="form-check-input parent-checkbox" type="checkbox" name="parent_ids[]" value="<?php echo $pid; ?>">
 		  </td>
 		  <td><?php echo $pid; ?></td>
-		  <td><?php echo htmlspecialchars((string)$p['fname'].' '.(string)$p['lname']); ?></td>
-		  <td><?php echo htmlspecialchars((string)$p['email']); ?></td>
-		  <td><?php echo htmlspecialchars((string)($p['phone'] ?? '')); ?></td>
-		  <td><?php echo ((int)$p['status'] === 1) ? '<span class="badge bg-success">ACTIVE</span>' : '<span class="badge bg-danger">BLOCKED</span>'; ?></td>
+		  <td>
+			<div class="row g-2" style="min-width:340px;">
+			  <div class="col-6">
+				<input class="form-control form-control-sm" form="<?php echo $updateFormId; ?>" name="fname" value="<?php echo htmlspecialchars((string)$p['fname']); ?>" required>
+			  </div>
+			  <div class="col-6">
+				<input class="form-control form-control-sm" form="<?php echo $updateFormId; ?>" name="lname" value="<?php echo htmlspecialchars((string)$p['lname']); ?>" required>
+			  </div>
+			</div>
+		  </td>
+		  <td><input class="form-control form-control-sm" form="<?php echo $updateFormId; ?>" name="email" type="email" value="<?php echo htmlspecialchars((string)$p['email']); ?>" required></td>
+		  <td><input class="form-control form-control-sm" form="<?php echo $updateFormId; ?>" name="phone" value="<?php echo htmlspecialchars((string)($p['phone'] ?? '')); ?>" placeholder="+2547..."></td>
+		  <td>
+				<select class="form-control form-control-sm" form="<?php echo $updateFormId; ?>" name="status">
+				  <option value="1" <?php echo ((int)$p['status'] === 1) ? 'selected' : ''; ?>>Active</option>
+				  <option value="0" <?php echo ((int)$p['status'] !== 1) ? 'selected' : ''; ?>>Blocked</option>
+				</select>
+		  </td>
 		  <td>
 			<?php if (isset($onlineParents[(string)$pid])) { ?>
 			<span class="online-pill"><span class="online-dot"></span>Online</span>
@@ -206,11 +223,21 @@ try {
 			</form>
 		  </td>
 		  <td>
+			<div class="d-grid gap-1">
+			  <form id="<?php echo $updateFormId; ?>" method="POST" action="admin/core/update_parent" style="display:none;">
+				<input type="hidden" name="parent_id" value="<?php echo $pid; ?>">
+			  </form>
+			  <button class="btn btn-primary btn-sm" type="submit" form="<?php echo $updateFormId; ?>">Update</button>
+			<form method="POST" action="admin/core/delete_parent" style="margin:0;" onsubmit="return confirm('Delete this parent account? This action cannot be undone.');">
+			  <input type="hidden" name="parent_id" value="<?php echo $pid; ?>">
+			  <button class="btn btn-danger btn-sm" type="submit">Delete</button>
+			</form>
 			<form method="POST" action="admin/core/start_impersonation" style="margin:0;">
 			  <input type="hidden" name="target_type" value="parent">
 			  <input type="hidden" name="target_id" value="<?php echo $pid; ?>">
 			  <button class="btn btn-warning btn-sm" type="submit" onclick="return confirm('Impersonate this parent account now?');">Impersonate</button>
 			</form>
+			</div>
 		  </td>
 		</tr>
 	  <?php } ?>

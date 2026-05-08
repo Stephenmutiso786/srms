@@ -34,7 +34,7 @@ if ($res == "1" && $level == "1") {}else{header("location:../");}
 
 <li class="dropdown"><a class="app-nav__item" href="#" data-bs-toggle="dropdown" aria-label="Open Profile Menu"><i class="bi bi-person fs-4"></i></a>
 <ul class="dropdown-menu settings-menu dropdown-menu-right">
-<li><a class="dropdown-item" href="academic/profile"><i class="bi bi-person me-2 fs-5"></i> Profile</a></li>
+<li><a class="dropdown-item" href="academic/profile.php"><i class="bi bi-person me-2 fs-5"></i> Profile</a></li>
 <li><a class="dropdown-item" href="logout"><i class="bi bi-box-arrow-right me-2 fs-5"></i> Logout</a></li>
 </ul>
 </li>
@@ -59,7 +59,7 @@ if ($res == "1" && $level == "1") {}else{header("location:../");}
 <h5 class="modal-title" id="addModalLabel">Add Announcements</h5>
 </div>
 <div class="modal-body">
-<form class="app_frm" method="POST" autocomplete="OFF" action="academic/core/new_announcement">
+<form class="app_frm" method="POST" autocomplete="OFF" action="academic/core/new_announcement.php">
 <div class="mb-2">
 <label class="form-label">Enter Title</label>
 <input required type="text" name="title" class="form-control txt-cap" placeholder="Enter Announcement Title">
@@ -69,9 +69,10 @@ if ($res == "1" && $level == "1") {}else{header("location:../");}
 <label class="form-label">Audience</label>
 <select class="form-control" name="audience" required>
 <option selected disabled value="">Select one</option>
-<option value="1">Students Only</option>
-<option value="0">Teachers Only</option>
-<option value="2">Students & Teachers</option>
+<option value="3">All Portals</option>
+<option value="1">Students & Parents</option>
+<option value="0">Teachers & Admins</option>
+<option value="2">Students, Teachers, Parents & Admins</option>
 </select>
 </div>
 
@@ -145,15 +146,19 @@ foreach($result as $row)
 <?php
 switch ($row[4]) {
 case '0':
-echo "Teachers Only";
+echo "Teachers & Admins";
 break;
 
 case '1':
-echo "Students Only";
+echo "Students & Parents";
 break;
 
 case '2':
-echo "Teachers & Students";
+echo "Students, Teachers, Parents & Admins";
+break;
+
+case '3':
+echo "All Portals";
 break;
 
 }
@@ -163,7 +168,7 @@ break;
 <td align="center">
 
 <a onclick="set_announcement('<?php echo $row[0]; ?>');" class="btn btn-primary btn-sm" href="javascript:void(0);" data-bs-toggle="modal" data-bs-target="#editModal">Edit</a>
-<a onclick="del('academic/core/drop_announcement?id=<?php echo $row[0]; ?>', 'Delete Announcement?');" class="btn btn-danger btn-sm" href="javascript:void(0);">Delete</a>
+<a onclick="del('academic/core/drop_announcement.php?id=<?php echo $row[0]; ?>', 'Delete Announcement?');" class="btn btn-danger btn-sm" href="javascript:void(0);">Delete</a>
 </td>
 </tr>
 <?php

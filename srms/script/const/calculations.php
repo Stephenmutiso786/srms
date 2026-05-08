@@ -4,7 +4,7 @@ try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-	// CBC-ONLY: Remove legacy tbl_grade_system. Use only CBC/new grading tables.
+	// CBE-ONLY: Remove legacy tbl_grade_system. Use only CBE/new grading tables.
 	$grades = app_default_marks_grading_rows($conn);
 
 	// Load division system if available; otherwise keep empty.

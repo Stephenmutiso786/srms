@@ -5,10 +5,12 @@ require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/rbac.php');
 
-if (!isset($res) || $res !== "1" || !isset($level) || $level !== "0") {
+if (!isset($res) || $res !== "1" || !isset($level)) {
 	header("location:../../");
 	exit;
 }
+$portalHome = ((string)$level === '1') ? '../../academic' : '../results_locks';
+app_require_permission('results.lock', $portalHome);
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 	header("location:../results_locks");

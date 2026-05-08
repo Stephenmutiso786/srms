@@ -11,11 +11,11 @@ function academic_sidebar_is_active(array $module): string
 	}
 
 	$href = (string)($module['href'] ?? '');
-	if ($href !== '' && basename($href) === $currentPage) {
+	if ($href !== '' && basename($href, '.php') === $currentPage) {
 		return ' active';
 	}
 
-	if ($currentPage === 'index' && $href === 'academic') {
+	if ($currentPage === 'index' && in_array($href, ['academic', 'academic/index.php'], true)) {
 		return ' active';
 	}
 
@@ -31,9 +31,19 @@ function academic_sidebar_group_label(string $moduleKey): string
 		'subjects' => 'Academic',
 		'teacher_control' => 'Teachers',
 		'combinations' => 'Academic',
+		'attendance' => 'Academic',
+		'discipline' => 'Students',
+		'exams' => 'Exams',
+		'exam_timetable' => 'Exams',
+		'marks_review' => 'Exams',
+		'publish_results' => 'Exams',
+		'results_analytics' => 'Exams',
+		'results_locks' => 'Exams',
+		'fees' => 'Finance',
 		'grading_system' => 'Academic',
 		'division_system' => 'Academic',
 		'results_manage' => 'Results',
+		'marks_entry' => 'Exams',
 		'individual_results' => 'Results',
 		'report_tool' => 'Results',
 		'announcements' => 'Communication',

@@ -4,10 +4,17 @@ chdir('../');
 require_once('db/config.php');
 require_once('const/rand.php');
 
+if (!function_exists('app_upper_session_token')) {
+	function app_upper_session_token(string $value): string
+	{
+		return function_exists('mb_strtoupper') ? mb_strtoupper($value) : strtoupper($value);
+	}
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-$_username = $_POST['username'];
-$_password = $_POST['password'];
+$_username = trim((string)($_POST['username'] ?? ''));
+$_password = (string)($_POST['password'] ?? '');
 $redirectTo = isset($_POST['redirect_to']) ? trim((string)$_POST['redirect_to']) : '';
 $loginMode = isset($_POST['login_mode']) ? trim((string)$_POST['login_mode']) : '';
 $loginMode = preg_replace('/[^a-zA-Z0-9_-]/', '', $loginMode);
@@ -17,6 +24,12 @@ if ($redirectTo === '' && $loginMode === 'elearning') {
 	$redirectTo = 'elearning';
 }
 $cookie_length = "4320";
+
+if ($_username === '' || $_password === '') {
+	$_SESSION['reply'] = array(array("danger", "Enter both username and password."));
+	header("location:../");
+	exit;
+}
 
 try {
 $conn = app_db();
@@ -64,8 +77,8 @@ if ($row[4] > 0) {
 
 if (password_verify($_password, $row[2])) {
 $account_id = $row[0];
-$session_id = mb_strtoupper(GRS(20));
-$ip =  $_SERVER['REMOTE_ADDR'];
+$session_id = app_upper_session_token(GRS(20));
+$ip = app_request_client_ip();
 
 $loginLevel = (int)$row[3];
 

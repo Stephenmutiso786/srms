@@ -72,19 +72,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['kpsea_csv'])) {
 		$header = array_map('trim', $header);
 
 		// Find column indices (flexible mapping)
-		$admissionIdx = array_search('admission_number', $header) !== false ? array_search('admission_number', $header) : 
-		                array_search('admission', $header) !== false ? array_search('admission', $header) : 
-		                array_search('student_id', $header) !== false ? array_search('student_id', $header) : null;
+		$admissionIdx = array_search('admission_number', $header);
+		if ($admissionIdx === false) {
+			$admissionIdx = array_search('admission', $header);
+		}
+		if ($admissionIdx === false) {
+			$admissionIdx = array_search('student_id', $header);
+		}
+		if ($admissionIdx === false) {
+			$admissionIdx = null;
+		}
 
-		$subjectIdx = array_search('subject_id', $header) !== false ? array_search('subject_id', $header) : 
-		              array_search('subject', $header) !== false ? array_search('subject', $header) : null;
+		$subjectIdx = array_search('subject_id', $header);
+		if ($subjectIdx === false) {
+			$subjectIdx = array_search('subject', $header);
+		}
+		if ($subjectIdx === false) {
+			$subjectIdx = null;
+		}
 
-		$scoreIdx = array_search('score', $header) !== false ? array_search('score', $header) : 
-		            array_search('marks', $header) !== false ? array_search('marks', $header) : 
-		            array_search('mark', $header) !== false ? array_search('mark', $header) : null;
+		$scoreIdx = array_search('score', $header);
+		if ($scoreIdx === false) {
+			$scoreIdx = array_search('marks', $header);
+		}
+		if ($scoreIdx === false) {
+			$scoreIdx = array_search('mark', $header);
+		}
+		if ($scoreIdx === false) {
+			$scoreIdx = null;
+		}
 
-		$yearIdx = array_search('exam_session_year', $header) !== false ? array_search('exam_session_year', $header) : 
-		           array_search('year', $header) !== false ? array_search('year', $header) : null;
+		$yearIdx = array_search('exam_session_year', $header);
+		if ($yearIdx === false) {
+			$yearIdx = array_search('year', $header);
+		}
+		if ($yearIdx === false) {
+			$yearIdx = null;
+		}
 
 		if ($admissionIdx === null || $subjectIdx === null || $scoreIdx === null) {
 			throw new RuntimeException("CSV missing required columns: admission_number, subject_id, score. Found: " . implode(', ', $header));

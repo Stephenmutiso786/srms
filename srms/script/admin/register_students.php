@@ -16,7 +16,7 @@ try {
 	$stmt = $conn->prepare("SELECT id, name FROM tbl_classes ORDER BY name");
 	$stmt->execute();
 	$classRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-	$jssChoiceMap = app_cbc_jss_choice_id_map($conn);
+	$jssChoiceMap = app_cbe_jss_choice_id_map($conn);
 } catch (Throwable $e) {
 	$nextAdmissionNumber = '';
 }
@@ -97,19 +97,19 @@ try {
 
 <div class="mb-2">
 <label class="form-label">Select Class</label>
-<select class="form-control select2 cbc-class-select" name="class" data-cbc-wrap="cbcJssChoices" required style="width: 100%;">
+<select class="form-control select2 cbe-class-select" name="class" data-cbe-wrap="cbeJssChoices" required style="width: 100%;">
 <option value="" selected disabled> Select One</option>
 <?php foreach ($classRows as $row) { ?>
-<option value="<?php echo htmlspecialchars((string)$row['id']); ?>" data-cbc-band="<?php echo htmlspecialchars(app_cbc_class_band((string)$row['name'])); ?>"><?php echo htmlspecialchars((string)$row['name']); ?> </option>
+<option value="<?php echo htmlspecialchars((string)$row['id']); ?>" data-cbe-band="<?php echo htmlspecialchars(app_cbe_class_band((string)$row['name'])); ?>"><?php echo htmlspecialchars((string)$row['name']); ?> </option>
 <?php } ?>
 </select>
 </div>
 
-<div id="cbcJssChoices" class="border rounded p-3 mb-3" style="display:none;">
+<div id="cbeJssChoices" class="border rounded p-3 mb-3" style="display:none;">
 <div class="fw-semibold mb-2">Junior Secondary Subject Choices</div>
 <div class="mb-2">
 <label class="form-label">Language Choice</label>
-<select class="form-control select2 cbc-jss-select" id="language_subject_id" name="language_subject_id" style="width: 100%;">
+<select class="form-control select2 cbe-jss-select" id="language_subject_id" name="language_subject_id" style="width: 100%;">
 <option value="">Select language</option>
 <?php foreach (($jssChoiceMap['language'] ?? []) as $subjectId => $subjectName) { ?>
 <option value="<?php echo htmlspecialchars((string)$subjectId); ?>"><?php echo htmlspecialchars((string)$subjectName); ?></option>
@@ -118,7 +118,7 @@ try {
 </div>
 <div class="mb-2">
 <label class="form-label">Religion Choice</label>
-<select class="form-control select2 cbc-jss-select" id="religion_subject_id" name="religion_subject_id" style="width: 100%;">
+<select class="form-control select2 cbe-jss-select" id="religion_subject_id" name="religion_subject_id" style="width: 100%;">
 <option value="">Select religion</option>
 <?php foreach (($jssChoiceMap['religion'] ?? []) as $subjectId => $subjectName) { ?>
 <option value="<?php echo htmlspecialchars((string)$subjectId); ?>"><?php echo htmlspecialchars((string)$subjectName); ?></option>
@@ -127,7 +127,7 @@ try {
 </div>
 <div class="mb-0">
 <label class="form-label">Optional Subjects</label>
-<select class="form-control select2 cbc-jss-select" id="optional_subject_ids" name="optional_subject_ids[]" multiple style="width: 100%;">
+<select class="form-control select2 cbe-jss-select" id="optional_subject_ids" name="optional_subject_ids[]" multiple style="width: 100%;">
 <?php foreach (($jssChoiceMap['optional'] ?? []) as $subjectId => $subjectName) { ?>
 <option value="<?php echo htmlspecialchars((string)$subjectId); ?>"><?php echo htmlspecialchars((string)$subjectName); ?></option>
 <?php } ?>
@@ -181,10 +181,10 @@ try {
 <?php require_once('const/check-reply.php'); ?>
 <script>
 $('.select2').select2()
-$('body').on('change', '.cbc-class-select', function() {
-	toggleCbcStudentChoices(this, $(this).data('cbc-wrap'));
+$('body').on('change', '.cbe-class-select', function() {
+	toggleCbeStudentChoices(this, $(this).data('cbe-wrap'));
 });
-toggleCbcStudentChoices('.cbc-class-select', 'cbcJssChoices');
+toggleCbeStudentChoices('.cbe-class-select', 'cbeJssChoices');
 </script>
 </body>
 

@@ -35,13 +35,13 @@ try {
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 	app_require_unlocked('exams', '../import_export');
 
-	if (!app_table_exists($conn, 'tbl_cbc_assessments')) {
-		throw new RuntimeException("CBC table missing. Run migration 013.");
+	if (!app_table_exists($conn, 'tbl_cbe_assessments')) {
+		throw new RuntimeException("CBE table missing. Run migration 013.");
 	}
 
 	$grading = [];
-	if (app_table_exists($conn, 'tbl_cbc_grading')) {
-		$stmt = $conn->prepare("SELECT level, min_mark, max_mark, points, sort_order FROM tbl_cbc_grading WHERE active = 1 ORDER BY sort_order, min_mark DESC");
+	if (app_table_exists($conn, 'tbl_cbe_grading')) {
+		$stmt = $conn->prepare("SELECT level, min_mark, max_mark, points, sort_order FROM tbl_cbe_grading WHERE active = 1 ORDER BY sort_order, min_mark DESC");
 		$stmt->execute();
 		$grading = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
@@ -89,7 +89,7 @@ try {
 		}
 
 		try {
-			$stmt = $conn->prepare("INSERT INTO tbl_cbc_assessments (student_id, class_id, term_id, learning_area, strand, level, teacher_id) VALUES (?,?,?,?,?,?,?)");
+			$stmt = $conn->prepare("INSERT INTO tbl_cbe_assessments (student_id, class_id, term_id, learning_area, strand, level, teacher_id) VALUES (?,?,?,?,?,?,?)");
 			$stmt->execute([$studentId, $classId, $termId, $learningArea, $strand, $level, $account_id]);
 			$success++;
 		} catch (Throwable $e) {
@@ -102,7 +102,7 @@ try {
 
 	if (app_table_exists($conn, 'tbl_import_logs')) {
 		$stmt = $conn->prepare("INSERT INTO tbl_import_logs (import_type, total, success, failed, details, created_by) VALUES (?,?,?,?,?,?)");
-		$stmt->execute(['cbc', $total, $success, $failed, implode("\n", $details), $account_id]);
+		$stmt->execute(['cbe', $total, $success, $failed, implode("\n", $details), $account_id]);
 	}
 
 	$_SESSION['reply'] = array (array("success", "Import done. Total: $total, Success: $success, Failed: $failed"));

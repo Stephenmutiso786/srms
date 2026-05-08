@@ -4,8 +4,9 @@ session_start();
 require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
+require_once('const/rbac.php');
 
-if ($res !== '1' || $level !== '2') { header('location:../'); exit; }
+app_require_discipline_access();
 
 $students = [];
 $cases = [];
@@ -14,7 +15,7 @@ $error = '';
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-	app_ensure_discipline_cases_table($conn);
+	app_ensure_discipline_management_schema($conn);
 
 	$classMap = [];
 	if (app_table_exists($conn, 'tbl_teacher_assignments')) {
@@ -117,6 +118,15 @@ try {
 </select>
 </div>
 <div class="mb-2">
+<label class="form-label">Category</label>
+<select class="form-control" name="category" required onchange="suggestAction(this.value)">
+<option value="Minor">Minor</option>
+<option value="Moderate" selected>Moderate</option>
+<option value="Major">Major</option>
+<option value="Severe">Severe</option>
+</select>
+</div>
+<div class="mb-2">
 <label class="form-label">Severity</label>
 <select class="form-control" name="severity" required>
 <option value="low">Low</option>
@@ -124,9 +134,21 @@ try {
 <option value="high">High</option>
 </select>
 </div>
+<div class="mb-2">
+<label class="form-label">Location</label>
+<input class="form-control" name="location" placeholder="Classroom, Dorm, Field, Gate..." required>
+</div>
+<div class="mb-2">
+<label class="form-label">Incident Date & Time</label>
+<input class="form-control" type="datetime-local" name="date_reported" value="<?php echo date('Y-m-d\TH:i'); ?>" required>
+</div>
 <div class="mb-3">
 <label class="form-label">Description</label>
 <textarea class="form-control" name="description" rows="4" required></textarea>
+</div>
+<div class="mb-3">
+<label class="form-label">Suggested Action</label>
+<input class="form-control" id="suggested_action_preview" value="Detention" readonly>
 </div>
 <button class="btn btn-primary" type="submit">Submit Incident</button>
 </form>
@@ -136,7 +158,7 @@ try {
 <div class="col-md-7">
 <div class="tile">
 <h3 class="tile-title">My Submitted Cases</h3>
-<div class="small text-muted mb-2">Auto refresh every 5 seconds for live updates.</div>
+<div class="small text-muted mb-2">Latest updates appear after saving or reloading this page.</div>
 <div class="table-responsive">
 <table class="table table-hover table-striped">
 <thead><tr><th>Date</th><th>Student</th><th>Class</th><th>Type</th><th>Severity</th><th>Status</th><th>Details</th></tr></thead>
@@ -166,14 +188,20 @@ try {
 <script src="js/main.js"></script>
 <?php require_once('const/check-reply.php'); ?>
 <script>
+function suggestAction(category){
+	let action = 'Review Required';
+	switch ((category || '').toLowerCase()) {
+		case 'minor': action = 'Warning'; break;
+		case 'moderate': action = 'Detention'; break;
+		case 'major': action = 'Suspension'; break;
+		case 'severe': action = 'Expulsion / BOM hearing'; break;
+	}
+	var field = document.getElementById('suggested_action_preview');
+	if (field) { field.value = action; }
+}
 let pauseRefresh = false;
 document.addEventListener('focusin', function() { pauseRefresh = true; });
 document.addEventListener('focusout', function() { pauseRefresh = false; });
-setInterval(function() {
-	if (!pauseRefresh) {
-		window.location.reload();
-	}
-}, 5000);
 </script>
 </body>
 </html>

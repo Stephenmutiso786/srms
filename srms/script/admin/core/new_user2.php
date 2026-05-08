@@ -16,11 +16,18 @@ $fname = ucfirst(trim((string)($_POST['fname'] ?? '')));
 $lname = ucfirst(trim((string)($_POST['lname'] ?? '')));
 $email = trim((string)($_POST['email'] ?? ''));
 $gender = trim((string)($_POST['gender'] ?? ''));
-$role = (string)($_POST['role'] ?? '2');
-$allowedRoles = ['0', '1', '2', '5', '6', '7', '8', '9'];
-if (!in_array($role, $allowedRoles, true)) {
-	$role = '2';
+$designation = strtolower(trim((string)($_POST['designation'] ?? 'teacher')));
+$designationMap = [
+	'teacher' => ['role' => '2', 'label' => 'Teacher'],
+	'headteacher' => ['role' => '0', 'label' => 'Headteacher'],
+	'deputy_headteacher' => ['role' => '1', 'label' => 'Deputy Headteacher'],
+	'senior_teacher' => ['role' => '2', 'label' => 'Senior Teacher'],
+	'accountant' => ['role' => '5', 'label' => 'Accountant'],
+];
+if (!isset($designationMap[$designation])) {
+	$designation = 'teacher';
 }
+$role = $designationMap[$designation]['role'];
 $rawPassword = (string)($_POST['password'] ?? '');
 $status = (string)($_POST['status'] ?? '1');
 
@@ -35,6 +42,13 @@ $pass = password_hash($rawPassword, PASSWORD_DEFAULT);
 try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$isSuperAdminController = app_is_super_admin_controller($conn, (string)($account_id ?? ''), (string)($level ?? ''));
+$isAdminManagedDesignation = in_array($designation, ['headteacher', 'deputy_headteacher', 'senior_teacher', 'accountant'], true);
+if ($isAdminManagedDesignation && !$isSuperAdminController) {
+	$_SESSION['reply'] = array (array("danger",'Only the super admin can create leadership or admin accounts.'));
+	header("location:../teachers");
+	exit;
+}
 
 $isPgsql = (defined('DBDriver') && DBDriver === 'pgsql');
 $stmt = $isPgsql
@@ -58,7 +72,16 @@ if (app_column_exists($conn, 'tbl_staff', 'school_id')) {
 	$stmt->execute([$fname, $lname, $gender, $email, $pass, $role, $status]);
 }
 
-$_SESSION['reply'] = array (array("success",'Staff registered successfully'));
+$staffId = (int)$conn->lastInsertId();
+if ($staffId > 0) {
+	if ($designation === 'senior_teacher') {
+		app_assign_staff_role_name($conn, $staffId, 'Senior Teacher');
+	} else {
+		app_remove_staff_role_name($conn, $staffId, 'Senior Teacher');
+	}
+}
+
+$_SESSION['reply'] = array (array("success", $designationMap[$designation]['label'] . ' account registered successfully'));
 header("location:../teachers");
 }
 

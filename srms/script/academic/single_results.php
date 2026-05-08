@@ -62,7 +62,7 @@ header("location:./");
 
 <li class="dropdown"><a class="app-nav__item" href="#" data-bs-toggle="dropdown" aria-label="Open Profile Menu"><i class="bi bi-person fs-4"></i></a>
 <ul class="dropdown-menu settings-menu dropdown-menu-right">
-<li><a class="dropdown-item" href="academic/profile"><i class="bi bi-person me-2 fs-5"></i> Profile</a></li>
+<li><a class="dropdown-item" href="academic/profile.php"><i class="bi bi-person me-2 fs-5"></i> Profile</a></li>
 <li><a class="dropdown-item" href="logout"><i class="bi bi-box-arrow-right me-2 fs-5"></i> Logout</a></li>
 </ul>
 </li>
@@ -83,7 +83,7 @@ header("location:./");
 <div class="tile">
 <div class="tile-body">
 
-<form enctype="multipart/form-data" action="academic/core/update_results" class="app_frm row" method="POST" autocomplete="OFF">
+<form enctype="multipart/form-data" action="academic/core/update_results.php" class="app_frm row" method="POST" autocomplete="OFF">
 
 <?php
 $tscore = 0;
@@ -128,7 +128,7 @@ $tscore = $tscore + $score;
 <div class="">
 <button class="btn btn-primary app_btn" type="submit">Save Results</button>
 <?php if ($tscore > 0) {
-?><a onclick="del('academic/core/drop_results?src=single_results&std=<?php echo $std; ?>&class=<?php echo $std_data[0][6]; ?>&term=<?php echo $term; ?>', 'Delete Results?');" href="javascript:void(0);" class="btn btn-danger">Delete</a><?php
+?><a onclick="del('academic/core/drop_results.php?src=single_results&std=<?php echo $std; ?>&class=<?php echo $std_data[0][6]; ?>&term=<?php echo $term; ?>', 'Delete Results?');" href="javascript:void(0);" class="btn btn-danger">Delete</a><?php
 }
 ?>
 </div>

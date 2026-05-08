@@ -29,21 +29,27 @@ function app_certificate_category_label(string $category): string
 
 function app_merit_grade_from_score(float $score): string
 {
-    if ($score >= 80) return 'A';
-    if ($score >= 70) return 'B';
-    if ($score >= 50) return 'C';
-    if ($score >= 40) return 'D';
-    return 'E';
+    if ($score >= 90) return 'EE1';
+    if ($score >= 75) return 'EE2';
+    if ($score >= 58) return 'ME1';
+    if ($score >= 41) return 'ME2';
+    if ($score >= 31) return 'AE1';
+    if ($score >= 21) return 'AE2';
+    if ($score >= 11) return 'BE1';
+    return 'BE2';
 }
 
 function app_merit_grade_label(string $grade): string
 {
     $labels = [
-        'A' => 'Excellent (80-100)',
-        'B' => 'Very Good (70-79)',
-        'C' => 'Good (50-69)',
-        'D' => 'Fair (40-49)',
-        'E' => 'Improve (Below 40)',
+        'EE1' => 'Exceptional/Excellent',
+        'EE2' => 'Very Good',
+        'ME1' => 'Good',
+        'ME2' => 'Fair/Satisfactory',
+        'AE1' => 'Needs Improvement',
+        'AE2' => 'Below Average',
+        'BE1' => 'Well Below Average',
+        'BE2' => 'Minimal/Poor',
     ];
     return $labels[$grade] ?? 'Unclassified';
 }
@@ -51,11 +57,14 @@ function app_merit_grade_label(string $grade): string
 function app_merit_grade_description(string $grade): string
 {
     $descriptions = [
-        'A' => 'Outstanding performance with excellent mastery of concepts',
-        'B' => 'Very good performance showing strong understanding',
-        'C' => 'Good performance with adequate understanding',
-        'D' => 'Fair performance with basic understanding',
-        'E' => 'Needs improvement; learner should focus on weak areas',
+        'EE1' => 'Outstanding performance with exceptional mastery of concepts',
+        'EE2' => 'Very strong performance with clear mastery of concepts',
+        'ME1' => 'Good performance showing solid understanding',
+        'ME2' => 'Fair performance with satisfactory understanding',
+        'AE1' => 'Learner is approaching expectations and needs support to improve',
+        'AE2' => 'Learner is below average and needs targeted intervention',
+        'BE1' => 'Learner is well below expectations and requires close support',
+        'BE2' => 'Learner shows minimal attainment and needs intensive support',
     ];
     return $descriptions[$grade] ?? 'Performance not classified';
 }
@@ -84,9 +93,9 @@ function app_certificate_verify_url(string $code): string
 }
 
 /**
- * Get default CBC competencies for certificate generation
+ * Get default CBE competencies for certificate generation
  */
-function app_cbc_competencies(): array
+function app_cbe_competencies(): array
 {
     return [
         'communication' => [
@@ -267,7 +276,7 @@ function app_ensure_certificates_table(PDO $conn): void
                 cert_hash VARCHAR(128) DEFAULT NULL,
                 issued_by INTEGER DEFAULT NULL REFERENCES tbl_staff(id) ON DELETE SET NULL,
                 mean_score DECIMAL(5,2) DEFAULT NULL,
-                merit_grade VARCHAR(1) DEFAULT NULL,
+                merit_grade VARCHAR(10) DEFAULT NULL,
                 competencies_json TEXT DEFAULT NULL,
                 position_in_class INTEGER DEFAULT NULL,
                 approved_by INTEGER DEFAULT NULL REFERENCES tbl_staff(id) ON DELETE SET NULL,
@@ -296,7 +305,7 @@ function app_ensure_certificates_table(PDO $conn): void
                 cert_hash VARCHAR(128) DEFAULT NULL,
                 issued_by INT DEFAULT NULL,
                 mean_score DECIMAL(5,2) DEFAULT NULL,
-                merit_grade VARCHAR(1) DEFAULT NULL,
+                merit_grade VARCHAR(10) DEFAULT NULL,
                 competencies_json LONGTEXT DEFAULT NULL,
                 position_in_class INT DEFAULT NULL,
                 approved_by INT DEFAULT NULL,

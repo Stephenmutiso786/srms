@@ -26,7 +26,7 @@ if ($code !== '') {
 				'total' => (float)$card['total'],
 				'mean' => (float)$card['mean'],
 				'grade' => $card['grade'],
-				   // CBC-ONLY: Position removed from output
+				   // CBE-ONLY: Position removed from output
 			];
 			$hash = report_generate_hash($payload);
 			if ($hash === $card['report_hash']) {

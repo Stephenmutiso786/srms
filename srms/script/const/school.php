@@ -26,7 +26,11 @@ foreach($result as $row)
 }
 
 if (!defined('WBName')) {
-	DEFINE('WBName', defined('APP_NAME') && trim((string)APP_NAME) !== '' ? APP_NAME : $schoolNameFromDb);
+	$resolvedSchoolName = trim((string)$schoolNameFromDb);
+	if ($resolvedSchoolName === '' && defined('APP_NAME')) {
+		$resolvedSchoolName = trim((string)APP_NAME);
+	}
+	DEFINE('WBName', $resolvedSchoolName);
 }
 if (!defined('WBLogo')) { DEFINE('WBLogo', $schoolLogoFromDb); }
 if (!defined('WBResSys')) { DEFINE('WBResSys', $schoolResSysFromDb); }

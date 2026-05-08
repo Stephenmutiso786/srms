@@ -98,7 +98,7 @@ try {
 					$examSummary = report_exam_summary($conn, $studentId, $classId, $termId, $examId);
 					$examBreakdown = report_exam_subject_breakdown($conn, $studentId, $classId, $termId, $examId);
 				}
-				$card = report_ensure_card_generated($conn, $studentId, $classId, $termId);
+				$card = report_ensure_card_generated($conn, $studentId, $classId, $termId, null, $examId);
 				if ($card) {
 					$attendance = report_attendance_summary($conn, $studentId, $classId, $termId);
 					$feesBalance = report_fees_balance($conn, $studentId, $termId);
@@ -451,7 +451,7 @@ try {
 <p class="text-muted mb-0"><?php echo htmlspecialchars((string)$examSummary['exam_name']); ?> · <?php echo htmlspecialchars(strtoupper((string)$examSummary['status'])); ?> · <?php echo htmlspecialchars(strtoupper((string)$examSummary['assessment_mode'])); ?></p>
 </div>
 <div class="d-flex gap-2 flex-wrap">
-<?php list(, , $examMeanPoints) = report_cbc_grade_for_score($conn, (float)$examSummary['mean']); ?>
+<?php list(, , $examMeanPoints) = report_cbe_grade_for_score($conn, (float)$examSummary['mean']); ?>
 <span class="badge bg-primary">Mean Points <?php echo number_format((float)$examMeanPoints, ((float)$examMeanPoints === floor((float)$examMeanPoints)) ? 0 : 1); ?></span>
 <span class="badge bg-success">Grade <?php echo htmlspecialchars((string)$examSummary['grade']); ?></span>
 <span class="badge bg-secondary">Total Points <?php echo number_format(array_sum(array_map(static function ($row) { return report_grade_points_from_label((string)($row['grade'] ?? '')); }, $examBreakdown)), 1); ?></span>
@@ -476,7 +476,7 @@ try {
 <td><?php echo htmlspecialchars((string)$subject['subject_name']); ?></td>
 <td><div class="performance-bar"><span style="width: <?php echo (float)$subject['progress']; ?>%"></span></div></td>
 <td><?php echo number_format(report_grade_points_from_label((string)($subject['grade'] ?? '')), 1); ?></td>
-<?php list(, , $subjectClassPoints) = report_cbc_grade_for_score($conn, (float)($subject['class_mean'] ?? 0)); ?>
+<?php list(, , $subjectClassPoints) = report_cbe_grade_for_score($conn, (float)($subject['class_mean'] ?? 0)); ?>
 <td><?php echo number_format((float)$subjectClassPoints, ((float)$subjectClassPoints === floor((float)$subjectClassPoints)) ? 0 : 1); ?></td>
 <td><?php echo htmlspecialchars((string)$subject['grade']); ?></td>
 <td><?php echo htmlspecialchars((string)($subject['teacher_name'] ?? '')); ?></td>

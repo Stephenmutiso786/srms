@@ -58,6 +58,8 @@ function admin_sidebar_group_label(string $moduleKey): string
     'inventory' => 'Resources',
     'transport' => 'Resources',
     'exams' => 'Exams',
+    'grading_management' => 'Exams',
+    'marks_entry' => 'Exams',
     'exam_timetable' => 'Exams',
     'marks_review' => 'Exams',
     'publish_results' => 'Exams',
@@ -102,12 +104,18 @@ foreach ($visibleAdminModules as $module) {
 }
 
 $adminSidebarGroupOrder = ['Overview', 'Academic', 'Teachers', 'Students', 'Operations', 'Finance', 'Communication', 'Exams', 'Reports', 'Results', 'Access Control', 'Resources', 'Governance', 'System', 'Support', 'General'];
+$sidebarFirstName = trim((string)($fname ?? ''));
+$sidebarLastName = trim((string)($lname ?? ''));
+$sidebarDisplayName = trim($sidebarFirstName . ' ' . $sidebarLastName);
+if ($sidebarDisplayName === '') {
+  $sidebarDisplayName = 'Administrator';
+}
 ?>
 <div class="app-sidebar__overlay" data-toggle="sidebar"></div>
 <aside class="app-sidebar">
   <div class="app-sidebar__user">
     <div>
-      <p class="app-sidebar__user-name"><?php echo $fname.' '.$lname; ?></p>
+      <p class="app-sidebar__user-name"><?php echo htmlspecialchars($sidebarDisplayName); ?></p>
     <p class="app-sidebar__user-designation"><?php echo htmlspecialchars((string)($designation ?? app_level_title_label((int)($level ?? 0)))); ?></p>
     </div>
   </div>

@@ -6,10 +6,12 @@ require_once('const/check_session.php');
 require_once('const/rbac.php');
 
 if ($res != "1" || $level != "0") { header("location:../../"); exit; }
-app_require_permission('exams.manage', '../system');
+$returnPage = trim((string)($_POST['return'] ?? 'grading_system'));
+$returnTarget = $returnPage === 'system' ? '../system' : '../grading_system';
+app_require_permission('exams.manage', $returnTarget);
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-	header("location:../system");
+	header("location:" . $returnTarget);
 	exit;
 }
 
@@ -28,11 +30,11 @@ $orders = $_POST['scale_order'] ?? [];
 $activeRows = $_POST['scale_active'] ?? [];
 
 if ($name === '') {
-	app_reply_redirect('danger', 'Enter the grading system name.', '../system');
+	app_reply_redirect('danger', 'Enter the grading system name.', $returnTarget);
 }
 
-if (!in_array($type, ['marks', 'cbc'], true)) {
-	app_reply_redirect('danger', 'Invalid grading system type selected.', '../system');
+if (!in_array($type, ['marks', 'cbe'], true)) {
+	app_reply_redirect('danger', 'Invalid grading system type selected.', $returnTarget);
 }
 
 function app_grading_stmt(PDO $conn, string $sql, array $params = [], string $context = 'query'): PDOStatement
@@ -141,10 +143,10 @@ try {
 	}
 
 	$conn->commit();
-	app_reply_redirect('success', 'Grading system saved successfully.', '../system');
+	app_reply_redirect('success', 'Grading system saved successfully.', $returnTarget);
 } catch (Throwable $e) {
 	if (isset($conn) && $conn instanceof PDO && $conn->inTransaction()) {
 		$conn->rollBack();
 	}
-	app_reply_redirect('danger', 'Failed to save grading system: '.$e->getMessage(), '../system');
+	app_reply_redirect('danger', 'Failed to save grading system: '.$e->getMessage(), $returnTarget);
 }

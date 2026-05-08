@@ -111,7 +111,7 @@ $empty_classes = array();
 $stmt = $conn->prepare("SELECT * FROM tbl_classes");
 $stmt->execute();
 $classes = $stmt->fetchAll();
-$jssChoiceMap = app_cbc_jss_choice_id_map($conn);
+$jssChoiceMap = app_cbe_jss_choice_id_map($conn);
 
 foreach ($classes as $value) {
 $empty_classes[$value[0]] = $value[1];
@@ -131,7 +131,7 @@ $choiceSummary = app_student_subject_choice_summary($conn, (string)$row['id']);
 
 <tr>
 <td>
-<input class="form-check-input student-checkbox" type="checkbox" name="student_ids[]" value="<?php echo $row[0]; ?>">
+<input class="form-check-input student-checkbox" type="checkbox" name="student_ids[]" value="<?php echo htmlspecialchars((string)($row['id'] ?? '')); ?>">
 </td>
 <td width="10">
 <?php
@@ -236,7 +236,7 @@ echo "Connection failed.";
 
 <div class="mb-2">
 <label class="form-label">Select Class</label>
-<select id="class" class="form-control select2 cbc-class-select" name="class" data-cbc-wrap="cbcJssChoicesEdit" required style="width: 100%;">
+<select id="class" class="form-control select2 cbe-class-select" name="class" data-cbe-wrap="cbeJssChoicesEdit" required style="width: 100%;">
 <option value="" selected disabled> Select One</option>
 <?php
 try {
@@ -250,7 +250,7 @@ $result = $stmt->fetchAll();
 foreach($result as $row)
 {
 ?>
-<option value="<?php echo htmlspecialchars((string)$row[0]); ?>" data-cbc-band="<?php echo htmlspecialchars(app_cbc_class_band((string)$row[1])); ?>"><?php echo htmlspecialchars((string)$row[1]); ?> </option>
+<option value="<?php echo htmlspecialchars((string)$row[0]); ?>" data-cbe-band="<?php echo htmlspecialchars(app_cbe_class_band((string)$row[1])); ?>"><?php echo htmlspecialchars((string)$row[1]); ?> </option>
 <?php
 }
 
@@ -263,11 +263,11 @@ echo "Connection failed.";
 </select>
 </div>
 
-<div id="cbcJssChoicesEdit" class="border rounded p-3 mb-3" style="display:none;">
+<div id="cbeJssChoicesEdit" class="border rounded p-3 mb-3" style="display:none;">
 <div class="fw-semibold mb-2">Junior Secondary Subject Choices</div>
 <div class="mb-2">
 <label class="form-label">Language Choice</label>
-<select id="language_subject_id" class="form-control select2 cbc-jss-select" name="language_subject_id" style="width: 100%;">
+<select id="language_subject_id" class="form-control select2 cbe-jss-select" name="language_subject_id" style="width: 100%;">
 <option value="">Select language</option>
 <?php foreach (($jssChoiceMap['language'] ?? []) as $subjectId => $subjectName) { ?>
 <option value="<?php echo htmlspecialchars((string)$subjectId); ?>"><?php echo htmlspecialchars((string)$subjectName); ?></option>
@@ -276,7 +276,7 @@ echo "Connection failed.";
 </div>
 <div class="mb-2">
 <label class="form-label">Religion Choice</label>
-<select id="religion_subject_id" class="form-control select2 cbc-jss-select" name="religion_subject_id" style="width: 100%;">
+<select id="religion_subject_id" class="form-control select2 cbe-jss-select" name="religion_subject_id" style="width: 100%;">
 <option value="">Select religion</option>
 <?php foreach (($jssChoiceMap['religion'] ?? []) as $subjectId => $subjectName) { ?>
 <option value="<?php echo htmlspecialchars((string)$subjectId); ?>"><?php echo htmlspecialchars((string)$subjectName); ?></option>
@@ -285,7 +285,7 @@ echo "Connection failed.";
 </div>
 <div class="mb-0">
 <label class="form-label">Optional Subjects</label>
-<select id="optional_subject_ids" class="form-control select2 cbc-jss-select" name="optional_subject_ids[]" multiple style="width: 100%;">
+<select id="optional_subject_ids" class="form-control select2 cbe-jss-select" name="optional_subject_ids[]" multiple style="width: 100%;">
 <?php foreach (($jssChoiceMap['optional'] ?? []) as $subjectId => $subjectName) { ?>
 <option value="<?php echo htmlspecialchars((string)$subjectId); ?>"><?php echo htmlspecialchars((string)$subjectName); ?></option>
 <?php } ?>
@@ -355,8 +355,8 @@ function bindSelectAll(sourceId, targetClass) {
 }
 bindSelectAll('selectAllStudents', '.student-checkbox');
 bindSelectAll('selectAllStudentsHead', '.student-checkbox');
-$('body').on('change', '.cbc-class-select', function() {
-  toggleCbcStudentChoices(this, $(this).data('cbc-wrap'));
+$('body').on('change', '.cbe-class-select', function() {
+  toggleCbeStudentChoices(this, $(this).data('cbe-wrap'));
 });
 </script>
 </body>

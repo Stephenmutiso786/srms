@@ -5,7 +5,9 @@ require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/rbac.php');
 
-if ($res !== '1' || !in_array((int)$level, [0, 1, 9], true)) {
+$isSuperAdmin = !empty($super_admin);
+
+if ($res !== '1' || !in_array((int)$level, [0, 1], true) || $isSuperAdmin) {
     app_reply_redirect('danger', 'Unauthorized.', '../promotions');
 }
 app_require_permission('report.generate', '../promotions');
@@ -54,7 +56,7 @@ try {
         (string)$batchId
     );
 
-    app_reply_redirect('success', 'Promotion batch rejected. No student classes were updated.', '../promotions');
+    app_reply_redirect('success', 'Promotion batch rejected during review. No student classes were updated.', '../promotions');
 
 } catch (Throwable $e) {
     error_log('Promotion rejection error: ' . $e->getMessage());

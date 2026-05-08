@@ -22,7 +22,7 @@ if (isset($settings['top_banner_type'])) {
 	$type = strtolower(trim((string)$settings['top_banner_type']));
 	$settings['top_banner_type'] = ($type === 'warning') ? 'warning' : 'info';
 }
-foreach (['top_banner_enabled', 'maintenance_mode_enabled'] as $toggleKey) {
+foreach (['top_banner_enabled', 'maintenance_mode_enabled', 'auto_promotion_enabled'] as $toggleKey) {
 	if (isset($settings[$toggleKey])) {
 		$settings[$toggleKey] = ((string)$settings[$toggleKey] === '1') ? '1' : '0';
 	}
@@ -40,14 +40,23 @@ if ($admissionStartNumber !== null && $admissionStartNumber < 1) {
 $currentTermId = isset($settings['current_term_id']) ? trim((string)$settings['current_term_id']) : '';
 $sessionStartDate = trim((string)($settings['session_start_date'] ?? ''));
 $sessionEndDate = trim((string)($settings['session_end_date'] ?? ''));
+$promotionReviewStartDate = trim((string)($settings['promotion_review_start_date'] ?? ''));
+$promotionFinalizationDate = trim((string)($settings['promotion_finalization_date'] ?? ''));
 if ($sessionStartDate !== '' && $sessionEndDate !== '' && strtotime($sessionStartDate) > strtotime($sessionEndDate)) {
 	app_reply_redirect('danger', 'Session start date cannot be later than session end date.', '../system');
+}
+if ($sessionEndDate !== '' && $promotionReviewStartDate !== '' && strtotime($promotionReviewStartDate) < strtotime($sessionEndDate)) {
+	app_reply_redirect('danger', 'Promotion review start date cannot be earlier than session end date.', '../system');
+}
+if ($promotionReviewStartDate !== '' && $promotionFinalizationDate !== '' && strtotime($promotionFinalizationDate) < strtotime($promotionReviewStartDate)) {
+	app_reply_redirect('danger', 'Promotion finalization date cannot be earlier than promotion review start date.', '../system');
 }
 
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 	app_ensure_current_mode_mysql_schema($conn);
+	app_ensure_promotion_workflow_schema($conn);
 	if ($currentTermId !== '') {
 		$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_terms WHERE id = ?");
 		$stmt->execute([(int)$currentTermId]);

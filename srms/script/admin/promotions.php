@@ -7,8 +7,13 @@ require_once('const/school.php');
 require_once('const/rbac.php');
 require_once('const/certificate_engine.php');
 require_once('const/notify.php');
+require_once('const/report_engine.php');
 
-if ($res !== '1' || !in_array((int)$level, [0, 1, 9], true)) { 
+$isSuperAdmin = !empty($super_admin);
+$isLeadershipReviewer = !$isSuperAdmin && in_array((int)$level, [0, 1], true);
+$isPromotionManager = $isSuperAdmin || $isLeadershipReviewer;
+
+if ($res !== '1' || !$isPromotionManager) { 
     header('location:../'); exit; 
 }
 app_require_permission('report.generate', 'admin');
@@ -20,22 +25,95 @@ $promotion_batches = [];
 $batch_details = [];
 $students_in_batch = [];
 $classes = [];
+$classMeta = [];
 $years = [];
+$sourceClassStudentCount = null;
+$targetClassStudentCount = null;
+$promotedStudentsCount = 0;
+$repeatersRemainingCount = 0;
+$promotionQueue = [];
+$autoPromotionRun = [];
 
 try {
     $conn = app_db();
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     app_ensure_promotion_workflow_schema($conn);
+    app_ensure_terms_academic_year_schema($conn);
+    if (!empty($account_id)) {
+        $autoPromotionRun = app_auto_prepare_year_end_promotions($conn, (int)$account_id);
+    }
+    $promotionQueue = app_promotion_queue_summary($conn);
+    if (function_exists('app_ensure_class_cbe_level_schema')) {
+        app_ensure_class_cbe_level_schema($conn);
+    }
 
     // Get classes
-    $stmt = $conn->prepare('SELECT id, name FROM tbl_classes ORDER BY grade, name');
+    $stmt = $conn->prepare('SELECT id, name, grade FROM tbl_classes ORDER BY name');
     $stmt->execute();
     $classes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $classGradeMap = [];
+    foreach ($classes as $classRow) {
+        $effectiveGrade = app_effective_grade_level((string)($classRow['name'] ?? ''), $classRow['grade'] ?? null);
+        if ($effectiveGrade > 0 && !isset($classGradeMap[$effectiveGrade])) {
+            $classGradeMap[$effectiveGrade] = [
+                'id' => (int)$classRow['id'],
+                'name' => (string)$classRow['name'],
+            ];
+        }
+    }
+    usort($classes, static function (array $left, array $right): int {
+        $leftGrade = app_effective_grade_level((string)($left['name'] ?? ''), $left['grade'] ?? null);
+        $rightGrade = app_effective_grade_level((string)($right['name'] ?? ''), $right['grade'] ?? null);
+        if ($leftGrade === $rightGrade) {
+            return strcasecmp((string)($left['name'] ?? ''), (string)($right['name'] ?? ''));
+        }
+        if ($leftGrade === 0) {
+            return -1;
+        }
+        if ($rightGrade === 0) {
+            return 1;
+        }
+        return $leftGrade <=> $rightGrade;
+    });
+    foreach ($classes as $classRow) {
+        $effectiveGrade = app_effective_grade_level((string)($classRow['name'] ?? ''), $classRow['grade'] ?? null);
+        $nextClassName = '';
+        if ($effectiveGrade > 0 && isset($classGradeMap[$effectiveGrade + 1])) {
+            $nextClassName = (string)$classGradeMap[$effectiveGrade + 1]['name'];
+        }
+        $classMeta[(int)$classRow['id']] = [
+            'effective_grade' => $effectiveGrade,
+            'next_class_name' => $nextClassName,
+        ];
+    }
 
-    // Get available academic years
-    $stmt = $conn->prepare('SELECT DISTINCT academic_year FROM tbl_exams ORDER BY academic_year DESC');
-    $stmt->execute();
-    $years = array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'academic_year');
+    // Get available academic years from Terms & Sessions first.
+    if (app_table_exists($conn, 'tbl_terms')) {
+        $selectYearSql = app_column_exists($conn, 'tbl_terms', 'academic_year')
+            ? 'SELECT name, academic_year FROM tbl_terms ORDER BY id DESC'
+            : 'SELECT name, NULL AS academic_year FROM tbl_terms ORDER BY id DESC';
+        $stmt = $conn->prepare($selectYearSql);
+        $stmt->execute();
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $termRow) {
+            $year = trim((string)($termRow['academic_year'] ?? ''));
+            if ($year === '') {
+                $year = app_extract_academic_year((string)($termRow['name'] ?? ''));
+            }
+            if ($year !== '') {
+                $years[] = $year;
+            }
+        }
+        $years = array_values(array_unique(array_filter(array_map('trim', $years))));
+        rsort($years, SORT_STRING);
+    }
+    // Fallback to exams only if terms do not provide a year.
+    if (empty($years) && app_table_exists($conn, 'tbl_exams') && app_column_exists($conn, 'tbl_exams', 'academic_year')) {
+        $stmt = $conn->prepare("SELECT DISTINCT academic_year FROM tbl_exams WHERE academic_year IS NOT NULL AND TRIM(academic_year) <> '' ORDER BY academic_year DESC");
+        $stmt->execute();
+        $years = array_values(array_filter(array_map(static function ($value): string {
+            return trim((string)$value);
+        }, array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'academic_year'))));
+    }
     if (empty($years)) {
         $currentYear = (int)date('Y');
         $years = [$currentYear . '/' . ($currentYear + 1)];
@@ -76,6 +154,8 @@ try {
             $batchRule = app_promotion_rule_for_grade($conn, (int)($batch_details['class_level'] ?? 0));
             $reviewState = strtolower(trim((string)($batch_details['review_state'] ?? 'pending_review')));
             $requiresReview = (bool)($batchRule['require_headteacher_approval'] ?? true);
+            $batchClassMeta = $classMeta[(int)($batch_details['class_id'] ?? 0)] ?? ['effective_grade' => 0, 'next_class_name' => ''];
+            $promotionTargetName = (string)($batchClassMeta['next_class_name'] ?? '');
 
             // Get students in this batch
             $stmt = $conn->prepare("
@@ -84,6 +164,7 @@ try {
                        concat_ws(' ', st.fname, st.mname, st.lname) as student_name,
                        c_from.name as from_class,
                        c_to.name as to_class,
+                       (SELECT r.grade FROM tbl_report_cards r WHERE r.student_id = st.id ORDER BY r.id DESC LIMIT 1) AS latest_report_grade,
                        COALESCE(sp.final_status, sp.status) AS final_status,
                        COALESCE(sp.suggested_status, sp.status) AS suggested_status
                 FROM tbl_student_promotions sp
@@ -95,9 +176,50 @@ try {
             ");
             $stmt->execute([$batchId]);
             $students_in_batch = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $promotedStudentsCount = count(array_filter($students_in_batch, static function (array $student): bool {
+                return strtolower(trim((string)($student['final_status'] ?? $student['status'] ?? ''))) === 'promoted';
+            }));
+            $repeatersRemainingCount = count(array_filter($students_in_batch, static function (array $student): bool {
+                return strtolower(trim((string)($student['final_status'] ?? $student['status'] ?? ''))) === 'repeated';
+            }));
 
-            $reviewMode = ((int)$level === 1 && $batch_details['status'] === 'pending' && $reviewState === 'pending_review');
-            $canFinalize = ((int)$level === 0 || (int)$level === 9) && $batch_details['status'] === 'pending' && ($reviewState === 'reviewed' || !$requiresReview || $reviewState === 'ready_for_execution');
+            $sourceClassId = (int)($batch_details['class_id'] ?? 0);
+            if ($sourceClassId > 0) {
+                $stmt = $conn->prepare('SELECT COUNT(*) FROM tbl_students WHERE class = ?');
+                $stmt->execute([$sourceClassId]);
+                $sourceClassStudentCount = (int)$stmt->fetchColumn();
+            }
+
+            $targetClassId = 0;
+            foreach ($students_in_batch as $studentRow) {
+                $candidateTargetClassId = (int)($studentRow['to_class'] ?? 0);
+                if ($candidateTargetClassId > 0) {
+                    $targetClassId = $candidateTargetClassId;
+                    break;
+                }
+            }
+            if ($targetClassId > 0) {
+                $stmt = $conn->prepare('SELECT COUNT(*) FROM tbl_students WHERE class = ?');
+                $stmt->execute([$targetClassId]);
+                $targetClassStudentCount = (int)$stmt->fetchColumn();
+            }
+
+            $reviewMode = $isLeadershipReviewer && $batch_details['status'] === 'pending' && $reviewState === 'pending_review';
+            $canFinalize = $isSuperAdmin && $batch_details['status'] === 'pending' && ($reviewState === 'reviewed' || !$requiresReview || $reviewState === 'ready_for_execution');
+            $currentStepText = 'Create promotion batch';
+            if ($batch_details['status'] === 'approved') {
+                $currentStepText = 'Promotion completed';
+            } elseif ($batch_details['status'] === 'rejected') {
+                $currentStepText = 'Promotion rejected';
+            } elseif ($reviewMode) {
+                $currentStepText = 'Headteacher or Deputy review required';
+            } elseif ($canFinalize) {
+                $currentStepText = 'Ready for Super Admin completion';
+            } elseif ($reviewState === 'reviewed') {
+                $currentStepText = 'Waiting for Super Admin completion';
+            } elseif ($reviewState === 'pending_review') {
+                $currentStepText = 'Waiting for headteacher/deputy review';
+            }
         }
     }
 } catch (Throwable $e) {
@@ -135,10 +257,41 @@ try {
 </div>
 </div>
 
+<?php if ($batchId > 0 && !empty($batch_details)): ?>
+<div class="alert <?php echo $canFinalize ? 'alert-success' : ($reviewMode ? 'alert-warning' : 'alert-info'); ?> mb-3">
+<strong>Your promotion role:</strong>
+<?php if ($isSuperAdmin): ?>
+You are signed in as <strong>Super Admin</strong>. <?php echo $canFinalize ? 'This batch is ready. Use the complete button below to finish the promotion.' : 'You can only complete the batch after Headteacher or Deputy review is submitted.'; ?>
+<?php elseif ($isLeadershipReviewer): ?>
+You are signed in as <strong><?php echo htmlspecialchars((string)$designation); ?></strong>. Your role is to review and send the batch to Super Admin. You do not complete the final class move on this page.
+<?php endif; ?>
+</div>
+<?php endif; ?>
+
+<?php if (!empty($promotionQueue)): ?>
+<div class="tile mb-3">
+<div class="row g-2">
+<div class="col-md-3"><div class="alert alert-light mb-0"><strong>Pending review</strong><br><?php echo (int)($promotionQueue['pending_review'] ?? 0); ?> batch(es)</div></div>
+<div class="col-md-3"><div class="alert alert-light mb-0"><strong>Ready for Super Admin</strong><br><?php echo (int)($promotionQueue['ready_for_super_admin'] ?? 0); ?> batch(es)</div></div>
+<div class="col-md-3"><div class="alert alert-light mb-0"><strong>Completed</strong><br><?php echo (int)($promotionQueue['completed'] ?? 0); ?> batch(es)</div></div>
+<div class="col-md-3"><div class="alert alert-light mb-0"><strong>Auto promotion</strong><br><?php echo !empty($promotionQueue['auto_enabled']) ? 'Enabled' : 'Disabled'; ?></div></div>
+</div>
+</div>
+<?php endif; ?>
+
 <?php if ($batchId === 0): ?>
 <!-- ===== CREATE NEW PROMOTION BATCH ===== -->
 <div class="tile mb-3">
 <h3 class="tile-title"><i class="bi bi-plus-circle"></i> Create New Promotion Batch</h3>
+<?php if (!empty($promotionQueue['auto_enabled'])): ?>
+<div class="alert alert-info">
+<strong>Automatic year-end promotion is enabled.</strong>
+When the academic year end date passes, the system prepares promotion batches automatically. You can still create one manually when needed for a special cycle or correction.
+<?php if (!empty($autoPromotionRun['ran']) || !empty($autoPromotionRun['already_generated'])): ?>
+<br><small><?php echo htmlspecialchars((string)($autoPromotionRun['message'] ?? '')); ?></small>
+<?php endif; ?>
+</div>
+<?php endif; ?>
 <form class="row g-3" method="POST" action="admin/core/create_promotion_batch">
 
 <div class="col-md-3">
@@ -156,11 +309,16 @@ try {
 <select class="form-control" name="class_id" required id="promotionClass">
 <option value="" disabled selected>-- Select Class --</option>
 <?php foreach ($classes as $class): ?>
-<option value="<?php echo htmlspecialchars((string)$class['id']); ?>">
+<?php
+$meta = $classMeta[(int)$class['id']] ?? ['next_class_name' => '', 'effective_grade' => 0];
+$nextClassName = (string)($meta['next_class_name'] ?? '');
+?>
+<option value="<?php echo htmlspecialchars((string)$class['id']); ?>" data-next-class="<?php echo htmlspecialchars($nextClassName); ?>">
 <?php echo htmlspecialchars((string)$class['name']); ?>
 </option>
 <?php endforeach; ?>
 </select>
+<small class="form-text text-muted" id="promotionTargetHint">Select a class to see the next promotion target.</small>
 </div>
 
 <div class="col-md-3">
@@ -238,12 +396,14 @@ switch($batch['status']) {
 <div class="tile-body">
 <h1><?php echo htmlspecialchars((string)$batch_details['class_name']); ?></h1>
 <p>Year: <?php echo htmlspecialchars((string)$batch_details['academic_year']); ?> | Cycle: <?php echo htmlspecialchars((string)$batch_details['promotion_cycle']); ?></p>
+<p class="mb-0"><strong>Target class:</strong> <?php echo htmlspecialchars($promotionTargetName !== '' ? $promotionTargetName : 'Not configured'); ?></p>
 </div>
 </div>
 </div>
 <div class="col-md-6">
 <div class="tile">
 <h3 class="tile-title">Promotion Summary</h3>
+<p><strong>Current step:</strong> <?php echo htmlspecialchars($currentStepText); ?></p>
 <p><strong><?php echo (int)count($students_in_batch); ?></strong> students in batch</p>
 <p><strong class="text-success"><?php echo count(array_filter($students_in_batch, fn($s) => ($s['final_status'] ?? $s['status']) === 'promoted')); ?></strong> final promotions</p>
 <p><strong class="text-info"><?php echo count(array_filter($students_in_batch, fn($s) => ($s['status'] ?? '') === 'conditional')); ?></strong> awaiting review</p>
@@ -253,13 +413,58 @@ switch($batch['status']) {
 </div>
 </div>
 
+<div class="alert alert-primary mb-3">
+<strong>How this page works:</strong>
+The system automatically sets the next class based on the class you created the batch from.
+For this batch, students are moving from <strong><?php echo htmlspecialchars((string)$batch_details['class_name']); ?></strong>
+to <strong><?php echo htmlspecialchars($promotionTargetName !== '' ? $promotionTargetName : 'the next configured class'); ?></strong>.
+You do not select the destination class manually on this screen.
+</div>
+
+<?php if ($batch_details['status'] === 'approved'): ?>
+<div class="tile mb-3">
+<h3 class="tile-title">After Promotion</h3>
+<div class="row g-2">
+<div class="col-md-4"><div class="alert alert-light mb-0"><strong>Students moved</strong><br><?php echo (int)$promotedStudentsCount; ?> promoted to <?php echo htmlspecialchars($promotionTargetName !== '' ? $promotionTargetName : 'the next class'); ?></div></div>
+<div class="col-md-4"><div class="alert alert-light mb-0"><strong><?php echo htmlspecialchars((string)$batch_details['class_name']); ?> now has</strong><br><?php echo $sourceClassStudentCount !== null ? (int)$sourceClassStudentCount : 0; ?> active students</div></div>
+<div class="col-md-4"><div class="alert alert-light mb-0"><strong><?php echo htmlspecialchars($promotionTargetName !== '' ? $promotionTargetName : 'Target class'); ?> now has</strong><br><?php echo $targetClassStudentCount !== null ? (int)$targetClassStudentCount : 0; ?> active students</div></div>
+</div>
+<div class="alert alert-info mt-3 mb-0">
+<strong>What this means:</strong>
+The previous class record stays in the system. It may become empty after promotion, and that is normal. If it now has <strong><?php echo $sourceClassStudentCount !== null ? (int)$sourceClassStudentCount : 0; ?></strong> students, it is ready for new intake or for repeaters to remain there.
+<?php if ($repeatersRemainingCount > 0): ?>
+This batch kept <strong><?php echo (int)$repeatersRemainingCount; ?></strong> repeater(s) in the previous class.
+<?php endif; ?>
+</div>
+</div>
+<?php endif; ?>
+
+<?php if (!empty($canFinalize)): ?>
+<div class="tile mb-3 border border-success">
+<div class="row g-3 align-items-center">
+<div class="col-md-8">
+<h3 class="tile-title text-success mb-1">Complete Promotion</h3>
+<p class="mb-0">Headteacher or Deputy already reviewed this batch. The final step is now with Super Admin.</p>
+</div>
+<div class="col-md-4 d-grid">
+<form method="POST" action="admin/core/approve_promotion">
+<input type="hidden" name="batch_id" value="<?php echo (int)$batchId; ?>">
+<button class="btn btn-success btn-lg" type="submit" onclick="return confirm('Complete this promotion batch? This will update student classes and generate certificates.')">
+<i class="bi bi-check-circle me-2"></i>COMPLETE PROMOTION
+</button>
+</form>
+</div>
+</div>
+</div>
+<?php endif; ?>
+
 <div class="tile mb-3">
 <h3 class="tile-title">Rule Preview</h3>
 <div class="row g-2">
 <div class="col-md-3"><div class="alert alert-light mb-0"><strong>Minimum score</strong><br><?php echo number_format((float)($batchRule['min_score_for_promotion'] ?? 40), 2); ?></div></div>
 <div class="col-md-3"><div class="alert alert-light mb-0"><strong>Fees clearance</strong><br><?php echo !empty($batchRule['require_fees_clearance']) ? 'Required' : 'Optional'; ?></div></div>
 <div class="col-md-3"><div class="alert alert-light mb-0"><strong>Report finalization</strong><br><?php echo !empty($batchRule['require_report_finalization']) ? 'Required' : 'Optional'; ?></div></div>
-<div class="col-md-3"><div class="alert alert-light mb-0"><strong>Headteacher review</strong><br><?php echo !empty($batchRule['require_headteacher_approval']) ? 'Required' : 'Optional'; ?></div></div>
+<div class="col-md-3"><div class="alert alert-light mb-0"><strong>Leadership review</strong><br><?php echo !empty($batchRule['require_headteacher_approval']) ? 'Required (Headteacher/Deputy)' : 'Optional'; ?></div></div>
 </div>
 </div>
 
@@ -300,7 +505,7 @@ switch($batch['status']) {
 <?php endif; ?>
 <div class="table-responsive">
 <table class="table table-sm table-hover align-middle">
-<thead><tr><th>#</th><th>Name</th><th>Adm No</th><th>Mean</th><th>Grade</th><th>Report</th><th>Fees</th><th>Suggested</th><th>Final</th><th>Review Notes</th></tr></thead>
+<thead><tr><th>#</th><th>Name</th><th>Adm No</th><th>Mean</th><th>Report Grade</th><th>Promote To</th><th>Report</th><th>Fees</th><th>Suggested</th><th>Final</th><th>Review Notes</th></tr></thead>
 <tbody>
 <?php foreach ($students_in_batch as $idx => $student): ?>
 <tr<?php echo !$student['fees_cleared'] || !$student['report_card_finalized'] ? ' class="table-warning"' : ''; ?>>
@@ -308,7 +513,8 @@ switch($batch['status']) {
 <td><?php echo htmlspecialchars((string)$student['student_name']); ?></td>
 <td><?php echo htmlspecialchars((string)($student['school_id'] ?? '')); ?></td>
 <td><?php echo $student['mean_score'] !== null ? number_format((float)$student['mean_score'], 2) : '—'; ?></td>
-<td><?php echo $student['merit_grade'] ? '<strong>' . htmlspecialchars($student['merit_grade']) . '</strong>' : '—'; ?></td>
+<td><?php echo ($student['latest_report_grade'] ?? $student['merit_grade']) ? '<strong>' . htmlspecialchars((string)($student['latest_report_grade'] ?: $student['merit_grade'])) . '</strong>' : '—'; ?></td>
+<td><?php echo htmlspecialchars((string)($student['to_class'] ?? $promotionTargetName)); ?></td>
 <td><?php echo $student['report_card_finalized'] ? '✓' : '<span class="badge bg-danger">✗</span>'; ?></td>
 <td><?php echo $student['fees_cleared'] ? '✓' : '<span class="badge bg-danger">✗ Bal</span>'; ?></td>
 <td>
@@ -344,7 +550,7 @@ switch($batch['status']) {
 </div>
 <?php if (!empty($reviewMode)): ?>
 <div class="d-grid mt-3">
-<button class="btn btn-info btn-lg" type="submit"><i class="bi bi-clipboard-check me-2"></i>Save Headteacher Review</button>
+<button class="btn btn-info btn-lg" type="submit"><i class="bi bi-clipboard-check me-2"></i>SEND TO SUPER ADMIN</button>
 </div>
 </form>
 <?php endif; ?>
@@ -353,31 +559,46 @@ switch($batch['status']) {
 <!-- ===== PROMOTION ACTIONS ===== -->
 <?php if ($batch_details['status'] === 'pending'): ?>
 <div class="tile mt-3">
-<h3 class="tile-title">Actions</h3>
+<h3 class="tile-title">Review Promotion</h3>
 <div class="row g-2">
 <div class="col-md-12">
 <p class="alert alert-info">
-<strong>Next Steps:</strong> Review the checklist above. Headteacher review saves the final decisions, then admin execution updates class placement and certificates.
+<strong>Next Steps:</strong> Review the checklist above. First the Headteacher or Deputy Headteacher confirms or rejects the promotion, then the Super Admin completes the final move to <strong><?php echo htmlspecialchars($promotionTargetName !== '' ? $promotionTargetName : 'the next class'); ?></strong>.
 </p>
 </div>
+<?php if (!empty($reviewMode)): ?>
+<div class="col-md-12">
+<p class="alert alert-warning mb-0"><strong>Your role on this page:</strong> You are at the review step. Review the promotion first, then send it back to the Super Admin for final completion.</p>
+</div>
+<?php elseif (!$canFinalize && $isLeadershipReviewer && $reviewState === 'reviewed'): ?>
+<div class="col-md-12">
+<p class="alert alert-warning mb-0"><strong>Next step:</strong> This batch has already been reviewed. It is now waiting for the Super Admin to complete the promotion.</p>
+</div>
+<?php elseif (!$canFinalize && $isSuperAdmin && $reviewState === 'pending_review'): ?>
+<div class="col-md-12">
+<p class="alert alert-warning mb-0"><strong>Why no complete button?</strong> The batch is still waiting for Headteacher or Deputy review. The final completion button will appear after that review is saved.</p>
+</div>
+<?php endif; ?>
 <?php if (!empty($canFinalize)): ?>
 <div class="col-md-6 d-grid">
 <form method="POST" action="admin/core/approve_promotion" style="display:inline;">
 <input type="hidden" name="batch_id" value="<?php echo (int)$batchId; ?>">
-<button class="btn btn-success btn-lg" type="submit" onclick="return confirm('Approve this promotion batch? This will update student classes and generate certificates.')">
-<i class="bi bi-check-circle me-2"></i>APPROVE PROMOTION
+<button class="btn btn-success btn-lg" type="submit" onclick="return confirm('Complete this promotion batch? This will update student classes and generate certificates.')">
+<i class="bi bi-check-circle me-2"></i>COMPLETE PROMOTION
 </button>
 </form>
 </div>
 <?php endif; ?>
+<?php if ($isLeadershipReviewer && $batch_details['status'] === 'pending'): ?>
 <div class="col-md-6 d-grid">
 <form method="POST" action="admin/core/reject_promotion" style="display:inline;">
 <input type="hidden" name="batch_id" value="<?php echo (int)$batchId; ?>">
-<button class="btn btn-danger btn-lg" type="submit" onclick="return confirm('Reject this promotion batch? Students will not be promoted.')">
-<i class="bi bi-x-circle me-2"></i>REJECT
+<button class="btn btn-danger btn-lg" type="submit" onclick="return confirm('Reject this promotion batch during review? Students will not be promoted.')">
+<i class="bi bi-x-circle me-2"></i>REJECT PROMOTION
 </button>
 </form>
 </div>
+<?php endif; ?>
 </div>
 </div>
 <?php else: ?>
@@ -394,6 +615,34 @@ switch($batch['status']) {
 <script src="js/jquery-3.7.0.min.js"></script>
 <script src="js/bootstrap.min.js"></script>
 <script src="js/main.js"></script>
+<script>
+(function () {
+  var classSelect = document.getElementById('promotionClass');
+  var hint = document.getElementById('promotionTargetHint');
+  if (!classSelect || !hint) {
+    return;
+  }
+
+  function updatePromotionTarget() {
+    var selected = classSelect.options[classSelect.selectedIndex];
+    if (!selected || !selected.value) {
+      hint.textContent = 'Select a class to see the next promotion target.';
+      return;
+    }
+
+    var nextClass = selected.getAttribute('data-next-class') || '';
+    if (nextClass) {
+      hint.textContent = 'Students in this batch will be promoted to: ' + nextClass;
+      return;
+    }
+
+    hint.textContent = 'No next class is configured for this class yet. Update your class setup first.';
+  }
+
+  classSelect.addEventListener('change', updatePromotionTarget);
+  updatePromotionTarget();
+})();
+</script>
 <?php require_once('const/check-reply.php'); ?>
 </body>
 </html>

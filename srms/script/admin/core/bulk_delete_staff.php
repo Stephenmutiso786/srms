@@ -36,6 +36,31 @@ $placeholders = implode(',', array_fill(0, count($ids), '?'));
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	$isSuperAdminController = app_is_super_admin_controller($conn, (string)($account_id ?? ''), (string)($level ?? ''));
+	$safeIds = [];
+	foreach ($ids as $staffId) {
+		$staffIdInt = (int)$staffId;
+		if ($staffIdInt < 1) {
+			continue;
+		}
+		$stmt = $conn->prepare("SELECT level FROM tbl_staff WHERE id = ? LIMIT 1");
+		$stmt->execute([$staffIdInt]);
+		$staffLevel = (string)($stmt->fetchColumn() ?: '');
+		if ($staffLevel === '') {
+			continue;
+		}
+		if (app_staff_is_admin_managed($conn, $staffIdInt, $staffLevel) && !$isSuperAdminController) {
+			continue;
+		}
+		$safeIds[] = (string)$staffIdInt;
+	}
+	$ids = array_values(array_unique($safeIds));
+	if (count($ids) < 1) {
+		$_SESSION['reply'] = array (array("danger","Only the super admin can bulk-manage leadership or admin accounts."));
+		header("location:../teachers");
+		exit;
+	}
+	$placeholders = implode(',', array_fill(0, count($ids), '?'));
 	$conn->beginTransaction();
 
 	if ($action === 'set_active' || $action === 'set_blocked') {

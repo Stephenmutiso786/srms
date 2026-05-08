@@ -8,7 +8,14 @@ if ($res == "1" && $level == "2") {}else{header("location:../");}
 if (!isset($_SESSION['student_list'])) {
 header("location:./");
 }
-$students = $_SESSION['student_list'];
+$students = isset($_SESSION['student_list']) && is_array($_SESSION['student_list']) ? $_SESSION['student_list'] : [];
+$students = array_values(array_filter($students, function ($value) {
+	return $value !== '' && $value !== null;
+}));
+if (empty($students)) {
+header("location:./");
+exit;
+}
 // $matches = implode(',', $students);
 // $matches = preg_replace('/[A-Z0-9]/', '?', $matches);
 $matches = str_split(str_repeat("?", count($students)));

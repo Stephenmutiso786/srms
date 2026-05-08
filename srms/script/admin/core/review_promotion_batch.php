@@ -5,8 +5,10 @@ require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/rbac.php');
 
-if ($res !== '1' || !in_array((int)$level, [1, 9], true)) {
-    app_reply_redirect('danger', 'Only the headteacher review step can update promotion decisions.', '../promotions');
+$isSuperAdmin = !empty($super_admin);
+
+if ($res !== '1' || !in_array((int)$level, [0, 1], true) || $isSuperAdmin) {
+    app_reply_redirect('danger', 'Only the headteacher or deputy headteacher can review promotion decisions.', '../promotions');
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -104,7 +106,7 @@ try {
 
     $conn->commit();
 
-    app_reply_redirect('success', 'Promotion review saved. ' . $reviewedCount . ' student decisions recorded.', '../promotions?batch_id=' . $batchId);
+    app_reply_redirect('success', 'Promotion review saved. ' . $reviewedCount . ' student decisions recorded. The batch is now waiting for Super Admin completion.', '../promotions?batch_id=' . $batchId);
 } catch (Throwable $e) {
     if (isset($conn) && $conn instanceof PDO && $conn->inTransaction()) {
         $conn->rollBack();

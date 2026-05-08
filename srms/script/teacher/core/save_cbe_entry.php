@@ -31,7 +31,7 @@ $levelVal = strtoupper(trim((string)($payload['level'] ?? '')));
 $marksVal = isset($payload['marks']) && $payload['marks'] !== '' ? (float)$payload['marks'] : null;
 $pointsVal = (int)($payload['points'] ?? 0);
 $learningArea = trim((string)($payload['learning_area'] ?? ''));
-$mode = ($payload['mode'] ?? 'cbc') === 'marks' ? 'marks' : 'cbc';
+$mode = ($payload['mode'] ?? 'cbe') === 'marks' ? 'marks' : 'cbe';
 
 if ($termId < 1 || $classId < 1 || $subjectId < 1 || $studentId === '' || $strand === '') {
 	echo json_encode(['ok' => false, 'message' => 'Missing data']);
@@ -43,8 +43,8 @@ try {
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
 	$grading = [];
-	if (app_table_exists($conn, 'tbl_cbc_grading')) {
-		$stmt = $conn->prepare("SELECT level, min_mark, max_mark, points, sort_order FROM tbl_cbc_grading WHERE active = 1 ORDER BY sort_order, min_mark DESC");
+	if (app_table_exists($conn, 'tbl_cbe_grading')) {
+		$stmt = $conn->prepare("SELECT level, min_mark, max_mark, points, sort_order FROM tbl_cbe_grading WHERE active = 1 ORDER BY sort_order, min_mark DESC");
 		$stmt->execute();
 		$grading = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
@@ -104,13 +104,13 @@ try {
 		exit;
 	}
 
-	$useSubjectId = app_column_exists($conn, 'tbl_cbc_assessments', 'subject_id');
-	$useMarks = app_column_exists($conn, 'tbl_cbc_assessments', 'marks');
-	$usePoints = app_column_exists($conn, 'tbl_cbc_assessments', 'points');
-	$useUpdated = app_column_exists($conn, 'tbl_cbc_assessments', 'updated_at');
+	$useSubjectId = app_column_exists($conn, 'tbl_cbe_assessments', 'subject_id');
+	$useMarks = app_column_exists($conn, 'tbl_cbe_assessments', 'marks');
+	$usePoints = app_column_exists($conn, 'tbl_cbe_assessments', 'points');
+	$useUpdated = app_column_exists($conn, 'tbl_cbe_assessments', 'updated_at');
 
-	if (app_table_exists($conn, 'tbl_cbc_mark_submissions')) {
-		$stmt = $conn->prepare("SELECT status FROM tbl_cbc_mark_submissions WHERE term_id = ? AND class_id = ? AND subject_combination_id = ? LIMIT 1");
+	if (app_table_exists($conn, 'tbl_cbe_mark_submissions')) {
+		$stmt = $conn->prepare("SELECT status FROM tbl_cbe_mark_submissions WHERE term_id = ? AND class_id = ? AND subject_combination_id = ? LIMIT 1");
 		$stmt->execute([$termId, $classId, $combinationId]);
 		$submissionStatus = (string)$stmt->fetchColumn();
 		if (in_array($submissionStatus, ['submitted','approved'], true)) {
@@ -122,7 +122,7 @@ try {
 	$where = $useSubjectId ? "class_id = ? AND term_id = ? AND subject_id = ? AND student_id = ? AND strand = ?" : "class_id = ? AND term_id = ? AND learning_area = ? AND student_id = ? AND strand = ?";
 	$args = $useSubjectId ? [$classId, $termId, $subjectId, $studentId, $strand] : [$classId, $termId, $learningArea, $studentId, $strand];
 
-	$stmt = $conn->prepare("SELECT id, level FROM tbl_cbc_assessments WHERE $where LIMIT 1");
+	$stmt = $conn->prepare("SELECT id, level FROM tbl_cbe_assessments WHERE $where LIMIT 1");
 	$stmt->execute($args);
 	$existing = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -133,9 +133,9 @@ try {
 		if ($usePoints) { $fields .= ", points = ?"; $vals[] = $pointsVal; }
 		if ($useUpdated) { $fields .= ", updated_at = CURRENT_TIMESTAMP"; }
 		$vals[] = $existing['id'];
-		$stmt = $conn->prepare("UPDATE tbl_cbc_assessments SET $fields WHERE id = ?");
+		$stmt = $conn->prepare("UPDATE tbl_cbe_assessments SET $fields WHERE id = ?");
 		$stmt->execute($vals);
-		app_audit_log($conn, 'staff', (string)$account_id, 'cbc.update', 'cbc_assessment', (string)$existing['id']);
+		app_audit_log($conn, 'staff', (string)$account_id, 'cbe.update', 'cbe_assessment', (string)$existing['id']);
 	} else {
 		$cols = "student_id, class_id, term_id, learning_area, strand, level, teacher_id";
 		$placeholders = "?,?,?,?,?,?,?";
@@ -145,7 +145,7 @@ try {
 		if ($usePoints) { $cols .= ", points"; $placeholders .= ",?"; $vals[] = $pointsVal; }
 		if ($useUpdated) { $cols .= ", updated_at"; $placeholders .= ",CURRENT_TIMESTAMP"; }
 
-		$stmt = $conn->prepare("INSERT INTO tbl_cbc_assessments ($cols) VALUES ($placeholders)");
+		$stmt = $conn->prepare("INSERT INTO tbl_cbe_assessments ($cols) VALUES ($placeholders)");
 		$stmt->execute($vals);
 	}
 

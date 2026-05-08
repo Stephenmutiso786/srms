@@ -3,11 +3,9 @@ chdir('../../');
 session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
+require_once('const/rbac.php');
 
-if (!isset($res) || $res !== "1" || !isset($level) || $level !== "0") {
-	header("location:../../");
-	exit;
-}
+app_require_authentication([], ['students.manage']);
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 	header("location:../parents");
@@ -22,7 +20,7 @@ $password = (string)($_POST['password'] ?? '');
 $status = (int)($_POST['status'] ?? 1);
 
 if ($fname === '' || $lname === '' || $email === '' || $password === '') {
-	$_SESSION['reply'] = array(array("error", "All required fields must be filled."));
+	$_SESSION['reply'] = array(array("danger", "All required fields must be filled."));
 	header("location:../parents");
 	exit;
 }
@@ -32,7 +30,7 @@ try {
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
 	if (!app_table_exists($conn, 'tbl_parents')) {
-		$_SESSION['reply'] = array(array("error", "Parent tables are not installed."));
+		$_SESSION['reply'] = array(array("danger", "Parent tables are not installed."));
 		header("location:../parents");
 		exit;
 	}
@@ -40,7 +38,7 @@ try {
 	$stmt = $conn->prepare("SELECT id FROM tbl_parents WHERE email = ? LIMIT 1");
 	$stmt->execute([$email]);
 	if ($stmt->fetchColumn()) {
-		$_SESSION['reply'] = array(array("error", "Parent email already exists."));
+		$_SESSION['reply'] = array(array("danger", "Parent email already exists."));
 		header("location:../parents");
 		exit;
 	}
@@ -55,8 +53,7 @@ try {
 	header("location:../parents");
 	exit;
 } catch (PDOException $e) {
-	$_SESSION['reply'] = array(array("error", $e->getMessage()));
+	$_SESSION['reply'] = array(array("danger", $e->getMessage()));
 	header("location:../parents");
 	exit;
 }
-

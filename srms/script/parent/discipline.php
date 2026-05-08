@@ -55,7 +55,7 @@ try {
 <div class="app-title"><div><h1>Discipline Cases</h1><p>Live discipline feed for your child(ren).</p></div></div>
 <?php if ($error !== ''): ?><div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div><?php endif; ?>
 <div class="tile">
-<div class="small text-muted mb-2">Auto refresh every 5 seconds for live updates.</div>
+<div class="small text-muted mb-2">Latest updates appear after saving or reloading this page.</div>
 <div class="table-responsive">
 <table class="table table-hover table-striped">
 <thead><tr><th>Date</th><th>Student</th><th>Class</th><th>Type</th><th>Severity</th><th>Status</th><th>Description</th></tr></thead>
@@ -80,9 +80,6 @@ try {
 <script src="js/jquery-3.7.0.min.js"></script>
 <script src="js/bootstrap.min.js"></script>
 <script src="js/main.js"></script>
-<script>
-setInterval(function() { window.location.reload(); }, 5000);
-</script>
 <?php require_once('const/check-reply.php'); ?>
 </body>
 </html>

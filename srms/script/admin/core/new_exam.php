@@ -4,10 +4,10 @@ session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/rbac.php');
-
-if ($res != "1" || $level != "0") { header("location:../"); }
-app_require_permission('exams.manage', '../exams');
-app_require_unlocked('exams', '../exams');
+if ($res !== "1") { header("location:../../"); exit; }
+$portalHome = ((string)$level === '1') ? '../../academic' : '../exams';
+app_require_permission('exams.manage', $portalHome);
+app_require_unlocked('exams', $portalHome);
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 	header("location:../exams");
@@ -20,8 +20,15 @@ $subjectIds = $_POST['subject_ids'] ?? [];
 $componentExamIds = $_POST['component_exam_ids'] ?? [];
 $termId = (int)($_POST['term_id'] ?? 0);
 $gradingSystemId = (int)($_POST['grading_system_id'] ?? 0);
-$assessmentMode = strtoupper(trim((string)($_POST['assessment_mode'] ?? 'normal')));
-if (!in_array($assessmentMode, ['normal', 'cbc', 'KPSEA', 'KJSEA', 'consolidated'], true)) {
+$assessmentMode = trim((string)($_POST['assessment_mode'] ?? 'normal'));
+$assessmentModeLower = strtolower($assessmentMode);
+if ($assessmentModeLower === 'kpsea') {
+	$assessmentMode = 'KPSEA';
+} elseif ($assessmentModeLower === 'kjsea') {
+	$assessmentMode = 'KJSEA';
+} elseif (in_array($assessmentModeLower, ['normal', 'cbe', 'consolidated'], true)) {
+	$assessmentMode = $assessmentModeLower;
+} else {
 	$assessmentMode = 'normal';
 }
 $examTypeId = $_POST['exam_type_id'] ?? null;
@@ -42,9 +49,15 @@ try {
 	$createdBy = isset($account_id) ? (int)$account_id : null;
 
 	if ($gradingSystemId < 1 && app_table_exists($conn, 'tbl_grading_systems')) {
-		$stmt = $conn->prepare("SELECT id FROM tbl_grading_systems WHERE is_active = 1 ORDER BY is_default DESC, id ASC LIMIT 1");
-		$stmt->execute();
+		$preferredType = in_array($assessmentMode, ['cbe', 'KPSEA', 'KJSEA', 'consolidated'], true) ? 'cbe' : 'marks';
+		$stmt = $conn->prepare("SELECT id FROM tbl_grading_systems WHERE is_active = 1 AND type = ? ORDER BY is_default DESC, id ASC LIMIT 1");
+		$stmt->execute([$preferredType]);
 		$gradingSystemId = (int)$stmt->fetchColumn();
+		if ($gradingSystemId < 1) {
+			$stmt = $conn->prepare("SELECT id FROM tbl_grading_systems WHERE is_active = 1 ORDER BY is_default DESC, id ASC LIMIT 1");
+			$stmt->execute();
+			$gradingSystemId = (int)$stmt->fetchColumn();
+		}
 	}
 
 	if ($name === '' || empty($classIds) || $termId < 1 || $gradingSystemId < 1) {
@@ -119,10 +132,37 @@ try {
 			continue;
 		}
 
+		$className = '';
+		$classStmt = $conn->prepare("SELECT name FROM tbl_classes WHERE id = ? LIMIT 1");
+		$classStmt->execute([$classId]);
+		$className = (string)($classStmt->fetchColumn() ?? '');
+
+		$effectiveAssessmentMode = $assessmentMode;
+
+		$classGradingSystemId = (int)(app_class_grading_system_id($conn, $classId) ?? 0);
+		$effectiveGradingSystemId = $classGradingSystemId > 0 ? $classGradingSystemId : $gradingSystemId;
+		if ($classGradingSystemId < 1 && $assessmentMode === 'KJSEA' && app_table_exists($conn, 'tbl_grading_systems')) {
+			$systemStmt = $conn->prepare("SELECT id FROM tbl_grading_systems WHERE is_active = 1 AND name = ? LIMIT 1");
+			$systemStmt->execute(['CBE KJSEA System']);
+			$kjseaSystemId = (int)$systemStmt->fetchColumn();
+			if ($kjseaSystemId > 0) {
+				$effectiveGradingSystemId = $kjseaSystemId;
+			}
+		}
+		$recommendedGradingSystemId = app_class_recommended_grading_system_id($conn, $className);
+		if ($classGradingSystemId < 1 && $recommendedGradingSystemId && app_class_recommended_exam_mode($className) === 'cbe') {
+			$selectedTypeStmt = $conn->prepare("SELECT type FROM tbl_grading_systems WHERE id = ? LIMIT 1");
+			$selectedTypeStmt->execute([$effectiveGradingSystemId]);
+			$selectedType = strtolower(trim((string)($selectedTypeStmt->fetchColumn() ?? '')));
+			if (($effectiveGradingSystemId < 1 || $selectedType === '' || $selectedType === 'marks')) {
+				$effectiveGradingSystemId = $recommendedGradingSystemId;
+			}
+		}
+
 		$validSubjects = $subjectIds;
 		$validComponentExamIds = [];
 
-		if ($assessmentMode === 'consolidated') {
+		if ($effectiveAssessmentMode === 'consolidated') {
 			$componentSubjects = [];
 			if (empty($componentExamIds)) {
 				throw new RuntimeException("Choose at least two component exams for consolidated mode.");
@@ -133,7 +173,7 @@ try {
 			$stmt = $conn->prepare("SELECT id FROM tbl_exams
 				WHERE class_id = ? AND term_id = ? AND id IN ($placeholders)
 				AND id <> 0
-				AND COALESCE(assessment_mode, 'normal') <> 'cbc'
+				AND COALESCE(assessment_mode, 'normal') <> 'cbe'
 				AND COALESCE(assessment_mode, 'normal') <> 'consolidated'
 				AND COALESCE(status, 'draft') = 'published'");
 			$stmt->execute($params);
@@ -179,17 +219,17 @@ try {
 		}
 		if (DBDriver === 'pgsql') {
 			$stmt = $conn->prepare("INSERT INTO tbl_exams (name, term_id, class_id, exam_type_id, grading_system_id, assessment_mode, status, created_by) VALUES (?,?,?,?,?,?,?,?) RETURNING id");
-			$stmt->execute([$name, $termId, $classId, $examTypeId, $gradingSystemId, $assessmentMode, 'active', $createdBy]);
+			$stmt->execute([$name, $termId, $classId, $examTypeId, $effectiveGradingSystemId, $effectiveAssessmentMode, 'active', $createdBy]);
 			$examId = (int)$stmt->fetchColumn();
 		} else {
 			$stmt = $conn->prepare("INSERT INTO tbl_exams (name, term_id, class_id, exam_type_id, grading_system_id, assessment_mode, status, created_by) VALUES (?,?,?,?,?,?,?,?)");
-			$stmt->execute([$name, $termId, $classId, $examTypeId, $gradingSystemId, $assessmentMode, 'active', $createdBy]);
+			$stmt->execute([$name, $termId, $classId, $examTypeId, $effectiveGradingSystemId, $effectiveAssessmentMode, 'active', $createdBy]);
 			$examId = (int)$conn->lastInsertId();
 		}
 		foreach ($validSubjects as $subjectId) {
 			$subjectStmt->execute([$examId, $subjectId]);
 		}
-		if ($assessmentMode === 'consolidated') {
+		if ($effectiveAssessmentMode === 'consolidated') {
 			foreach ($validComponentExamIds as $componentExamId) {
 				$componentStmt->execute([$examId, $componentExamId]);
 			}

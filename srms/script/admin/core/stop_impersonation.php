@@ -58,8 +58,8 @@ try {
 	$stmt->execute([$adminSessionKey, $adminId]);
 	$restoredKey = (string)$stmt->fetchColumn();
 	if ($restoredKey === '') {
-		$restoredKey = mb_strtoupper(GRS(20));
-		$ip = (string)($_SERVER['REMOTE_ADDR'] ?? '');
+		$restoredKey = function_exists('mb_strtoupper') ? mb_strtoupper(GRS(20)) : strtoupper(GRS(20));
+		$ip = app_request_client_ip();
 		$stmt = $conn->prepare("INSERT INTO tbl_login_sessions (session_key, staff, ip_address) VALUES (?,?,?)");
 		$stmt->execute([$restoredKey, $adminId, $ip]);
 	}

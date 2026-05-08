@@ -30,6 +30,13 @@ function accountant_sidebar_group_label(string $moduleKey): string
 		'receive_payment' => 'Finance',
 		'fee_structure' => 'Finance',
 		'invoices' => 'Finance',
+		'expenses' => 'Finance',
+		'cashbook' => 'Finance',
+		'payroll' => 'Finance',
+		'financial_reports' => 'Reports',
+		'budgets' => 'Planning',
+		'bursaries' => 'Support',
+		'mpesa' => 'Finance',
 		'ledger' => 'Finance',
 		'profile' => 'Account',
 	];

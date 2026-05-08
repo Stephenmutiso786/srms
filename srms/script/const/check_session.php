@@ -5,6 +5,39 @@
 $res = "0";
 require_once('const/rbac.php');
 
+if (!function_exists('app_set_auth_error')) {
+	function app_set_auth_error(int $status, string $title, string $message, array $details = []): void
+	{
+		$GLOBALS['app_auth_error'] = [
+			'status' => $status,
+			'title' => trim($title) !== '' ? trim($title) : 'Access error',
+			'message' => trim($message) !== '' ? trim($message) : 'An access error occurred.',
+			'details' => $details,
+		];
+	}
+}
+
+if (!function_exists('app_get_auth_error')) {
+	function app_get_auth_error(): array
+	{
+		$error = $GLOBALS['app_auth_error'] ?? null;
+		if (is_array($error) && isset($error['status'], $error['title'], $error['message'])) {
+			return $error;
+		}
+
+		return [
+			'status' => 401,
+			'title' => 'Login required',
+			'message' => 'No active session was found for this request.',
+			'details' => [],
+		];
+	}
+}
+
+app_set_auth_error(401, 'Login required', 'No active session was found for this request.', [
+	'request_uri' => (string)($_SERVER['REQUEST_URI'] ?? ''),
+]);
+
 /**
  * Handle impersonation session setup for the current request.
  * This function consolidates the duplicate impersonation logic used for staff, students, and parents.
@@ -112,6 +145,9 @@ function app_apply_module_level_bridge(PDO $conn, string $staffId, string $curre
 	}
 
 	$expected = (string)$rules[$module]['expected_level'];
+	if ($module === 'teacher' && app_staff_has_active_teaching_assignment($conn, (int)$staffId)) {
+		return $expected;
+	}
 	if ($currentLevel === $expected || $currentLevel === '0' || $currentLevel === '9') {
 		return $currentLevel;
 	}
@@ -130,11 +166,16 @@ function app_apply_module_level_bridge(PDO $conn, string $staffId, string $curre
 }
 
 if (!isset($_COOKIE["__SRMS__logged"]) || !isset($_COOKIE["__SRMS__key"])) {
+	app_set_auth_error(401, 'Login required', 'The session cookies are missing, so this request is not authenticated.', [
+		'request_uri' => (string)($_SERVER['REQUEST_URI'] ?? ''),
+		'cookie_logged_present' => isset($_COOKIE["__SRMS__logged"]) ? 'yes' : 'no',
+		'cookie_key_present' => isset($_COOKIE["__SRMS__key"]) ? 'yes' : 'no',
+	]);
 	return;
 }
 
 $session_key = (string)$_COOKIE["__SRMS__key"];
-$current_ip = $_SERVER['REMOTE_ADDR'] ?? '';
+$current_ip = app_request_client_ip();
 $level = (string)$_COOKIE["__SRMS__logged"];
 $levelInt = (int)$level;
 
@@ -163,17 +204,34 @@ try {
 
 		if (!$row) {
 			$res = "0";
+			app_set_auth_error(401, 'Session expired', 'The staff session key was not found in tbl_login_sessions. The session may have expired or been deleted.', [
+				'request_uri' => (string)($_SERVER['REQUEST_URI'] ?? ''),
+				'session_key' => $session_key,
+				'account_type' => 'staff',
+			]);
 			return;
 		}
 
-		if (app_session_enforce_ip() && ($row['ip_address'] ?? '') !== $current_ip) {
+		if (app_session_enforce_ip() && !app_session_ip_matches((string)($row['ip_address'] ?? ''), (string)$current_ip)) {
 			$res = "3";
+			app_set_auth_error(401, 'Session IP mismatch', 'This session is bound to a different IP address than the current request.', [
+				'request_uri' => (string)($_SERVER['REQUEST_URI'] ?? ''),
+				'stored_ip' => (string)($row['ip_address'] ?? ''),
+				'current_ip' => (string)$current_ip,
+				'account_type' => 'staff',
+			]);
 			return;
 		}
 
 		$status = (string)($row['status'] ?? '0');
 		if ($status !== "1") {
 			$res = "2";
+			app_set_auth_error(403, 'Account disabled', 'The staff account tied to this session is inactive.', [
+				'request_uri' => (string)($_SERVER['REQUEST_URI'] ?? ''),
+				'account_id' => (string)($row['id'] ?? ''),
+				'account_type' => 'staff',
+				'status' => $status,
+			]);
 			return;
 		}
 
@@ -184,9 +242,10 @@ try {
 		$email = (string)$row['email'];
 		$login = (string)$row['password'];
 		$level = (string)$row['level'];
+		$isSuperAdminController = app_is_super_admin_controller($conn, (string)$row['id'], (string)$level);
 		$level = app_apply_module_level_bridge($conn, (string)$row['id'], $level);
 		$designation = app_staff_primary_title($conn, (int)$row['id'], $level);
-		if ($level === "9") {
+		if ($isSuperAdminController || $level === "9") {
 			$super_admin = true;
 			$level = "0";
 		}
@@ -197,6 +256,7 @@ try {
 		app_online_touch($conn, $session_key);
 		$portal = app_staff_login_portal($conn, (int)$account_id, (string)$level);
 		app_enforce_portal_route_permission($conn, $portal, (string)$account_id, (string)$level, '../');
+		app_set_auth_error(200, 'Authenticated', 'The session was validated successfully.', []);
 		$res = "1";
 		return;
 	}
@@ -212,17 +272,34 @@ try {
 
 		if (!$row) {
 			$res = "0";
+			app_set_auth_error(401, 'Session expired', 'The student session key was not found in tbl_login_sessions. The session may have expired or been deleted.', [
+				'request_uri' => (string)($_SERVER['REQUEST_URI'] ?? ''),
+				'session_key' => $session_key,
+				'account_type' => 'student',
+			]);
 			return;
 		}
 
-		if (app_session_enforce_ip() && ($row['ip_address'] ?? '') !== $current_ip) {
+		if (app_session_enforce_ip() && !app_session_ip_matches((string)($row['ip_address'] ?? ''), (string)$current_ip)) {
 			$res = "3";
+			app_set_auth_error(401, 'Session IP mismatch', 'This student session is bound to a different IP address than the current request.', [
+				'request_uri' => (string)($_SERVER['REQUEST_URI'] ?? ''),
+				'stored_ip' => (string)($row['ip_address'] ?? ''),
+				'current_ip' => (string)$current_ip,
+				'account_type' => 'student',
+			]);
 			return;
 		}
 
 		$status = (string)($row['status'] ?? '0');
 		if ($status !== "1") {
 			$res = "2";
+			app_set_auth_error(403, 'Account disabled', 'The student account tied to this session is inactive.', [
+				'request_uri' => (string)($_SERVER['REQUEST_URI'] ?? ''),
+				'account_id' => (string)($row['id'] ?? ''),
+				'account_type' => 'student',
+				'status' => $status,
+			]);
 			return;
 		}
 
@@ -247,6 +324,7 @@ try {
 
 		app_online_touch($conn, $session_key);
 		app_enforce_portal_route_permission($conn, 'student', (string)$account_id, (string)$level, '../');
+		app_set_auth_error(200, 'Authenticated', 'The session was validated successfully.', []);
 		$res = "1";
 		return;
 	}
@@ -263,17 +341,34 @@ try {
 
 		if (!$row) {
 			$res = "0";
+			app_set_auth_error(401, 'Session expired', 'The parent session key was not found in tbl_login_sessions. The session may have expired or been deleted.', [
+				'request_uri' => (string)($_SERVER['REQUEST_URI'] ?? ''),
+				'session_key' => $session_key,
+				'account_type' => 'parent',
+			]);
 			return;
 		}
 
-		if (app_session_enforce_ip() && ($row['ip_address'] ?? '') !== $current_ip) {
+		if (app_session_enforce_ip() && !app_session_ip_matches((string)($row['ip_address'] ?? ''), (string)$current_ip)) {
 			$res = "3";
+			app_set_auth_error(401, 'Session IP mismatch', 'This parent session is bound to a different IP address than the current request.', [
+				'request_uri' => (string)($_SERVER['REQUEST_URI'] ?? ''),
+				'stored_ip' => (string)($row['ip_address'] ?? ''),
+				'current_ip' => (string)$current_ip,
+				'account_type' => 'parent',
+			]);
 			return;
 		}
 
 		$status = (string)($row['status'] ?? '0');
 		if ($status !== "1") {
 			$res = "2";
+			app_set_auth_error(403, 'Account disabled', 'The parent account tied to this session is inactive.', [
+				'request_uri' => (string)($_SERVER['REQUEST_URI'] ?? ''),
+				'account_id' => (string)($row['id'] ?? ''),
+				'account_type' => 'parent',
+				'status' => $status,
+			]);
 			return;
 		}
 
@@ -291,9 +386,13 @@ try {
 
 		app_online_touch($conn, $session_key);
 		app_enforce_portal_route_permission($conn, 'parent', (string)$account_id, (string)$level, '../');
+		app_set_auth_error(200, 'Authenticated', 'The session was validated successfully.', []);
 		$res = "1";
 		return;
 	}
 } catch (PDOException $e) {
-	// Keep $res=0 (treat as not logged in).
+	app_set_auth_error(500, 'Session validation failed', 'A database error occurred while validating this session: ' . $e->getMessage(), [
+		'request_uri' => (string)($_SERVER['REQUEST_URI'] ?? ''),
+		'db_driver' => defined('DBDriver') ? (string)DBDriver : '',
+	]);
 }

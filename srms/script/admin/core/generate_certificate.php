@@ -5,6 +5,7 @@ require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/rbac.php');
 require_once('const/certificate_engine.php');
+require_once('const/report_engine.php');
 
 if ($res !== '1' || !in_array((int)$level, [0, 1])) { header('location:../../'); exit; }
 app_require_permission('report.generate', '../certificates');
@@ -91,10 +92,14 @@ try {
         }
     }
     
-    // Determine merit grade from mean score.
+    // Determine certificate/report grade from the student's latest report card first.
     $meritGrade = null;
-    if ($meanScore !== null) {
-        $meritGrade = app_merit_grade_from_score($meanScore);
+    $latestReportGrade = app_latest_report_grade($conn, $studentId, (int)($student['class'] ?? 0));
+    if ($latestReportGrade !== '') {
+        $meritGrade = $latestReportGrade;
+    } elseif ($meanScore !== null) {
+        $gradingSystemId = app_class_grading_system_id($conn, (int)($student['class'] ?? 0));
+        list($meritGrade) = report_grade_for_score($conn, $meanScore, $gradingSystemId);
     }
 
     $stmt = $conn->prepare('INSERT INTO tbl_certificates (student_id, class_id, certificate_type, certificate_category, title, serial_no, issue_date, status, notes, verification_code, cert_hash, issued_by, mean_score, merit_grade, competencies_json)
