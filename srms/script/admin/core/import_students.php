@@ -26,15 +26,26 @@ if ($st_rec == 0) {
 }else{
 
 
-$reg_no = $r[0];
-$fname = ucfirst($r[1]);
-$mname = ucfirst($r[2]);
-$lname = ucfirst($r[3]);
-$email = $r[5];
-$gender = $r[4];
+$cells = array_pad($r, 7, '');
+$importRow = [
+	'reg_no' => trim((string)$cells[0]),
+	'fname' => ucfirst(trim((string)$cells[1])),
+	'mname' => ucfirst(trim((string)$cells[2])),
+	'lname' => ucfirst(trim((string)$cells[3])),
+	'gender' => trim((string)$cells[4]),
+	'email' => trim((string)$cells[5]),
+	'password' => trim((string)$cells[6]),
+];
+
+$reg_no = $importRow['reg_no'];
+$fname = $importRow['fname'];
+$mname = $importRow['mname'];
+$lname = $importRow['lname'];
+$email = $importRow['email'];
+$gender = $importRow['gender'];
 $class = $_POST['class'];
 $role = '3';
-$plainPassword = trim((string)($r[6] ?? ''));
+$plainPassword = $importRow['password'];
 if ($plainPassword === '') {
 	$plainPassword = '12345678';
 }
@@ -47,9 +58,9 @@ $stmt = $isPgsql
 ? $conn->prepare("SELECT id::text AS id, email FROM tbl_staff WHERE email = ? OR id::text = ? UNION SELECT id::text AS id, email FROM tbl_students WHERE email = ? OR id::text = ?")
 : $conn->prepare("SELECT id, email FROM tbl_staff WHERE email = ? OR id = ? UNION SELECT id, email FROM tbl_students WHERE email = ? OR id = ?");
 $stmt->execute([$email, $reg_no, $email, $reg_no]);
-$result = $stmt->fetchAll();
+$result = $stmt->fetchColumn();
 
-if (count($result) > 0) {
+if ($result) {
 
 }else{
 

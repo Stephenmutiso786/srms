@@ -62,16 +62,16 @@ try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-$stmt = $conn->prepare("SELECT * FROM tbl_subject_combinations
-  LEFT JOIN tbl_subjects ON tbl_subject_combinations.subject = tbl_subjects.id
-  LEFT JOIN tbl_staff ON tbl_subject_combinations.teacher = tbl_staff.id WHERE tbl_subject_combinations.teacher = ?");
+$stmt = $conn->prepare("SELECT tbl_subject_combinations.class AS class_list
+  FROM tbl_subject_combinations
+  WHERE tbl_subject_combinations.teacher = ?");
 $stmt->execute([$account_id]);
-$result = $stmt->fetchAll();
+$result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 $myclasses = array();
 
 foreach ($result as $value) {
-$class_arr = app_unserialize($value[1]);
+$class_arr = app_unserialize((string)($value['class_list'] ?? ''));
 
 foreach ($class_arr as $value) {
 array_push($myclasses, $value);
@@ -83,14 +83,14 @@ array_push($myclasses, $value);
 $matches = str_split(str_repeat("?", count($myclasses)));
 $matches = implode(",", $matches);
 
-$stmt = $conn->prepare("SELECT * FROM tbl_classes WHERE id IN ($matches)");
+$stmt = $conn->prepare("SELECT id, name FROM tbl_classes WHERE id IN ($matches) ORDER BY name");
 $stmt->execute($myclasses);
-$result = $stmt->fetchAll();
+$result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 foreach($result as $row)
 {
 ?>
-<option value="<?php echo $row[0]; ?>"><?php echo $row[1]; ?> </option>
+<option value="<?php echo (int)$row['id']; ?>"><?php echo htmlspecialchars((string)$row['name']); ?> </option>
 <?php
 }
 

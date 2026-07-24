@@ -24,6 +24,9 @@ $examName = '';
 $locked = false;
 $summary = ['students' => 0, 'avg' => 0, 'best' => 0, 'worst' => 0];
 $termExamMap = [];
+$reviewSummary = null;
+$editableExam = false;
+$selectedExamStatus = '';
 
 try {
 	$conn = app_db();
@@ -48,7 +51,22 @@ try {
 			if ($termKey < 1) {
 				continue;
 			}
-			$termExamMap[$classKey][$termKey] = report_term_exam_options($conn, $classKey, $termKey);
+			$termExamMap[$classKey][$termKey] = [];
+			if (app_table_exists($conn, 'tbl_exams')) {
+				$hasCreatedAt = app_column_exists($conn, 'tbl_exams', 'created_at');
+				$stmt = $conn->prepare("SELECT id, name, COALESCE(status, 'draft') AS status
+					FROM tbl_exams
+					WHERE class_id = ? AND term_id = ?
+					ORDER BY " . ($hasCreatedAt ? "created_at DESC, " : "") . "id DESC");
+				$stmt->execute([$classKey, $termKey]);
+				foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $examRow) {
+					$termExamMap[$classKey][$termKey][] = [
+						'id' => (int)($examRow['id'] ?? 0),
+						'name' => (string)($examRow['name'] ?? ''),
+						'status' => strtolower(trim((string)($examRow['status'] ?? 'draft'))),
+					];
+				}
+			}
 		}
 	}
 
@@ -63,9 +81,11 @@ try {
 		$termName = (string)$stmt->fetchColumn();
 	}
 	if ($examId > 0) {
-		$stmt = $conn->prepare("SELECT name FROM tbl_exams WHERE id = ? LIMIT 1");
+		$stmt = $conn->prepare("SELECT name, COALESCE(status, 'draft') AS status FROM tbl_exams WHERE id = ? LIMIT 1");
 		$stmt->execute([$examId]);
-		$examName = (string)$stmt->fetchColumn();
+		$examMeta = $stmt->fetch(PDO::FETCH_ASSOC);
+		$examName = (string)($examMeta['name'] ?? '');
+		$selectedExamStatus = strtolower(trim((string)($examMeta['status'] ?? 'draft')));
 	}
 
 	if ($classId > 0 && $termId > 0) {
@@ -82,6 +102,10 @@ try {
 				$sum += (float)($row['mean_points'] ?? 0);
 			}
 			$summary['avg'] = round($sum / max(1, count($rows)), 2);
+		}
+		if ($examId > 0) {
+			$reviewSummary = report_exam_marks_review_summary($conn, $classId, $termId, $examId);
+			$editableExam = true;
 		}
 	}
 } catch (Throwable $e) {
@@ -197,7 +221,7 @@ try {
 <div>
 <label class="form-label">Exam</label>
 <select class="form-control select2" name="exam_id" id="meritExamSelect" style="width: 100%;">
-<option value="">All Published Exams / Term</option>
+<option value="">Select exam for draft review</option>
 </select>
 </div>
 <div>
@@ -209,6 +233,57 @@ try {
 
 <?php if ($classId > 0 && $termId > 0 && !$locked): ?>
 <div class="alert alert-warning">Results are not locked yet. The merit list is shown for review, but you should lock results before printing or sharing it.</div>
+<?php endif; ?>
+
+<?php if ($classId > 0 && $termId > 0 && $examId < 1): ?>
+<div class="alert alert-info">Select a specific exam to review draft merit and marks completeness before finalizing or publishing.</div>
+<?php endif; ?>
+
+<?php if (is_array($reviewSummary) && $examId > 0): ?>
+<div class="merit-card mb-3">
+  <div class="tile-body">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+      <div>
+        <h3 class="tile-title mb-1">Draft Review Summary</h3>
+        <p class="text-muted mb-0"><?php echo htmlspecialchars((string)($reviewSummary['exam_name'] ?? $examName)); ?> · status <?php echo htmlspecialchars(strtoupper((string)($reviewSummary['exam_status'] ?? 'draft'))); ?></p>
+      </div>
+      <span class="badge <?php echo !empty($reviewSummary['ready_for_finalize']) ? 'bg-success' : 'bg-warning text-dark'; ?>">
+        <?php echo !empty($reviewSummary['ready_for_finalize']) ? 'Ready for Finalize' : 'Missing Marks Found'; ?>
+      </span>
+    </div>
+    <div class="row g-3 mb-3">
+      <div class="col-md-3"><div class="merit-stat mb-0"><div class="label">Class Learners</div><div class="value"><?php echo (int)($reviewSummary['total_students'] ?? 0); ?></div></div></div>
+      <div class="col-md-3"><div class="merit-stat mb-0"><div class="label">Exam Subjects</div><div class="value"><?php echo (int)($reviewSummary['total_subjects'] ?? 0); ?></div></div></div>
+      <div class="col-md-3"><div class="merit-stat mb-0"><div class="label">Complete Subjects</div><div class="value"><?php echo (int)($reviewSummary['complete_subjects'] ?? 0); ?></div></div></div>
+      <div class="col-md-3"><div class="merit-stat mb-0"><div class="label">Missing Marks</div><div class="value"><?php echo (int)($reviewSummary['total_missing_marks'] ?? 0); ?></div></div></div>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-sm table-hover mb-0">
+        <thead>
+          <tr>
+            <th>Subject</th>
+            <th>Marked</th>
+            <th>Missing</th>
+            <th>Sheet Status</th>
+            <th>Review</th>
+          </tr>
+        </thead>
+        <tbody>
+        <?php foreach ((array)($reviewSummary['subjects'] ?? []) as $subjectReview): ?>
+          <tr>
+            <td><?php echo htmlspecialchars((string)($subjectReview['subject_name'] ?? '')); ?></td>
+            <td><?php echo (int)($subjectReview['marked_students'] ?? 0); ?>/<?php echo (int)($reviewSummary['total_students'] ?? 0); ?></td>
+            <td><?php echo (int)($subjectReview['missing_marks'] ?? 0); ?></td>
+            <td><span class="badge bg-<?php echo htmlspecialchars(app_exam_status_badge((string)($subjectReview['submission_status'] ?? 'draft'))); ?>"><?php echo htmlspecialchars(ucfirst((string)($subjectReview['submission_status'] ?? 'draft'))); ?></span></td>
+            <td><?php echo !empty($subjectReview['is_complete']) ? '<span class="text-success">Complete</span>' : '<span class="text-danger">Missing marks</span>'; ?></td>
+          </tr>
+        <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+    <div class="alert alert-info"><?php echo $selectedExamStatus === 'published' ? 'This exam is published. You can review it here, but marks cannot be changed from the merit list anymore.' : 'Review marks here first. To correct a score, use the targeted edit action for a specific learner instead of opening all marks at once.'; ?></div>
+  </div>
+</div>
 <?php endif; ?>
 
 <div class="merit-card">
@@ -229,12 +304,13 @@ try {
           <th>Grade</th>
           <th>Trend</th>
           <th>Remark</th>
+          <th>Action</th>
           <th>Verification</th>
         </tr>
       </thead>
       <tbody>
       <?php if (!$rows) { ?>
-        <tr><td colspan="<?php echo 9 + count($subjects); ?>" class="text-muted">Select a class and term to show class results.</td></tr>
+        <tr><td colspan="<?php echo 10 + count($subjects); ?>" class="text-muted">Select a class and term to show class results.</td></tr>
       <?php } ?>
       <?php foreach ($rows as $row): ?>
         <tr>
@@ -243,14 +319,24 @@ try {
           <td class="sticky-col sticky-3"><?php echo htmlspecialchars((string)$row['student_name']); ?></td>
           <td class="sticky-col sticky-4"><?php echo htmlspecialchars((string)($row['gender'] ?? '')); ?></td>
           <?php foreach ($subjects as $subject): ?>
-          <?php $subjectId = (int)($subject['subject'] ?? 0); $subjectScore = $row['subject_scores'][$subjectId] ?? null; ?>
-          <td><?php echo $subjectScore === null ? '-' : htmlspecialchars(number_format((float)$subjectScore, ((float)$subjectScore === floor((float)$subjectScore)) ? 0 : 1)); ?></td>
+          <?php
+            $subjectId = (int)($subject['subject'] ?? 0);
+            $subjectScore = $row['subject_scores'][$subjectId] ?? null;
+          ?>
+          <td>
+            <?php echo $subjectScore === null ? '-' : htmlspecialchars(number_format((float)$subjectScore, ((float)$subjectScore === floor((float)$subjectScore)) ? 0 : 1)); ?>
+          </td>
           <?php endforeach; ?>
           <td><?php echo number_format((float)($row['total_points'] ?? 0), 1); ?></td>
           <td><?php echo number_format((float)($row['mean_points'] ?? 0), 2); ?></td>
           <td><span class="badge bg-primary"><?php echo htmlspecialchars((string)$row['grade']); ?></span></td>
           <td><?php echo htmlspecialchars((string)$row['trend']); ?></td>
           <td><?php echo htmlspecialchars((string)($row['remark'] ?? '')); ?></td>
+          <td>
+            <a class="btn btn-sm btn-outline-primary <?php echo $selectedExamStatus === 'published' ? 'disabled' : ''; ?>" href="<?php echo $selectedExamStatus === 'published' ? 'javascript:void(0);' : 'admin/core/edit_result?std=' . urlencode((string)$row['student_id']) . '&term=' . (int)$termId . '&exam=' . (int)$examId; ?>" <?php echo $selectedExamStatus === 'published' ? 'aria-disabled=\"true\"' : ''; ?>>
+              Edit Student
+            </a>
+          </td>
           <td class="text-muted small"><?php echo htmlspecialchars((string)$row['verification_code']); ?></td>
         </tr>
       <?php endforeach; ?>
@@ -274,10 +360,11 @@ function loadMeritExams() {
   const select = document.getElementById('meritExamSelect');
   if (!select) return;
   const exams = (((meritExamMap[classId] || {})[termId]) || []);
-  let html = '<option value="">All Published Exams / Term</option>';
+  let html = '<option value="">Select exam for draft review</option>';
   exams.forEach((exam) => {
     const selected = Number(exam.id) === Number(meritSelectedExamId) ? ' selected' : '';
-    html += `<option value="${exam.id}"${selected}>${String(exam.name || 'Exam')}</option>`;
+    const status = String(exam.status || 'draft').toUpperCase();
+    html += `<option value="${exam.id}"${selected}>${String(exam.name || 'Exam')} [${status}]</option>`;
   });
   select.innerHTML = html;
   if (window.jQuery && jQuery.fn.select2) {

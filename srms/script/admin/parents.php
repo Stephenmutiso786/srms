@@ -106,7 +106,8 @@ try {
 	</div>
 	<div class="col-md-3">
 	  <label class="form-label">Phone</label>
-	  <input class="form-control" name="phone" placeholder="+2547...">
+	  <input class="form-control" name="phone" placeholder="0712345678 or 254712345678">
+	  <small class="form-text text-muted">Use a Kenyan WhatsApp number like <code>0712345678</code> or <code>254712345678</code>. The system saves it as <code>2547XXXXXXXX</code>.</small>
 	</div>
 	<div class="col-md-3">
 	  <label class="form-label">Email</label>
@@ -125,6 +126,34 @@ try {
 	</div>
 	<div class="col-md-6 d-grid align-items-end">
 	  <button class="btn btn-primary" type="submit"><i class="bi bi-plus-lg me-1"></i>Create Parent</button>
+	</div>
+  </form>
+</div>
+
+<div class="tile mb-3">
+  <h3 class="tile-title">Bulk Parent Entry</h3>
+  <p class="text-muted">Paste one parent per line using: <code>student_id, first_name, last_name, phone, email, password</code></p>
+  <p class="text-muted">Kenyan numbers like <code>0712345678</code> are converted automatically to <code>254712345678</code>.</p>
+  <form method="POST" action="admin/core/bulk_create_parents" autocomplete="off">
+	<div class="mb-3">
+	  <label class="form-label">Rows</label>
+	  <textarea class="form-control" name="rows" rows="8" placeholder="RG018, Jane, Doe, 0712345678, jane@example.com, Parent@123&#10;RG019, John, Doe, 0722000111, john@example.com, Parent@123" required></textarea>
+	</div>
+	<div class="row g-3">
+	  <div class="col-md-4">
+		<label class="form-label">Default Password (optional)</label>
+		<input class="form-control" name="default_password" placeholder="Used if a row has no password column">
+	  </div>
+	  <div class="col-md-2">
+		<label class="form-label">Status</label>
+		<select class="form-control" name="status">
+		  <option value="1" selected>Active</option>
+		  <option value="0">Blocked</option>
+		</select>
+	  </div>
+	  <div class="col-md-6 d-grid align-items-end">
+		<button class="btn btn-success" type="submit"><i class="bi bi-upload me-1"></i>Create And Link Parents</button>
+	  </div>
 	</div>
   </form>
 </div>
@@ -176,7 +205,10 @@ try {
 			</div>
 		  </td>
 		  <td><input class="form-control form-control-sm" form="<?php echo $updateFormId; ?>" name="email" type="email" value="<?php echo htmlspecialchars((string)$p['email']); ?>" required></td>
-		  <td><input class="form-control form-control-sm" form="<?php echo $updateFormId; ?>" name="phone" value="<?php echo htmlspecialchars((string)($p['phone'] ?? '')); ?>" placeholder="+2547..."></td>
+		  <td>
+			<input class="form-control form-control-sm" form="<?php echo $updateFormId; ?>" name="phone" value="<?php echo htmlspecialchars((string)($p['phone'] ?? '')); ?>" placeholder="0712345678 or 254712345678">
+			<small class="text-muted d-block mt-1">Kenya format only. Local numbers are auto-converted to <code>2547XXXXXXXX</code>.</small>
+		  </td>
 		  <td>
 				<select class="form-control form-control-sm" form="<?php echo $updateFormId; ?>" name="status">
 				  <option value="1" <?php echo ((int)$p['status'] === 1) ? 'selected' : ''; ?>>Active</option>

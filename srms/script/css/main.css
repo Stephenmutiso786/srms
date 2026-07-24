@@ -194,6 +194,66 @@ body.visibility-hidden * {
   --bs-form-invalid-border-color: #ea868f;
 }
 
+:root[data-ui-scale=large] {
+  --bs-body-font-size: 0.95rem;
+}
+
+:root[data-ui-scale=xlarge] {
+  --bs-body-font-size: 1rem;
+}
+
+:root[data-ui-motion=reduced] *,
+:root[data-ui-motion=reduced] *::before,
+:root[data-ui-motion=reduced] *::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
+
+[data-bs-theme=dark] body {
+  background-color: #111827;
+  color: #e5e7eb;
+}
+
+[data-bs-theme=dark] .tile,
+[data-bs-theme=dark] .card,
+[data-bs-theme=dark] .stat-card,
+[data-bs-theme=dark] .panel,
+[data-bs-theme=dark] .analytics-panel,
+[data-bs-theme=dark] .profile-card,
+[data-bs-theme=dark] .note-item,
+[data-bs-theme=dark] .module-launch-tile,
+[data-bs-theme=dark] #appDashboardIntelligence {
+  background: #17212b !important;
+  color: #e5e7eb !important;
+  border-color: #334155 !important;
+  box-shadow: 0 12px 24px rgba(2, 8, 23, 0.35) !important;
+}
+
+[data-bs-theme=dark] .small,
+[data-bs-theme=dark] .text-muted,
+[data-bs-theme=dark] .stat-label,
+[data-bs-theme=dark] .module-launch-desc {
+  color: #9fb0c2 !important;
+}
+
+[data-bs-theme=dark] .app-header,
+[data-bs-theme=dark] .app-sidebar {
+  background: #0f2b2a !important;
+}
+
+[data-bs-theme=dark] .app-header__logo {
+  background-color: #0d3d38 !important;
+}
+
+[data-bs-theme=dark] .app-nav__item,
+[data-bs-theme=dark] .app-sidebar__user-name,
+[data-bs-theme=dark] .app-sidebar__user-designation,
+[data-bs-theme=dark] .app-menu__item,
+[data-bs-theme=dark] .app-menu__label {
+  color: #e5f3ef !important;
+}
+
 *,
 *::before,
 *::after {
@@ -13635,21 +13695,35 @@ body.has-top-banner .app-content {
   -webkit-box-flex: 1;
       -ms-flex: 1 0 auto;
           flex: 1 0 auto;
+  display: -webkit-box;
+  display: -ms-flexbox;
+  display: flex;
+  -webkit-box-align: center;
+      -ms-flex-align: center;
+          align-items: center;
+  -webkit-box-pack: center;
+      -ms-flex-pack: center;
+          justify-content: center;
   color: #fff;
   text-align: center;
   font-family: 'Karla', sans-serif;
   padding: 0 15px;
-  font-size: 26px;
-  font-weight: 400;
-  line-height: 50px;
+  height: 50px;
+  min-height: 50px;
+  max-height: 50px;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.1;
   text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 @media (min-width: 768px) {
   .app-header__logo {
     -webkit-box-flex: 0;
         -ms-flex: 0 0 auto;
             flex: 0 0 auto;
-    display: block;
     width: 230px;
     background-color: #005046;
   }
@@ -13657,6 +13731,34 @@ body.has-top-banner .app-content {
 .app-header__logo:focus, .app-header__logo:hover {
   text-decoration: none;
   color: #fff;
+}
+
+.app-header__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.app-header__brand img {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 2px;
+  -webkit-box-flex: 0;
+      -ms-flex: 0 0 auto;
+          flex: 0 0 auto;
+}
+
+.app-header__brand-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 168px;
+  display: inline-block;
 }
 
 .app-sidebar__toggle {

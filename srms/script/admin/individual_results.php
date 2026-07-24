@@ -5,6 +5,31 @@ require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
 if ($res == "1" && $level == "0") {}else{header("location:../");}
+
+$studentOptions = [];
+$termOptions = [];
+try {
+	$conn = app_db();
+	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+	$stmt = $conn->prepare("SELECT id, fname, mname, lname FROM tbl_students ORDER BY fname, lname, id");
+	$stmt->execute();
+	$studentOptions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	foreach ($studentOptions as &$studentRow) {
+		$studentId = (int)($studentRow['id'] ?? 0);
+		$classStmt = $conn->prepare("SELECT class FROM tbl_students WHERE id = ? LIMIT 1");
+		$classStmt->execute([$studentId]);
+		$studentRow['class'] = (int)$classStmt->fetchColumn();
+	}
+	unset($studentRow);
+
+	$stmt = $conn->prepare("SELECT id, name FROM tbl_terms WHERE status = '1' ORDER BY id");
+	$stmt->execute();
+	$termOptions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	$termOptions = app_sort_term_rows($termOptions);
+} catch (PDOException $e) {
+	error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -57,30 +82,11 @@ if ($res == "1" && $level == "0") {}else{header("location:../");}
 
 <div class="mb-2">
 <label class="form-label">Select Student</label>
-<select class="form-control select2" name="student" required style="width: 100%;">
+<select class="form-control select2" name="student" id="studentSelect" required style="width: 100%;">
 <option value="" selected disabled> Select One</option>
-<?php
-try {
-$conn = app_db();
-$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-$stmt = $conn->prepare("SELECT * FROM tbl_students");
-$stmt->execute();
-$result = $stmt->fetchAll();
-
-foreach($result as $row)
-{
-?>
-<option value="<?php echo $row[0]; ?>"><?php echo $row[1].' '.$row[2].' '.$row[3].' ('.$row[0].')'; ?> </option>
-<?php
-}
-
-}catch(PDOException $e)
-{
-error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
-echo "Connection failed.";
-}
-?>
+<?php foreach($studentOptions as $row) { ?>
+<option value="<?php echo (int)($row['id'] ?? 0); ?>" data-class-id="<?php echo (int)($row['class'] ?? 0); ?>"><?php echo htmlspecialchars(trim((string)($row['fname'] ?? '').' '.(string)($row['mname'] ?? '').' '.(string)($row['lname'] ?? '')).' ('.(string)($row['id'] ?? '').')'); ?> </option>
+<?php } ?>
 </select>
 </div>
 
@@ -88,30 +94,20 @@ echo "Connection failed.";
 <label class="form-label">Select Term</label>
 <select class="form-control select2" name="term" required style="width: 100%;">
 <option selected disabled value="">Select One</option>
-<?php
-try {
-$conn = app_db();
-$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-$stmt = $conn->prepare("SELECT * FROM tbl_terms WHERE status = '1'");
-$stmt->execute();
-$result = $stmt->fetchAll();
-
-foreach($result as $row)
-{
-?>
-<option value="<?php echo $row[0]; ?>"><?php echo $row[1]; ?> </option>
-<?php
-}
-
-}catch(PDOException $e)
-{
-error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
-echo "Connection failed.";
-}
-?>
+<?php foreach($termOptions as $row) { ?>
+<option value="<?php echo (int)($row['id'] ?? 0); ?>"><?php echo htmlspecialchars((string)($row['name'] ?? '')); ?> </option>
+<?php } ?>
 </select>
 </div>
+
+<div class="mb-3">
+<label class="form-label">Select Exam</label>
+<select class="form-control select2" name="exam" id="examSelect" required style="width: 100%;">
+<option selected disabled value="">Select student and term first</option>
+</select>
+</div>
+
+<input type="hidden" name="class" id="studentClassInput" value="">
 
 <div class="">
 <button class="btn btn-primary app_btn" type="submit">View Results</button>
@@ -139,7 +135,24 @@ echo "Connection failed.";
 <script src="select2/dist/js/select2.full.min.js"></script>
 <?php require_once('const/check-reply.php'); ?>
 <script>
-$('.select2').select2()
+$('.select2').select2();
+
+function loadExamOptions() {
+	const studentOption = $('#studentSelect option:selected');
+	const classId = parseInt(studentOption.data('class-id'), 10) || 0;
+	const termId = parseInt($('#termSelect').val(), 10) || 0;
+	$('#studentClassInput').val(classId > 0 ? classId : '');
+	if (classId < 1 || termId < 1) {
+		$('#examSelect').html('<option selected disabled value="">Select student and term first</option>').trigger('change.select2');
+		return;
+	}
+	$.post('app/ajax/fetch_exams.php', {id: classId, term_id: termId, include_unpublished: 1, submit: 1}, function(data){
+		$('#examSelect').html(data).trigger('change.select2');
+	});
+}
+
+$('#studentSelect').on('change', loadExamOptions);
+$('#termSelect').on('change', loadExamOptions);
 </script>
 </body>
 

@@ -5,6 +5,7 @@ require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/school.php');
 require_once('const/rbac.php');
+require_once('const/edu_ai_portal_ui.php');
 
 if ($res !== '1') { header('location:../'); exit; }
 app_require_permission('bom.view', '../');
@@ -75,6 +76,7 @@ try {
 <li><a class="app-menu__item<?php echo basename((string)$module['href']) === basename($_SERVER['PHP_SELF'], '.php') ? ' active' : ''; ?>" href="<?php echo htmlspecialchars((string)$module['href']); ?>"><i class="app-menu__icon <?php echo htmlspecialchars((string)$module['icon']); ?>"></i><span class="app-menu__label"><?php echo htmlspecialchars((string)$module['label']); ?></span></a></li>
 <?php endforeach; ?>
 </ul>
+<?php app_render_portal_edu_ai('bom'); ?>
 </aside>
 
 <main class="app-content">

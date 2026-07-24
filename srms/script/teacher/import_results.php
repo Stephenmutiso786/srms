@@ -63,14 +63,15 @@ try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-$stmt = $conn->prepare("SELECT * FROM tbl_terms WHERE status = '1'");
+$stmt = $conn->prepare("SELECT id, name FROM tbl_terms WHERE status = '1'");
 $stmt->execute();
-$result = $stmt->fetchAll();
+$result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$result = app_sort_term_rows($result);
 
 foreach($result as $row)
 {
 ?>
-<option value="<?php echo $row[0]; ?>"><?php echo $row[1]; ?> </option>
+<option value="<?php echo (int)$row['id']; ?>"><?php echo htmlspecialchars((string)$row['name']); ?> </option>
 <?php
 }
 
@@ -85,7 +86,7 @@ echo "Connection failed.";
 
 <div class="mb-2">
 <label class="form-label">Select Class</label>
-<select onchange="fetch_subjects(this.value);" class="form-control select2" name="class" required style="width: 100%;">
+<select onchange="fetch_subjects(this.value); loadExamOptions();" class="form-control select2" name="class" id="classSelect" required style="width: 100%;">
 <option selected disabled value="">Select Class</option>
 <?php
 try {
@@ -97,15 +98,15 @@ if (app_table_exists($conn, 'tbl_teacher_assignments')) {
   $stmt->execute([$account_id]);
   $myclasses = $stmt->fetchAll(PDO::FETCH_COLUMN);
 } else {
-  $stmt = $conn->prepare("SELECT * FROM tbl_subject_combinations
-  LEFT JOIN tbl_subjects ON tbl_subject_combinations.subject = tbl_subjects.id
-  LEFT JOIN tbl_staff ON tbl_subject_combinations.teacher = tbl_staff.id WHERE tbl_subject_combinations.teacher = ?");
+  $stmt = $conn->prepare("SELECT tbl_subject_combinations.class AS class_list
+  FROM tbl_subject_combinations
+  WHERE tbl_subject_combinations.teacher = ?");
   $stmt->execute([$account_id]);
-  $result = $stmt->fetchAll();
+  $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
   $myclasses = array();
   foreach ($result as $value) {
-    $class_arr = app_unserialize($value[1]);
+    $class_arr = app_unserialize((string)($value['class_list'] ?? ''));
     foreach ($class_arr as $value) {
       array_push($myclasses, $value);
     }
@@ -115,9 +116,9 @@ if (app_table_exists($conn, 'tbl_teacher_assignments')) {
 if (!empty($myclasses)) {
   $matches = str_split(str_repeat("?", count($myclasses)));
   $matches = implode(",", $matches);
-  $stmt = $conn->prepare("SELECT * FROM tbl_classes WHERE id IN ($matches)");
+  $stmt = $conn->prepare("SELECT id, name FROM tbl_classes WHERE id IN ($matches) ORDER BY name");
   $stmt->execute($myclasses);
-  $result = $stmt->fetchAll();
+  $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } else {
   $result = [];
 }
@@ -125,7 +126,7 @@ if (!empty($myclasses)) {
 foreach($result as $row)
 {
 ?>
-<option value="<?php echo $row[0]; ?>"><?php echo $row[1]; ?> </option>
+<option value="<?php echo (int)$row['id']; ?>"><?php echo htmlspecialchars((string)$row['name']); ?> </option>
 <?php
 }
 
@@ -142,6 +143,13 @@ echo "Connection failed.";
 <label class="form-label">Select Subject</label>
 <select class="form-control" name="subject" required id="sub_imp">
 <option selected disabled value="">Select One</option>
+</select>
+</div>
+
+<div class="mb-2">
+<label class="form-label">Select Exam</label>
+<select class="form-control select2" name="exam" required id="examSelect" style="width: 100%;">
+<option selected disabled value="">Select class and term first</option>
 </select>
 </div>
 
@@ -173,7 +181,21 @@ echo "Connection failed.";
 <script src="select2/dist/js/select2.full.min.js"></script>
 <?php require_once('const/check-reply.php'); ?>
 <script>
-$('.select2').select2()
+$('.select2').select2();
+
+function loadExamOptions() {
+	const classId = parseInt($('#classSelect').val() || '0', 10);
+	const termId = parseInt($('#termSelect').val() || '0', 10);
+	if (classId < 1 || termId < 1) {
+		$('#examSelect').html('<option selected disabled value="">Select class and term first</option>').trigger('change.select2');
+		return;
+	}
+	$.post('app/ajax/fetch_exams.php', {id: classId, term_id: termId, submit: 1}, function(data){
+		$('#examSelect').html(data).trigger('change.select2');
+	});
+}
+
+$('#termSelect').on('change', loadExamOptions);
 </script>
 </body>
 

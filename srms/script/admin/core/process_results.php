@@ -1,10 +1,12 @@
 <?php
-chdir('../../');
-session_start();
-require_once('db/config.php');
-require_once('const/check_session.php');
-require_once('const/report_engine.php');
-require_once('const/rbac.php');
+if (session_status() !== PHP_SESSION_ACTIVE) {
+	session_start();
+}
+require_once(__DIR__ . '/../../db/config.php');
+require_once(__DIR__ . '/../../const/check_session.php');
+require_once(__DIR__ . '/../../const/report_engine.php');
+require_once(__DIR__ . '/../../const/rbac.php');
+require_once(__DIR__ . '/../../const/system_notifications.php');
 
 if (!isset($res) || $res !== "1" || !isset($level) || $level !== "0") {
 	header("location:../");
@@ -18,7 +20,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 	exit;
 }
 
-@set_time_limit(300);
+@set_time_limit(0);
+@ini_set('memory_limit', '-1');
 
 $classId = (int)($_POST['class_id'] ?? 0);
 $termId = (int)($_POST['term_id'] ?? 0);
@@ -252,7 +255,7 @@ $examAcademicYear = (int)date('Y');
 		error_log('[process_results/data_camp] ' . $archiveError->getMessage());
 	}
 
-	if (app_table_exists($conn, 'tbl_notifications')) {
+if (app_table_exists($conn, 'tbl_notifications')) {
 		try {
 			$stmt = $conn->prepare("SELECT name FROM tbl_terms WHERE id = ? LIMIT 1");
 			$stmt->execute([$termId]);
@@ -263,34 +266,18 @@ $examAcademicYear = (int)date('Y');
 			$title = "Results Released";
 			$message = "Report cards for " . ($className !== '' ? $className : "the class") . " (" . ($termName !== '' ? $termName : "term") . ") are now ready for student, parent, and teacher access.";
 
-			$columns = ['title', 'message'];
-			$values = [$title, $message];
-
-			if (app_column_exists($conn, 'tbl_notifications', 'audience')) {
-				$columns[] = 'audience';
-				$values[] = 'class';
-			}
-			if (app_column_exists($conn, 'tbl_notifications', 'class_id')) {
-				$columns[] = 'class_id';
-				$values[] = $classId;
-			}
-			if (app_column_exists($conn, 'tbl_notifications', 'term_id')) {
-				$columns[] = 'term_id';
-				$values[] = $termId;
-			}
-			if (app_column_exists($conn, 'tbl_notifications', 'link')) {
-				$columns[] = 'link';
-				$values[] = 'report_card?term=' . $termId;
-			}
-			if (app_column_exists($conn, 'tbl_notifications', 'created_by')) {
-				$columns[] = 'created_by';
-				$values[] = $generatedBy;
-			}
-
-			$placeholders = implode(',', array_fill(0, count($columns), '?'));
-			$sql = "INSERT INTO tbl_notifications (" . implode(',', $columns) . ") VALUES (" . $placeholders . ")";
-			$stmt = $conn->prepare($sql);
-			$stmt->execute($values);
+			app_system_notify($conn, $title, $message, [
+				'audience' => 'class',
+				'class_id' => $classId,
+				'term_id' => $termId,
+				'link' => 'report_card?term=' . $termId,
+				'created_by' => $generatedBy,
+				'module_name' => 'performance',
+				'type' => 'success',
+				'priority' => 82,
+				'force_email' => true,
+				'email_link' => 'parent/report_card',
+			]);
 		} catch (Throwable $notifyError) {
 			error_log('['.__FILE__.':'.__LINE__.'] Notification insert skipped: ' . $notifyError->getMessage());
 		}

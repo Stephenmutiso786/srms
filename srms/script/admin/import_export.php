@@ -23,6 +23,7 @@ try {
 	$stmt = $conn->prepare("SELECT id, name FROM tbl_terms ORDER BY id");
 	$stmt->execute();
 	$terms = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	$terms = app_sort_term_rows($terms);
 
 	$stmt = $conn->prepare("SELECT id, name FROM tbl_subjects ORDER BY name");
 	$stmt->execute();
@@ -106,11 +107,12 @@ try {
 <div class="tile">
 <h3 class="tile-title">Import Marks (CSV)</h3>
 <p class="text-muted">Headers: student_id,class_id,term_id,subject_id,score</p>
+<div class="alert alert-info">Safety mode is active here. CSV import only fills missing marks and will skip any score that already exists, so existing results are not overwritten.</div>
 <form class="app_frm" action="admin/core/import_marks_csv" method="POST" enctype="multipart/form-data">
 <div class="row">
 <div class="col-md-4 mb-3">
 <label class="form-label">Term</label>
-<select class="form-control" name="term_id" required>
+<select class="form-control" name="term_id" id="marksTermSelect" required onchange="loadMarksExamOptions();">
 <option value="">Select</option>
 <?php foreach ($terms as $t): ?>
 <option value="<?php echo $t['id']; ?>"><?php echo htmlspecialchars($t['name']); ?></option>
@@ -119,7 +121,7 @@ try {
 </div>
 <div class="col-md-4 mb-3">
 <label class="form-label">Class</label>
-<select class="form-control" name="class_id" required>
+<select class="form-control" name="class_id" id="marksClassSelect" required onchange="loadMarksExamOptions();">
 <option value="">Select</option>
 <?php foreach ($classes as $c): ?>
 <option value="<?php echo $c['id']; ?>"><?php echo htmlspecialchars($c['name']); ?></option>
@@ -133,6 +135,12 @@ try {
 <?php foreach ($subjects as $s): ?>
 <option value="<?php echo $s['id']; ?>"><?php echo htmlspecialchars($s['name']); ?></option>
 <?php endforeach; ?>
+</select>
+</div>
+<div class="col-md-12 mb-3">
+<label class="form-label">Exam</label>
+<select class="form-control" name="exam_id" id="marksExamSelect" required>
+<option value="">Select class and term first</option>
 </select>
 </div>
 </div>
@@ -244,5 +252,19 @@ try {
 <script src="js/bootstrap.min.js"></script>
 <script src="js/main.js"></script>
 <?php require_once('const/check-reply.php'); ?>
+<script>
+function loadMarksExamOptions() {
+	const classId = parseInt(document.getElementById('marksClassSelect').value || '0', 10);
+	const termId = parseInt(document.getElementById('marksTermSelect').value || '0', 10);
+	const examSelect = document.getElementById('marksExamSelect');
+	if (classId < 1 || termId < 1) {
+		examSelect.innerHTML = '<option value="">Select class and term first</option>';
+		return;
+	}
+	$.post('app/ajax/fetch_exams.php', {id: classId, term_id: termId, include_unpublished: 1, submit: 1}, function(data){
+		examSelect.innerHTML = data;
+	});
+}
+</script>
 </body>
 </html>

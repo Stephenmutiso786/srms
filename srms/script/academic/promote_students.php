@@ -64,20 +64,19 @@ try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-$stmt = $conn->prepare("SELECT * FROM tbl_classes");
+$stmt = $conn->prepare("SELECT c.id, c.name, COUNT(s.id) AS student_count
+FROM tbl_classes c
+LEFT JOIN tbl_students s ON s.class = c.id
+GROUP BY c.id, c.name
+ORDER BY c.name");
 $stmt->execute();
-$result = $stmt->fetchAll();
+$result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 foreach($result as $row)
 {
-
-$stmt = $conn->prepare("SELECT * FROM tbl_students WHERE class = ?");
-$stmt->execute([$row[0]]);
-$resultr = $stmt->fetchAll();
-
-if (count($resultr) > 0) {
+if ((int)$row['student_count'] > 0) {
 ?>
-<option value="<?php echo $row[0]; ?>"><?php echo $row[1]; ?> </option>
+<option value="<?php echo (int)$row['id']; ?>"><?php echo htmlspecialchars((string)$row['name']); ?> </option>
 <?php
 }
 
@@ -101,20 +100,19 @@ try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-$stmt = $conn->prepare("SELECT * FROM tbl_classes");
+$stmt = $conn->prepare("SELECT c.id, c.name, COUNT(s.id) AS student_count
+FROM tbl_classes c
+LEFT JOIN tbl_students s ON s.class = c.id
+GROUP BY c.id, c.name
+ORDER BY c.name");
 $stmt->execute();
-$result = $stmt->fetchAll();
+$result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 foreach($result as $row)
 {
-
-$stmt = $conn->prepare("SELECT * FROM tbl_students WHERE class = ?");
-$stmt->execute([$row[0]]);
-$resultr = $stmt->fetchAll();
-
-if (count($resultr) > 0) {
+if ((int)$row['student_count'] > 0) {
 ?>
-<option value="<?php echo $row[0]; ?>"><?php echo $row[1]; ?> </option>
+<option value="<?php echo (int)$row['id']; ?>"><?php echo htmlspecialchars((string)$row['name']); ?> </option>
 <?php
 }
 

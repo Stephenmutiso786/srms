@@ -6,6 +6,7 @@ require_once('const/school.php');
 require_once('const/check_session.php');
 require_once('const/academic_dashboard.php');
 require_once('const/report_engine.php');
+require_once('const/network_access.php');
 $isSuperAdmin = !empty($super_admin);
 $isLeadershipRole = in_array((int)$level, [0, 1], true);
 if ($res == "1" && ($isLeadershipRole || $isSuperAdmin)) {}else{header("location:../");}
@@ -13,6 +14,8 @@ $students_total = $my_students;
 $teachers_total = $teachers;
 $showMarksEntryShortcut = false;
 $showAttendanceShortcut = false;
+$showTermsShortcut = false;
+$showDownloadsShortcut = false;
 $adminAnnouncements = [];
 $promotionQueue = [];
 $autoPromotionRun = [];
@@ -22,13 +25,15 @@ try {
 	app_ensure_promotion_workflow_schema($conn);
 	$autoPromotionRun = app_auto_prepare_year_end_promotions($conn, (int)($account_id ?? 0));
 	$promotionQueue = app_promotion_queue_summary($conn);
-	$students_total = (int)$conn->query("SELECT COUNT(*) FROM tbl_students")->fetchColumn();
-	$teachers_total = (int)$conn->query("SELECT COUNT(*) FROM tbl_staff WHERE level = 2")->fetchColumn();
-	$showMarksEntryShortcut = app_staff_has_active_teaching_assignment($conn, (int)($account_id ?? 0)) && app_has_permission($conn, (string)($account_id ?? ''), (string)($level ?? ''), 'marks.enter');
-	$showAttendanceShortcut = app_staff_has_active_teaching_assignment($conn, (int)($account_id ?? 0)) && app_has_permission($conn, (string)($account_id ?? ''), (string)($level ?? ''), 'attendance.manage');
-	if (app_table_exists($conn, 'tbl_notifications')) {
-		$stmt = $conn->prepare("SELECT title, message, created_at FROM tbl_notifications WHERE audience IN ('all','staff') ORDER BY created_at DESC LIMIT 5");
-		$stmt->execute();
+		$students_total = (int)$conn->query("SELECT COUNT(*) FROM tbl_students")->fetchColumn();
+		$teachers_total = (int)$conn->query("SELECT COUNT(*) FROM tbl_staff WHERE level = 2")->fetchColumn();
+		$showMarksEntryShortcut = app_staff_has_active_teaching_assignment($conn, (int)($account_id ?? 0)) && app_has_permission($conn, (string)($account_id ?? ''), (string)($level ?? ''), 'marks.enter');
+		$showAttendanceShortcut = app_staff_has_active_teaching_assignment($conn, (int)($account_id ?? 0)) && app_has_permission($conn, (string)($account_id ?? ''), (string)($level ?? ''), 'attendance.manage');
+		$showTermsShortcut = app_has_permission($conn, (string)($account_id ?? ''), (string)($level ?? ''), 'academic.manage') || app_has_permission($conn, (string)($account_id ?? ''), (string)($level ?? ''), 'system.manage');
+		$showDownloadsShortcut = app_has_permission($conn, (string)($account_id ?? ''), (string)($level ?? ''), 'report.view') || app_has_permission($conn, (string)($account_id ?? ''), (string)($level ?? ''), 'report.generate');
+		if (app_table_exists($conn, 'tbl_notifications')) {
+			$stmt = $conn->prepare("SELECT title, message, created_at FROM tbl_notifications WHERE audience IN ('all','staff') ORDER BY created_at DESC LIMIT 5");
+			$stmt->execute();
 		$adminAnnouncements = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
 } catch (Throwable $e) {
@@ -38,6 +43,7 @@ $adminFirstName = trim((string)($fname ?? ''));
 if ($adminFirstName === '') {
 	$adminFirstName = 'Administrator';
 }
+$networkAccess = app_network_access_data();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -52,6 +58,92 @@ if ($adminFirstName === '') {
 <link rel="icon" href="images/icon.ico">
 <link rel="stylesheet" type="text/css" href="cdn.jsdelivr.net/npm/bootstrap-icons%401.10.5/font/bootstrap-icons.css">
 <link type="text/css" rel="stylesheet" href="loader/waitMe.css">
+<style>
+.network-access-card {
+	background: linear-gradient(145deg, #ffffff 0%, #f2f8f7 100%);
+	border: 1px solid #d7e8e3;
+}
+.network-access-layout {
+	display: grid;
+	grid-template-columns: minmax(180px, 240px) 1fr;
+	gap: 1.5rem;
+	align-items: center;
+}
+.network-access-qr {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 1rem;
+	border-radius: 18px;
+	background: #ffffff;
+	border: 1px solid #d9e3ec;
+	min-height: 220px;
+}
+.network-access-qr img {
+	width: 100%;
+	max-width: 210px;
+	height: auto;
+	display: block;
+}
+.network-access-actions {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	margin-bottom: 1rem;
+}
+.network-access-url {
+	font-size: 1rem;
+	font-weight: 700;
+	color: #0f172a;
+	word-break: break-all;
+}
+.network-access-meta {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+	gap: 0.75rem;
+	margin: 1rem 0;
+}
+.network-access-meta .meta-box {
+	background: #ffffff;
+	border: 1px solid #d9e3ec;
+	border-radius: 14px;
+	padding: 0.9rem 1rem;
+}
+.network-access-meta .meta-box span {
+	display: block;
+	font-size: 0.78rem;
+	font-weight: 700;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: #6b7280;
+	margin-bottom: 0.2rem;
+}
+.network-access-status {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.45rem;
+	padding: 0.35rem 0.75rem;
+	border-radius: 999px;
+	font-size: 0.82rem;
+	font-weight: 700;
+	background: #e8f7ef;
+	color: #0f7a42;
+}
+.network-access-status.is-warning {
+	background: #fff4e5;
+	color: #a15c00;
+}
+@media (max-width: 768px) {
+	.network-access-layout {
+		grid-template-columns: 1fr;
+	}
+	.network-access-actions {
+		flex-direction: column;
+		align-items: flex-start;
+	}
+}
+</style>
 </head>
 <body class="app sidebar-mini">
 
@@ -79,11 +171,18 @@ if ($adminFirstName === '') {
 		<div class="hero-actions">
 			<a class="btn btn-light" href="admin/register_students"><i class="bi bi-plus-circle me-2"></i>New Student</a>
 			<a class="btn btn-outline-light" href="admin/fees"><i class="bi bi-cash-coin me-2"></i>Fees & Finance</a>
-			<a class="btn btn-outline-light" href="admin/attendance"><i class="bi bi-check2-square me-2"></i>Attendance</a>
-			<a class="btn btn-outline-light" href="admin/grading_system"><i class="bi bi-award me-2"></i>Grading Management</a>
-			<?php if ($showMarksEntryShortcut) { ?>
-			<a class="btn btn-outline-light" href="admin/exam_marks_entry"><i class="bi bi-pencil-square me-2"></i>Marks Entry</a>
-			<?php } ?>
+				<a class="btn btn-outline-light" href="admin/attendance"><i class="bi bi-check2-square me-2"></i>Attendance</a>
+				<a class="btn btn-outline-light" href="admin/grading_system"><i class="bi bi-award me-2"></i>Grading Management</a>
+				<a class="btn btn-outline-light" href="admin/data_camp"><i class="bi bi-database me-2"></i>Data Camp</a>
+				<?php if ($showDownloadsShortcut) { ?>
+				<a class="btn btn-outline-light" href="admin/downloads_center"><i class="bi bi-download me-2"></i>Downloads Hub</a>
+				<?php } ?>
+				<?php if ($showTermsShortcut) { ?>
+				<a class="btn btn-outline-light" href="admin/terms"><i class="bi bi-folder2-open me-2"></i>Academic Terms</a>
+				<?php } ?>
+				<?php if ($showMarksEntryShortcut) { ?>
+				<a class="btn btn-outline-light" href="admin/exam_marks_entry"><i class="bi bi-pencil-square me-2"></i>Marks Entry</a>
+				<?php } ?>
 			<?php if ($showAttendanceShortcut) { ?>
 			<a class="btn btn-outline-light" href="admin/attendance_mark"><i class="bi bi-calendar-check me-2"></i>Mark Attendance</a>
 			<?php } ?>
@@ -162,6 +261,50 @@ if ($adminFirstName === '') {
     </div>
     <div class="stat-icon"><i class="bi bi-calendar2-week"></i></div>
   </div>
+</div>
+
+<div class="tile network-access-card">
+	<div class="network-access-actions">
+		<div>
+			<h3 class="tile-title mb-2">Network Access QR</h3>
+			<p class="text-muted mb-0">Generated by this server and refreshed from the current XAMPP LAN address so nearby devices can scan and open SRMS instantly.</p>
+		</div>
+		<button type="button" class="btn btn-outline-primary btn-sm" id="networkAccessRefreshBtn">
+			<i class="bi bi-arrow-clockwise me-1"></i>Refresh QR
+		</button>
+	</div>
+	<div class="network-access-layout">
+		<div class="network-access-qr">
+			<img id="networkAccessQr" src="qr_image.php?size=180&data=<?php echo rawurlencode((string)$networkAccess['url']); ?>&v=<?php echo rawurlencode((string)$networkAccess['generated_at']); ?>" alt="SRMS network access QR code">
+		</div>
+		<div>
+			<div class="network-access-status<?php echo !empty($networkAccess['is_private_ip']) ? '' : ' is-warning'; ?>" id="networkAccessStatus">
+				<i class="bi <?php echo !empty($networkAccess['is_private_ip']) ? 'bi-wifi' : 'bi-exclamation-triangle'; ?>"></i>
+				<span id="networkAccessStatusText"><?php echo !empty($networkAccess['is_private_ip']) ? 'LAN address detected' : 'LAN IP not detected cleanly'; ?></span>
+			</div>
+			<div class="network-access-url mt-3" id="networkAccessUrl"><?php echo htmlspecialchars((string)$networkAccess['url']); ?></div>
+			<div class="network-access-meta">
+				<div class="meta-box">
+					<span>Server IP</span>
+					<strong id="networkAccessIp"><?php echo htmlspecialchars((string)$networkAccess['ip']); ?></strong>
+				</div>
+				<div class="meta-box">
+					<span>Port</span>
+					<strong id="networkAccessPort"><?php echo (int)$networkAccess['port']; ?></strong>
+				</div>
+				<div class="meta-box">
+					<span>Path</span>
+					<strong id="networkAccessPath"><?php echo htmlspecialchars((string)$networkAccess['path']); ?></strong>
+				</div>
+				<div class="meta-box">
+					<span>Last Updated</span>
+					<strong id="networkAccessUpdated"><?php echo htmlspecialchars(date('H:i:s')); ?></strong>
+				</div>
+			</div>
+			<p class="mb-2">Scan this on phones, tablets, or laptops connected to the same school network.</p>
+			<p class="text-muted mb-0" id="networkAccessHint"><?php echo !empty($networkAccess['is_private_ip']) ? 'Users will still need to sign in after opening the link.' : 'If this shows 127.0.0.1, confirm Apache is reachable on the LAN and Windows firewall allows the server port.'; ?></p>
+		</div>
+	</div>
 </div>
 
 <div class="dashboard-grid">
@@ -271,6 +414,61 @@ if ($adminFirstName === '') {
   function formatCurrency(value) {
     return new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', maximumFractionDigits: 0 }).format(value || 0);
   }
+
+  function refreshNetworkAccess() {
+    fetchJson('admin/api/network_access.php?ts=' + Date.now())
+      .then(function (data) {
+        if (!data || data.error) return;
+        var qr = el('networkAccessQr');
+        var url = el('networkAccessUrl');
+        var ip = el('networkAccessIp');
+        var port = el('networkAccessPort');
+        var path = el('networkAccessPath');
+        var updated = el('networkAccessUpdated');
+        var status = el('networkAccessStatus');
+        var statusText = el('networkAccessStatusText');
+        var hint = el('networkAccessHint');
+
+        if (qr) qr.src = (data.qr_image_url || 'admin/api/network_access_qr.php') + '&ts=' + Date.now();
+        if (url) url.textContent = data.url || '';
+        if (ip) ip.textContent = data.ip || '';
+        if (port) port.textContent = data.port || '';
+        if (path) path.textContent = data.path || '';
+        if (updated) {
+          updated.textContent = new Intl.DateTimeFormat('en-KE', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false,
+            timeZone: 'Africa/Nairobi'
+          }).format(new Date());
+        }
+
+        if (status && statusText) {
+          if (data.is_private_ip) {
+            status.classList.remove('is-warning');
+            status.innerHTML = '<i class="bi bi-wifi"></i><span id="networkAccessStatusText">LAN address detected</span>';
+          } else {
+            status.classList.add('is-warning');
+            status.innerHTML = '<i class="bi bi-exclamation-triangle"></i><span id="networkAccessStatusText">LAN IP not detected cleanly</span>';
+          }
+        }
+
+        if (hint) {
+          hint.textContent = data.is_private_ip
+            ? 'Users will still need to sign in after opening the link.'
+            : 'If this shows 127.0.0.1, confirm Apache is reachable on the LAN and Windows firewall allows the server port.';
+        }
+      })
+      .catch(function () { /* ignore */ });
+  }
+
+  var refreshBtn = el('networkAccessRefreshBtn');
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', refreshNetworkAccess);
+  }
+  refreshNetworkAccess();
+  setInterval(refreshNetworkAccess, 60000);
 
   var chartStudentsByClass = initChart('chartStudentsByClass');
   var chartStudentsByGender = initChart('chartStudentsByGender');

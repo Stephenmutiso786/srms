@@ -24,6 +24,10 @@ $appSettings = [
 	'school_phone' => '',
 	'school_address' => '',
 	'school_website' => '',
+	'headteacher_name' => '',
+	'headteacher_title' => 'Headteacher',
+	'headteacher_signature_path' => '',
+	'school_stamp_path' => '',
 	'school_timezone' => 'Africa/Nairobi',
 	'current_academic_year' => date('Y'),
 	'current_session_label' => 'January ' . date('Y') . ' - December ' . date('Y'),
@@ -48,8 +52,18 @@ $appSettings = [
 	'session_timeout_minutes' => '60',
 	'sms_enabled' => '0',
 	'email_enabled' => '0',
+	'notification_email_enabled' => '1',
+	'notification_email_min_priority' => '75',
 	'send_results_automatically' => '0',
 	'mark_entry_deadline_days' => '7',
+	'ai_enabled' => '1',
+	'ai_provider' => 'gemini',
+	'ai_model' => 'gemini-2.0-flash',
+	'ai_api_key' => '',
+	'ai_temperature' => '0.2',
+	'ai_max_output_tokens' => '700',
+	'ai_fallback_enabled' => '1',
+	'ai_public_widget_enabled' => '1',
 	'default_school_days' => 'Monday,Tuesday,Wednesday,Thursday,Friday',
 	'top_banner_enabled' => '0',
 	'top_banner_type' => 'info',
@@ -166,6 +180,72 @@ if (count($cbeGrading) < 1) {
 <link rel="icon" href="images/icon.ico">
 <link rel="stylesheet" type="text/css" href="cdn.jsdelivr.net/npm/bootstrap-icons%401.10.5/font/bootstrap-icons.css">
 <link type="text/css" rel="stylesheet" href="loader/waitMe.css">
+<style>
+.settings-flow {
+	display: flex;
+	flex-direction: column;
+	gap: 1.25rem;
+}
+.settings-hero {
+	background: linear-gradient(135deg, #f7fbff 0%, #eef8f4 100%);
+	border: 1px solid #dbe6ef;
+	border-radius: 18px;
+	padding: 1.4rem;
+}
+.settings-hero p {
+	margin: 0.35rem 0 0;
+	color: #627181;
+	max-width: 780px;
+}
+.settings-quicknav {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.65rem;
+	margin-top: 1rem;
+}
+.settings-quicknav a {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.45rem;
+	padding: 0.55rem 0.9rem;
+	border-radius: 999px;
+	border: 1px solid #d8e2eb;
+	background: #fff;
+	color: #24425c;
+	font-weight: 700;
+	text-decoration: none;
+}
+.settings-quicknav a:hover {
+	background: #f3f8fb;
+	text-decoration: none;
+}
+.settings-group-label {
+	margin: 0;
+	font-size: 1.15rem;
+	font-weight: 800;
+	color: #17324d;
+}
+.settings-group-copy {
+	margin: 0.3rem 0 0;
+	color: #657384;
+}
+.settings-group-head {
+	margin-bottom: -0.25rem;
+}
+.settings-subgroup {
+	margin: 1.25rem 0 0.85rem;
+	padding-top: 1rem;
+	border-top: 1px solid #e5edf4;
+	font-size: 0.96rem;
+	font-weight: 800;
+	color: #17486a;
+}
+.settings-subgroup:first-child {
+	margin-top: 0;
+	padding-top: 0;
+	border-top: 0;
+}
+</style>
 </head>
 <body class="app sidebar-mini">
 
@@ -190,8 +270,27 @@ if (count($cbeGrading) < 1) {
 <div class="app-title">
 <div>
 <h1>System Settings</h1>
+<p>Organized controls for school identity, academic processing, operations, grading, website content, and reset tools.</p>
 </div>
 
+</div>
+<div class="settings-flow">
+<div class="settings-hero">
+	<h2 class="settings-group-label">Settings Overview</h2>
+	<p>Use the quick links to jump to the part you need instead of scrolling through unrelated settings mixed together.</p>
+	<div class="settings-quicknav">
+		<a href="admin/system#settings-school"><i class="bi bi-building"></i>School</a>
+		<a href="admin/system#settings-public"><i class="bi bi-globe2"></i>Public Site</a>
+		<a href="admin/system#settings-results"><i class="bi bi-journal-check"></i>Results</a>
+		<a href="admin/system#settings-core"><i class="bi bi-sliders"></i>Core App</a>
+		<a href="admin/system#settings-grading"><i class="bi bi-award"></i>Grading</a>
+		<a href="admin/system#settings-danger"><i class="bi bi-exclamation-triangle"></i>Danger Zone</a>
+	</div>
+</div>
+
+<div class="settings-group-head" id="settings-school">
+<h2 class="settings-group-label">School Identity</h2>
+<p class="settings-group-copy">Branding, profile details, and school-level information used across the platform.</p>
 </div>
 <div class="row">
 <div class="col-md-6">
@@ -206,8 +305,20 @@ if (count($cbeGrading) < 1) {
 
 <div class="form-group mb-3">
 <label class="control-label">School Logo</label>
-<input type="file" name="company_logo" class="form-control">
+<input type="file" name="company_logo" class="form-control" accept=".png,.jpg,.jpeg,.webp">
+<small class="text-muted">Uploading a new logo now replaces the old school logo everywhere in the system, including headers, website, PDFs, ID cards, and document branding.</small>
 </div>
+<?php if (trim((string)WBLogo) !== '' && is_file('images/logo/' . trim((string)WBLogo))): ?>
+<div class="mb-3">
+	<div class="border rounded-3 p-3 bg-light d-inline-flex align-items-center gap-3">
+		<img src="images/logo/<?php echo htmlspecialchars(trim((string)WBLogo)); ?>" alt="Current logo" style="width:72px;height:72px;object-fit:contain;background:#fff;border-radius:12px;padding:6px;border:1px solid #d9e3ec;">
+		<div>
+			<div class="fw-bold">Current active logo</div>
+			<div class="small text-muted"><?php echo htmlspecialchars(trim((string)WBLogo)); ?></div>
+		</div>
+	</div>
+</div>
+<?php endif; ?>
 <input type="hidden" name="old_logo" value="<?php echo WBLogo; ?>">
 <div class="box-footer">
 <button type="submit" name="submit" value="1" class="btn btn-primary app_btn">Update</button>
@@ -216,9 +327,9 @@ if (count($cbeGrading) < 1) {
 </div>
 </div>
 
-<div class="col-md-6">
+<div class="col-md-12" id="settings-public">
 <div class="tile">
-<h3 class="tile-title">Public Website Media (Database Storage)</h3>
+<h3 class="tile-title">Public Website Media & Content</h3>
 <div class="tile-body">
 <p class="text-muted">Upload the school showcase photos and login background image. These files are saved permanently in the database without compression.</p>
 <p class="text-muted mb-2">Any image dimensions are accepted. Upload higher-resolution files for best quality (login max 12MB, showcase max 8MB each).</p>
@@ -331,7 +442,7 @@ if (count($cbeGrading) < 1) {
 </div>
 </div>
 
-<div class="col-md-6">
+<div class="col-md-6" id="settings-results">
 <div class="tile">
 <h3 class="tile-title">Result Processing Settings</h3>
 <form class="app_frm" action="admin/core/save_report_settings" method="POST">
@@ -361,7 +472,7 @@ if (count($cbeGrading) < 1) {
 
 <div class="col-md-6">
 <div class="tile border border-warning">
-<h3 class="tile-title">Maintenance & Scrolling Banner</h3>
+<h3 class="tile-title">Banner & Maintenance</h3>
 <p class="text-muted mb-3">Quick controls for the top scrolling information banner and maintenance mode.</p>
 <form class="app_frm" action="admin/core/save_app_settings" method="POST">
 <div class="mb-3">
@@ -399,8 +510,13 @@ if (count($cbeGrading) < 1) {
 </div>
 </div>
 
+<div class="settings-group-head" id="settings-core">
+<h2 class="settings-group-label">Core App & Academic Workflow</h2>
+<p class="settings-group-copy">Calendar, promotion, ranking, communication, AI, and runtime controls.</p>
+</div>
+
 <div class="row">
-<div class="col-md-6">
+<div class="col-md-12">
 <div class="tile">
 <h3 class="tile-title">Subject Weights</h3>
 <div class="table-responsive">
@@ -431,16 +547,15 @@ if (count($cbeGrading) < 1) {
 </table>
 </div>
 </div>
+</div>
 
-<div class="row">
+<div class="row" id="settings-danger">
 <div class="col-md-12">
 <div class="tile border border-danger">
 <h3 class="tile-title text-danger">Danger Zone</h3>
 <div class="tile-body">
 <p class="text-muted">Use this only when handing the platform over to a completely new school. It removes old students, parents, teachers, class-teacher links, results, reports, timetable entries, e-learning records, and related school operations while keeping admin and school-admin accounts plus core setup like classes, subjects, terms, and school settings.</p>
-<form method="POST" action="admin/core/reset_new_school" onsubmit="return confirm('Reset this school for a new rollout? This will permanently remove students, parents, teachers, reports, timetable entries, and related records, while keeping admin accounts and core setup.');">
-<button type="submit" class="btn btn-danger">Reset for New School</button>
-</form>
+<a href="admin/reset_new_school" class="btn btn-danger">Preview Reset For New School</a>
 </div>
 </div>
 </div>
@@ -451,9 +566,12 @@ if (count($cbeGrading) < 1) {
 <div class="row">
 <div class="col-md-12">
 <div class="tile">
-<h3 class="tile-title">Full School Management Settings</h3>
-<form class="app_frm" action="admin/core/save_app_settings" method="POST">
+<h3 class="tile-title">Core School & App Settings</h3>
+<form class="app_frm" action="admin/core/save_app_settings" method="POST" enctype="multipart/form-data">
 <div class="row">
+<div class="col-md-12">
+<div class="settings-subgroup">School Contact & Calendar</div>
+</div>
 <div class="col-md-4 mb-3">
 <label class="form-label">Motto</label>
 <input class="form-control" name="settings[school_motto]" value="<?php echo htmlspecialchars($appSettings['school_motto']); ?>">
@@ -477,6 +595,14 @@ if (count($cbeGrading) < 1) {
 <div class="col-md-4 mb-3">
 <label class="form-label">Website</label>
 <input class="form-control" name="settings[school_website]" value="<?php echo htmlspecialchars($appSettings['school_website']); ?>">
+</div>
+<div class="col-md-4 mb-3">
+<label class="form-label">Headteacher Name</label>
+<input class="form-control" name="settings[headteacher_name]" value="<?php echo htmlspecialchars($appSettings['headteacher_name']); ?>" placeholder="e.g. Jane Wambui">
+</div>
+<div class="col-md-4 mb-3">
+<label class="form-label">Headteacher Title</label>
+<input class="form-control" name="settings[headteacher_title]" value="<?php echo htmlspecialchars($appSettings['headteacher_title']); ?>" placeholder="Headteacher">
 </div>
 <div class="col-md-8 mb-3">
 <label class="form-label">Address</label>
@@ -540,6 +666,47 @@ Manage school terms directly from <a href="admin/terms">Academic Terms</a>. Curr
 Last auto-generation: <strong><?php echo htmlspecialchars((string)$appSettings['promotion_auto_last_generated_at']); ?></strong>.
 <?php endif; ?>
 </div>
+</div>
+<div class="col-md-12">
+<div class="settings-subgroup">Document Branding</div>
+</div>
+<div class="col-md-6 mb-3">
+<label class="form-label">Headteacher Signature</label>
+<input class="form-control" type="file" name="headteacher_signature" accept=".jpg,.jpeg,.png,.webp,image/png,image/jpeg,image/webp">
+<small class="text-muted d-block mt-2">Used automatically on report cards and other shared PDF documents. Transparent PNG works best.</small>
+<?php if (trim((string)$appSettings['headteacher_signature_path']) !== ''): ?>
+<div class="mt-2 p-2 border rounded bg-light">
+	<div class="small text-muted mb-2">Current signature</div>
+	<img src="images/signatures/<?php echo htmlspecialchars((string)$appSettings['headteacher_signature_path']); ?>" alt="Headteacher signature" style="max-width:100%;max-height:90px;object-fit:contain;">
+</div>
+<div class="form-check mt-2">
+	<input class="form-check-input" type="checkbox" name="remove_headteacher_signature" value="1" id="removeHeadteacherSignature">
+	<label class="form-check-label" for="removeHeadteacherSignature">Remove current signature</label>
+</div>
+<?php endif; ?>
+</div>
+<div class="col-md-6 mb-3">
+<label class="form-label">School Stamp</label>
+<input class="form-control" type="file" name="school_stamp" accept=".jpg,.jpeg,.png,.webp,image/png,image/jpeg,image/webp">
+<small class="text-muted d-block mt-2">This stamp will be reused across report cards and official PDF outputs instead of uploading it on each document.</small>
+<?php if (trim((string)$appSettings['school_stamp_path']) !== ''): ?>
+<div class="mt-2 p-2 border rounded bg-light">
+	<div class="small text-muted mb-2">Current stamp</div>
+	<img src="images/stamps/<?php echo htmlspecialchars((string)$appSettings['school_stamp_path']); ?>" alt="School stamp" style="max-width:100%;max-height:110px;object-fit:contain;">
+</div>
+<div class="form-check mt-2">
+	<input class="form-check-input" type="checkbox" name="remove_school_stamp" value="1" id="removeSchoolStamp">
+	<label class="form-check-label" for="removeSchoolStamp">Remove current stamp</label>
+</div>
+<?php endif; ?>
+</div>
+<div class="col-md-12 mb-3">
+<div class="alert alert-info mb-0">
+These document assets are saved once in settings and then reused automatically by shared report card and certificate PDF templates.
+</div>
+</div>
+<div class="col-md-12">
+<div class="settings-subgroup">Assessment Workflow</div>
 </div>
 <div class="col-md-4 mb-3">
 <label class="form-label">School Days</label>
@@ -618,6 +785,17 @@ Last auto-generation: <strong><?php echo htmlspecialchars((string)$appSettings['
 </select>
 </div>
 <div class="col-md-3 mb-3">
+<label class="form-label">Notification Emails</label>
+<select class="form-control" name="settings[notification_email_enabled]">
+<option value="1" <?php echo $appSettings['notification_email_enabled'] === '1' ? 'selected' : ''; ?>>Enabled</option>
+<option value="0" <?php echo $appSettings['notification_email_enabled'] === '0' ? 'selected' : ''; ?>>Disabled</option>
+</select>
+</div>
+<div class="col-md-3 mb-3">
+<label class="form-label">Email Priority Threshold</label>
+<input class="form-control" type="number" name="settings[notification_email_min_priority]" value="<?php echo htmlspecialchars($appSettings['notification_email_min_priority']); ?>" min="0" max="100">
+</div>
+<div class="col-md-3 mb-3">
 <label class="form-label">Send Results Automatically</label>
 <select class="form-control" name="settings[send_results_automatically]">
 <option value="1" <?php echo $appSettings['send_results_automatically'] === '1' ? 'selected' : ''; ?>>Yes</option>
@@ -627,6 +805,65 @@ Last auto-generation: <strong><?php echo htmlspecialchars((string)$appSettings['
 <div class="col-md-3 mb-3">
 <label class="form-label">Mark Entry Deadline (days)</label>
 <input class="form-control" type="number" name="settings[mark_entry_deadline_days]" value="<?php echo htmlspecialchars($appSettings['mark_entry_deadline_days']); ?>" min="0">
+</div>
+<div class="col-md-12"><hr></div>
+<div class="col-md-12 mb-2">
+<h5 class="mb-1">Edu AI Settings</h5>
+<p class="text-muted mb-0">Configure the upgraded Edu AI assistant, Gemini provider, floating widget, and fallback behavior.</p>
+</div>
+<div class="col-md-3 mb-3">
+<label class="form-label">AI Enabled</label>
+<select class="form-control" name="settings[ai_enabled]">
+<option value="1" <?php echo $appSettings['ai_enabled'] === '1' ? 'selected' : ''; ?>>Yes</option>
+<option value="0" <?php echo $appSettings['ai_enabled'] === '0' ? 'selected' : ''; ?>>No</option>
+</select>
+</div>
+<div class="col-md-3 mb-3">
+<label class="form-label">AI Provider</label>
+<select class="form-control" name="settings[ai_provider]">
+<option value="gemini" <?php echo $appSettings['ai_provider'] === 'gemini' ? 'selected' : ''; ?>>Google Gemini</option>
+<option value="openai" <?php echo $appSettings['ai_provider'] === 'openai' ? 'selected' : ''; ?>>OpenAI</option>
+</select>
+</div>
+<div class="col-md-3 mb-3">
+<label class="form-label">Model</label>
+<input class="form-control" name="settings[ai_model]" value="<?php echo htmlspecialchars($appSettings['ai_model']); ?>" placeholder="gemini-2.0-flash">
+</div>
+<div class="col-md-3 mb-3">
+<label class="form-label">Floating Widget</label>
+<select class="form-control" name="settings[ai_public_widget_enabled]">
+<option value="1" <?php echo $appSettings['ai_public_widget_enabled'] === '1' ? 'selected' : ''; ?>>Enabled</option>
+<option value="0" <?php echo $appSettings['ai_public_widget_enabled'] === '0' ? 'selected' : ''; ?>>Disabled</option>
+</select>
+</div>
+<div class="col-md-6 mb-3">
+<label class="form-label">API Key</label>
+<input class="form-control" type="password" name="settings[ai_api_key]" value="" placeholder="<?php echo $appSettings['ai_api_key'] !== '' ? 'Saved. Leave blank to keep current key.' : 'Paste provider API key'; ?>">
+<small class="text-muted">Leave blank when editing other settings to keep the saved key unchanged.</small>
+</div>
+<div class="col-md-3 mb-3">
+<label class="form-label">Temperature</label>
+<input class="form-control" type="number" step="0.1" min="0" max="2" name="settings[ai_temperature]" value="<?php echo htmlspecialchars($appSettings['ai_temperature']); ?>">
+</div>
+<div class="col-md-3 mb-3">
+<label class="form-label">Max Output Tokens</label>
+<input class="form-control" type="number" min="128" max="4096" name="settings[ai_max_output_tokens]" value="<?php echo htmlspecialchars($appSettings['ai_max_output_tokens']); ?>">
+</div>
+<div class="col-md-3 mb-3">
+<label class="form-label">Internal Fallback</label>
+<select class="form-control" name="settings[ai_fallback_enabled]">
+<option value="1" <?php echo $appSettings['ai_fallback_enabled'] === '1' ? 'selected' : ''; ?>>Enabled</option>
+<option value="0" <?php echo $appSettings['ai_fallback_enabled'] === '0' ? 'selected' : ''; ?>>Disabled</option>
+</select>
+</div>
+<div class="col-md-9 mb-3">
+<div class="alert alert-info mb-0">
+Edu AI uses the configured provider and internal fallback tools inside the school system. Keep the provider key here for hosted reasoning when needed.
+</div>
+</div>
+<div class="col-md-12">
+<div class="settings-subgroup">Duplicate Note</div>
+<div class="alert alert-light mb-3">Banner and maintenance controls are already available in the dedicated <strong>Banner &amp; Maintenance</strong> card above. These repeated fields are kept here only for compatibility with the current save handler.</div>
 </div>
 <div class="col-md-3 mb-3">
 <label class="form-label">Top Banner Enabled</label>
@@ -662,6 +899,11 @@ Last auto-generation: <strong><?php echo htmlspecialchars((string)$appSettings['
 </form>
 </div>
 </div>
+</div>
+
+<div class="settings-group-head" id="settings-grading">
+<h2 class="settings-group-label">Grading & CBE Bands</h2>
+<p class="settings-group-copy">Exam-linked grading systems and the CBE bands used for mark-to-level conversion.</p>
 </div>
 
 <div class="row">

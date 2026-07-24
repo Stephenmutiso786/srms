@@ -39,6 +39,7 @@ try {
 <base href="../">
 <link rel="stylesheet" type="text/css" href="css/main.css">
 <link rel="icon" href="images/icon.ico">
+<link rel="stylesheet" type="text/css" href="cdn.jsdelivr.net/npm/bootstrap-icons%401.10.5/font/bootstrap-icons.css">
 <style>
 .sev-low{color:#1f8f52;font-weight:700}
 .sev-medium{color:#b88900;font-weight:700}
@@ -46,7 +47,17 @@ try {
 </style>
 </head>
 <body class="app sidebar-mini">
-<header class="app-header"><a class="app-header__logo" href="javascript:void(0);"><?php echo APP_NAME; ?></a><a class="app-sidebar__toggle" href="#" data-toggle="sidebar" aria-label="Hide Sidebar"></a></header>
+<header class="app-header"><a class="app-header__logo" href="javascript:void(0);"><?php echo APP_NAME; ?></a>
+<a class="app-sidebar__toggle" href="#" data-toggle="sidebar" aria-label="Hide Sidebar"></a>
+<ul class="app-nav">
+<li class="dropdown"><a class="app-nav__item" href="#" data-bs-toggle="dropdown" aria-label="Open Profile Menu"><i class="bi bi-person fs-4"></i></a>
+<ul class="dropdown-menu settings-menu dropdown-menu-right">
+<li><a class="dropdown-item" href="student/profile"><i class="bi bi-person me-2 fs-5"></i> Profile</a></li>
+<li><a class="dropdown-item" href="logout"><i class="bi bi-box-arrow-right me-2 fs-5"></i> Logout</a></li>
+</ul>
+</li>
+</ul>
+</header>
 <?php include("student/partials/sidebar.php"); ?>
 
 <main class="app-content">

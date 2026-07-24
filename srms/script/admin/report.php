@@ -238,7 +238,7 @@ try {
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
 <div>
 <h3 class="tile-title mb-1">Merit List</h3>
-<p class="text-muted mb-0">Generate and open a ranked class merit list directly from the report tool.</p>
+<p class="text-muted mb-0">Review draft merit lists and marks completeness before finalizing or publishing an exam.</p>
 </div>
 <a class="btn btn-outline-primary" href="admin/merit_list"><i class="bi bi-trophy me-2"></i>Open Merit List Page</a>
 </div>
@@ -268,7 +268,7 @@ try {
 </select>
 </div>
 <div class="col-md-3 d-flex gap-2">
-<button class="btn btn-primary flex-fill" type="submit"><i class="bi bi-trophy me-2"></i>Generate Merit List</button>
+<button class="btn btn-primary flex-fill" type="submit"><i class="bi bi-trophy me-2"></i>Review Merit Draft</button>
 <button class="btn btn-outline-primary" type="submit" formaction="admin/merit_list_pdf" formtarget="_blank"><i class="bi bi-download me-2"></i>PDF</button>
 </div>
 </form>

@@ -5,6 +5,23 @@ require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
 if ($res == "1" && $level == "1") {}else{header("location:../");}
+
+$classOptions = [];
+$termOptions = [];
+try {
+	$conn = app_db();
+	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+	$stmt = $conn->prepare("SELECT id, name FROM tbl_classes ORDER BY name");
+	$stmt->execute();
+	$classOptions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+	$stmt = $conn->prepare("SELECT id, name FROM tbl_terms WHERE status = '1' ORDER BY id");
+	$stmt->execute();
+	$termOptions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+	error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -59,28 +76,9 @@ if ($res == "1" && $level == "1") {}else{header("location:../");}
 <label class="form-label">Select Class</label>
 <select class="form-control select2" name="student" id="classSelect" required style="width: 100%;" onchange="fetch_exams(this.value);">
 <option value="" selected disabled> Select One</option>
-<?php
-try {
-$conn = app_db();
-$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-$stmt = $conn->prepare("SELECT * FROM tbl_classes");
-$stmt->execute();
-$result = $stmt->fetchAll();
-
-foreach($result as $row)
-{
-?>
-<option value="<?php echo $row[0]; ?>"><?php echo $row[1]; ?> </option>
-<?php
-}
-
-}catch(PDOException $e)
-{
-error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
-echo "Connection failed.";
-}
-?>
+<?php foreach($classOptions as $row) { ?>
+<option value="<?php echo (int)($row['id'] ?? 0); ?>"><?php echo htmlspecialchars((string)($row['name'] ?? '')); ?> </option>
+<?php } ?>
 </select>
 </div>
 
@@ -88,28 +86,9 @@ echo "Connection failed.";
 <label class="form-label">Select Term</label>
 <select class="form-control select2" name="term" id="termSelect" required style="width: 100%;" onchange="fetch_exams($('#classSelect').val() || '');">
 <option selected disabled value="">Select One</option>
-<?php
-try {
-$conn = app_db();
-$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-$stmt = $conn->prepare("SELECT * FROM tbl_terms WHERE status = '1'");
-$stmt->execute();
-$result = $stmt->fetchAll();
-
-foreach($result as $row)
-{
-?>
-<option value="<?php echo $row[0]; ?>"><?php echo $row[1]; ?> </option>
-<?php
-}
-
-}catch(PDOException $e)
-{
-error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
-echo "Connection failed.";
-}
-?>
+<?php foreach($termOptions as $row) { ?>
+<option value="<?php echo (int)($row['id'] ?? 0); ?>"><?php echo htmlspecialchars((string)($row['name'] ?? '')); ?> </option>
+<?php } ?>
 </select>
 </div>
 

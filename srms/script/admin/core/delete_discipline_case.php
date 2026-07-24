@@ -29,6 +29,26 @@ try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 	app_ensure_discipline_management_schema($conn);
+	app_ensure_data_camp_schema($conn);
+	$archive = app_discipline_case_archive_payload($conn, $id);
+	$caseRow = (array)($archive['case'] ?? []);
+	if ($archive) {
+		app_data_camp_store_event($conn, [
+			'module_key' => 'discipline',
+			'record_type' => 'discipline_case_deleted',
+			'entity_table' => 'tbl_discipline_cases',
+			'entity_id' => (string)$id,
+			'title' => trim((string)($caseRow['student_name'] ?? '')) !== '' ? (string)$caseRow['student_name'] . ' Discipline Case' : ('Discipline Case #' . (string)$id),
+			'description' => 'Discipline case, hearings, and letters retained before deletion',
+			'class_id' => (int)($caseRow['class_id'] ?? 0) > 0 ? (int)$caseRow['class_id'] : null,
+			'student_id' => trim((string)($caseRow['student_id'] ?? '')) ?: null,
+			'owner_portal' => 'admin,academic',
+			'mime_type' => 'application/json',
+			'status' => 'retained',
+			'payload_json' => $archive,
+			'created_by' => (int)$account_id,
+		]);
+	}
 
 	if (app_table_exists($conn, 'tbl_discipline_hearings')) {
 		$stmt = $conn->prepare('DELETE FROM tbl_discipline_hearings WHERE case_id = ?');

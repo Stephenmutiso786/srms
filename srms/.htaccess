@@ -4,6 +4,9 @@ RewriteEngine On
 RewriteCond %{HTTPS} !=on
 RewriteCond %{HTTP_HOST} !^localhost(:[0-9]+)?$ [NC]
 RewriteCond %{HTTP_HOST} !^127\.0\.0\.1(:[0-9]+)?$
+RewriteCond %{HTTP_HOST} !^10\.[0-9]+\.[0-9]+\.[0-9]+(:[0-9]+)?$ [NC]
+RewriteCond %{HTTP_HOST} !^192\.168\.[0-9]+\.[0-9]+(:[0-9]+)?$ [NC]
+RewriteCond %{HTTP_HOST} !^172\.(1[6-9]|2[0-9]|3[0-1])\.[0-9]+\.[0-9]+(:[0-9]+)?$ [NC]
 RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=302]
 
 # Route top-level portal URLs into the script/ app folder while keeping

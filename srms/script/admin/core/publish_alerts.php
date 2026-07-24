@@ -5,6 +5,7 @@ require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/rbac.php');
 require_once('const/notify.php');
+require_once('const/system_notifications.php');
 
 if ($res != "1" || $level != "0") { header("location:../"); exit; }
 app_require_permission('results.approve', '../analytics_engine');
@@ -28,14 +29,38 @@ try {
 	$stmt->execute();
 	$alerts = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-	$insert = $conn->prepare("INSERT INTO tbl_notifications (title, message, audience, class_id, term_id, link, created_by) VALUES (?,?,?,?,?,?,?)");
 	$update = $conn->prepare("UPDATE tbl_insights_alerts SET status = 'sent' WHERE id = ?");
 
 	foreach ($alerts as $alert) {
 		$audience = $alert['student_id'] ? 'parents' : 'staff';
 		$title = (string)$alert['title'];
 		$message = (string)$alert['message'];
-		$insert->execute([$title, $message, $audience, $alert['class_id'], $alert['term_id'], 'notifications', $account_id]);
+		$emailTargets = [];
+		if ($alert['student_id']) {
+			$stmt = $conn->prepare("SELECT p.phone, p.email, CONCAT_WS(' ', p.fname, p.lname) AS name
+				FROM tbl_parent_students ps
+				JOIN tbl_parents p ON p.id = ps.parent_id
+				WHERE ps.student_id = ?");
+			$stmt->execute([$alert['student_id']]);
+			$emailTargets = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		} else {
+			$stmt = $conn->prepare("SELECT email, CONCAT_WS(' ', fname, lname) AS name FROM tbl_staff WHERE level IN (0,2)");
+			$stmt->execute();
+			$emailTargets = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		}
+		app_system_notify($conn, $title, $message, [
+			'audience' => $audience,
+			'class_id' => $alert['class_id'],
+			'term_id' => $alert['term_id'],
+			'link' => 'notifications',
+			'created_by' => (int)$account_id,
+			'module_name' => 'notifications',
+			'type' => 'warning',
+			'priority' => 75,
+			'email_targets' => $emailTargets,
+			'email_targets_only' => true,
+			'email_link' => 'admin/notifications',
+		]);
 		$update->execute([$alert['id']]);
 
 		if ($alert['student_id']) {
@@ -47,17 +72,6 @@ try {
 			foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $parent) {
 				if (!empty($parent['phone'])) {
 					app_send_sms($conn, $parent['phone'], $title.': '.$message);
-				}
-				if (!empty($parent['email'])) {
-					app_send_email($conn, $parent['email'], $title, $message);
-				}
-			}
-		} else {
-			$stmt = $conn->prepare("SELECT email FROM tbl_staff WHERE level IN (0,2)");
-			$stmt->execute();
-			foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $staffRow) {
-				if (!empty($staffRow['email'])) {
-					app_send_email($conn, $staffRow['email'], $title, $message);
 				}
 			}
 		}

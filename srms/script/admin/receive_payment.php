@@ -43,7 +43,7 @@ try {
 			FROM tbl_invoices i
 			JOIN tbl_students s ON s.id = i.student_id
 			LEFT JOIN tbl_invoice_lines l ON l.invoice_id = i.id
-			WHERE s.class = ? AND i.term_id = ? AND i.status != 'void'";
+			WHERE i.class_id = ? AND i.term_id = ? AND i.status != 'void'";
 		$params = [$filterClass, $filterTerm];
 		if ($studentQuery !== '') {
 			$sql .= " AND (i.student_id LIKE ? OR s.fname LIKE ? OR s.mname LIKE ? OR s.lname LIKE ? OR concat_ws(' ', s.fname, s.mname, s.lname) LIKE ? )";

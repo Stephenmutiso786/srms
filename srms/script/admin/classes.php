@@ -33,7 +33,9 @@ try {
 	}
 	$stmt = $conn->prepare("SELECT id, name FROM tbl_classes ORDER BY name");
 	$stmt->execute();
-	foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $classRow) {
+	$classRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	app_sort_class_rows($classRows);
+	foreach ($classRows as $classRow) {
 		$classId = (int)$classRow['id'];
 		$band = app_cbe_class_band((string)$classRow['name']);
 		$classMetaMap[$classId] = [
@@ -89,7 +91,7 @@ try {
 <ul class="app-breadcrumb breadcrumb">
 <li class="breadcrumb-item"><a class="btn btn-outline-primary btn-sm" href="admin/grading_system">Grading Management</a></li>
 <li class="breadcrumb-item">
-<form method="POST" action="admin/core/apply_cbe_structure" onsubmit="return confirm('Apply the Kenya CBE primary + junior class structure and replace unused extra classes/subjects?');">
+<form method="POST" action="admin/core/apply_cbe_structure" onsubmit="return confirm('Apply the Kenya CBE primary + junior class structure without overwriting your current grading settings, enabled subjects, or extra classes?');">
 <button class="btn btn-outline-success btn-sm" type="submit">Apply Kenya CBE Defaults</button>
 </form>
 </li>
@@ -103,7 +105,7 @@ try {
 <div class="alert alert-info mb-0">
 <strong>Class management is now the main setup point:</strong> create the grade, add streams under it, set the class teacher, and choose the subjects here. Subject teachers are listed per class below for easier management, while <a href="admin/teacher_allocation">Teacher Allocation</a> still handles the actual teacher-to-subject assignment records.
 <hr class="my-2">
-<span class="small">Need the Kenya CBE primary + junior setup quickly? Use <strong>Apply Kenya CBE Defaults</strong> above to load PP1 to Grade 9, attach the recommended subjects per level, and clear unused extras that are not already in active use.</span>
+<span class="small">Need the Kenya CBE primary + junior setup quickly? Use <strong>Apply Kenya CBE Defaults</strong> above to load PP1 to Grade 9 and attach the recommended subjects per level while preserving your current grading setup, existing class subjects, and extra classes/subjects.</span>
 <hr class="my-2">
 <span class="small">CBE levels are now auto-classified and stored as <strong>Lower Primary</strong>, <strong>Upper Primary</strong>, or <strong>Junior Secondary</strong> based on the class grade.</span>
 </div>
@@ -218,25 +220,25 @@ try {
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-	$stmt = $conn->prepare("SELECT c.*, ct.teacher_id, st.fname AS teacher_fname, st.lname AS teacher_lname
+	$stmt = $conn->prepare("SELECT c.id, c.name, c.registration_date AS reg_date, ct.teacher_id, st.fname AS teacher_fname, st.lname AS teacher_lname
 		FROM tbl_classes c
 		LEFT JOIN tbl_class_teachers ct ON ct.class_id = c.id AND ct.active = 1
 		LEFT JOIN tbl_staff st ON st.id = ct.teacher_id
 		ORDER BY c.name");
 	$stmt->execute();
-	foreach($stmt->fetchAll() as $row) {
-		$parts = app_class_display_parts((string)$row[1]);
-		$meta = $classMetaMap[(int)$row[0]] ?? ['grade_level' => 0, 'cbe_level' => 'Unknown Level', 'cbe_band' => ''];
+	foreach($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+		$parts = app_class_display_parts((string)$row['name']);
+		$meta = $classMetaMap[(int)$row['id']] ?? ['grade_level' => 0, 'cbe_level' => 'Unknown Level', 'cbe_band' => ''];
 		$badgeClass = !empty($meta['cbe_band']) ? str_replace('_', '-', (string)$meta['cbe_band']) : 'unknown-level';
-		$subjectIds = $classSubjectMap[(int)$row[0]] ?? [];
+		$subjectIds = $classSubjectMap[(int)$row['id']] ?? [];
 		$subjectNames = [];
 		foreach ($subjects as $subject) {
 			if (in_array((int)$subject['id'], $subjectIds, true)) {
 				$subjectNames[] = (string)$subject['name'];
 			}
 		}
-		$teacherRows = $classTeacherMap[(int)$row[0]] ?? [];
-		$classGradingSystemId = (int)($classGradingMap[(int)$row[0]] ?? 0);
+		$teacherRows = $classTeacherMap[(int)$row['id']] ?? [];
+		$classGradingSystemId = (int)($classGradingMap[(int)$row['id']] ?? 0);
 		$classGradingLabel = 'Auto / Default';
 		foreach ($gradingSystems as $gradingSystem) {
 			if ((int)$gradingSystem['id'] === $classGradingSystemId) {
@@ -253,18 +255,18 @@ try {
 <td><?php echo htmlspecialchars($parts['grade']); ?></td>
 <td><span class="cbe-badge <?php echo htmlspecialchars($badgeClass); ?>"><?php echo htmlspecialchars((string)$meta['cbe_level']); ?></span></td>
 <td><?php echo htmlspecialchars($parts['stream'] !== '' ? $parts['stream'] : '—'); ?></td>
-<td><?php echo htmlspecialchars($row[1]); ?></td>
+<td><?php echo htmlspecialchars((string)$row['name']); ?></td>
 <td><?php echo htmlspecialchars(trim(($row['teacher_fname'] ?? '').' '.($row['teacher_lname'] ?? '')) ?: '—'); ?></td>
 <td><?php echo htmlspecialchars($classGradingLabel); ?></td>
 <td><?php echo htmlspecialchars(!empty($subjectNames) ? implode(', ', $subjectNames) : 'No subjects set'); ?></td>
 <td><?php echo htmlspecialchars(!empty($teacherLines) ? implode(' | ', $teacherLines) : 'No subject teachers assigned'); ?></td>
-<td><?php echo htmlspecialchars($row[2] ?? ''); ?></td>
+<td><?php echo htmlspecialchars((string)($row['reg_date'] ?? '')); ?></td>
 <td align="center">
 <button
 	type="button"
 	class="btn btn-primary btn-sm edit-class"
-	data-id="<?php echo $row[0]; ?>"
-	data-name="<?php echo htmlspecialchars($row[1]); ?>"
+	data-id="<?php echo (int)$row['id']; ?>"
+	data-name="<?php echo htmlspecialchars((string)$row['name']); ?>"
 	data-grade="<?php echo htmlspecialchars($parts['grade']); ?>"
 	data-stream="<?php echo htmlspecialchars($parts['stream']); ?>"
 	data-class-teacher-id="<?php echo (int)($row['teacher_id'] ?? 0); ?>"
@@ -272,7 +274,7 @@ try {
 	data-subject-ids="<?php echo htmlspecialchars(json_encode($subjectIds)); ?>"
 	data-bs-toggle="modal"
 	data-bs-target="#editModal">Edit</button>
-<a onclick="del('admin/core/drop_class?id=<?php echo $row[0]; ?>', 'Delete Class?');" class="btn btn-danger btn-sm" href="javascript:void(0);">Delete</a>
+<a onclick="del('admin/core/drop_class?id=<?php echo (int)$row['id']; ?>', 'Delete Class?');" class="btn btn-danger btn-sm" href="javascript:void(0);">Delete</a>
 </td>
 </tr>
 <?php

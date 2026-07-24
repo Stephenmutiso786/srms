@@ -4,6 +4,7 @@ session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/rbac.php');
+require_once('const/edu_ai_portal_ui.php');
 
 if ($res != '1') { header('location:../'); exit; }
 $portalHome = ((string)$level === '1') ? 'academic' : ((string)$level === '5' ? 'accountant' : 'admin');
@@ -242,6 +243,7 @@ try {
 <li><a class="app-menu__item active" href="admin/financial_reports"><i class="app-menu__icon feather icon-bar-chart-2"></i><span class="app-menu__label">Financial Reports</span></a></li>
 <li><a class="app-menu__item" href="admin/fee_structure"><i class="app-menu__icon feather icon-settings"></i><span class="app-menu__label">Fee Structure</span></a></li>
 </ul>
+<?php app_render_portal_edu_ai((string)$portalHome === 'academic' ? 'academic' : ((string)$portalHome === 'accountant' ? 'accountant' : 'admin')); ?>
 </aside>
 
 <main class="app-content">

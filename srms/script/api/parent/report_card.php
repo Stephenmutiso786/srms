@@ -30,12 +30,14 @@ try {
 	}
 
 	if ($termId < 1) {
-		$stmt = $conn->prepare("SELECT t.id
+		$stmt = $conn->prepare("SELECT t.id, t.name
 			FROM tbl_terms t
 			WHERE EXISTS (SELECT 1 FROM tbl_exams e WHERE e.class_id = ? AND e.term_id = t.id AND e.status = 'published')
-			ORDER BY t.id DESC LIMIT 1");
+			ORDER BY t.id DESC");
 		$stmt->execute([$classId]);
-		$termId = (int)$stmt->fetchColumn();
+		$termRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		app_sort_term_rows($termRows);
+		$termId = !empty($termRows) ? (int)($termRows[0]['id'] ?? 0) : 0;
 	}
 
 	if ($termId < 1 || !report_term_is_published($conn, $classId, $termId)) {

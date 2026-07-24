@@ -26,8 +26,7 @@ $subjectClassMap = [];
 $selectedSubjects = [];
 $selectedComponentExams = [];
 $componentCandidates = [];
-$gradingSystems = [];
-$defaultGradingSystemId = 0;
+$classGradingMap = [];
 
 try {
 	$conn = app_db();
@@ -59,17 +58,6 @@ try {
 	$stmt = $conn->prepare("SELECT id, name FROM tbl_subjects ORDER BY name");
 	$stmt->execute();
 	$subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
-	$gradingSystems = report_grading_systems($conn);
-	foreach ($gradingSystems as $gradingSystem) {
-		if ((int)($gradingSystem['is_default'] ?? 0) === 1) {
-			$defaultGradingSystemId = (int)$gradingSystem['id'];
-			break;
-		}
-	}
-	if ($defaultGradingSystemId < 1 && !empty($gradingSystems)) {
-		$defaultGradingSystemId = (int)$gradingSystems[0]['id'];
-	}
-
 	if (app_table_exists($conn, 'tbl_subject_class_assignments')) {
 		$stmt = $conn->prepare("SELECT subject_id, class_id FROM tbl_subject_class_assignments");
 		$stmt->execute();
@@ -80,6 +68,23 @@ try {
 
 	$selectedSubjects = app_exam_subject_ids($conn, $examId);
 	$selectedComponentExams = app_exam_component_ids($conn, $examId);
+	foreach ($classes as $classRow) {
+		$gradingId = (int)(app_class_grading_system_id($conn, (int)$classRow['id']) ?? 0);
+		$gradingName = '';
+		$gradingType = '';
+		if ($gradingId > 0) {
+			$stmt = $conn->prepare("SELECT name, type FROM tbl_grading_systems WHERE id = ? LIMIT 1");
+			$stmt->execute([$gradingId]);
+			$gradingRow = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+			$gradingName = (string)($gradingRow['name'] ?? '');
+			$gradingType = (string)($gradingRow['type'] ?? '');
+		}
+		$classGradingMap[(int)$classRow['id']] = [
+			'grading_system_id' => $gradingId,
+			'grading_name' => $gradingName,
+			'grading_type' => $gradingType,
+		];
+	}
 	$examWeight = 100.0;
 	if (app_table_exists($conn, 'tbl_exam_weights')) {
 		$stmt = $conn->prepare("SELECT weight_percentage FROM tbl_exam_weights WHERE exam_id = ? LIMIT 1");
@@ -173,13 +178,8 @@ try {
 					</div>
 					<div class="col-md-6 mb-3">
 						<label class="form-label">Grading System</label>
-						<select class="form-control" name="grading_system_id" required>
-							<?php foreach ($gradingSystems as $system): ?>
-							<option value="<?php echo (int)$system['id']; ?>" <?php echo ((int)($exam['grading_system_id'] ?: $defaultGradingSystemId) === (int)$system['id']) ? 'selected' : ''; ?>>
-								<?php echo htmlspecialchars($system['name']); ?> (<?php echo htmlspecialchars(strtoupper((string)$system['type'])); ?>)
-							</option>
-							<?php endforeach; ?>
-						</select>
+						<input class="form-control" id="edit_grading_system_display" type="text" value="Auto from selected class" readonly>
+						<div class="small text-muted mt-1">This follows the grading system assigned in Class Management for the selected class.</div>
 					</div>
 					<div class="col-md-6 mb-3">
 						<label class="form-label">Assessment Mode</label>
@@ -240,6 +240,27 @@ try {
 <script src="js/main.js"></script>
 <?php require_once('const/check-reply.php'); ?>
 <script>
+const editClassGradingMap = <?php echo json_encode($classGradingMap); ?>;
+
+function updateEditGradingSystemDisplay() {
+	const classSelect = document.getElementById('edit_class_id');
+	const display = document.getElementById('edit_grading_system_display');
+	if (!classSelect || !display) return;
+	const classId = parseInt(classSelect.value || '0', 10);
+	if (!classId) {
+		display.value = 'Auto from selected class';
+		return;
+	}
+	const meta = editClassGradingMap[classId] || {};
+	if (meta.grading_name) {
+		display.value = meta.grading_name + (meta.grading_type ? ' (' + String(meta.grading_type).toUpperCase() + ')' : '');
+		return;
+	}
+	const option = classSelect.options[classSelect.selectedIndex];
+	const classLabel = option ? option.textContent.trim() : ('Class #' + classId);
+	display.value = classLabel + ': No grading system assigned';
+}
+
 function filterEditSubjects() {
 	const classId = parseInt(document.getElementById('edit_class_id').value || '0', 10);
 	document.querySelectorAll('#edit_subject_ids option').forEach(function(option) {
@@ -251,6 +272,7 @@ function filterEditSubjects() {
 	});
 }
 document.getElementById('edit_class_id').addEventListener('change', filterEditSubjects);
+document.getElementById('edit_class_id').addEventListener('change', updateEditGradingSystemDisplay);
 function filterEditComponentExams() {
 	const classId = parseInt(document.getElementById('edit_class_id').value || '0', 10);
 	const termId = parseInt(document.querySelector('select[name="term_id"]').value || '0', 10);
@@ -290,6 +312,7 @@ document.getElementById('edit_assessment_mode').addEventListener('change', toggl
 document.querySelector('select[name="term_id"]').addEventListener('change', filterEditComponentExams);
 document.getElementById('edit_class_id').addEventListener('change', filterEditComponentExams);
 filterEditSubjects();
+updateEditGradingSystemDisplay();
 toggleEditAssessmentMode();
 </script>
 </body>

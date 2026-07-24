@@ -100,9 +100,6 @@ try {
     $pdf->writeHTML($html, true, false, true, false, '');
     if ($verificationUrl !== '') {
         $pdf->write2DBarcode($verificationUrl, 'QRCODE,H', 160, 225, 30, 30);
-        $pdf->SetFont('helvetica', '', 8);
-        $pdf->SetXY(145, 257);
-        $pdf->Cell(55, 5, 'Verify: ' . (string)($row['verification_code'] ?? ''), 0, 1, 'C');
     }
     $pdf->Output('receipt-' . (int)$row['id'] . '.pdf', $forceDownload ? 'D' : 'I');
 } catch (Throwable $e) {

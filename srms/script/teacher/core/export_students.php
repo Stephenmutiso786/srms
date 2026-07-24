@@ -10,12 +10,12 @@ try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-$stmt = $conn->prepare("SELECT * FROM tbl_classes WHERE id = ?");
+$stmt = $conn->prepare("SELECT id, name FROM tbl_classes WHERE id = ?");
 $stmt->execute([$class]);
-$result = $stmt->fetchAll();
+$result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 
-$fileName = $result[0][1].'.csv';
+$fileName = (string)($result[0]['name'] ?? 'students').'.csv';
 $_SESSION['export_file'] = $fileName;
 
 if (file_exists('import_sheets/'.$fileName)) {
@@ -28,14 +28,18 @@ $rowData = array('REGISTRATION NUMBER', 'STUDENT NAME', 'SCORE');
 fputcsv($fp, $rowData);
 
 
-$stmt = $conn->prepare("SELECT * FROM tbl_students WHERE class = ?");
+$stmt = $conn->prepare("SELECT id, fname, mname, lname FROM tbl_students WHERE class = ?");
 $stmt->execute([$class]);
-$result = $stmt->fetchAll();
+$result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 foreach($result as $row)
 {
 
-$rowData = array($row[0], ''.$row[1].' '.$row[2].' '.$row[3].'', "0");
+$rowData = array(
+	(string)($row['id'] ?? ''),
+	trim((string)($row['fname'] ?? '') . ' ' . (string)($row['mname'] ?? '') . ' ' . (string)($row['lname'] ?? '')),
+	"0"
+);
 fputcsv($fp, $rowData);
 
 }

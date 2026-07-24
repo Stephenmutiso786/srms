@@ -55,7 +55,7 @@ try {
 					GROUP BY pr.invoice_id
 				) lr_map ON lr_map.invoice_id = i.id
 				LEFT JOIN tbl_receipts lr ON lr.id = lr_map.latest_receipt_id
-				WHERE s.class = ? AND i.term_id = ? AND i.status != 'void'
+				WHERE i.class_id = ? AND i.term_id = ? AND i.status != 'void'
 				GROUP BY i.id, i.student_id, student_name, paid.total_paid, lr_map.latest_receipt_id, lr.receipt_number
 				ORDER BY i.student_id");
 		} else {
@@ -70,7 +70,7 @@ try {
 					FROM tbl_payments
 					GROUP BY invoice_id
 				) paid ON paid.invoice_id = i.id
-				WHERE s.class = ? AND i.term_id = ? AND i.status != 'void'
+				WHERE i.class_id = ? AND i.term_id = ? AND i.status != 'void'
 				GROUP BY i.id, i.student_id, student_name, paid.total_paid
 				ORDER BY i.student_id");
 		}

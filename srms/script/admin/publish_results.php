@@ -29,6 +29,7 @@ try {
 	$terms = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 	$sql = "SELECT e.id, e.name, e.status, e.created_at, e.class_id, e.term_id, c.name AS class_name, t.name AS term_name, et.name AS type_name,
+		COALESCE((SELECT COUNT(*) FROM tbl_exam_subjects es WHERE es.exam_id = e.id), 0) AS total_subjects,
 		COALESCE((SELECT COUNT(*) FROM tbl_exam_mark_submissions ms WHERE ms.exam_id = e.id AND ms.status = 'reviewed'), 0) AS reviewed_count,
 		COALESCE((SELECT COUNT(*) FROM tbl_exam_mark_submissions ms WHERE ms.exam_id = e.id AND ms.status = 'submitted'), 0) AS submitted_count,
 		COALESCE((SELECT COUNT(*) FROM tbl_exam_mark_submissions ms WHERE ms.exam_id = e.id AND ms.status = 'rejected'), 0) AS rejected_count,
@@ -165,6 +166,11 @@ try {
 				<tr><td colspan="6" class="text-muted">No exams found for the selected filter.</td></tr>
 			<?php } ?>
 			<?php foreach ($rows as $row): ?>
+				<?php
+				$totalSubjects = (int)($row['total_subjects'] ?? 0);
+				$totalSubmissions = (int)($row['total_submissions'] ?? 0);
+				$missingSubmissions = $totalSubjects > 0 && $totalSubmissions < $totalSubjects;
+				?>
 				<tr>
 					<td>
 						<div class="fw-semibold"><?php echo htmlspecialchars($row['name']); ?></div>
@@ -177,13 +183,17 @@ try {
 						<div class="small">Reviewed: <?php echo (int)$row['reviewed_count']; ?></div>
 						<div class="small">Pending: <?php echo (int)$row['submitted_count']; ?></div>
 						<div class="small">Returned: <?php echo (int)$row['rejected_count']; ?></div>
+						<div class="small">Subjects: <?php echo $totalSubmissions; ?> / <?php echo $totalSubjects; ?></div>
+						<?php if ($missingSubmissions) { ?><div class="small text-danger">Missing subject submissions</div><?php } ?>
 					</td>
 					<td>
-						<?php if ((string)$row['status'] === 'finalized') { ?>
+						<?php if ((string)$row['status'] === 'finalized' && !$missingSubmissions) { ?>
 						<form method="POST" action="admin/core/update_exam_status" class="d-inline">
 							<input type="hidden" name="exam_id" value="<?php echo (int)$row['id']; ?>">
 							<button class="btn btn-sm btn-dark" name="status" value="published"><i class="bi bi-broadcast me-1"></i>Publish</button>
 						</form>
+						<?php } elseif ((string)$row['status'] === 'finalized' && $missingSubmissions) { ?>
+						<span class="text-danger small">Cannot publish until all subjects submit marks.</span>
 						<?php } elseif ((string)$row['status'] === 'published') { ?>
 						<form method="POST" action="admin/core/update_exam_status" class="d-inline">
 							<input type="hidden" name="exam_id" value="<?php echo (int)$row['id']; ?>">
@@ -192,12 +202,22 @@ try {
 						<form method="POST" action="admin/core/send_results_notifications" class="d-inline">
 							<input type="hidden" name="exam_id" value="<?php echo (int)$row['id']; ?>">
 							<input type="hidden" name="channel" value="both">
-							<button class="btn btn-sm btn-primary" type="submit"><i class="bi bi-send-check me-1"></i>Send Both</button>
+							<button class="btn btn-sm btn-primary" type="submit"><i class="bi bi-send-check me-1"></i>Send Email + WhatsApp</button>
+						</form>
+						<form method="POST" action="admin/core/send_results_notifications" class="d-inline">
+							<input type="hidden" name="exam_id" value="<?php echo (int)$row['id']; ?>">
+							<input type="hidden" name="channel" value="all">
+							<button class="btn btn-sm btn-success" type="submit"><i class="bi bi-broadcast-pin me-1"></i>Send All</button>
 						</form>
 						<form method="POST" action="admin/core/send_results_notifications" class="d-inline">
 							<input type="hidden" name="exam_id" value="<?php echo (int)$row['id']; ?>">
 							<input type="hidden" name="channel" value="sms">
 							<button class="btn btn-sm btn-outline-primary" type="submit"><i class="bi bi-chat-dots me-1"></i>Send SMS</button>
+						</form>
+						<form method="POST" action="admin/core/send_results_notifications" class="d-inline">
+							<input type="hidden" name="exam_id" value="<?php echo (int)$row['id']; ?>">
+							<input type="hidden" name="channel" value="whatsapp">
+							<button class="btn btn-sm btn-outline-success" type="submit"><i class="bi bi-whatsapp me-1"></i>Send WhatsApp</button>
 						</form>
 						<form method="POST" action="admin/core/send_results_notifications" class="d-inline">
 							<input type="hidden" name="exam_id" value="<?php echo (int)$row['id']; ?>">

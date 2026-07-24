@@ -83,7 +83,17 @@ try {
 </style>
 </head>
 <body class="app sidebar-mini">
-<header class="app-header"><a class="app-header__logo" href="javascript:void(0);"><?php echo APP_NAME; ?></a><a class="app-sidebar__toggle" href="#" data-toggle="sidebar" aria-label="Hide Sidebar"></a></header>
+<header class="app-header"><a class="app-header__logo" href="javascript:void(0);"><?php echo APP_NAME; ?></a>
+<a class="app-sidebar__toggle" href="#" data-toggle="sidebar" aria-label="Hide Sidebar"></a>
+<ul class="app-nav">
+<li class="dropdown"><a class="app-nav__item" href="#" data-bs-toggle="dropdown" aria-label="Open Profile Menu"><i class="bi bi-person fs-4"></i></a>
+<ul class="dropdown-menu settings-menu dropdown-menu-right">
+<li><a class="dropdown-item" href="teacher/profile"><i class="bi bi-person me-2 fs-5"></i> Profile</a></li>
+<li><a class="dropdown-item" href="logout"><i class="bi bi-box-arrow-right me-2 fs-5"></i> Logout</a></li>
+</ul>
+</li>
+</ul>
+</header>
 <?php include('teacher/partials/sidebar.php'); ?>
 <main class="app-content">
 <div class="app-title"><div><h1>Discipline Cases</h1><p>Create student incidents and notify parents immediately.</p></div></div>

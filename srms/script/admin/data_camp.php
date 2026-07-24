@@ -7,11 +7,11 @@ require_once('const/check_session.php');
 require_once('const/rbac.php');
 
 if ($res !== '1' || !in_array((int)$level, [0, 1, 9], true)) { header('location:../'); exit; }
-app_require_permission('report.view', 'admin');
 
 $records = [];
-$summary = ['records' => 0, 'alumni' => 0, 'reports' => 0, 'certificates' => 0, 'students' => 0, 'teachers' => 0, 'parents' => 0];
+$summary = ['records' => 0, 'alumni' => 0, 'reports' => 0, 'certificates' => 0, 'students' => 0, 'teachers' => 0, 'parents' => 0, 'payload_bytes' => 0, 'payload_original_bytes' => 0];
 $typeFilter = trim((string)($_GET['type'] ?? ''));
+$dataCampOpenUrlBase = rtrim(str_replace('\\', '/', dirname((string)($_SERVER['SCRIPT_NAME'] ?? '/srms/script/admin/data_camp.php'))), '/') . '/data_camp_open.php';
 
 try {
 	$conn = app_db();
@@ -44,8 +44,45 @@ try {
 	$summary['students'] = app_table_exists($conn, 'tbl_students') ? (int)$conn->query("SELECT COUNT(*) FROM tbl_students")->fetchColumn() : 0;
 	$summary['teachers'] = app_table_exists($conn, 'tbl_staff') ? (int)$conn->query("SELECT COUNT(*) FROM tbl_staff")->fetchColumn() : 0;
 	$summary['parents'] = app_table_exists($conn, 'tbl_parents') ? (int)$conn->query("SELECT COUNT(*) FROM tbl_parents")->fetchColumn() : 0;
+	$stmt = $conn->query("SELECT COALESCE(SUM(payload_bytes), 0) AS payload_bytes, COALESCE(SUM(payload_original_bytes), 0) AS payload_original_bytes FROM tbl_data_camp_records");
+	$sizeRow = $stmt ? ($stmt->fetch(PDO::FETCH_ASSOC) ?: []) : [];
+	$summary['payload_bytes'] = (int)($sizeRow['payload_bytes'] ?? 0);
+	$summary['payload_original_bytes'] = (int)($sizeRow['payload_original_bytes'] ?? 0);
 } catch (Throwable $e) {
 	$_SESSION['reply'] = array(array('danger', 'Failed to load Data Camp.'));
+}
+
+function app_data_camp_human_bytes(int $bytes): string
+{
+	$bytes = max(0, $bytes);
+	$units = ['B', 'KB', 'MB', 'GB', 'TB'];
+	$idx = 0;
+	$value = (float)$bytes;
+	while ($value >= 1024 && $idx < count($units) - 1) {
+		$value /= 1024;
+		$idx++;
+	}
+	return number_format($value, $idx === 0 ? 0 : 2) . ' ' . $units[$idx];
+}
+
+function app_data_camp_record_target_label(array $row): string
+{
+	$recordType = strtolower(trim((string)($row['record_type'] ?? '')));
+	$filePath = trim((string)($row['file_path'] ?? ''));
+	$sourceUrl = trim((string)($row['source_url'] ?? ''));
+	if ($filePath !== '') {
+		return 'Open File';
+	}
+	if ($recordType === 'report_card') {
+		return 'Open Report';
+	}
+	if ($recordType === 'certificate') {
+		return 'Open Certificate';
+	}
+	if ($sourceUrl !== '') {
+		return 'Open Source';
+	}
+	return 'View Archive';
 }
 ?>
 <!DOCTYPE html>
@@ -76,6 +113,14 @@ try {
 <div class="col-md-4"><div class="tile"><div class="tile-body"><h5>Total Teachers Stored</h5><h2><?php echo (int)$summary['teachers']; ?></h2></div></div></div>
 <div class="col-md-4"><div class="tile"><div class="tile-body"><h5>Total Parents Stored</h5><h2><?php echo (int)$summary['parents']; ?></h2></div></div></div>
 </div>
+<div class="tile mb-3">
+<div class="tile-body d-flex flex-wrap justify-content-between gap-3">
+<div><strong>Archive Payload Storage</strong><br><small class="text-muted">Compressed retained metadata used by Data Camp snapshots.</small></div>
+<div><span class="badge bg-info text-dark">Stored: <?php echo htmlspecialchars(app_data_camp_human_bytes((int)$summary['payload_bytes'])); ?></span></div>
+<div><span class="badge bg-secondary">Original: <?php echo htmlspecialchars(app_data_camp_human_bytes((int)$summary['payload_original_bytes'])); ?></span></div>
+<div><span class="badge bg-success">Saved: <?php echo htmlspecialchars(app_data_camp_human_bytes(max(0, (int)$summary['payload_original_bytes'] - (int)$summary['payload_bytes']))); ?></span></div>
+</div>
+</div>
 <div class="tile">
 <div class="tile-body">
 <form method="get" class="d-flex flex-wrap gap-2 align-items-end mb-3">
@@ -85,7 +130,7 @@ try {
 </form>
 <div class="table-responsive">
 <table class="table table-striped table-bordered">
-<thead><tr><th>Date</th><th>Type</th><th>Title</th><th>Student</th><th>Class</th><th>Status</th><th>Source</th></tr></thead>
+<thead><tr><th>Date</th><th>Type</th><th>Title</th><th>Student</th><th>Class</th><th>Storage</th><th>Status</th><th>Source</th></tr></thead>
 <tbody>
 <?php foreach ($records as $row): ?>
 <tr>
@@ -97,18 +142,29 @@ try {
 </td>
 <td><?php echo htmlspecialchars(trim((string)($row['student_name'] ?? ''))); ?></td>
 <td><?php echo htmlspecialchars((string)($row['class_name'] ?? '')); ?></td>
+<td>
+<?php
+  $storedBytes = (int)($row['payload_bytes'] ?? 0);
+  $originalBytes = (int)($row['payload_original_bytes'] ?? 0);
+  $encoding = trim((string)($row['payload_encoding'] ?? 'json'));
+  if ($storedBytes > 0):
+?>
+<small><?php echo htmlspecialchars(app_data_camp_human_bytes($storedBytes)); ?></small>
+<?php if ($originalBytes > $storedBytes): ?>
+<br><small class="text-muted"><?php echo htmlspecialchars($encoding !== '' ? $encoding : 'json'); ?>, saved <?php echo htmlspecialchars(app_data_camp_human_bytes($originalBytes - $storedBytes)); ?></small>
+<?php endif; ?>
+<?php else: ?>
+<span class="text-muted">Metadata only</span>
+<?php endif; ?>
+</td>
 <td><?php echo htmlspecialchars((string)($row['status'] ?? '')); ?></td>
 <td>
-<?php if (trim((string)($row['source_url'] ?? '')) !== ''): ?>
-<a href="<?php echo htmlspecialchars((string)$row['source_url']); ?>" target="_blank">Open</a>
-<?php else: ?>
-<span class="text-muted">Stored metadata</span>
-<?php endif; ?>
+<a href="<?php echo htmlspecialchars($dataCampOpenUrlBase . '?id=' . (int)($row['id'] ?? 0)); ?>" target="_blank"><?php echo htmlspecialchars(app_data_camp_record_target_label($row)); ?></a>
 </td>
 </tr>
 <?php endforeach; ?>
 <?php if (!$records): ?>
-<tr><td colspan="7" class="text-center text-muted">No archived records found for this filter.</td></tr>
+<tr><td colspan="8" class="text-center text-muted">No archived records found for this filter.</td></tr>
 <?php endif; ?>
 </tbody>
 </table>

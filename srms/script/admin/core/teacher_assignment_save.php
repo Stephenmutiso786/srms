@@ -80,8 +80,10 @@ try {
 		$stmt = $conn->prepare("UPDATE tbl_teacher_assignments SET teacher_id = ?, class_id = ?, subject_id = ?, term_id = ?, year = ? WHERE id = ?");
 		$stmt->execute([$teacherId, $classId, $subjectId, $termId, $year, $assignmentId]);
 
-		app_sync_subject_combination($conn, (int)$existing['teacher_id'], (int)$existing['subject_id'], (int)$existing['class_id'], true);
-		app_sync_subject_combination($conn, $teacherId, $subjectId, $classId, false);
+			if (!app_teacher_has_any_active_assignment($conn, (int)$existing['teacher_id'], (int)$existing['class_id'], (int)$existing['subject_id'])) {
+				app_sync_subject_combination($conn, (int)$existing['teacher_id'], (int)$existing['subject_id'], (int)$existing['class_id'], true);
+			}
+			app_sync_subject_combination($conn, $teacherId, $subjectId, $classId, false);
 
 		$_SESSION['reply'] = array(array("success", "Allocation updated."));
 		header("location:../teacher_allocation");

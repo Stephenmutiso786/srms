@@ -143,13 +143,9 @@
 						var appName = (data.app && data.app.name) ? String(data.app.name) : '';
 						var schoolName = (data.school && data.school.name) ? String(data.school.name) : appName;
 						if (schoolName) {
-							var headerLogos = document.querySelectorAll('.app-header__logo');
-							for (var i = 0; i < headerLogos.length; i++) {
-								headerLogos[i].textContent = schoolName;
-							}
-							var footerEl = document.getElementById('appFooter');
-							if (footerEl) {
-								footerEl.textContent = '@' + (new Date()).getFullYear() + ' ' + schoolName;
+						var footerEl = document.getElementById('appFooter');
+						if (footerEl) {
+							footerEl.textContent = '@' + (new Date()).getFullYear() + ' ' + schoolName;
 							}
 							if (appName && document.title.indexOf(appName) === -1) {
 								document.title = appName + (document.title ? ' - ' + document.title : '');
@@ -268,257 +264,28 @@
 		var footer = document.createElement('footer');
 		footer.id = 'appFooter';
 		footer.className = 'app-footer';
-		footer.textContent = '@2026 School Management System';
+		footer.textContent = '@' + new Date().getFullYear() + ' School Management System';
 		var content = document.querySelector('.app-content');
 		if (content && content.parentNode) {
 			content.parentNode.appendChild(footer);
 		} else {
 			document.body.appendChild(footer);
 		}
+		fetch('api/health', { credentials: 'same-origin' })
+			.then(function(response) { return response.ok ? response.json() : null; })
+			.then(function(data) {
+				if (data && data.academic_year) {
+					footer.textContent = '@' + data.academic_year + ' School Management System';
+				}
+			})
+			.catch(function () { /* keep fallback year */ });
 	}
 
-	// AI + Feedback widget
-	if (!document.getElementById('aiWidget')) {
-		var fab = document.createElement('div');
-		fab.className = 'ai-fab';
-		fab.id = 'aiWidget';
-		fab.innerHTML = '<i class="bi bi-chat-dots"></i>';
-		document.body.appendChild(fab);
-
-		var panel = document.createElement('div');
-		panel.className = 'ai-panel';
-		panel.id = 'aiPanel';
-		panel.innerHTML = '' +
-			'<div class="ai-panel-header">' +
-				'<div>' +
-					'<div class="ai-panel-title">Edu Assist</div>' +
-					'<div class="ai-panel-subtitle">Reports, fees, attendance, and feedback.</div>' +
-				'</div>' +
-				'<button type="button" class="btn btn-sm btn-light" id="aiClose">×</button>' +
-			'</div>' +
-			'<div class="ai-panel-body">' +
-				'<div class="ai-chat-shell">' +
-					'<div class="ai-suggestions" id="aiSuggestions">' +
-						'<button type="button" class="ai-chip" data-ai-prompt="Show my report">Show my report</button>' +
-						'<button type="button" class="ai-chip" data-ai-prompt="What is my fee balance?">Fee balance</button>' +
-						'<button type="button" class="ai-chip" data-ai-prompt="How is my attendance?">Attendance</button>' +
-					'</div>' +
-					'<div class="ai-chat" id="aiChat"></div>' +
-					'<div class="ai-status" id="aiStatus">Ready</div>' +
-					'<label class="form-label mb-1">Mode</label>' +
-					'<select class="form-control" id="aiMode">' +
-					'<option value="ai">Ask Edu</option>' +
-					'<option value="feedback">Send Feedback</option>' +
-					'</select>' +
-					'<textarea class="form-control" id="aiMessage" rows="3" placeholder="Type your question or feedback..."></textarea>' +
-					'<div class="ai-actions">' +
-						'<button class="btn btn-primary btn-sm" id="aiSend">Send</button>' +
-					'</div>' +
-				'</div>' +
-			'</div>';
-		document.body.appendChild(panel);
-
-		var storageKey = 'srms-ai-widget-history:anon';
-		var userKeyLoaded = false;
-		var chatBox = null;
-		var statusBox = null;
-		var messageBox = null;
-
-		function safeParse(jsonText) {
-			try {
-				return JSON.parse(jsonText || '[]');
-			} catch (error) {
-				return [];
-			}
-		}
-
-		function loadHistory() {
-			return safeParse(window.localStorage.getItem(storageKey));
-		}
-
-		function saveHistory(history) {
-			window.localStorage.setItem(storageKey, JSON.stringify(history.slice(-40)));
-		}
-
-		function renderEmptyState() {
-			if (!chatBox) return;
-			chatBox.innerHTML = '<div class="ai-chat-empty"><div><strong>Edu Assist</strong><br>Ask about reports, fees, attendance, or use feedback mode.</div></div>';
-		}
-
-		function appendMessage(role, text) {
-			if (!chatBox) return;
-			var emptyState = chatBox.querySelector('.ai-chat-empty');
-			if (emptyState) {
-				emptyState.remove();
-			}
-			var message = document.createElement('div');
-			message.className = 'ai-message ' + role;
-			message.textContent = text;
-			chatBox.appendChild(message);
-			chatBox.scrollTop = chatBox.scrollHeight;
-		}
-
-		function syncHistory() {
-			if (!chatBox) return;
-			chatBox.innerHTML = '';
-			var history = loadHistory();
-			if (!history.length) {
-				renderEmptyState();
-				return;
-			}
-			history.forEach(function (entry) {
-				appendMessage(entry.role, entry.text);
-			});
-		}
-
-		function pushHistory(role, text) {
-			var history = loadHistory();
-			history.push({ role: role, text: text });
-			saveHistory(history);
-		}
-
-		function setStatus(text) {
-			if (statusBox) {
-				statusBox.textContent = text;
-			}
-		}
-
-		function loadServerHistory() {
-			if (userKeyLoaded) {
-				return Promise.resolve(loadHistory());
-			}
-				return fetch(appCoreEndpoint('ai_feedback.php') + '?action=history', { credentials: 'same-origin' })
-				.then(function (r) { return r.json(); })
-				.then(function (data) {
-					if (data && data.ok) {
-						var userKey = (data.user_key || 'anon').replace(/[^a-zA-Z0-9:_-]/g, '');
-						storageKey = 'srms-ai-widget-history:' + userKey;
-						userKeyLoaded = true;
-						var history = Array.isArray(data.history) ? data.history : [];
-						if (history.length) {
-							saveHistory(history);
-						}
-						return history;
-					}
-					return [];
-				})
-				.catch(function () {
-					return [];
-				});
-		}
-
-		function openWidget() {
-			loadServerHistory().then(function () {
-				panel.classList.add('is-open');
-				setTimeout(function () {
-					if (!chatBox) {
-						chatBox = document.getElementById('aiChat');
-						statusBox = document.getElementById('aiStatus');
-						messageBox = document.getElementById('aiMessage');
-					}
-					syncHistory();
-					if (!loadHistory().length) {
-						pushHistory('edu', 'Hello. Ask me about reports, fees, attendance, or send feedback.');
-						syncHistory();
-					}
-					if (messageBox) {
-						messageBox.focus();
-					}
-				}, 0);
-			});
-		}
-
-		function sendMessage() {
-			var msg = (messageBox ? messageBox.value : '').trim();
-			if (!msg) return;
-
-			var mode = document.getElementById('aiMode').value;
-			pushHistory('user', msg);
-			appendMessage('user', msg);
-			messageBox.value = '';
-
-			var thinking = 'Edu is thinking...';
-			appendMessage('thinking', thinking);
-			setStatus(thinking);
-
-			fetch(appCoreEndpoint('ai_feedback.php'), {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				credentials: 'same-origin',
-				body: JSON.stringify({ message: msg, category: mode })
-			}).then(function (r) {
-				return r.text().then(function (text) {
-					var data = null;
-					try {
-						data = JSON.parse(text || '{}');
-					} catch (error) {
-						data = { ok: false, message: text || ('HTTP ' + r.status) };
-					}
-					if (!r.ok && !data.message) {
-						data.message = 'HTTP ' + r.status;
-					}
-					return data;
-				});
-			}).then(function (data) {
-				var currentThinking = chatBox.querySelector('.ai-message.thinking');
-				if (currentThinking) {
-					currentThinking.remove();
-				}
-				var reply = data && data.ok ? (data.response || 'Thanks. We received your message.') : (data && (data.message || data.details) ? (data.message || data.details) : 'Failed to send.');
-				var role = (mode === 'ai' && data && data.ok) ? 'edu' : 'system';
-				appendMessage(role, reply);
-				pushHistory(role, reply);
-				setStatus('Ready');
-			}).catch(function () {
-				var currentThinking = chatBox.querySelector('.ai-message.thinking');
-				if (currentThinking) {
-					currentThinking.remove();
-				}
-				appendMessage('system', 'Failed to send.');
-				pushHistory('system', 'Failed to send.');
-				setStatus('Ready');
-			});
-		}
-
-		fab.addEventListener('click', function () {
-			if (panel.classList.contains('is-open')) {
-				panel.classList.remove('is-open');
-				return;
-			}
-			openWidget();
-		});
-		document.addEventListener('click', function (e) {
-			if (e.target && e.target.id === 'aiClose') {
-				panel.classList.remove('is-open');
-			}
-		});
-
-		document.addEventListener('click', function (e) {
-			if (e.target && e.target.getAttribute('data-ai-prompt')) {
-				var prompt = e.target.getAttribute('data-ai-prompt');
-				if (messageBox) {
-					messageBox.value = prompt;
-					messageBox.focus();
-				}
-			}
-		});
-
-		document.addEventListener('click', function (e) {
-			if (e.target && e.target.id === 'aiSend') {
-				sendMessage();
-			}
-		});
-
-		document.addEventListener('keydown', function (e) {
-			if (panel.classList.contains('is-open') && e.key === 'Enter' && !e.shiftKey && document.activeElement === messageBox) {
-				e.preventDefault();
-				sendMessage();
-			}
-		});
-	}
+	// Legacy floating Edu AI widget removed.
 
 	function appCurrentPortal() {
 		var path = (window.location.pathname || '').toLowerCase();
+		if (path.indexOf('/academic') !== -1) return 'academic';
 		if (path.indexOf('/teacher') !== -1) return 'teacher';
 		if (path.indexOf('/student') !== -1) return 'student';
 		if (path.indexOf('/parent') !== -1) return 'parent';
@@ -528,6 +295,7 @@
 
 		var roleNode = document.querySelector('.app-sidebar__user-designation');
 		var roleText = roleNode ? String(roleNode.textContent || '').toLowerCase() : '';
+		if (roleText.indexOf('academic') !== -1 || roleText.indexOf('deputy') !== -1) return 'academic';
 		if (roleText.indexOf('teacher') !== -1) return 'teacher';
 		if (roleText.indexOf('student') !== -1) return 'student';
 		if (roleText.indexOf('parent') !== -1) return 'parent';
@@ -544,8 +312,410 @@
 		if (document.querySelector('.app-sidebar .app-menu a[href^="teacher/"]')) {
 			return 'teacher';
 		}
+		if (document.querySelector('.app-sidebar .app-menu a[href^="academic/"]')) {
+			return 'academic';
+		}
 
 		return 'other';
+	}
+
+	function appPortalModuleHref(module) {
+		var portal = appCurrentPortal();
+		var map = {
+			admin: {
+				notifications: 'admin/notifications',
+				attendance: 'admin/attendance',
+				performance: 'admin/results_analytics',
+				finance: 'admin/fees',
+				discipline: 'admin/discipline',
+				marks: 'admin/exams'
+			},
+			academic: {
+				notifications: 'academic/index',
+				attendance: 'academic/index',
+				performance: 'academic/index',
+				finance: 'academic/index',
+				discipline: 'academic/discipline',
+				marks: 'academic/index'
+			},
+			teacher: {
+				notifications: 'teacher/index',
+				attendance: 'teacher/attendance',
+				performance: 'teacher/class_report',
+				finance: 'teacher/index',
+				discipline: 'teacher/discipline',
+				marks: 'teacher/exam_marks_entry'
+			},
+			accountant: {
+				notifications: 'accountant/index',
+				attendance: 'accountant/index',
+				performance: 'accountant/index',
+				finance: 'accountant/fees',
+				discipline: 'accountant/index',
+				marks: 'accountant/index'
+			},
+			bom: {
+				notifications: 'bom/index',
+				attendance: 'bom/index',
+				performance: 'bom/index',
+				finance: 'bom/index',
+				discipline: 'bom/index',
+				marks: 'bom/index'
+			},
+			student: {
+				notifications: 'student/index',
+				attendance: 'student/attendance',
+				performance: 'student/results',
+				finance: 'student/fees',
+				discipline: 'student/discipline',
+				marks: 'student/results'
+			},
+			parent: {
+				notifications: 'parent/index',
+				attendance: 'parent/attendance',
+				performance: 'parent/report_card',
+				finance: 'parent/fees',
+				discipline: 'parent/discipline',
+				marks: 'parent/report_card'
+			}
+		};
+		if (!map[portal]) {
+			portal = 'admin';
+		}
+		return map[portal][module] || map[portal].notifications;
+	}
+
+	function appEnsureHeaderNav() {
+		var header = document.querySelector('.app-header');
+		if (!header) {
+			return null;
+		}
+		var nav = header.querySelector('.app-nav');
+		if (nav) {
+			return nav;
+		}
+
+		nav = document.createElement('ul');
+		nav.className = 'app-nav';
+		header.appendChild(nav);
+		return nav;
+	}
+
+	function appNormalizeHeaderBranding() {
+		var logos = document.querySelectorAll('.app-header__logo');
+		var shortName = String(document.title || '').split(' - ')[0].trim();
+		logos.forEach(function (logo) {
+			logo.style.display = 'flex';
+			logo.style.alignItems = 'center';
+			logo.style.justifyContent = 'center';
+			logo.style.height = '50px';
+			logo.style.maxHeight = '50px';
+			logo.style.whiteSpace = 'nowrap';
+			logo.style.overflow = 'hidden';
+			logo.style.textOverflow = 'ellipsis';
+			var text = String(logo.textContent || '').replace(/\s+/g, ' ').trim();
+			if (shortName && text.length > 18) {
+				logo.title = text;
+			}
+		});
+
+		fetch('api/health.php', { credentials: 'same-origin' })
+			.then(function (r) { return r.ok ? r.json() : null; })
+			.then(function (payload) {
+				var schoolName = payload && payload.school_name ? String(payload.school_name) : shortName;
+				var logoUrl = payload && payload.logo_url ? String(payload.logo_url) : '';
+				if (logoUrl) {
+					document.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"], link[rel="apple-touch-icon"]').forEach(function (node) {
+						node.setAttribute('href', logoUrl);
+					});
+				}
+				if (!logos.length) {
+					return;
+				}
+				logos.forEach(function (logo) {
+					if (logo.dataset.brandingApplied === '1') {
+						return;
+					}
+					logo.dataset.brandingApplied = '1';
+					logo.title = schoolName || String(logo.textContent || '').trim();
+					if (logoUrl) {
+						logo.innerHTML = '<span class="app-header__brand"><img src="' + logoUrl + '" alt="School logo"><span class="app-header__brand-text">' + (schoolName || shortName || 'School') + '</span></span>';
+					} else if (schoolName) {
+						logo.textContent = schoolName;
+					}
+				});
+			})
+			.catch(function () {
+				if (!logos.length) {
+					return;
+				}
+				logos.forEach(function (logo) {
+					var text = String(logo.textContent || '').replace(/\s+/g, ' ').trim();
+					if (shortName && text.length > 18) {
+						logo.textContent = shortName;
+					}
+				});
+			});
+	}
+
+	function appEnsureSmartSearch() {
+		var nav = appEnsureHeaderNav();
+		if (!nav || document.getElementById('appSmartSearchBtn')) {
+			return;
+		}
+
+		var item = document.createElement('li');
+		item.style.display = 'flex';
+		item.style.alignItems = 'center';
+		item.style.height = '50px';
+		item.innerHTML = '<button type="button" id="appSmartSearchBtn" class="app-nav__item" style="border:none;background:transparent;display:inline-flex;align-items:center;gap:8px;"><i class="bi bi-search"></i><span class="d-none d-md-inline">Search</span></button>';
+		nav.insertBefore(item, nav.firstChild);
+
+		var modal = document.createElement('div');
+		modal.id = 'appSmartSearchModal';
+		modal.style.display = 'none';
+		modal.style.position = 'fixed';
+		modal.style.inset = '0';
+		modal.style.zIndex = '2600';
+		modal.innerHTML = '' +
+			'<div id="appSmartSearchBackdrop" style="position:absolute;inset:0;background:rgba(7,20,39,.45);"></div>' +
+			'<div style="position:relative;max-width:760px;margin:10vh auto 0;background:#fff;border-radius:20px;box-shadow:0 28px 70px rgba(15,40,80,.22);overflow:hidden;">' +
+				'<div style="padding:16px 18px;border-bottom:1px solid #e8eef5;">' +
+					'<input id="appSmartSearchInput" class="form-control" placeholder="Search anything... e.g. Grade 8 fee balances, absent learners, Mathematics results" />' +
+				'</div>' +
+				'<div id="appSmartSearchResults" style="max-height:60vh;overflow:auto;padding:8px 18px 18px;"></div>' +
+			'</div>';
+		document.body.appendChild(modal);
+
+		var input = document.getElementById('appSmartSearchInput');
+		var results = document.getElementById('appSmartSearchResults');
+		function openSearch() {
+			modal.style.display = 'block';
+			input.value = '';
+			results.innerHTML = '<div class="text-muted py-3">Start typing to search modules, classes, learners, and staff.</div>';
+			setTimeout(function () { input.focus(); }, 30);
+		}
+		function closeSearch() {
+			modal.style.display = 'none';
+		}
+		function renderResults(data) {
+			if (!data || !data.ok || !Array.isArray(data.results) || !data.results.length) {
+				results.innerHTML = '<div class="text-muted py-3">No matching results found.</div>';
+				return;
+			}
+			results.innerHTML = data.results.map(function (item) {
+				return '<a href="' + String(item.url || '#') + '" style="display:block;padding:12px 4px;border-bottom:1px solid #eef2f7;text-decoration:none;color:inherit;">' +
+					'<div style="font-weight:800;color:#173042;">' + String(item.title || 'Result') + '</div>' +
+					'<div class="small text-muted">' + String(item.description || item.type || '') + '</div>' +
+				'</a>';
+			}).join('');
+		}
+		var timer = null;
+		input.addEventListener('input', function () {
+			var q = String(input.value || '').trim();
+			clearTimeout(timer);
+			timer = setTimeout(function () {
+				fetch(appCoreEndpoint('smart_search.php') + '?q=' + encodeURIComponent(q), { credentials: 'same-origin' })
+					.then(function (r) { return r.ok ? r.json() : null; })
+					.then(renderResults)
+					.catch(function () {
+						results.innerHTML = '<div class="text-danger py-3">Search is unavailable right now.</div>';
+					});
+			}, 160);
+		});
+		document.getElementById('appSmartSearchBtn').addEventListener('click', openSearch);
+		document.getElementById('appSmartSearchBackdrop').addEventListener('click', closeSearch);
+		document.addEventListener('keydown', function (event) {
+			if ((event.ctrlKey || event.metaKey) && String(event.key).toLowerCase() === 'k') {
+				event.preventDefault();
+				openSearch();
+			}
+			if (event.key === 'Escape' && modal.style.display === 'block') {
+				closeSearch();
+			}
+		});
+	}
+
+	function appApplyUiPreferences() {
+		var root = document.documentElement;
+		var theme = window.localStorage.getItem('srms-theme') || 'light';
+		var scale = window.localStorage.getItem('srms-ui-scale') || 'normal';
+		var motion = window.localStorage.getItem('srms-ui-motion') || 'normal';
+		if (theme === 'system') {
+			theme = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+		}
+		root.setAttribute('data-bs-theme', theme === 'dark' ? 'dark' : 'light');
+		root.setAttribute('data-ui-scale', scale);
+		root.setAttribute('data-ui-motion', motion);
+	}
+
+	function appEnsureThemeControls() {
+		var nav = appEnsureHeaderNav();
+		if (!nav || document.getElementById('appThemeControlsBtn')) {
+			return;
+		}
+		appApplyUiPreferences();
+
+		var item = document.createElement('li');
+		item.className = 'dropdown';
+		item.style.display = 'flex';
+		item.style.alignItems = 'center';
+		item.style.height = '50px';
+		item.innerHTML = '' +
+			'<a class="app-nav__item" href="#" id="appThemeControlsBtn" data-bs-toggle="dropdown" aria-label="Accessibility and theme"><i class="bi bi-sliders"></i></a>' +
+			'<div class="dropdown-menu dropdown-menu-right p-3" style="min-width:280px;">' +
+				'<div class="fw-bold mb-2">Display & Accessibility</div>' +
+				'<label class="form-label small mb-1">Theme</label>' +
+				'<select class="form-control form-control-sm mb-2" id="appThemeSelect">' +
+					'<option value="light">Light</option>' +
+					'<option value="dark">Dark</option>' +
+					'<option value="system">System</option>' +
+				'</select>' +
+				'<label class="form-label small mb-1">Text size</label>' +
+				'<select class="form-control form-control-sm mb-2" id="appScaleSelect">' +
+					'<option value="normal">Normal</option>' +
+					'<option value="large">Large</option>' +
+					'<option value="xlarge">Extra Large</option>' +
+				'</select>' +
+				'<label class="form-label small mb-1">Motion</label>' +
+				'<select class="form-control form-control-sm" id="appMotionSelect">' +
+					'<option value="normal">Normal</option>' +
+					'<option value="reduced">Reduced</option>' +
+				'</select>' +
+			'</div>';
+		nav.appendChild(item);
+
+		var themeSelect = document.getElementById('appThemeSelect');
+		var scaleSelect = document.getElementById('appScaleSelect');
+		var motionSelect = document.getElementById('appMotionSelect');
+		if (!themeSelect || !scaleSelect || !motionSelect) {
+			return;
+		}
+		themeSelect.value = window.localStorage.getItem('srms-theme') || 'light';
+		scaleSelect.value = window.localStorage.getItem('srms-ui-scale') || 'normal';
+		motionSelect.value = window.localStorage.getItem('srms-ui-motion') || 'normal';
+
+		function persist() {
+			window.localStorage.setItem('srms-theme', themeSelect.value || 'light');
+			window.localStorage.setItem('srms-ui-scale', scaleSelect.value || 'normal');
+			window.localStorage.setItem('srms-ui-motion', motionSelect.value || 'normal');
+			appApplyUiPreferences();
+		}
+
+		themeSelect.addEventListener('change', persist);
+		scaleSelect.addEventListener('change', persist);
+		motionSelect.addEventListener('change', persist);
+	}
+
+	function appEnsureDashboardIntelligence() {
+		var appContent = document.querySelector('.app-content');
+		if (!appContent) {
+			return;
+		}
+		var titleText = String((document.querySelector('.app-title h1') || document.querySelector('.dashboard-hero h1') || document.querySelector('h1') || {}).textContent || '').toLowerCase();
+		var isDashboard = document.body.classList.contains('dashboard') || document.querySelector('.dashboard-hero') || titleText.indexOf('dashboard') !== -1;
+		if (!isDashboard) {
+			return;
+		}
+
+		var host = document.getElementById('appDashboardIntelligence');
+		if (!host) {
+			host = document.createElement('section');
+			host.id = 'appDashboardIntelligence';
+			host.className = 'tile';
+			host.style.borderRadius = '20px';
+			host.style.border = '1px solid #dbe7f2';
+			host.style.boxShadow = '0 12px 26px rgba(15,40,80,.06)';
+			host.style.marginBottom = '18px';
+			host.innerHTML =
+				'<div class="tile-body">' +
+					'<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px;">' +
+						'<div><h3 class="tile-title" style="margin-bottom:4px;">Live Dashboard Intelligence</h3><div class="small text-muted">Role-based school signals, recommendations, and activity without leaving the dashboard.</div></div>' +
+						'<button type="button" class="btn btn-outline-primary btn-sm" id="appDashboardIntelRefresh"><i class="bi bi-arrow-repeat me-1"></i>Refresh</button>' +
+					'</div>' +
+					'<div id="appDashboardIntelCards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:14px;"></div>' +
+					'<div class="row g-3">' +
+						'<div class="col-lg-7"><div style="border:1px solid #e6edf5;border-radius:16px;padding:14px;height:100%;"><div class="fw-bold mb-2">Recommendations</div><div id="appDashboardIntelRecommendations" class="small text-muted">Loading recommendations...</div></div></div>' +
+						'<div class="col-lg-5"><div style="border:1px solid #e6edf5;border-radius:16px;padding:14px;height:100%;"><div class="fw-bold mb-2">Live Timeline</div><div id="appDashboardIntelTimeline" class="small text-muted">Loading timeline...</div></div></div>' +
+					'</div>' +
+				'</div>';
+			var anchor = document.querySelector('.dashboard-hero') || document.querySelector('.app-title');
+			if (anchor && anchor.nextSibling) {
+				appContent.insertBefore(host, anchor.nextSibling);
+			} else {
+				appContent.insertBefore(host, appContent.firstChild);
+			}
+		}
+
+		var cardsBox = document.getElementById('appDashboardIntelCards');
+		var recBox = document.getElementById('appDashboardIntelRecommendations');
+		var timelineBox = document.getElementById('appDashboardIntelTimeline');
+		var refreshBtn = document.getElementById('appDashboardIntelRefresh');
+		if (!cardsBox || !recBox || !timelineBox) {
+			return;
+		}
+
+		function escHtml(text) {
+			return String(text || '').replace(/[&<>\"']/g, function (m) {
+				return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[m];
+			});
+		}
+
+		function render(data) {
+			if (!data || !data.ok) {
+				cardsBox.innerHTML = '<div class="text-muted">Dashboard intelligence is unavailable right now.</div>';
+				recBox.innerHTML = 'Unable to load recommendations.';
+				timelineBox.innerHTML = 'Unable to load timeline.';
+				return;
+			}
+			var toneMap = {
+				success: { bg: '#effaf3', border: '#b9e4c6', value: '#067647' },
+				warning: { bg: '#fff9e8', border: '#f1d58a', value: '#b26a00' },
+				danger: { bg: '#fff1f0', border: '#f5c2c0', value: '#b42318' },
+				info: { bg: '#eef6ff', border: '#bdd6f6', value: '#175cd3' }
+			};
+			cardsBox.innerHTML = (data.cards || []).map(function (card) {
+				var tone = toneMap[card.tone] || toneMap.info;
+				return '<div style="background:' + tone.bg + ';border:1px solid ' + tone.border + ';border-radius:16px;padding:14px;">' +
+					'<div class="small text-muted" style="font-weight:800;text-transform:uppercase;letter-spacing:.08em;">' + escHtml(card.label) + '</div>' +
+					'<div style="font-size:1.45rem;font-weight:800;color:' + tone.value + ';margin:4px 0;">' + escHtml(card.value) + '</div>' +
+					'<div class="small text-muted">' + escHtml(card.detail || '') + '</div>' +
+				'</div>';
+			}).join('');
+			recBox.innerHTML = (data.recommendations || []).map(function (item) {
+				return '<div style="padding:10px 0;border-bottom:1px solid #eef2f7;">' +
+					'<div style="font-weight:800;color:#173042;">' + escHtml(item.title || 'Recommendation') + '</div>' +
+					'<div class="small text-muted">' + escHtml(item.detail || '') + '</div>' +
+				'</div>';
+			}).join('') || 'No recommendation available right now.';
+			timelineBox.innerHTML = (data.timeline || []).map(function (item) {
+				return '<div style="padding:10px 0;border-bottom:1px solid #eef2f7;">' +
+					'<div style="font-weight:800;color:#173042;">' + escHtml(item.title || 'Update') + '</div>' +
+					'<div class="small text-muted">' + escHtml(item.detail || '') + '</div>' +
+					'<div class="small text-muted mt-1">' + escHtml(item.time || '') + '</div>' +
+				'</div>';
+			}).join('') || 'No recent timeline entries.';
+		}
+
+		function refresh() {
+			fetch(appCoreEndpoint('dashboard_intelligence.php'), { credentials: 'same-origin' })
+				.then(function (r) { return r.ok ? r.json() : null; })
+				.then(render)
+				.catch(function () {
+					render(null);
+				});
+		}
+
+		if (refreshBtn && !refreshBtn.dataset.bound) {
+			refreshBtn.dataset.bound = '1';
+			refreshBtn.addEventListener('click', refresh);
+		}
+
+		refresh();
+		if (!host.dataset.liveTimerBound) {
+			host.dataset.liveTimerBound = '1';
+			window.setInterval(refresh, 60000);
+		}
 	}
 
 	function appEnsureSidebarFooter(portal) {
@@ -676,18 +846,19 @@
 		var style = document.createElement('style');
 		style.id = 'appOnlineWidgetStyles';
 		style.textContent = '' +
-			'.app-online-indicator{display:inline-flex;align-items:center;gap:6px;font-weight:700;}' +
+			'.app-header .app-nav{align-items:center;gap:4px;}' +
+			'.app-header .app-nav>li{display:flex;align-items:center;height:50px;list-style:none;}' +
+			'.app-header .app-nav .app-nav__item{display:inline-flex;align-items:center;justify-content:center;min-height:50px;padding:0 12px;}' +
+			'.app-online-indicator{display:inline-flex;align-items:center;gap:6px;font-weight:700;white-space:nowrap;}' +
 			'.app-online-dot{width:9px;height:9px;border-radius:999px;background:#2bb24c;box-shadow:0 0 0 0 rgba(43,178,76,.5);animation:appOnlinePulse 1.6s infinite;}' +
-			'.app-online-quick{display:flex;align-items:center;padding:0 10px;}' +
-			'.app-online-quick.is-offline .app-online-dot{background:#95a59c;box-shadow:none;animation:none;}' +
-			'.app-online-quick.is-offline .app-online-indicator{opacity:.8;}' +
 			'.app-online-menu{min-width:290px;max-height:340px;overflow:auto;padding:6px 0;}' +
 			'.app-online-row{padding:8px 12px;border-bottom:1px solid #eef2f1;display:flex;justify-content:space-between;gap:8px;}' +
 			'.app-online-row:last-child{border-bottom:none;}' +
 			'.app-online-name{font-weight:700;}' +
 			'.app-online-meta{font-size:12px;color:#63736a;}' +
 			'.app-profile-online{position:relative;}' +
-			'.app-profile-online-dot{position:absolute;right:1px;bottom:3px;width:11px;height:11px;border-radius:999px;background:#2bb24c;border:2px solid #fff;box-shadow:0 0 0 0 rgba(43,178,76,.45);animation:appOnlinePulse 1.6s infinite;}' +
+			'.app-profile-online-dot{position:absolute;right:8px;bottom:10px;width:11px;height:11px;border-radius:999px;background:#2bb24c;border:2px solid #fff;box-shadow:0 0 0 0 rgba(43,178,76,.45);animation:appOnlinePulse 1.6s infinite;}' +
+			'#appOnlineNavItem{display:flex;align-items:center;height:50px;}' +
 			'@keyframes appOnlinePulse{0%{box-shadow:0 0 0 0 rgba(43,178,76,.5);}70%{box-shadow:0 0 0 7px rgba(43,178,76,0);}100%{box-shadow:0 0 0 0 rgba(43,178,76,0);}}';
 		document.head.appendChild(style);
 	}
@@ -697,7 +868,7 @@
 			return;
 		}
 
-		var nav = document.querySelector('.app-header .app-nav');
+		var nav = appEnsureHeaderNav();
 		if (!nav || document.getElementById('appOnlineNavItem')) {
 			return;
 		}
@@ -716,14 +887,6 @@
 			}
 		}
 
-		if (!document.getElementById('appOnlineQuickStatus')) {
-			var quickItem = document.createElement('li');
-			quickItem.className = 'app-online-quick';
-			quickItem.id = 'appOnlineQuickStatus';
-			quickItem.innerHTML = '<span class="app-online-indicator"><span class="app-online-dot"></span><span id="appOnlineQuickLabel">Online</span></span>';
-			nav.insertBefore(quickItem, nav.firstChild);
-		}
-
 		var item = document.createElement('li');
 		item.className = 'dropdown';
 		item.id = 'appOnlineNavItem';
@@ -738,16 +901,13 @@
 
 		var menu = document.getElementById('appOnlineMenu');
 		var label = document.getElementById('appOnlineLabel');
-		var quickStatus = document.getElementById('appOnlineQuickStatus');
-		var quickLabel = document.getElementById('appOnlineQuickLabel');
 		var onlineEndpoint = appCoreEndpoint('online_users.php');
 
 		function renderOnline(data) {
 			if (!menu || !label) return;
 			if (!data || !data.ok) {
 				menu.innerHTML = '<div class="px-3 py-2 text-muted small">Online users unavailable.</div>';
-				if (quickStatus) quickStatus.classList.add('is-offline');
-				if (quickLabel) quickLabel.textContent = 'Offline';
+				label.textContent = 'Offline';
 				return;
 			}
 
@@ -763,8 +923,6 @@
 			var users = Array.isArray(data.users) ? data.users : [];
 			var count = Number(data.count || users.length || 0);
 			label.textContent = 'Online (' + count + ')';
-			if (quickStatus) quickStatus.classList.toggle('is-offline', count < 1);
-			if (quickLabel) quickLabel.textContent = count > 0 ? ('Online (' + count + ')') : 'Offline';
 
 			if (!users.length) {
 				menu.innerHTML = '<div class="px-3 py-2 text-muted small">No other users online.</div>';
@@ -826,6 +984,11 @@
 	}
 
 	var portal = appCurrentPortal();
+	appNormalizeHeaderBranding();
+	appApplyUiPreferences();
+	appEnsureSmartSearch();
+	appEnsureThemeControls();
+	appEnsureDashboardIntelligence();
 	appEnsureSidebarFooter(portal);
 	appEnsurePortalGuideMenu(portal);
 	appEnsurePublicWebsiteButton();

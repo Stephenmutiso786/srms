@@ -4,6 +4,7 @@ session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/rbac.php');
+require_once('const/notify.php');
 if ($res != "1" || $level != "0") { header("location:../"); }
 app_require_permission('communication.manage', 'admin');
 app_require_unlocked('communication', 'admin');
@@ -12,6 +13,7 @@ $announcements = [];
 $messages = [];
 $smsLogs = [];
 $emailLogs = [];
+$whatsappLogs = [];
 $classes = [];
 $roles = [];
 $students = [];
@@ -19,6 +21,8 @@ $parents = [];
 $staff = [];
 $smsSettings = ['provider' => 'custom', 'api_url' => '', 'api_key' => '', 'sender_id' => '', 'status' => 0];
 $smsBalance = 0;
+$whatsappSettings = ['provider' => 'wireweb', 'api_url' => 'https://app.wireweb.co.in/api/v1/messages', 'api_key' => '', 'session_id' => '', 'status' => 0];
+$whatsappWebhookUrl = '';
 
 try {
 	$conn = app_db();
@@ -63,12 +67,24 @@ try {
 		$emailLogs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
 
+	if (app_table_exists($conn, 'tbl_whatsapp_logs')) {
+		$stmt = $conn->prepare("SELECT * FROM tbl_whatsapp_logs ORDER BY created_at DESC LIMIT 30");
+		$stmt->execute();
+		$whatsappLogs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	}
+
 	if (app_table_exists($conn, 'tbl_sms_settings')) {
 		$stmt = $conn->prepare("SELECT provider, api_url, api_key, sender_id, status FROM tbl_sms_settings ORDER BY id DESC LIMIT 1");
 		$stmt->execute();
 		$row = $stmt->fetch(PDO::FETCH_ASSOC);
 		if ($row) { $smsSettings = $row; }
 	}
+
+	$loadedWhatsappSettings = app_get_whatsapp_settings($conn);
+	if (is_array($loadedWhatsappSettings)) {
+		$whatsappSettings = array_merge($whatsappSettings, $loadedWhatsappSettings);
+	}
+	$whatsappWebhookUrl = rtrim(app_base_url(), '/') . '/whatsapp_webhook.php';
 
 	$stmt = $conn->prepare("SELECT id, concat_ws(' ', fname, mname, lname) AS name FROM tbl_students ORDER BY id");
 	$stmt->execute();
@@ -270,6 +286,44 @@ try {
 
 <div class="col-md-6">
 <div class="tile">
+<h3 class="tile-title">WhatsApp Settings</h3>
+<form class="app_frm" action="admin/core/save_whatsapp_settings" method="POST">
+<div class="mb-3">
+<label class="form-label">Provider Name</label>
+<input class="form-control" name="provider" value="<?php echo htmlspecialchars((string)$whatsappSettings['provider']); ?>" placeholder="Wireweb">
+</div>
+<div class="mb-3">
+<label class="form-label">API URL (POST)</label>
+<input class="form-control" name="api_url" value="<?php echo htmlspecialchars((string)$whatsappSettings['api_url']); ?>" placeholder="https://app.wireweb.co.in/api/v1/messages">
+</div>
+<div class="mb-3">
+<label class="form-label">API Key</label>
+<input class="form-control" name="api_key" value="<?php echo htmlspecialchars((string)$whatsappSettings['api_key']); ?>" placeholder="ww_live_...">
+</div>
+<div class="mb-3">
+<label class="form-label">Session ID</label>
+<input class="form-control" name="session_id" value="<?php echo htmlspecialchars((string)$whatsappSettings['session_id']); ?>" placeholder="ww_sess_...">
+</div>
+<div class="mb-3">
+<label class="form-label">Enabled</label>
+<select class="form-control" name="status">
+<option value="1" <?php echo ((int)$whatsappSettings['status'] === 1) ? 'selected' : ''; ?>>Yes</option>
+<option value="0" <?php echo ((int)$whatsappSettings['status'] === 0) ? 'selected' : ''; ?>>No</option>
+</select>
+</div>
+<div class="mb-3">
+<label class="form-label">Webhook URL</label>
+<input class="form-control" value="<?php echo htmlspecialchars($whatsappWebhookUrl); ?>" readonly onclick="this.select();">
+<small class="form-text text-muted">Paste this into Wireweb Webhooks to receive delivery updates and message receipts.</small>
+</div>
+<p class="text-muted small">Wireweb uses the <code>Authorization: Bearer ...</code> header and sends <code>sessionId</code>, <code>to</code>, and <code>text</code> to <code>/api/v1/messages</code>.</p>
+<button class="btn btn-success">Save WhatsApp Settings</button>
+</form>
+</div>
+</div>
+
+<div class="col-md-6">
+<div class="tile">
 <h3 class="tile-title">SMS Hook</h3>
 <form class="app_frm" action="admin/core/send_sms" method="POST">
 <div class="mb-3">
@@ -364,6 +418,55 @@ try {
 </div>
 
 <div class="row">
+<div class="col-md-12">
+<div class="tile">
+<h3 class="tile-title">WhatsApp Delivery Log</h3>
+<div class="table-responsive">
+<table class="table table-hover">
+<thead><tr><th>Recipient</th><th>Type</th><th>Send Status</th><th>Delivery</th><th>Message ID</th><th>Attachment</th><th>Date</th><th>Actions</th></tr></thead>
+<tbody>
+<?php foreach ($whatsappLogs as $w): ?>
+<?php
+$meta = json_decode((string)($w['metadata_json'] ?? ''), true);
+$entityType = is_array($meta) ? (string)($meta['entity_type'] ?? '') : '';
+$deliveryStatus = trim((string)($w['delivery_status'] ?? ''));
+$displayDelivery = $deliveryStatus !== '' ? $deliveryStatus : (string)($w['status'] ?? '');
+$canResend = ($entityType === 'result_notification');
+?>
+<tr>
+<td><?php echo htmlspecialchars((string)$w['recipient']); ?></td>
+<td><?php echo htmlspecialchars((string)($w['message_type'] ?? 'text')); ?></td>
+<td><?php echo htmlspecialchars((string)$w['status']); ?></td>
+<td>
+  <?php echo htmlspecialchars($displayDelivery); ?>
+  <?php if (!empty($w['delivered_at'])): ?>
+    <div class="small text-muted"><?php echo htmlspecialchars((string)$w['delivered_at']); ?></div>
+  <?php endif; ?>
+  <?php if (!empty($w['error_message'])): ?>
+    <div class="small text-danger"><?php echo htmlspecialchars((string)$w['error_message']); ?></div>
+  <?php endif; ?>
+</td>
+<td><code><?php echo htmlspecialchars((string)($w['message_id'] ?? '')); ?></code></td>
+<td><?php echo htmlspecialchars((string)($w['attachment_name'] ?? '')); ?></td>
+<td><?php echo htmlspecialchars((string)$w['created_at']); ?></td>
+<td>
+  <?php if ($canResend): ?>
+  <form method="POST" action="admin/core/resend_whatsapp_log" style="margin:0;">
+    <input type="hidden" name="log_id" value="<?php echo (int)$w['id']; ?>">
+    <button class="btn btn-sm btn-outline-primary" type="submit">Resend</button>
+  </form>
+  <?php else: ?>
+  <span class="text-muted small">Auto resend unavailable</span>
+  <?php endif; ?>
+</td>
+</tr>
+<?php endforeach; ?>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+
 <div class="col-md-6">
 <div class="tile">
 <h3 class="tile-title">Recent Announcements</h3>

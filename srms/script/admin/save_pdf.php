@@ -1,12 +1,16 @@
 <?php
-chdir('../');
-session_start();
-require_once('db/config.php');
-require_once('const/school.php');
-require_once('const/check_session.php');
-require_once('const/report_engine.php');
-require_once('const/report_pdf_template.php');
-require_once('tcpdf/tcpdf.php');
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    session_start();
+}
+require_once(__DIR__ . '/../db/config.php');
+require_once(__DIR__ . '/../const/school.php');
+require_once(__DIR__ . '/../const/check_session.php');
+require_once(__DIR__ . '/../const/report_engine.php');
+require_once(__DIR__ . '/../const/report_pdf_template.php');
+require_once(__DIR__ . '/../tcpdf/tcpdf.php');
+
+@set_time_limit(0);
+@ini_set('memory_limit', '-1');
 
 if ($res !== '1' || $level !== '0' || !isset($_GET['term'], $_GET['std'])) { header('location:../'); exit; }
 

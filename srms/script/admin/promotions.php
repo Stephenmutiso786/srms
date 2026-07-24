@@ -428,10 +428,10 @@ You do not select the destination class manually on this screen.
 </div>
 
 <?php if ($targetClassHasOccupants): ?>
-<div class="alert alert-danger mb-3">
-<strong>Target class warning:</strong>
+<div class="alert alert-info mb-3">
+<strong>Target class info:</strong>
 <?php echo htmlspecialchars($promotionTargetName); ?> already has <strong><?php echo (int)$targetClassStudentCount; ?></strong> active student(s).
-The system will not allow promoted learners to move into that class until it is cleared. If a learner is staying behind, mark that learner as <strong>Repeat</strong> instead of promoting.
+That is allowed. Promotion will add the newly promoted learners into the same class, while any repeaters can remain in the previous class.
 </div>
 <?php endif; ?>
 
@@ -463,7 +463,7 @@ This batch kept <strong><?php echo (int)$repeatersRemainingCount; ?></strong> re
 <h3 class="tile-title text-success mb-1">Complete Promotion</h3>
 <p class="mb-0">Headteacher or Deputy already reviewed this batch. The final step is now with Super Admin.</p>
 <?php if ($targetClassHasOccupants): ?>
-<p class="text-danger mb-0 mt-2">This batch still has a blocked target class. Final execution will fail until <?php echo htmlspecialchars($promotionTargetName); ?> has no active students or affected learners are changed to repeaters.</p>
+<p class="text-muted mb-0 mt-2"><?php echo htmlspecialchars($promotionTargetName); ?> already has learners, and this batch will merge the promoted learners into that class.</p>
 <?php endif; ?>
 </div>
 <div class="col-md-4 d-grid">

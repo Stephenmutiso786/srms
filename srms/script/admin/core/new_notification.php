@@ -4,6 +4,7 @@ session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/rbac.php');
+require_once('const/system_notifications.php');
 
 if ($res != "1" || $level != "0") { header("location:../"); }
 app_require_permission('communication.manage', '../notifications');
@@ -41,8 +42,17 @@ try {
 		exit;
 	}
 
-	$stmt = $conn->prepare("INSERT INTO tbl_notifications (title, message, audience, class_id, term_id, link, created_by) VALUES (?,?,?,?,?,?,?)");
-	$stmt->execute([$title, $message, $audience, $classId, $termId, $link, $createdBy]);
+	app_system_notify($conn, $title, $message, [
+		'audience' => $audience,
+		'class_id' => $classId,
+		'term_id' => $termId,
+		'link' => $link,
+		'created_by' => $createdBy,
+		'module_name' => 'notifications',
+		'type' => 'info',
+		'priority' => 50,
+		'email_link' => $link !== '' ? $link : 'admin/notifications',
+	]);
 
 	$_SESSION['reply'] = array (array("success", "Notification sent."));
 	header("location:../notifications");

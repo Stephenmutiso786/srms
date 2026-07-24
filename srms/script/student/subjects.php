@@ -67,24 +67,24 @@ $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
 $empty_classes = array();
 
-
-$stmt = $conn->prepare("SELECT * FROM tbl_subject_combinations
+$stmt = $conn->prepare("SELECT tbl_subject_combinations.class AS class_list, tbl_subjects.name AS subject_name, tbl_staff.fname AS teacher_fname, tbl_staff.lname AS teacher_lname
+FROM tbl_subject_combinations
 LEFT JOIN tbl_subjects ON tbl_subject_combinations.subject = tbl_subjects.id
 LEFT JOIN tbl_staff ON tbl_subject_combinations.teacher = tbl_staff.id");
 $stmt->execute();
-$result = $stmt->fetchAll();
+$result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 foreach($result as $row)
 {
-$class_list = app_unserialize($row[1]);
+$class_list = app_unserialize((string)($row['class_list'] ?? ''));
 
 if (in_array($class, $class_list))
 {
 ?>
 <tr>
-<td><?php echo $row[6]; ?></td>
-<td><?php echo $row[8].' '.$row[9]; ?></td>
-<td><?php echo $act_class; ?></td>
+<td><?php echo htmlspecialchars((string)$row['subject_name']); ?></td>
+<td><?php echo htmlspecialchars(trim((string)($row['teacher_fname'] ?? '') . ' ' . (string)($row['teacher_lname'] ?? ''))); ?></td>
+<td><?php echo htmlspecialchars((string)$act_class); ?></td>
 
 </tr>
 <?php

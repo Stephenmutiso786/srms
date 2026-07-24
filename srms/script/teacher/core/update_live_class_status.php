@@ -4,6 +4,7 @@ session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/school.php');
+require_once('const/system_notifications.php');
 
 function app_normalize_live_meeting_link(string $meetingLink): string
 {
@@ -133,17 +134,16 @@ try {
 			$stmt->execute($values);
 		}
 
-		if (app_table_exists($conn, 'tbl_notifications')) {
-			$stmt = $conn->prepare("INSERT INTO tbl_notifications (title, message, audience, class_id, link, created_by) VALUES (?,?,?,?,?,?)");
-			$stmt->execute([
-				'Live Class Started',
-				(string)$live['title'] . ' has started.',
-				'class',
-				(int)$live['class_id'],
-				'student/elearning',
-				(int)$account_id,
-			]);
-		}
+		app_system_notify($conn, 'Live Class Started', (string)$live['title'] . ' has started.', [
+			'audience' => 'class',
+			'class_id' => (int)$live['class_id'],
+			'link' => 'student/elearning',
+			'created_by' => (int)$account_id,
+			'module_name' => 'elearning',
+			'type' => 'info',
+			'priority' => 65,
+			'email_link' => 'student/elearning',
+		]);
 
 		app_audit_log($conn, 'staff', (string)$account_id, 'elearning.live.start', 'live_class', (string)$liveId);
 		header("location:" . $meetingLink);
@@ -176,17 +176,16 @@ try {
 		$stmt->execute($values);
 	}
 
-	if (app_table_exists($conn, 'tbl_notifications')) {
-		$stmt = $conn->prepare("INSERT INTO tbl_notifications (title, message, audience, class_id, link, created_by) VALUES (?,?,?,?,?,?)");
-		$stmt->execute([
-			'Live Class Ended',
-			(string)$live['title'] . ' has ended.',
-			'class',
-			(int)$live['class_id'],
-			'student/elearning',
-			(int)$account_id,
-		]);
-	}
+	app_system_notify($conn, 'Live Class Ended', (string)$live['title'] . ' has ended.', [
+		'audience' => 'class',
+		'class_id' => (int)$live['class_id'],
+		'link' => 'student/elearning',
+		'created_by' => (int)$account_id,
+		'module_name' => 'elearning',
+		'type' => 'info',
+		'priority' => 58,
+		'email_link' => 'student/elearning',
+	]);
 
 	app_audit_log($conn, 'staff', (string)$account_id, 'elearning.live.end', 'live_class', (string)$liveId);
 	$_SESSION['reply'] = array(array('success', 'Live class ended.'));

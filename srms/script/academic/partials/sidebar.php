@@ -1,6 +1,7 @@
 <?php
 $currentPage = basename($_SERVER['PHP_SELF'], '.php');
 require_once('const/rbac.php');
+require_once('const/edu_ai_portal_ui.php');
 
 function academic_sidebar_is_active(array $module): string
 {
@@ -80,4 +81,5 @@ $lastAcademicGroup = '';
 <li><a class="app-menu__item<?php echo academic_sidebar_is_active($module); ?>" href="<?php echo htmlspecialchars((string)$module['href']); ?>"><i class="app-menu__icon <?php echo htmlspecialchars((string)$module['icon']); ?>"></i><span class="app-menu__label"><?php echo htmlspecialchars((string)$module['label']); ?></span></a></li>
 <?php endforeach; ?>
 </ul>
+<?php app_render_portal_edu_ai('academic'); ?>
 </aside>

@@ -1,11 +1,11 @@
 <?php
-chdir('../../');
 session_start();
-require_once('db/config.php');
-require_once('const/check_session.php');
-require_once('const/rbac.php');
-require_once('const/results_notifications.php');
-require_once('const/system_notifications.php');
+require_once(__DIR__ . '/../../db/config.php');
+require_once(__DIR__ . '/../../const/check_session.php');
+require_once(__DIR__ . '/../../const/rbac.php');
+require_once(__DIR__ . '/../../const/results_notifications.php');
+require_once(__DIR__ . '/../../const/system_notifications.php');
+require_once(__DIR__ . '/../../const/report_engine.php');
 if ($res !== "1") { header("location:../../"); exit; }
 $portalHome = ((string)$level === '1') ? '../../academic' : '../exams';
 app_require_permission('exams.manage', $portalHome);
@@ -43,6 +43,7 @@ try {
 	if (!$exam) {
 		throw new RuntimeException("Exam not found.");
 	}
+	$beforeSnapshot = app_exam_archive_payload($conn, $examId);
 
 	$currentStatus = strtolower(trim((string)($exam['status'] ?? 'draft')));
 	if ($currentStatus === 'open') {
@@ -92,12 +93,153 @@ try {
 			}
 		}
 	};
+	$repairCompletedSubjectSubmissions = function (string $targetStatus = 'finalized') use ($conn, $examId, $exam, $account_id, $assessmentMode): int {
+		if ($assessmentMode === 'consolidated' || $assessmentMode === 'cbe') {
+			return 0;
+		}
+		if (!app_table_exists($conn, 'tbl_exam_mark_submissions')) {
+			return 0;
+		}
+
+		$gapSummary = report_exam_submission_gap_summary($conn, $examId);
+		$fixed = 0;
+		foreach ((array)($gapSummary['missing_subjects'] ?? []) as $missingSubject) {
+			$subjectCombinationId = (int)($missingSubject['subject_combination_id'] ?? 0);
+			$teacherId = (int)($missingSubject['teacher_id'] ?? 0);
+			$missingStudentsCount = (int)($missingSubject['missing_students_count'] ?? 0);
+			if ($subjectCombinationId < 1 || $teacherId < 1 || $missingStudentsCount > 0) {
+				continue;
+			}
+
+			$stmt = $conn->prepare("SELECT id FROM tbl_exam_mark_submissions WHERE exam_id = ? AND subject_combination_id = ? LIMIT 1");
+			$stmt->execute([$examId, $subjectCombinationId]);
+			if ($stmt->fetchColumn()) {
+				continue;
+			}
+
+			$stmt = $conn->prepare("INSERT INTO tbl_exam_mark_submissions (exam_id, class_id, term_id, subject_combination_id, teacher_id, status, submitted_at, reviewed_at, reviewed_by)
+				VALUES (?,?,?,?,?,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,?)");
+			$stmt->execute([
+				$examId,
+				(int)$exam['class_id'],
+				(int)$exam['term_id'],
+				$subjectCombinationId,
+				$teacherId,
+				$targetStatus,
+				(int)$account_id,
+			]);
+			$fixed++;
+		}
+
+		return $fixed;
+	};
+	$validateRequiredSubjectSubmissions = function () use ($conn, $examId, $exam, $assessmentMode, $repairCompletedSubjectSubmissions): void {
+		if ($assessmentMode === 'consolidated') {
+			return;
+		}
+		if ($assessmentMode === 'cbe') {
+			if (!app_table_exists($conn, 'tbl_exam_subjects')) {
+				return;
+			}
+			$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_exam_subjects WHERE exam_id = ?");
+			$stmt->execute([$examId]);
+			$expectedSubjects = (int)$stmt->fetchColumn();
+			if ($expectedSubjects < 1) {
+				return;
+			}
+			if (!app_table_exists($conn, 'tbl_cbe_mark_submissions')) {
+				throw new RuntimeException("CBE marks submission workflow is not installed.");
+			}
+			$stmt = $conn->prepare("SELECT COUNT(DISTINCT subject_id) FROM tbl_cbe_mark_submissions WHERE class_id = ? AND term_id = ?");
+			$stmt->execute([(int)$exam['class_id'], (int)$exam['term_id']]);
+			$submittedSubjects = (int)$stmt->fetchColumn();
+			if ($submittedSubjects < $expectedSubjects) {
+				throw new RuntimeException("Cannot proceed. Missing submissions for some subjects: $submittedSubjects / $expectedSubjects submitted.");
+			}
+			return;
+		}
+		if (!app_table_exists($conn, 'tbl_exam_subjects')) {
+			return;
+		}
+		$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_exam_subjects WHERE exam_id = ?");
+		$stmt->execute([$examId]);
+		$expectedSubjects = (int)$stmt->fetchColumn();
+		if ($expectedSubjects < 1) {
+			return;
+		}
+		if (!app_table_exists($conn, 'tbl_exam_mark_submissions')) {
+			throw new RuntimeException("Marks submission workflow is not installed.");
+		}
+		$stmt = $conn->prepare("SELECT COUNT(DISTINCT ms.subject_combination_id)
+			FROM tbl_exam_mark_submissions ms
+			JOIN tbl_subject_combinations sc ON sc.id = ms.subject_combination_id
+			JOIN tbl_exam_subjects es ON es.subject_id = sc.subject AND es.exam_id = ms.exam_id
+			WHERE ms.exam_id = ?");
+		$stmt->execute([$examId]);
+		$submittedSubjects = (int)$stmt->fetchColumn();
+		if ($submittedSubjects < $expectedSubjects) {
+			$repairCompletedSubjectSubmissions('finalized');
+			$stmt->execute([$examId]);
+			$submittedSubjects = (int)$stmt->fetchColumn();
+		}
+		if ($submittedSubjects < $expectedSubjects) {
+			throw new RuntimeException("Cannot proceed. Missing submissions for some subjects: $submittedSubjects / $expectedSubjects submitted.");
+		}
+	};
+	$notifyMissingSubmissionWarnings = function () use ($conn, $examId, $exam, $account_id): void {
+		$gapSummary = report_exam_submission_gap_summary($conn, $examId);
+		if (empty($gapSummary['missing_subjects'])) {
+			return;
+		}
+		$subjectNames = array_map(static function ($row) {
+			return (string)($row['subject_name'] ?? '');
+		}, $gapSummary['missing_subjects']);
+		$adminMessage = 'Cannot proceed with ' . (string)($gapSummary['exam_name'] ?? 'this exam') . '. Missing subject submissions: '
+			. implode(', ', array_filter($subjectNames)) . '. Submitted '
+			. (int)($gapSummary['submitted_subjects'] ?? 0) . ' / ' . (int)($gapSummary['total_subjects'] ?? 0) . '.';
+		app_system_notify_unique($conn, 'Exam Missing Submissions', $adminMessage, 'exam-gap-admin-' . $examId, [
+			'audience' => 'staff',
+			'user_role' => 'admin',
+			'class_id' => (int)($exam['class_id'] ?? 0),
+			'term_id' => (int)($exam['term_id'] ?? 0),
+			'link' => 'admin/exams',
+			'created_by' => (int)$account_id,
+			'type' => 'warning',
+			'module_name' => 'exams',
+			'priority' => 90,
+		]);
+		foreach ($gapSummary['missing_subjects'] as $missingSubject) {
+			$teacherId = (int)($missingSubject['teacher_id'] ?? 0);
+			if ($teacherId < 1) {
+				continue;
+			}
+			$missingStudents = array_map(static function ($row) {
+				return (string)($row['student_name'] ?? '');
+			}, array_slice((array)($missingSubject['missing_students'] ?? []), 0, 5));
+			$message = (string)($missingSubject['subject_name'] ?? 'Subject') . ' still has missing marks'
+				. (!empty($missingStudents) ? ' for ' . implode(', ', array_filter($missingStudents)) : '')
+				. '. Complete and submit this subject before the exam can be finalized or published.';
+			app_system_notify_unique($conn, 'Missing Marks Warning', $message, 'exam-gap-teacher-' . $examId . '-' . (int)($missingSubject['subject_id'] ?? 0), [
+				'audience' => 'staff',
+				'user_role' => 'teacher',
+				'class_id' => (int)($exam['class_id'] ?? 0),
+				'term_id' => (int)($exam['term_id'] ?? 0),
+				'link' => 'teacher/exam_marks_entry',
+				'created_by' => (int)$account_id,
+				'type' => 'warning',
+				'module_name' => 'marks_entry',
+				'priority' => 90,
+			]);
+		}
+	};
 	$transitionMap = [
-		'draft' => ['active'],
-		'active' => $assessmentMode === 'consolidated' ? ['draft', 'finalized'] : ['draft', 'reviewed'],
-		'reviewed' => ['draft', 'finalized'],
-		'finalized' => ['published'],
-		'published' => ['finalized'],
+		'draft' => ['active', 'reviewed', 'finalized'],
+		'active' => $assessmentMode === 'consolidated'
+			? ['draft', 'reviewed', 'finalized', 'published']
+			: ['draft', 'reviewed', 'finalized'],
+		'reviewed' => ['draft', 'active', 'finalized', 'published'],
+		'finalized' => ['draft', 'active', 'reviewed', 'published'],
+		'published' => ['draft', 'active', 'reviewed', 'finalized'],
 	];
 	if (!in_array($status, $transitionMap[$currentStatus] ?? [], true)) {
 		throw new RuntimeException("That exam move is not allowed from the current stage.");
@@ -154,6 +296,8 @@ try {
 	}
 
 	if ($status === 'finalized') {
+		$notifyMissingSubmissionWarnings();
+		$validateRequiredSubjectSubmissions();
 		if ($assessmentMode === 'consolidated') {
 			$validateConsolidatedSources();
 		} elseif ($assessmentMode === 'cbe') {
@@ -269,6 +413,10 @@ try {
 	if ($assessmentMode === 'consolidated' && $status === 'published') {
 		$validateConsolidatedSources();
 	}
+	if ($status === 'published') {
+		$notifyMissingSubmissionWarnings();
+		$validateRequiredSubjectSubmissions();
+	}
 	$stmt->execute([$status, $examId]);
 
 	$examLabel = trim((string)($exam['name'] ?? $exam['title'] ?? 'Exam #' . $examId));
@@ -295,6 +443,8 @@ try {
 				'term_id' => (int)($exam['term_id'] ?? 0) ?: null,
 				'link' => 'publish_results',
 				'created_by' => (int)$account_id,
+				'priority' => 85,
+				'force_email' => true,
 			]);
 		} catch (Throwable $notificationError) {
 			error_log('['.__FILE__.':'.__LINE__.'] Results release notification failed: ' . $notificationError->getMessage());
@@ -315,9 +465,28 @@ try {
 		}
 
 		try {
-			$stats = app_results_send_notifications($conn, $examId, 'both');
-			$autoNotifySummary = ' Auto-send => SMS: ' . (int)$stats['sent_sms'] . ' sent, Email: ' . (int)$stats['sent_email'] . ' sent.';
-			app_audit_log($conn, 'staff', (string)$account_id, 'results.notify.auto', 'exam', (string)$examId, $stats);
+			$whatsappStats = app_results_send_notifications($conn, $examId, 'whatsapp');
+			$emailStats = app_results_send_notifications($conn, $examId, 'email');
+			$stats = [
+				'sent_whatsapp' => (int)($whatsappStats['sent_whatsapp'] ?? 0),
+				'failed_whatsapp' => (int)($whatsappStats['failed_whatsapp'] ?? 0),
+				'sent_email' => (int)($emailStats['sent_email'] ?? 0),
+				'failed_email' => (int)($emailStats['failed_email'] ?? 0),
+				'missing_contacts' => (int)($whatsappStats['missing_contacts'] ?? 0) + (int)($emailStats['missing_contacts'] ?? 0),
+				'skipped_fees' => max((int)($whatsappStats['skipped_fees'] ?? 0), (int)($emailStats['skipped_fees'] ?? 0)),
+			];
+			$firstWhatsappFailure = (string)($whatsappStats['failed'][0]['reason'] ?? '');
+			$firstEmailFailure = (string)($emailStats['failed'][0]['reason'] ?? '');
+			$autoNotifySummary = ' Auto-send => WhatsApp: ' . (int)$stats['sent_whatsapp'] . ' sent, ' . (int)$stats['failed_whatsapp'] . ' failed'
+				. '; Email: ' . (int)$stats['sent_email'] . ' sent, ' . (int)$stats['failed_email'] . ' failed'
+				. '; Missing contacts: ' . (int)$stats['missing_contacts'] . '.';
+			if ($firstWhatsappFailure !== '') {
+				$autoNotifySummary .= ' WhatsApp issue: ' . $firstWhatsappFailure . '.';
+			}
+			if ($firstEmailFailure !== '') {
+				$autoNotifySummary .= ' Email issue: ' . $firstEmailFailure . '.';
+			}
+			app_audit_log($conn, 'staff', (string)$account_id, 'results.notify.auto.publish', 'exam', (string)$examId, $stats);
 		} catch (Throwable $notifyError) {
 			$autoNotifySummary = ' Auto-send failed: ' . $notifyError->getMessage();
 		}
@@ -329,6 +498,26 @@ try {
 	}
 
 	app_audit_log($conn, 'staff', (string)$account_id, 'exam.status', 'exam', (string)$examId, ['from' => $currentStatus, 'to' => $status]);
+	$afterSnapshot = app_exam_archive_payload($conn, $examId);
+	app_data_camp_store_event($conn, [
+		'module_key' => 'exams',
+		'record_type' => 'exam_status_changed',
+		'entity_table' => 'tbl_exams',
+		'entity_id' => (string)$examId,
+		'title' => $examLabel,
+		'description' => 'Exam workflow snapshot retained before and after status change',
+		'class_id' => (int)($exam['class_id'] ?? 0) > 0 ? (int)$exam['class_id'] : null,
+		'owner_portal' => 'admin,academic,teacher',
+		'mime_type' => 'application/json',
+		'status' => 'retained',
+		'payload_json' => [
+			'from' => $currentStatus,
+			'to' => $status,
+			'before' => $beforeSnapshot,
+			'after' => $afterSnapshot,
+		],
+		'created_by' => (int)$account_id,
+	]);
 
 	$_SESSION['reply'] = array (array("success", "Exam status updated." . $autoNotifySummary));
 	header("location:../exams");

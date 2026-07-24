@@ -5,6 +5,22 @@ require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
 if ($res == "1" && $level == "1") {}else{header("location:../");}
+
+function academic_announcement_audience_label(string $audience): string
+{
+	switch ($audience) {
+		case '0':
+			return 'Teachers & Admins';
+		case '1':
+			return 'Students & Parents';
+		case '2':
+			return 'Students, Teachers, Parents & Admins';
+		case '3':
+			return 'All Portals';
+		default:
+			return 'General';
+	}
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -133,42 +149,21 @@ try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-$stmt = $conn->prepare("SELECT * FROM tbl_announcements ORDER BY id DESC");
+$stmt = $conn->prepare("SELECT id, title, create_date, level FROM tbl_announcements ORDER BY id DESC");
 $stmt->execute();
-$result = $stmt->fetchAll();
+$result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 foreach($result as $row)
 {
 ?>
 <tr>
-<td><?php echo $row[1]; ?></td>
-<td>
-<?php
-switch ($row[4]) {
-case '0':
-echo "Teachers & Admins";
-break;
-
-case '1':
-echo "Students & Parents";
-break;
-
-case '2':
-echo "Students, Teachers, Parents & Admins";
-break;
-
-case '3':
-echo "All Portals";
-break;
-
-}
-?>
-</td>
-<td><?php echo $row[3]; ?></td>
+<td><?php echo htmlspecialchars((string)($row['title'] ?? '')); ?></td>
+<td><?php echo htmlspecialchars(academic_announcement_audience_label((string)($row['level'] ?? ''))); ?></td>
+<td><?php echo htmlspecialchars((string)($row['create_date'] ?? '')); ?></td>
 <td align="center">
 
-<a onclick="set_announcement('<?php echo $row[0]; ?>');" class="btn btn-primary btn-sm" href="javascript:void(0);" data-bs-toggle="modal" data-bs-target="#editModal">Edit</a>
-<a onclick="del('academic/core/drop_announcement.php?id=<?php echo $row[0]; ?>', 'Delete Announcement?');" class="btn btn-danger btn-sm" href="javascript:void(0);">Delete</a>
+<a onclick="set_announcement('<?php echo (int)($row['id'] ?? 0); ?>');" class="btn btn-primary btn-sm" href="javascript:void(0);" data-bs-toggle="modal" data-bs-target="#editModal">Edit</a>
+<a onclick="del('academic/core/drop_announcement.php?id=<?php echo (int)($row['id'] ?? 0); ?>', 'Delete Announcement?');" class="btn btn-danger btn-sm" href="javascript:void(0);">Delete</a>
 </td>
 </tr>
 <?php

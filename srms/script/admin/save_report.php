@@ -187,6 +187,12 @@ try {
 			   <td width="12%"><b>Trend</b></td>
 		   </tr>' . $tableRows . '</table>', true, false, true, false, '');
 
+	app_pdf_draw_official_footer($pdf, [
+		'base_y' => $pdf->getPageHeight() - 24,
+		'date_value' => date('Y-m-d'),
+		'title' => 'Headteacher',
+	]);
+
 	$pdf->Output($className . '-' . $termName . '-' . $examName . '-performance-summary.pdf', 'I');
 } catch (Throwable $e) {
 	error_log('[admin/save_report] ' . $e->getMessage());

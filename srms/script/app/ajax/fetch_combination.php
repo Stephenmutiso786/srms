@@ -11,13 +11,13 @@ try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-$stmt = $conn->prepare("SELECT * FROM tbl_subject_combinations WHERE id = ?");
+$stmt = $conn->prepare("SELECT id, class, subject, teacher FROM tbl_subject_combinations WHERE id = ?");
 $stmt->execute([$id]);
-$result = $stmt->fetchAll();
+$result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 foreach($result as $rowx)
 {
-$cls = app_unserialize($rowx[1]);
+$cls = app_unserialize((string)($rowx['class'] ?? ''));
 ?>
 
 <form class="app_frm" method="POST" autocomplete="OFF" action="academic/core/update_comb">
@@ -32,14 +32,14 @@ try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-$stmt = $conn->prepare("SELECT * FROM tbl_subjects ORDER BY name");
+$stmt = $conn->prepare("SELECT id, name FROM tbl_subjects ORDER BY name");
 $stmt->execute();
-$result = $stmt->fetchAll();
+$result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 foreach($result as $row)
 {
 ?>
-<option <?php if ($rowx[2] == $row[0]) { print ' selected '; }?> value="<?php echo $row[0]; ?>"><?php echo $row[1]; ?> </option>
+<option <?php if ((string)($rowx['subject'] ?? '') === (string)$row['id']) { print ' selected '; }?> value="<?php echo (int)$row['id']; ?>"><?php echo htmlspecialchars((string)$row['name']); ?> </option>
 <?php
 }
 
@@ -61,19 +61,19 @@ try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-$stmt = $conn->prepare("SELECT * FROM tbl_classes");
+$stmt = $conn->prepare("SELECT id, name FROM tbl_classes ORDER BY name");
 $stmt->execute();
-$result = $stmt->fetchAll();
+$result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 foreach($result as $row)
 {
-if (in_array($row[0], $cls))
+if (in_array((string)$row['id'], array_map('strval', $cls), true))
 {
-?><option selected value="<?php echo $row[0]; ?>"><?php echo $row[1]; ?> </option><?php
+?><option selected value="<?php echo (int)$row['id']; ?>"><?php echo htmlspecialchars((string)$row['name']); ?> </option><?php
 }
 else
 {
-?><option value="<?php echo $row[0]; ?>"><?php echo $row[1]; ?> </option><?php
+?><option value="<?php echo (int)$row['id']; ?>"><?php echo htmlspecialchars((string)$row['name']); ?> </option><?php
 }
 
 ?>
@@ -99,14 +99,14 @@ try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-$stmt = $conn->prepare("SELECT * FROM tbl_staff WHERE level = '2'");
+$stmt = $conn->prepare("SELECT id, fname, lname FROM tbl_staff WHERE level = '2'");
 $stmt->execute();
-$result = $stmt->fetchAll();
+$result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 foreach($result as $row)
 {
 ?>
-<option <?php if ($rowx[3] == $row[0]) { print ' selected '; }?> value="<?php echo $row[0]; ?>"><?php echo $row[1].' '.$row[2]; ?> </option>
+<option <?php if ((string)($rowx['teacher'] ?? '') === (string)$row['id']) { print ' selected '; }?> value="<?php echo (int)$row['id']; ?>"><?php echo htmlspecialchars(trim((string)$row['fname'] . ' ' . (string)$row['lname'])); ?> </option>
 <?php
 }
 

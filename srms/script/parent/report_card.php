@@ -110,7 +110,7 @@ try {
 					$feesBalance = report_fees_balance($conn, $studentId, $termId);
 					$settings = report_get_settings($conn);
 					$blockReport = ((int)$settings['require_fees_clear'] === 1 && $feesBalance > 0);
-					$subjectBreakdown = report_subject_breakdown($conn, $studentId, $classId, $termId);
+					$subjectBreakdown = report_subject_breakdown($conn, $studentId, $classId, $termId, $examId);
 					$history = report_student_term_history($conn, $studentId, $classId);
 				}
 			}

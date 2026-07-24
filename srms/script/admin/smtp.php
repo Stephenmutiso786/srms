@@ -58,39 +58,39 @@ try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-$stmt = $conn->prepare("SELECT * FROM tbl_smtp");
+$stmt = $conn->prepare("SELECT mail_server, mail_username, mail_password, mail_port, mail_security FROM tbl_smtp");
 $stmt->execute();
-$result = $stmt->fetchAll();
+$result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 
 foreach($result as $row) {
 ?>
 <div class="form-group mb-2">
 <label class="control-label">SMTP Server</label>
-<input required type="text" name="mail_server" value="<?php echo $row[1]; ?>" class="form-control" placeholder="Enter SMTP Server">
+<input required type="text" name="mail_server" value="<?php echo htmlspecialchars((string)$row['mail_server']); ?>" class="form-control" placeholder="Enter SMTP Server">
 </div>
 
 <div class="form-group mb-2">
 <label class="control-label">SMTP Username</label>
-<input required type="text" name="mail_username" value="<?php echo $row[2]; ?>"class="form-control" placeholder="Enter SMTP Username">
+<input required type="text" name="mail_username" value="<?php echo htmlspecialchars((string)$row['mail_username']); ?>"class="form-control" placeholder="Enter SMTP Username">
 </div>
 
 <div class="form-group mb-2">
 <label class="control-label">SMTP Password</label>
-<input required type="text" name="mail_password" value="<?php echo $row[3]; ?>" class="form-control" placeholder="Enter SMTP Password">
+<input required type="text" name="mail_password" value="<?php echo htmlspecialchars((string)$row['mail_password']); ?>" class="form-control" placeholder="Enter SMTP Password">
 </div>
 
 <div class="form-group mb-2">
 <label class="control-label">SMTP Port</label>
-<input required type="text" name="mail_port" value="<?php echo $row[4]; ?>" class="form-control" placeholder="Enter SMTP Port">
+<input required type="text" name="mail_port" value="<?php echo htmlspecialchars((string)$row['mail_port']); ?>" class="form-control" placeholder="Enter SMTP Port">
 </div>
 
 <div class="form-group mb-3">
 <label  class="control-label">Security connection</label>
 <select class="form-control" name="mail_security" required>
 <option value="" selected disabled>Select One</option>
-<option <?php if ($row[5] == "ssl") { print ' selected ';}?> value="ssl">SSL</option>
-<option <?php if ($row[5] == "tls") { print ' selected ';}?> value="tls">TLS</option>
+<option <?php if (($row['mail_security'] ?? '') == "ssl") { print ' selected ';}?> value="ssl">SSL</option>
+<option <?php if (($row['mail_security'] ?? '') == "tls") { print ' selected ';}?> value="tls">TLS</option>
 </select>
 </div>
 

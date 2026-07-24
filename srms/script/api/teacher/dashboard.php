@@ -42,6 +42,8 @@ try {
 			$termOptions[(int)$assignment['term_id']] = (string)$assignment['term_name'];
 		}
 	}
+	$classOptions = app_sort_named_options($classOptions, 'class');
+	$termOptions = app_sort_named_options($termOptions, 'term');
 
 	if ($selectedClass < 1 && !empty($classOptions)) {
 		$selectedClass = (int)array_key_first($classOptions);
@@ -100,7 +102,9 @@ try {
 
 		$stmt = $conn->prepare("SELECT t.id, t.name FROM tbl_terms t WHERE t.id <= ? ORDER BY t.id ASC");
 		$stmt->execute([$selectedTerm]);
-		foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $term) {
+		$trendTerms = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		app_sort_term_rows($trendTerms);
+		foreach ($trendTerms as $term) {
 			$stmt2 = $conn->prepare("SELECT AVG(er.score)
 				FROM tbl_exam_results er
 				JOIN tbl_subject_combinations sc ON sc.id = er.subject_combination
@@ -133,4 +137,3 @@ try {
 } catch (Throwable $e) {
 	api_internal_error($e, 'api.teacher.dashboard');
 }
-

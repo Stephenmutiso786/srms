@@ -70,42 +70,43 @@ $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
 $empty_classes = array();
 
-$stmt = $conn->prepare("SELECT * FROM tbl_classes");
+$stmt = $conn->prepare("SELECT id, name FROM tbl_classes ORDER BY name");
 $stmt->execute();
-$classes = $stmt->fetchAll();
+$classes = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 foreach ($classes as $value) {
-$empty_classes[$value[0]] = $value[1];
+$empty_classes[(string)$value['id']] = (string)$value['name'];
 }
 
 
-$stmt = $conn->prepare("SELECT * FROM tbl_subject_combinations
+$stmt = $conn->prepare("SELECT tbl_subject_combinations.class AS class_list, tbl_subject_combinations.reg_date, tbl_subjects.name AS subject_name
+  FROM tbl_subject_combinations
   LEFT JOIN tbl_subjects ON tbl_subject_combinations.subject = tbl_subjects.id
-  LEFT JOIN tbl_staff ON tbl_subject_combinations.teacher = tbl_staff.id WHERE tbl_subject_combinations.teacher = ?");
+  WHERE tbl_subject_combinations.teacher = ?");
 $stmt->execute([$account_id]);
-$result = $stmt->fetchAll();
+$result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 foreach($result as $row)
 {
-$class_list = app_unserialize($row[1]);
+$class_list = app_unserialize((string)($row['class_list'] ?? ''));
 ?>
 
 <tr>
-<td><?php echo $row[6]; ?></td>
+<td><?php echo htmlspecialchars((string)$row['subject_name']); ?></td>
 <td>
 <?php
 $st = 1;
 foreach ($class_list as $value2) {
 if ($st < count($class_list)) {
-print ''.$empty_classes[$value2].', ';
+print htmlspecialchars((string)($empty_classes[(string)$value2] ?? $value2)) . ', ';
 }else{
-print ''.$empty_classes[$value2].'';
+print htmlspecialchars((string)($empty_classes[(string)$value2] ?? $value2));
 }
 $st++;
 }
 ?>
 </td>
-<td><?php echo $row[4]; ?></td>
+<td><?php echo htmlspecialchars((string)$row['reg_date']); ?></td>
 </tr>
 <?php
 }

@@ -11,23 +11,44 @@ app_require_permission('attendance.manage', '../admin');
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	if (!app_can_manage_student_attendance($conn, (string)$account_id, (string)$level)) {
+		app_render_access_error_page('Attendance access restricted', 'Student attendance is only available to admins and staff members who are currently allocated as class teachers.', 403, [
+			'portal' => 'admin',
+			'account_id' => (string)$account_id,
+		]);
+	}
 
-	$myclasses = app_staff_class_teacher_ids($conn, (int)$account_id);
+	$isAttendanceAdmin = app_is_attendance_admin_level((string)$level);
+	$myclasses = $isAttendanceAdmin ? [] : app_staff_class_teacher_ids($conn, (int)$account_id);
 
 	$classes = [];
-	if (count($myclasses) > 0) {
+	if ($isAttendanceAdmin) {
+		$stmt = $conn->prepare("SELECT id, name FROM tbl_classes ORDER BY id");
+		$stmt->execute();
+		$classes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	} elseif (count($myclasses) > 0) {
 		$matches = implode(',', array_fill(0, count($myclasses), '?'));
 		$stmt = $conn->prepare("SELECT id, name FROM tbl_classes WHERE id IN ($matches) ORDER BY id");
 		$stmt->execute($myclasses);
-		$classes = $stmt->fetchAll();
+		$classes = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
 
 	$stmt = $conn->prepare("SELECT id, name FROM tbl_terms WHERE status = 1 ORDER BY id");
 	$stmt->execute();
-	$terms = $stmt->fetchAll();
+	$terms = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 	$sessions = [];
-	if (app_table_exists($conn, 'tbl_attendance_sessions') && count($myclasses) > 0) {
+	if (app_table_exists($conn, 'tbl_attendance_sessions') && ($isAttendanceAdmin || count($myclasses) > 0)) {
+		if ($isAttendanceAdmin) {
+			$stmt = $conn->prepare("SELECT s.id, s.session_date, c.name AS class_name
+				FROM tbl_attendance_sessions s
+				LEFT JOIN tbl_classes c ON c.id = s.class_id
+				WHERE s.session_type = 'daily'
+				ORDER BY s.session_date DESC, s.id DESC
+				LIMIT 20");
+			$stmt->execute();
+			$sessions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		} else {
 		$matches = implode(',', array_fill(0, count($myclasses), '?'));
 		$stmt = $conn->prepare("SELECT s.id, s.session_date, c.name AS class_name
 			FROM tbl_attendance_sessions s
@@ -37,6 +58,7 @@ try {
 			LIMIT 20");
 		$stmt->execute($myclasses);
 		$sessions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		}
 	}
 } catch (PDOException $e) {
 	$classes = [];
@@ -77,15 +99,12 @@ try {
 <div class="app-title">
 <div>
 <h1>Attendance</h1>
-<p>Mark daily attendance for your classes.</p>
+<p>Mark daily attendance for classes that you are allowed to manage.</p>
 </div>
 </div>
 
 <div class="tile">
 <h3 class="tile-title">New Attendance Session</h3>
-<?php if (count($classes) < 1) { ?>
-<div class="alert alert-warning">No class-teacher assignment found. Only the assigned class teacher can mark student class attendance.</div>
-<?php } ?>
 <form class="row g-3" method="POST" action="teacher/core/new_attendance_session">
 <input type="hidden" name="origin_portal" value="admin">
 <div class="col-md-4">
@@ -93,7 +112,7 @@ try {
 <select class="form-control" name="class_id" required <?php echo count($classes) < 1 ? 'disabled' : ''; ?>>
 <option value="" disabled selected>Select class</option>
 <?php foreach($classes as $c){ ?>
-<option value="<?php echo $c[0]; ?>"><?php echo $c[1]; ?></option>
+<option value="<?php echo (int)$c['id']; ?>"><?php echo htmlspecialchars((string)$c['name']); ?></option>
 <?php } ?>
 </select>
 </div>
@@ -102,7 +121,7 @@ try {
 <select class="form-control" name="term_id" <?php echo count($classes) < 1 ? 'disabled' : ''; ?>>
 <option value="">(optional)</option>
 <?php foreach($terms as $t){ ?>
-<option value="<?php echo $t[0]; ?>"><?php echo $t[1]; ?></option>
+<option value="<?php echo (int)$t['id']; ?>"><?php echo htmlspecialchars((string)$t['name']); ?></option>
 <?php } ?>
 </select>
 </div>

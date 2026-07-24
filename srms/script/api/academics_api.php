@@ -498,6 +498,7 @@ class AcademicsController extends BaseController {
         }
 
         $classes = $this->db->select('tbl_classes', []);
+        app_sort_class_rows($classes);
         foreach ($classes as &$classRow) {
             if ($this->columnExists('tbl_students', 'class_id')) {
                 $classRow['student_count'] = $this->db->count('tbl_students', ['class_id' => $classRow['id']]);
@@ -535,7 +536,8 @@ class AcademicsController extends BaseController {
             $this->respond([]);
         }
 
-        $terms = $this->db->select('tbl_terms', [], [], 'id DESC');
+        $terms = $this->db->select('tbl_terms', []);
+        app_sort_term_rows($terms);
         $this->respond($terms);
     }
 

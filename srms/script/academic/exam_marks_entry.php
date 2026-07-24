@@ -330,6 +330,7 @@ body.exam-entry-page{background:linear-gradient(180deg,#eef5f2 0%,#f7fbf9 45%,#e
     const url = new URL('teacher/print_mark_sheet', document.baseURI || window.location.href);
     url.searchParams.set('exam_id', examId);
     url.searchParams.set('subject_combination', subjectId);
+    url.searchParams.set('origin_portal', 'academic');
     window.open(url.toString(), '_blank');
   });
 </script>

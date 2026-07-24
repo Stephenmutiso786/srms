@@ -29,7 +29,9 @@ $allocatedModules = [];
 $promotionQueue = [];
 $autoPromotionRun = [];
 $isSeniorTeacher = false;
+$teacherGapWarnings = [];
 $error = '';
+$showDownloadsShortcut = false;
 
 try {
 	$conn = app_db();
@@ -66,6 +68,11 @@ try {
 	}
 	$visibleModules = app_teacher_portal_visible_modules($conn, (string)$account_id, (string)$level);
 	$allocatedModules = app_teacher_portal_allocated_modules($conn, (string)$account_id, (string)$level);
+	$showDownloadsShortcut = (!empty($classOptions) || !empty($assignments)) && (
+		app_has_permission($conn, (string)$account_id, (string)$level, 'report.view')
+		|| app_has_permission($conn, (string)$account_id, (string)$level, 'marks.enter')
+		|| app_has_permission($conn, (string)$account_id, (string)$level, 'attendance.manage')
+	);
 
 	foreach ($assignments as $assignment) {
 		if (!empty($assignment['class_id'])) {
@@ -78,6 +85,8 @@ try {
 			$termOptions[(int)$assignment['term_id']] = (string)$assignment['term_name'];
 		}
 	}
+	$classOptions = app_sort_named_options($classOptions, 'class');
+	$termOptions = app_sort_named_options($termOptions, 'term');
 
 	$summary['subjects'] = count($subjectOptions);
 	$summary['classes'] = count($classOptions);
@@ -113,6 +122,23 @@ try {
 		}
 		if ($selectedExam > 0 && !isset($examOptions[$selectedExam])) {
 			$selectedExam = !empty($examOptions) ? (int)array_key_first($examOptions) : 0;
+		}
+	}
+
+	foreach ($examOptions as $examRow) {
+		$gapSummary = report_exam_submission_gap_summary($conn, (int)$examRow['id']);
+		foreach ((array)($gapSummary['missing_subjects'] ?? []) as $missingSubject) {
+			if ((int)($missingSubject['teacher_id'] ?? 0) !== (int)$account_id) {
+				continue;
+			}
+			$teacherGapWarnings[] = [
+				'exam_name' => (string)($examRow['name'] ?? ''),
+				'class_name' => (string)($classOptions[(int)($examRow['class_id'] ?? 0)] ?? ''),
+				'term_name' => (string)($termOptions[(int)($examRow['term_id'] ?? 0)] ?? ''),
+				'subject_name' => (string)($missingSubject['subject_name'] ?? ''),
+				'missing_students_count' => (int)($missingSubject['missing_students_count'] ?? 0),
+				'missing_students' => array_slice((array)($missingSubject['missing_students'] ?? []), 0, 5),
+			];
 		}
 	}
 
@@ -188,6 +214,7 @@ try {
 	if (app_table_exists($conn, 'tbl_notifications')) {
 		$stmt = $conn->prepare("SELECT title, message, link, created_at FROM tbl_notifications
 			WHERE audience IN ('all','staff')
+			AND (user_role IS NULL OR user_role = '' OR user_role = 'teacher')
 			ORDER BY created_at DESC LIMIT 5");
 		$stmt->execute();
 		$notifications = $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -207,7 +234,7 @@ try {
 	}
 
 	if (app_table_exists($conn, 'tbl_announcements')) {
-		$stmt = $conn->prepare("SELECT * FROM tbl_announcements WHERE level IN ('0','2','3') ORDER BY id DESC LIMIT 5");
+		$stmt = $conn->prepare("SELECT id, title, announcement, create_date FROM tbl_announcements WHERE level IN ('0','2','3') ORDER BY id DESC LIMIT 5");
 		$stmt->execute();
 		$announcements = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
@@ -351,8 +378,32 @@ body.app{background:#f4f7f6}
 						<?php endif; ?>
 					</select>
 					<a class="btn btn-light" href="teacher/exam_marks_entry">Open Exams</a>
+					<?php if ($showDownloadsShortcut): ?>
+					<a class="btn btn-light" href="teacher/downloads_center">Downloads Hub</a>
+					<?php endif; ?>
 				</form>
 			</div>
+
+			<?php if (!empty($teacherGapWarnings)) { ?>
+			<div class="tile mb-3">
+				<div class="alert alert-danger mb-0">
+					<div class="fw-bold mb-2">Missing marks need your action</div>
+					<?php foreach ($teacherGapWarnings as $warning): ?>
+					<div class="mb-2">
+						<strong><?php echo htmlspecialchars($warning['subject_name']); ?></strong>
+						in <?php echo htmlspecialchars($warning['exam_name'] . ' - ' . $warning['class_name']); ?>
+						has <?php echo (int)$warning['missing_students_count']; ?> learner(s) missing marks.
+						<?php if (!empty($warning['missing_students'])) { ?>
+						Missing: <?php echo htmlspecialchars(implode(', ', array_map(static function ($row) { return (string)($row['student_name'] ?? ''); }, $warning['missing_students']))); ?>.
+						<?php } ?>
+					</div>
+					<?php endforeach; ?>
+					<div class="mt-2">
+						<a class="btn btn-sm btn-outline-danger" href="teacher/exam_marks_entry">Open Marks Entry</a>
+					</div>
+				</div>
+			</div>
+			<?php } ?>
 
 			<div class="dashboard-stats">
 				<div class="stat-card"><div class="label">Classes</div><div class="value"><?php echo (int)$summary['classes']; ?></div></div>
@@ -433,7 +484,7 @@ body.app{background:#f4f7f6}
 				</section>
 				<div class="grid-two">
 					<section class="tile"><h3 class="tile-title">Notifications</h3><div class="note-list"><?php if(!$notifications){ ?><div class="note-item text-muted">No notifications yet.</div><?php } foreach($notifications as $note){ ?><div class="note-item"><div class="fw-bold"><?php echo htmlspecialchars((string)$note['title']); ?></div><div class="small text-muted mt-1"><?php echo htmlspecialchars((string)$note['message']); ?></div><div class="small text-muted mt-2"><?php echo htmlspecialchars((string)$note['created_at']); ?></div></div><?php } ?></div></section>
-					<section class="tile"><h3 class="tile-title">Announcements</h3><div class="note-list"><?php if(!$announcements){ ?><div class="note-item text-muted">No announcements right now.</div><?php } foreach($announcements as $row){ ?><div class="note-item"><div class="fw-bold"><?php echo htmlspecialchars((string)$row[1]); ?></div><div class="small text-muted mt-1"><?php echo htmlspecialchars((string)$row[2]); ?></div><div class="small text-muted mt-2"><?php echo htmlspecialchars((string)$row[3]); ?></div></div><?php } ?></div></section>
+					<section class="tile"><h3 class="tile-title">Announcements</h3><div class="note-list"><?php if(!$announcements){ ?><div class="note-item text-muted">No announcements right now.</div><?php } foreach($announcements as $row){ ?><div class="note-item"><div class="fw-bold"><?php echo htmlspecialchars((string)($row['title'] ?? '')); ?></div><div class="small text-muted mt-1"><?php echo htmlspecialchars((string)($row['announcement'] ?? '')); ?></div><div class="small text-muted mt-2"><?php echo htmlspecialchars((string)($row['create_date'] ?? '')); ?></div></div><?php } ?></div></section>
 				</div>
 					<section class="tile mt-3">
 						<h3 class="tile-title">Recent Discipline Cases</h3>

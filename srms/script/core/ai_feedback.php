@@ -85,6 +85,706 @@ function app_edubot_history_text(PDO $conn, string $actorType, string $actorId, 
 	return implode("\n", $lines);
 }
 
+function app_ai_system_settings(PDO $conn): array
+{
+	$defaults = [
+		'enabled' => '1',
+		'provider' => 'gemini',
+		'model' => 'gemini-2.0-flash',
+		'api_key' => '',
+		'temperature' => '0.2',
+		'max_output_tokens' => '700',
+		'fallback_enabled' => '1',
+		'public_widget_enabled' => '1',
+	];
+
+	$settings = [
+		'enabled' => app_setting_get($conn, 'ai_enabled', $defaults['enabled']),
+		'provider' => strtolower(trim(app_setting_get($conn, 'ai_provider', $defaults['provider']))),
+		'model' => trim(app_setting_get($conn, 'ai_model', $defaults['model'])),
+		'api_key' => trim(app_setting_get($conn, 'ai_api_key', $defaults['api_key'])),
+		'temperature' => trim(app_setting_get($conn, 'ai_temperature', $defaults['temperature'])),
+		'max_output_tokens' => trim(app_setting_get($conn, 'ai_max_output_tokens', $defaults['max_output_tokens'])),
+		'fallback_enabled' => app_setting_get($conn, 'ai_fallback_enabled', $defaults['fallback_enabled']),
+		'public_widget_enabled' => app_setting_get($conn, 'ai_public_widget_enabled', $defaults['public_widget_enabled']),
+	];
+
+	if (!in_array($settings['provider'], ['gemini', 'openai'], true)) {
+		$settings['provider'] = 'gemini';
+	}
+	if ($settings['model'] === '') {
+		$settings['model'] = $settings['provider'] === 'gemini' ? 'gemini-2.0-flash' : 'gpt-4o-mini';
+	}
+	if ($settings['api_key'] === '') {
+		if ($settings['provider'] === 'gemini') {
+			$settings['api_key'] = trim((string)getenv('GEMINI_API_KEY'));
+		} else {
+			$settings['api_key'] = trim((string)getenv('OPENAI_API_KEY'));
+		}
+	}
+
+	return $settings;
+}
+
+function app_ai_provider_label(string $provider): string
+{
+	$provider = strtolower(trim($provider));
+	if ($provider === 'gemini') {
+		return 'Google Gemini';
+	}
+	if ($provider === 'openai') {
+		return 'OpenAI';
+	}
+	return 'Internal Edu AI';
+}
+
+function app_ai_module_from_path(string $path): string
+{
+	$path = trim($path, '/');
+	if ($path === '') {
+		return 'general';
+	}
+	$parts = explode('/', $path);
+	foreach ($parts as $part) {
+		$part = strtolower(trim($part));
+		if (in_array($part, ['admin', 'academic', 'teacher', 'student', 'parent', 'accountant', 'bom'], true)) {
+			continue;
+		}
+		if ($part !== '') {
+			return $part;
+		}
+	}
+	return 'general';
+}
+
+function app_ai_request_context(array $payload): array
+{
+	$path = (string)($_SERVER['REQUEST_URI'] ?? '');
+	$pathOnly = (string)parse_url($path, PHP_URL_PATH);
+	$page = trim((string)($payload['page'] ?? ($_GET['page'] ?? basename($pathOnly, '.php'))));
+	$module = trim((string)($payload['module'] ?? ($_GET['module'] ?? app_ai_module_from_path($pathOnly))));
+	$title = trim((string)($payload['title'] ?? ($_GET['title'] ?? '')));
+	$pageScan = $payload['page_scan'] ?? ($_POST['page_scan'] ?? $_GET['page_scan'] ?? null);
+	if ($page === '') {
+		$page = 'dashboard';
+	}
+	if ($module === '') {
+		$module = 'general';
+	}
+	if (is_string($pageScan) && $pageScan !== '') {
+		$decoded = json_decode($pageScan, true);
+		if (is_array($decoded)) {
+			$pageScan = $decoded;
+		}
+	}
+	if (!is_array($pageScan)) {
+		$pageScan = [];
+	}
+	return [
+		'module' => strtolower($module),
+		'page' => strtolower($page),
+		'title' => $title,
+		'path' => $pathOnly,
+		'page_scan' => app_ai_normalize_page_scan($pageScan),
+	];
+}
+
+function app_ai_normalize_page_scan(array $scan): array
+{
+	$normalized = [
+		'forms' => [],
+		'tables' => [],
+		'stats' => [],
+		'alerts' => [],
+		'buttons' => [],
+		'headings' => [],
+		'meta' => [],
+	];
+
+	foreach (array_keys($normalized) as $key) {
+		$value = $scan[$key] ?? [];
+		if (is_array($value)) {
+			$normalized[$key] = array_slice(array_values($value), 0, $key === 'buttons' ? 8 : 10);
+		}
+	}
+
+	if (isset($scan['summary']) && is_array($scan['summary'])) {
+		$normalized['summary'] = [
+			'total_forms' => (int)($scan['summary']['total_forms'] ?? 0),
+			'total_tables' => (int)($scan['summary']['total_tables'] ?? 0),
+			'total_stats' => (int)($scan['summary']['total_stats'] ?? 0),
+			'primary_action' => trim((string)($scan['summary']['primary_action'] ?? '')),
+			'missing_required' => (int)($scan['summary']['missing_required'] ?? 0),
+			'empty_table_rows' => (int)($scan['summary']['empty_table_rows'] ?? 0),
+		];
+	} else {
+		$normalized['summary'] = [
+			'total_forms' => count($normalized['forms']),
+			'total_tables' => count($normalized['tables']),
+			'total_stats' => count($normalized['stats']),
+			'primary_action' => '',
+			'missing_required' => 0,
+			'empty_table_rows' => 0,
+		];
+	}
+
+	return $normalized;
+}
+
+function app_ai_page_purpose(array $context): string
+{
+	$module = strtolower((string)($context['module'] ?? 'general'));
+	$page = strtolower((string)($context['page'] ?? 'dashboard'));
+	$catalog = [
+		'fees' => 'This page manages fee balances, payments, or finance follow-up for learners.',
+		'finance' => 'This page manages school finance workflows such as invoices, balances, payments, and reporting.',
+		'attendance' => 'This page records or reviews attendance and should end with complete learner attendance status saved correctly.',
+		'discipline' => 'This page manages learner discipline records, case follow-up, interventions, and parent communication.',
+		'report' => 'This page helps generate, review, or download learner report outputs and class summaries.',
+		'results' => 'This page reviews learner or class academic results, trends, and follow-up actions.',
+		'exams' => 'This page manages exam setup, marks, analysis, and publishing workflow.',
+		'elearning' => 'This page supports learning delivery, assignments, engagement, and lesson follow-up.',
+		'school_timetable' => 'This page manages timetable structure, conflict resolution, and lesson allocation.',
+		'teachers' => 'This page manages teachers, workload, allocations, or academic support actions.',
+		'students' => 'This page manages learner records, status, and follow-up needs.',
+		'dashboard' => 'This dashboard summarises key school workflows, risks, and next actions across the portal.',
+	];
+	$key = $catalog[$module] ?? ($catalog[$page] ?? '');
+	if ($key !== '') {
+		return $key;
+	}
+	return 'This page supports the current school workflow and should guide the user toward a complete, correct, and reviewable outcome.';
+}
+
+function app_ai_page_guidance(array $scope, array $context, string $role): string
+{
+	$scan = is_array($context['page_scan'] ?? null) ? $context['page_scan'] : [];
+	$summary = is_array($scan['summary'] ?? null) ? $scan['summary'] : [];
+	$forms = array_values(array_filter((array)($scan['forms'] ?? []), 'is_array'));
+	$tables = array_values(array_filter((array)($scan['tables'] ?? []), 'is_array'));
+	$stats = array_values(array_filter((array)($scan['stats'] ?? []), 'is_array'));
+	$alerts = array_values(array_filter((array)($scan['alerts'] ?? []), static function ($item): bool {
+		return trim((string)$item) !== '';
+	}));
+
+	$statusParts = [];
+	$warnings = [];
+	$recommendations = [];
+	$outcomes = [];
+
+	if (!empty($summary['total_forms'])) {
+		$statusParts[] = 'There ' . ((int)$summary['total_forms'] === 1 ? 'is 1 active form' : 'are ' . (int)$summary['total_forms'] . ' active forms') . ' on this page.';
+	}
+	if (!empty($summary['total_tables'])) {
+		$statusParts[] = 'The page shows ' . (int)$summary['total_tables'] . ' data table(s) for review or action.';
+	}
+	if (!empty($summary['total_stats'])) {
+		$statusParts[] = (int)$summary['total_stats'] . ' status/stat card(s) are visible for quick monitoring.';
+	}
+	if (!empty($summary['primary_action'])) {
+		$statusParts[] = 'Primary action visible: ' . trim((string)$summary['primary_action']) . '.';
+	}
+	if (!empty($summary['missing_required'])) {
+		$warnings[] = (int)$summary['missing_required'] . ' required field(s) still look empty on the current screen.';
+		$recommendations[] = 'Complete the required fields before saving or submitting this workflow.';
+	}
+	if (!empty($summary['empty_table_rows'])) {
+		$warnings[] = (int)$summary['empty_table_rows'] . ' table area(s) currently show no records or incomplete listing.';
+	}
+
+	foreach ($forms as $form) {
+		$label = trim((string)($form['label'] ?? 'Form'));
+		$filled = (int)($form['filled_fields'] ?? 0);
+		$total = (int)($form['total_fields'] ?? 0);
+		$missing = (int)($form['missing_required'] ?? 0);
+		if ($total > 0) {
+			$statusParts[] = $label . ': ' . $filled . '/' . $total . ' fields filled.';
+		}
+		if ($missing > 0) {
+			$warnings[] = $label . ' has ' . $missing . ' missing required field(s).';
+		}
+	}
+
+	foreach ($tables as $table) {
+		$label = trim((string)($table['label'] ?? 'Table'));
+		$rows = (int)($table['rows'] ?? 0);
+		if ($rows > 0) {
+			$statusParts[] = $label . ' contains ' . $rows . ' row(s).';
+			$outcomes[] = 'Review the listed records and confirm they are complete before final action.';
+		} else {
+			$warnings[] = $label . ' currently has no visible records.';
+		}
+	}
+
+	foreach ($stats as $stat) {
+		$label = trim((string)($stat['label'] ?? ''));
+		$value = trim((string)($stat['value'] ?? ''));
+		if ($label !== '' && $value !== '') {
+			$statusParts[] = $label . ': ' . $value . '.';
+		}
+	}
+
+	foreach ($alerts as $alert) {
+		$warnings[] = trim((string)$alert);
+	}
+
+	$module = strtolower((string)($context['module'] ?? 'general'));
+	if (in_array($module, ['attendance'], true)) {
+		$outcomes[] = 'Expected outcome: all learners should be marked and attendance saved for the active date/session.';
+		$recommendations[] = 'Check for unmarked learners and save attendance before leaving the page.';
+	}
+	if (in_array($module, ['fees', 'finance'], true)) {
+		$outcomes[] = 'Expected outcome: balances, receipts, or finance records should update correctly and remain traceable in reports.';
+		$recommendations[] = 'Confirm amounts, references, and duplicate transaction risk before posting.';
+	}
+	if (in_array($module, ['discipline'], true)) {
+		$outcomes[] = 'Expected outcome: the incident should be recorded, assigned an action, and followed up until resolved.';
+		$recommendations[] = 'Make sure the case status, intervention, and parent communication path are clear.';
+	}
+	if (in_array($module, ['exams', 'results', 'report'], true)) {
+		$outcomes[] = 'Expected outcome: results should be complete, within valid ranges, and ready for analysis or report generation.';
+		$recommendations[] = 'Verify missing marks, invalid scores, and publishing readiness before finalising.';
+	}
+
+	if (empty($recommendations)) {
+		$recommendations[] = 'Review the visible workflow, complete any missing entries, and confirm the final action shown on the page.';
+	}
+	if (empty($outcomes)) {
+		$outcomes[] = 'Expected outcome: the current workflow should end with complete, validated records and a clear next step for the user.';
+	}
+	if (empty($warnings)) {
+		$warnings[] = 'No obvious page-level warning was detected from the current screen scan, but you should still verify the final action before submitting.';
+	}
+
+	$lines = [];
+	$lines[] = "Edu AI Page Analysis";
+	$lines[] = '';
+	$lines[] = 'Page Purpose: ' . app_ai_page_purpose($context);
+	$lines[] = '';
+	$lines[] = 'Current Status:';
+	foreach (array_slice(array_unique($statusParts ?: ['The page context was loaded and is ready for workflow guidance.']), 0, 5) as $part) {
+		$lines[] = '- ' . $part;
+	}
+	$lines[] = '';
+	$lines[] = 'Expected Outcome:';
+	foreach (array_slice(array_unique($outcomes), 0, 4) as $part) {
+		$lines[] = '- ' . $part;
+	}
+	$lines[] = '';
+	$lines[] = 'Warnings:';
+	foreach (array_slice(array_unique($warnings), 0, 4) as $part) {
+		$lines[] = '- ' . $part;
+	}
+	$lines[] = '';
+	$lines[] = 'Recommendations:';
+	foreach (array_slice(array_unique($recommendations), 0, 4) as $part) {
+		$lines[] = '- ' . $part;
+	}
+
+	return implode("\n", $lines);
+}
+
+function app_ai_context_suggestions(string $role, array $context): array
+{
+	$module = strtolower((string)($context['module'] ?? 'general'));
+	$page = strtolower((string)($context['page'] ?? 'dashboard'));
+	$catalog = [
+		'fees' => [
+			['tool' => 'fee_reminder', 'question' => 'Who has the highest fee balance in this section?'],
+			['tool' => 'performance_analysis', 'question' => 'Which class has the lowest fee payment rate this term?'],
+			['tool' => 'fee_reminder', 'question' => 'Draft a fee reminder message for overdue accounts in this page context.'],
+		],
+		'attendance' => [
+			['tool' => 'attendance_analysis', 'question' => 'Analyse absentee trends for this page and highlight the main concern.'],
+			['tool' => 'attendance_analysis', 'question' => 'Which learners or classes need attendance follow-up first?'],
+			['tool' => 'general', 'question' => 'What action should we take on repeated absences shown here?'],
+		],
+		'discipline' => [
+			['tool' => 'discipline_letter', 'question' => 'Draft a discipline letter for the current case on this page.'],
+			['tool' => 'performance_analysis', 'question' => 'Show repeat discipline patterns for this module.'],
+			['tool' => 'general', 'question' => 'What intervention plan fits the disciplinary issues visible here?'],
+		],
+		'report' => [
+			['tool' => 'report_comments', 'question' => 'Generate CBC report comments using the current page context.'],
+			['tool' => 'performance_analysis', 'question' => 'Analyse the performance trend shown on this report page.'],
+			['tool' => 'grading_assistance', 'question' => 'Explain how to improve the learner feedback on this report.'],
+		],
+		'results' => [
+			['tool' => 'performance_analysis', 'question' => 'Why did performance drop in the current result set?'],
+			['tool' => 'grading_assistance', 'question' => 'Identify weak learners and suggest support actions from this page.'],
+			['tool' => 'report_comments', 'question' => 'Generate summary comments from these results.'],
+		],
+		'exams' => [
+			['tool' => 'exam_generator', 'question' => 'Generate more CBC questions like the exam context on this page.'],
+			['tool' => 'performance_analysis', 'question' => 'Analyse the exam outcomes shown here.'],
+			['tool' => 'grading_assistance', 'question' => 'How should I interpret the grading pattern on this page?'],
+		],
+		'elearning' => [
+			['tool' => 'assignment_generator', 'question' => 'Generate a CBC assignment for the class or subject in this module.'],
+			['tool' => 'lesson_plan', 'question' => 'Create a lesson plan that matches this learning page context.'],
+			['tool' => 'general', 'question' => 'How can I improve learner engagement in this module?'],
+		],
+		'school_timetable' => [
+			['tool' => 'timetable_suggestions', 'question' => 'Suggest timetable improvements from the clashes or structure in this page.'],
+			['tool' => 'general', 'question' => 'Which timetable conflicts should be fixed first here?'],
+		],
+		'teachers' => [
+			['tool' => 'general', 'question' => 'Analyse teacher workload shown in this module.'],
+			['tool' => 'lesson_plan', 'question' => 'What support actions would help teachers perform better in this area?'],
+		],
+		'students' => [
+			['tool' => 'performance_analysis', 'question' => 'Summarise the most important learner issues visible on this page.'],
+			['tool' => 'general', 'question' => 'Which students need urgent follow-up from this module?'],
+		],
+		'finance' => [
+			['tool' => 'fee_reminder', 'question' => 'Generate reminders based on the finance page data.'],
+			['tool' => 'performance_analysis', 'question' => 'Predict fee collection concerns from this module.'],
+		],
+	];
+
+	$key = $module;
+	if (!isset($catalog[$key]) && $page !== '') {
+		$key = $page;
+	}
+	$suggestions = $catalog[$key] ?? [
+		['tool' => 'general', 'question' => 'Analyse this page and tell me the most important issue.'],
+		['tool' => 'general', 'question' => 'Detect errors or missing actions on this page.'],
+		['tool' => 'performance_analysis', 'question' => 'What trends or risks do you see from this module?'],
+		['tool' => 'general', 'question' => 'What should the user do next on this page?'],
+	];
+
+	if (in_array($role, ['student', 'parent'], true)) {
+		$suggestions = array_values(array_filter($suggestions, static function (array $item): bool {
+			return !in_array((string)($item['tool'] ?? ''), ['discipline_letter', 'fee_reminder', 'timetable_suggestions'], true);
+		}));
+	}
+
+	return array_slice($suggestions, 0, 4);
+}
+
+function app_ai_add_insight(array &$insights, string $severity, string $title, string $detail, string $prompt = '', string $tool = 'general'): void
+{
+	$insights[] = [
+		'severity' => $severity,
+		'title' => $title,
+		'detail' => $detail,
+		'prompt' => $prompt,
+		'tool' => $tool,
+		'module' => 'general',
+	];
+}
+
+function app_ai_module_family(string $module): string
+{
+	$module = strtolower(trim($module));
+	$map = [
+		'fees' => 'finance',
+		'finance' => 'finance',
+		'invoices' => 'finance',
+		'receive_payment' => 'finance',
+		'mpesa' => 'finance',
+		'attendance' => 'attendance',
+		'discipline' => 'discipline',
+		'exams' => 'exams',
+		'exam_marks_entry' => 'exams',
+		'exam_marks_table' => 'exams',
+		'marks_review' => 'exams',
+		'publish_results' => 'exams',
+		'results' => 'results',
+		'manage_results' => 'results',
+		'report' => 'report',
+		'report_card' => 'report',
+		'classes' => 'students',
+		'students' => 'students',
+		'teachers' => 'teachers',
+		'teacher_allocation' => 'teachers',
+		'school_timetable' => 'timetable',
+		'exam_timetable' => 'timetable',
+		'elearning' => 'elearning',
+		'dashboard' => 'dashboard',
+		'index' => 'dashboard',
+	];
+	return $map[$module] ?? $module;
+}
+
+function app_ai_tag_last_insight(array &$insights, string $module): void
+{
+	if (empty($insights)) {
+		return;
+	}
+	$lastIndex = count($insights) - 1;
+	$insights[$lastIndex]['module'] = app_ai_module_family($module);
+}
+
+function app_ai_filter_insights_for_context(array $insights, array $context): array
+{
+	$family = app_ai_module_family((string)($context['module'] ?? 'general'));
+	$filtered = [];
+	foreach ($insights as $insight) {
+		$itemFamily = app_ai_module_family((string)($insight['module'] ?? 'general'));
+		if ($itemFamily === $family || $itemFamily === 'dashboard') {
+			$filtered[] = $insight;
+		}
+	}
+	return array_slice($filtered, 0, 4);
+}
+
+function app_ai_auto_insights(PDO $conn, string $role, string $actorId, array $context): array
+{
+	$insights = [];
+
+	try {
+		if (app_table_exists($conn, 'tbl_report_cards') && app_table_exists($conn, 'tbl_classes')) {
+			$stmt = $conn->query("SELECT term_id, COUNT(*) AS row_count FROM tbl_report_cards WHERE term_id IS NOT NULL GROUP BY term_id ORDER BY term_id DESC LIMIT 2");
+			$termRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+			if (count($termRows) >= 2) {
+				$latestTerm = (int)($termRows[0]['term_id'] ?? 0);
+				$previousTerm = (int)($termRows[1]['term_id'] ?? 0);
+				$cmp = $conn->prepare("SELECT c.name AS class_name,
+					ROUND(AVG(CASE WHEN rc.term_id = ? THEN rc.mean END), 2) AS latest_mean,
+					ROUND(AVG(CASE WHEN rc.term_id = ? THEN rc.mean END), 2) AS previous_mean
+					FROM tbl_report_cards rc
+					JOIN tbl_classes c ON c.id = rc.class_id
+					WHERE rc.term_id IN (?, ?)
+					GROUP BY c.id, c.name
+					HAVING latest_mean IS NOT NULL AND previous_mean IS NOT NULL
+					ORDER BY (latest_mean - previous_mean) ASC
+					LIMIT 1");
+				$cmp->execute([$latestTerm, $previousTerm, $latestTerm, $previousTerm]);
+				$drop = $cmp->fetch(PDO::FETCH_ASSOC);
+				if ($drop) {
+					$change = round((float)($drop['latest_mean'] ?? 0) - (float)($drop['previous_mean'] ?? 0), 2);
+					if ($change <= -3) {
+						app_ai_add_insight($insights, 'warning', 'Class performance drop detected', trim((string)$drop['class_name']) . ' dropped by ' . abs($change) . ' marks compared with the previous term.', 'Why did performance drop for ' . trim((string)$drop['class_name']) . '?', 'performance_analysis');
+						app_ai_tag_last_insight($insights, 'results');
+					}
+				}
+			}
+		}
+	} catch (Throwable $e) {
+	}
+
+	try {
+		if (app_table_exists($conn, 'tbl_attendance_records') && app_table_exists($conn, 'tbl_students')) {
+			$stmt = $conn->query("SELECT COUNT(*) FROM (
+				SELECT student_id,
+					SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) AS present_count,
+					COUNT(*) AS total_count
+				FROM tbl_attendance_records
+				GROUP BY student_id
+				HAVING COUNT(*) >= 3 AND (SUM(CASE WHEN status = 'present' THEN 1 ELSE 0 END) * 100.0 / COUNT(*)) < 80
+			) risk_students");
+			$riskCount = (int)$stmt->fetchColumn();
+			if ($riskCount > 0) {
+				app_ai_add_insight($insights, 'warning', 'Absenteeism alert', $riskCount . ' learner(s) currently have attendance below 80%.', 'Which learners have recurring absenteeism and what should we do?', 'attendance_analysis');
+				app_ai_tag_last_insight($insights, 'attendance');
+			}
+		}
+	} catch (Throwable $e) {
+	}
+
+	try {
+		if (app_table_exists($conn, 'tbl_discipline_cases')) {
+			$studentColumn = app_column_exists($conn, 'tbl_discipline_cases', 'student_id') ? 'student_id' : (app_column_exists($conn, 'tbl_discipline_cases', 'student') ? 'student' : '');
+			if ($studentColumn !== '') {
+				$stmt = $conn->query("SELECT COUNT(*) FROM (
+					SELECT {$studentColumn}
+					FROM tbl_discipline_cases
+					WHERE {$studentColumn} IS NOT NULL
+					GROUP BY {$studentColumn}
+					HAVING COUNT(*) >= 3
+				) repeat_cases");
+				$repeatCount = (int)$stmt->fetchColumn();
+				if ($repeatCount > 0) {
+					app_ai_add_insight($insights, 'danger', 'Repeat discipline cases found', $repeatCount . ' learner(s) have three or more disciplinary cases recorded.', 'Show repeat offenders and recommend interventions.', 'discipline_letter');
+					app_ai_tag_last_insight($insights, 'discipline');
+				}
+			}
+		}
+	} catch (Throwable $e) {
+	}
+
+	try {
+		if (app_table_exists($conn, 'tbl_invoices') && app_table_exists($conn, 'tbl_students') && app_table_exists($conn, 'tbl_classes')) {
+			$classColumn = app_column_exists($conn, 'tbl_invoices', 'class_id') ? 'class_id' : '';
+			if ($classColumn !== '' && app_column_exists($conn, 'tbl_invoices', 'status')) {
+				$stmt = $conn->query("SELECT c.name, COUNT(*) AS open_count
+					FROM tbl_invoices i
+					JOIN tbl_classes c ON c.id = i.class_id
+					WHERE i.status = 'open'
+					GROUP BY c.id, c.name
+					ORDER BY open_count DESC
+					LIMIT 1");
+				$row = $stmt->fetch(PDO::FETCH_ASSOC);
+				if ($row && (int)($row['open_count'] ?? 0) > 0) {
+					app_ai_add_insight($insights, 'info', 'Fee collection pressure point', trim((string)$row['name']) . ' has the highest number of open invoices (' . (int)$row['open_count'] . ').', 'Generate a fee collection strategy for ' . trim((string)$row['name']) . '.', 'fee_reminder');
+					app_ai_tag_last_insight($insights, 'finance');
+				}
+			}
+		}
+	} catch (Throwable $e) {
+	}
+
+	try {
+		if ($role === 'teacher' && app_table_exists($conn, 'tbl_exam_mark_submissions')) {
+			$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_exam_mark_submissions WHERE teacher_id = ? AND status = 'draft'");
+			$stmt->execute([(int)$actorId]);
+			$drafts = (int)$stmt->fetchColumn();
+			if ($drafts > 0) {
+				app_ai_add_insight($insights, 'info', 'Pending teacher workflow', 'You still have ' . $drafts . ' draft mark submission(s) that may delay reporting.', 'Help me prioritise my pending mark submissions.', 'general');
+				app_ai_tag_last_insight($insights, 'exams');
+			}
+		}
+	} catch (Throwable $e) {
+	}
+
+	$insights = app_ai_filter_insights_for_context($insights, $context);
+
+	if (empty($insights) && app_ai_module_family((string)($context['module'] ?? 'general')) === 'dashboard') {
+		app_ai_add_insight($insights, 'success', 'System analysis is healthy', 'Edu AI did not detect a critical warning from the currently available school data.', 'Analyse this page and tell me what to improve next.', 'general');
+		app_ai_tag_last_insight($insights, 'dashboard');
+	}
+
+	return array_slice($insights, 0, 4);
+}
+
+function app_ai_tool_catalog(string $role): array
+{
+	$tools = [
+		'general' => 'General Assistant',
+		'report_comments' => 'Report Comments',
+		'exam_generator' => 'Exam Generator',
+		'lesson_plan' => 'Lesson Plan',
+		'performance_analysis' => 'Performance Analysis',
+		'attendance_analysis' => 'Attendance Analysis',
+		'discipline_letter' => 'Discipline Letter',
+		'fee_reminder' => 'Fee Reminder',
+		'translation' => 'Translate EN/Sw',
+		'assignment_generator' => 'Assignment Generator',
+		'grading_assistance' => 'Grading Help',
+		'timetable_suggestions' => 'Timetable Suggestions',
+	];
+
+	if ($role === 'student' || $role === 'parent') {
+		unset($tools['discipline_letter'], $tools['fee_reminder'], $tools['timetable_suggestions']);
+	}
+
+	return $tools;
+}
+
+function app_ai_tool_instruction(string $tool, string $message, string $role, string $language = 'English'): string
+{
+	$language = trim($language) !== '' ? trim($language) : 'English';
+	$instructions = [
+		'general' => 'Answer as Edu AI for the school management system. Respond directly to the user\'s actual question first. Use page context only as supporting background unless the user explicitly asks you to analyse, scan, review, or explain the current page.',
+		'report_comments' => 'Generate teacher-style CBC report comments. Give clear strengths, areas to improve, and next-step support. Keep tone professional and school-ready.',
+		'exam_generator' => 'Generate CBC-aligned assessment content. Include a balanced mix of competency-focused questions, instructions, and marking guidance where useful.',
+		'lesson_plan' => 'Create a structured CBC lesson plan with objectives, learner activities, resources, assessment, and reflection.',
+		'performance_analysis' => 'Provide a clear academic performance analysis. Highlight trends, strengths, risks, and practical intervention recommendations.',
+		'attendance_analysis' => 'Analyse attendance patterns, identify risks, and suggest school-appropriate actions for follow-up.',
+		'discipline_letter' => 'Draft a formal school discipline or parent communication letter with respectful language, facts, action taken, and expected next steps.',
+		'fee_reminder' => 'Draft a polite but firm fee reminder message for parents or guardians. Keep it school-appropriate and easy to send.',
+		'translation' => 'Translate accurately between English and Swahili. Preserve names, dates, and school meaning clearly.',
+		'assignment_generator' => 'Generate a complete school assignment paper, not an explanation. Include a clear title, learner instructions, at least 8 numbered questions, 2 competency/application tasks when appropriate, and a short marking guide with answers or key points. Use the class, subject, and topic from the request. Return the assignment content directly in teacher-ready format.',
+		'grading_assistance' => 'Explain grading, CBC points, rubric interpretation, and how to justify performance levels in a teacher-friendly way.',
+		'timetable_suggestions' => 'Suggest a practical school timetable improvement plan that reduces conflicts, balances workload, and protects core learning time.',
+	];
+
+	$base = $instructions[$tool] ?? $instructions['general'];
+	return $base . ' Respond in ' . $language . '. User role: ' . $role . '. User request: ' . $message;
+}
+
+function app_ai_prompt_context(array $scope, string $role, string $intent, string $tool, string $message, string $historyText = '', string $language = 'English'): string
+{
+	$context = [
+		'tool' => $tool,
+		'intent' => $intent,
+		'role' => $role,
+		'language' => $language,
+		'allowed_scope' => $scope,
+	];
+	$prompt = app_ai_tool_instruction($tool, $message, $role, $language)
+		. "\n\nAllowed school data JSON:\n"
+		. json_encode($context, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+	if ($historyText !== '') {
+		$prompt .= "\n\nConversation history:\n" . $historyText;
+	}
+	return $prompt;
+}
+
+function app_ai_external_reply(PDO $conn, string $message, array $scope, string $role, string $intent, string $historyText = '', string $tool = 'general', string $language = 'English'): string
+{
+	$settings = app_ai_system_settings($conn);
+	if ($settings['enabled'] !== '1' || $settings['api_key'] === '') {
+		return '';
+	}
+
+	if ($settings['provider'] === 'gemini') {
+		return app_gemini_reply($message, $scope, $role, $intent, $historyText, $tool, $language, $settings);
+	}
+
+	return app_openai_reply($message, $scope, $role, $intent, $historyText, $tool, $language, $settings);
+}
+
+function app_gemini_reply(string $message, array $scope, string $role, string $intent, string $historyText = '', string $tool = 'general', string $language = 'English', ?array $settings = null): string
+{
+	$settings = is_array($settings) ? $settings : [];
+	$apiKey = trim((string)($settings['api_key'] ?? getenv('GEMINI_API_KEY')));
+	if ($apiKey === '') {
+		return '';
+	}
+	$model = trim((string)($settings['model'] ?? 'gemini-2.0-flash')) ?: 'gemini-2.0-flash';
+	$temperature = (float)($settings['temperature'] ?? 0.2);
+	$maxOutputTokens = (int)($settings['max_output_tokens'] ?? 700);
+
+	$systemPrompt = "You are Edu AI inside a school management system. Follow role-based access. "
+		. "Never reveal data outside the allowed scope. Do not invent school facts, names, balances, or marks. "
+		. "Use CBC language and actionable school-safe wording. "
+		. "Answer the user's direct question first, and only switch into page-analysis mode when the user clearly asks for page analysis or troubleshooting.";
+
+	$userPrompt = app_ai_prompt_context($scope, $role, $intent, $tool, $message, $historyText, $language);
+	$payload = json_encode([
+		'system_instruction' => [
+			'parts' => [
+				['text' => $systemPrompt],
+			],
+		],
+		'contents' => [
+			[
+				'role' => 'user',
+				'parts' => [
+					['text' => $userPrompt],
+				],
+			],
+		],
+		'generationConfig' => [
+			'temperature' => $temperature,
+			'maxOutputTokens' => $maxOutputTokens,
+		],
+	], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+	$url = 'https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode($model) . ':generateContent?key=' . rawurlencode($apiKey);
+	$resp = app_http_post_json($url, $payload, ['Content-Type: application/json'], 30);
+	if (!is_array($resp) || ($resp['http_code'] ?? 0) < 200 || ($resp['http_code'] ?? 0) >= 300) {
+		return '';
+	}
+
+	$data = json_decode((string)($resp['body'] ?? ''), true);
+	if (!is_array($data) || empty($data['candidates'][0]['content']['parts'])) {
+		return '';
+	}
+
+	$parts = [];
+	foreach ((array)$data['candidates'][0]['content']['parts'] as $part) {
+		$text = trim((string)($part['text'] ?? ''));
+		if ($text !== '') {
+			$parts[] = $text;
+		}
+	}
+
+	return trim(implode("\n", $parts));
+}
+
 if ($action === 'history') {
 	try {
 		$conn = app_db();
@@ -95,11 +795,17 @@ if ($action === 'history') {
 		if ((int)$level === 3) { $actorType = 'student'; }
 		if ((int)$level === 4) { $actorType = 'parent'; }
 		$actorId = (string)$account_id;
+		$role = app_role_from_level((int)$level);
+		$aiSettings = app_ai_system_settings($conn);
 
 		echo json_encode([
 			'ok' => true,
 			'user_key' => $actorType . ':' . $actorId,
-			'role' => app_role_from_level((int)$level),
+			'role' => $role,
+			'provider' => app_ai_provider_label((string)$aiSettings['provider']),
+			'ai_enabled' => $aiSettings['enabled'] === '1',
+			'widget_enabled' => $aiSettings['public_widget_enabled'] === '1',
+			'tools' => app_ai_tool_catalog($role),
 			'history' => app_ai_history($conn, $actorType, $actorId, 30),
 		]);
 	} catch (Throwable $e) {
@@ -108,8 +814,43 @@ if ($action === 'history') {
 	exit;
 }
 
+if ($action === 'context' || $action === 'insights') {
+	try {
+		$conn = app_db();
+		$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+		app_ensure_edubot_memory_table($conn);
+		$actorType = 'staff';
+		if ((int)$level === 3) { $actorType = 'student'; }
+		if ((int)$level === 4) { $actorType = 'parent'; }
+		$actorId = (string)$account_id;
+		$role = app_role_from_level((int)$level);
+		$aiSettings = app_ai_system_settings($conn);
+		$context = app_ai_request_context($payload);
+		$insights = app_ai_auto_insights($conn, $role, $actorId, $context);
+		$scope = app_ai_scope($conn, $role, $actorId);
+		$scope['page_context'] = $context;
+		echo json_encode([
+			'ok' => true,
+			'role' => $role,
+			'provider' => app_ai_provider_label((string)$aiSettings['provider']),
+			'ai_enabled' => $aiSettings['enabled'] === '1',
+			'widget_enabled' => $aiSettings['public_widget_enabled'] === '1',
+			'context' => $context,
+			'tools' => app_ai_tool_catalog($role),
+			'suggestions' => app_ai_context_suggestions($role, $context),
+			'insights' => $insights,
+			'page_guidance' => app_ai_page_guidance($scope, $context, $role),
+		]);
+	} catch (Throwable $e) {
+		echo json_encode(['ok' => false, 'message' => 'Unable to load AI context.']);
+	}
+	exit;
+}
+
 $message = trim((string)($payload['message'] ?? ''));
 $category = trim((string)($payload['category'] ?? 'feedback'));
+$tool = trim((string)($payload['tool'] ?? 'general'));
+$language = trim((string)($payload['language'] ?? 'English'));
 if ($message === '') {
 	echo json_encode(['ok' => false, 'message' => 'Message required']);
 	exit;
@@ -125,6 +866,146 @@ function app_ai_suffix(string $response): string
 		return $response;
 	}
 	return $response . ' School Assistant';
+}
+
+function app_ai_finalize_response(string $response, string $tool, array $pageContext = []): string
+{
+	$response = trim($response);
+	$module = strtolower(trim((string)($pageContext['module'] ?? '')));
+	if (in_array($tool, ['assignment_generator', 'exam_generator', 'lesson_plan', 'discipline_letter', 'fee_reminder', 'report_comments', 'translation'], true)) {
+		return $response;
+	}
+	if ($tool === 'general' && $module === 'document_generator') {
+		return $response;
+	}
+	return app_ai_suffix($response);
+}
+
+function app_assignment_generator_fallback(string $message): string
+{
+	$class = 'the selected class';
+	$subject = 'the selected subject';
+	$topic = 'the selected topic';
+
+	if (preg_match('/for\s+(.+?)\s+in\s+(.+?)\s+on\s+(.+?)(?:\.|$)/i', $message, $matches)) {
+		$class = trim($matches[1]) !== '' ? trim($matches[1]) : $class;
+		$subject = trim($matches[2]) !== '' ? trim($matches[2]) : $subject;
+		$topic = trim($matches[3]) !== '' ? trim($matches[3]) : $topic;
+	}
+
+	return "ASSIGNMENT\n"
+		. "Class: {$class}\n"
+		. "Subject: {$subject}\n"
+		. "Topic: {$topic}\n\n"
+		. "Instructions:\n"
+		. "1. Answer all questions.\n"
+		. "2. Show your working where necessary.\n"
+		. "3. Write neatly and check your work.\n\n"
+		. "Questions:\n"
+		. "1. Define {$topic} in your own words.\n"
+		. "2. Give two examples related to {$topic}.\n"
+		. "3. State one importance or use of {$topic}.\n"
+		. "4. Solve a short question based on {$topic}.\n"
+		. "5. Complete a matching or fill-in-the-blank task on {$topic}.\n"
+		. "6. Answer a short explanation question about {$topic}.\n"
+		. "7. Apply {$topic} to a real-life classroom or home situation.\n"
+		. "8. Write one thing you have learnt about {$topic}.\n\n"
+		. "Competency Tasks:\n"
+		. "1. Complete one practical or applied task that uses {$topic} in daily life.\n"
+		. "2. Work with a partner or parent to explain how {$topic} can be used correctly.\n\n"
+		. "Marking Guide:\n"
+		. "1. Award marks for correct facts, clear working, and relevant examples.\n"
+		. "2. Give full credit where the learner shows correct understanding and application.\n"
+		. "3. Use the competency tasks to check communication, problem-solving, and practical understanding.";
+}
+
+function app_document_request_excerpt(string $message): string
+{
+	$message = trim(preg_replace('/\s+/', ' ', $message));
+	return $message !== '' ? $message : 'the provided school request';
+}
+
+function app_official_letter_fallback(string $message): string
+{
+	$request = app_document_request_excerpt($message);
+	return "SCHOOL OFFICIAL LETTER\n\n"
+		. "Date: ____________________\n"
+		. "Ref: ____________________\n\n"
+		. "To: Parent/Guardian\n\n"
+		. "Subject: " . $request . "\n\n"
+		. "Dear Sir/Madam,\n\n"
+		. "RE: " . strtoupper($request) . "\n\n"
+		. "This letter is written regarding {$request}. Please review the matter carefully and take the required action as advised by the school.\n\n"
+		. "Kindly contact the school office for clarification or further guidance where necessary.\n\n"
+		. "Yours faithfully,\n\n"
+		. "________________________\n"
+		. "School Administration";
+}
+
+function app_report_comments_fallback(string $message): string
+{
+	$request = app_document_request_excerpt($message);
+	return "CBC REPORT COMMENTS\n\n"
+		. "Teacher Comment:\n"
+		. "The learner has shown encouraging effort in {$request}. There are clear strengths in participation and understanding, while more practice is needed in weaker areas. Continued support, regular revision, and active class participation will help the learner improve steadily.\n\n"
+		. "Next Step:\n"
+		. "Focus on the specific learning gaps mentioned and encourage consistent completion of classwork and homework.";
+}
+
+function app_lesson_plan_fallback(string $message): string
+{
+	$request = app_document_request_excerpt($message);
+	return "LESSON PLAN\n\n"
+		. "Topic/Strand: {$request}\n"
+		. "Objectives:\n"
+		. "1. Learners identify the key idea in the lesson.\n"
+		. "2. Learners demonstrate understanding through guided activity.\n"
+		. "3. Learners apply the concept in a simple practical task.\n\n"
+		. "Resources:\n"
+		. "- Textbook\n- Chalkboard/marker board\n- Activity materials relevant to the lesson\n\n"
+		. "Introduction:\n"
+		. "- Link the lesson to prior knowledge and introduce the lesson focus.\n\n"
+		. "Learner Activities:\n"
+		. "1. Teacher explanation and examples.\n"
+		. "2. Pair or group activity.\n"
+		. "3. Short individual assessment task.\n\n"
+		. "Assessment:\n"
+		. "- Oral questions\n- Written exercise\n- Observation of participation\n\n"
+		. "Conclusion:\n"
+		. "- Summarise the lesson and give a follow-up task/homework.";
+}
+
+function app_discipline_letter_fallback(string $message): string
+{
+	$request = app_document_request_excerpt($message);
+	return "DISCIPLINE LETTER\n\n"
+		. "Date: ____________________\n\n"
+		. "To: Parent/Guardian\n\n"
+		. "Subject: Discipline Concern\n\n"
+		. "Dear Parent/Guardian,\n\n"
+		. "This letter is to inform you about {$request}. The matter has been discussed at school and appropriate guidance has been given to the learner.\n\n"
+		. "We request your support in speaking with the learner and working together with the school to improve behaviour and ensure compliance with school expectations.\n\n"
+		. "You may be required to attend a meeting with the school for further discussion.\n\n"
+		. "Yours faithfully,\n\n"
+		. "________________________\n"
+		. "School Administration";
+}
+
+function app_fee_reminder_fallback(string $message): string
+{
+	$request = app_document_request_excerpt($message);
+	return "FEE REMINDER\n\n"
+		. "Dear Parent/Guardian,\n\n"
+		. "This is a polite reminder regarding {$request}. Kindly arrange payment of the outstanding balance at your earliest convenience.\n\n"
+		. "For assistance, please contact the school accounts office.\n\n"
+		. "Thank you for your cooperation.\n\n"
+		. "School Administration";
+}
+
+function app_translation_fallback(string $message, string $language): string
+{
+	$request = app_document_request_excerpt($message);
+	return "Translation request received for {$language}:\n\n{$request}\n\nPlease configure an external AI provider for a full translation result.";
 }
 
 function app_cbe_grade_from_points(float $points): string
@@ -211,8 +1092,14 @@ try {
 	$actorId = (string)$account_id;
 
 	$role = app_role_from_level((int)$level);
+	$toolCatalog = app_ai_tool_catalog($role);
+	if (!isset($toolCatalog[$tool])) {
+		$tool = 'general';
+	}
 	$intent = app_detect_intent($message);
 	$historyText = app_edubot_history_text($conn, $actorType, $actorId, 8);
+	$aiSettings = app_ai_system_settings($conn);
+	$pageContext = app_ai_request_context($payload);
 
 	if ($category !== 'ai') {
 		$response = 'Thanks! We received your message.';
@@ -231,17 +1118,27 @@ try {
 	}
 
 	$scope = app_ai_scope($conn, $role, $actorId);
-	$response = app_generate_ai_reply($message, $scope, $role, $intent);
-	$openai = app_openai_reply($message, $scope, $role, $intent, $historyText);
-	if ($openai !== '') {
-		$response = $openai;
+	$scope['page_context'] = $pageContext;
+	if ($aiSettings['enabled'] === '1' && $aiSettings['fallback_enabled'] !== '1') {
+		$externalReply = app_ai_external_reply($conn, $message, $scope, $role, $intent, $historyText, $tool, $language);
+		if ($externalReply !== '') {
+			$response = $externalReply;
+		} else {
+			$response = 'Edu AI is enabled but the external AI provider is not responding right now.';
+		}
+	} else {
+		$response = app_generate_ai_tool_reply($message, $scope, $role, $intent, $tool, $language);
+		$externalReply = app_ai_external_reply($conn, $message, $scope, $role, $intent, $historyText, $tool, $language);
+		if ($externalReply !== '') {
+			$response = $externalReply;
+		}
 	}
-	$response = app_ai_suffix($response);
+	$response = app_ai_finalize_response($response, $tool, $pageContext);
 
 	app_ai_log($conn, $actorType, $actorId, $role, $message, $response, $intent);
 	app_edubot_store_memory($conn, $actorType, $actorId, $role, $intent, $message, $response);
-	app_store_ai_feedback($conn, $actorType, $actorId, 'ai', $intent, $message, $response, 'answered', '');
-	echo json_encode(['ok' => true, 'response' => $response]);
+	app_store_ai_feedback($conn, $actorType, $actorId, 'ai', $tool, $message, $response, 'answered', '');
+	echo json_encode(['ok' => true, 'response' => $response, 'tool' => $tool, 'provider' => app_ai_provider_label((string)$aiSettings['provider'])]);
 } catch (Throwable $e) {
 	// Log exception for debugging and return generic error to client
 	error_log('[ai_feedback] Failed to store AI message: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
@@ -879,43 +1776,149 @@ function app_generate_ai_reply(string $message, array $scope, string $role, stri
 	return 'Thanks for the message. Ask about performance, attendance, fees, or assignments to get a data-based answer.';
 }
 
-function app_openai_reply(string $message, array $scope, string $role, string $intent, string $historyText = ''): string
+function app_generate_ai_tool_reply(string $message, array $scope, string $role, string $intent, string $tool = 'general', string $language = 'English'): string
 {
+	$message = trim($message);
+	$language = trim($language) !== '' ? trim($language) : 'English';
+	$student = $scope['students'][0] ?? null;
+	$school = $scope['school'] ?? [];
+
+	if ($tool === 'report_comments') {
+		if ($student) {
+			$avg = $student['avg_score'] !== null ? 'Average score: ' . $student['avg_score'] . '. ' : '';
+			return $avg . 'CBC report comment draft: The learner is making steady progress and should keep improving through regular practice, active participation, and timely completion of tasks. Focus on strengthening weaker areas while maintaining effort in strong subjects.';
+		}
+		return app_report_comments_fallback($message);
+	}
+
+	if ($tool === 'exam_generator') {
+		return "CBC exam draft:\n1. Multiple choice section based on the requested topic.\n2. Short answer section testing understanding and application.\n3. Structured competency task requiring explanation or practical reasoning.\n4. Marking guide with expected key points.";
+	}
+
+	if ($tool === 'lesson_plan') {
+		return app_lesson_plan_fallback($message);
+	}
+
+	if ($tool === 'performance_analysis') {
+		if ($student) {
+			$response = [];
+			if ($student['avg_score'] !== null) {
+				$response[] = 'Current average score is ' . $student['avg_score'] . '.';
+			}
+			if (!empty($student['top_subjects'])) {
+				$tops = [];
+				foreach ($student['top_subjects'] as $row) {
+					$tops[] = $row['name'] . ' (' . round((float)$row['avg_score'], 1) . ')';
+				}
+				$response[] = 'Strongest subjects: ' . implode(', ', $tops) . '.';
+			}
+			$response[] = 'Recommended action: maintain strengths, identify two weaker learning areas, and set short weekly improvement targets.';
+			return implode(' ', $response);
+		}
+		if (!empty($school['avg_score'])) {
+			return 'School performance snapshot: overall average score is ' . $school['avg_score'] . '. Focus on targeted support for lower-performing classes, continuous assessment follow-up, and attendance monitoring.';
+		}
+	}
+
+	if ($tool === 'attendance_analysis') {
+		if ($student && $student['attendance_rate'] !== null) {
+			return 'Attendance analysis: current attendance rate is ' . $student['attendance_rate'] . '%. Follow up quickly on repeated absence patterns, contact guardians early, and monitor punctuality alongside attendance.';
+		}
+		if (!empty($school['attendance_rate'])) {
+			return 'Attendance analysis: school attendance rate is ' . $school['attendance_rate'] . '%. Compare classes with weaker attendance, investigate recurring absence reasons, and strengthen parent communication.';
+		}
+	}
+
+	if ($tool === 'discipline_letter') {
+		return app_discipline_letter_fallback($message);
+	}
+
+	if ($tool === 'fee_reminder') {
+		return app_fee_reminder_fallback($message);
+	}
+
+	if ($tool === 'translation') {
+		return app_translation_fallback($message, $language);
+	}
+
+	if ($tool === 'assignment_generator') {
+		return app_assignment_generator_fallback($message);
+	}
+
+	if ($tool === 'general' && strtolower((string)($scope['page_context']['module'] ?? '')) === 'document_generator') {
+		return app_official_letter_fallback($message);
+	}
+
+	if ($tool === 'grading_assistance') {
+		return 'Grading guidance: use evidence from learner work, participation, and assessment outcomes. In CBC, align feedback to competency level, explain why the learner is at that level, and state the next support step needed.';
+	}
+
+	if ($tool === 'timetable_suggestions') {
+		return 'Timetable suggestion: place high-focus subjects earlier in the day, avoid overloading one teacher or class in consecutive slots, leave recovery time around practical sessions, and balance double lessons carefully.';
+	}
+
+	$lowerMessage = strtolower($message);
+	$pageContext = is_array($scope['page_context'] ?? null) ? $scope['page_context'] : [];
+	$wantsPageAnalysis = strpos($lowerMessage, 'analyse this page') !== false
+		|| strpos($lowerMessage, 'analyze this page') !== false
+		|| strpos($lowerMessage, 'what should i do next on this page') !== false
+		|| strpos($lowerMessage, 'scan this page') !== false
+		|| strpos($lowerMessage, 'detect errors on this page') !== false
+		|| strpos($lowerMessage, 'review this page') !== false
+		|| strpos($lowerMessage, 'what is wrong on this page') !== false
+		|| strpos($lowerMessage, 'check this page') !== false
+		|| strpos($lowerMessage, 'troubleshoot this page') !== false;
+	if ($wantsPageAnalysis) {
+		return app_ai_page_guidance($scope, $pageContext, $role);
+	}
+
+	return app_generate_ai_reply($message, $scope, $role, $intent);
+}
+
+function app_openai_reply(string $message, array $scope, string $role, string $intent, string $historyText = '', string $tool = 'general', string $language = 'English', ?array $settings = null): string
+{
+	$settings = is_array($settings) ? $settings : [];
 	$mode = strtolower(trim((string)getenv('AI_MODE')));
-	if ($mode !== 'external') {
+	$apiKey = trim((string)($settings['api_key'] ?? ''));
+	if ($apiKey === '') {
+		$apiKey = trim((string)getenv('OPENAI_API_KEY'));
+	}
+	if ($apiKey === '' || ($mode !== '' && $mode !== 'external' && empty($settings))) {
 		return '';
 	}
-	$apiKey = trim((string)getenv('OPENAI_API_KEY'));
+	if (!empty($settings['provider']) && $settings['provider'] !== 'openai') {
+		return '';
+	}
 	if ($apiKey === '') {
 		return '';
 	}
-	$model = trim((string)getenv('OPENAI_MODEL'));
+	$model = trim((string)($settings['model'] ?? ''));
+	if ($model === '') {
+		$model = trim((string)getenv('OPENAI_MODEL'));
+	}
 	if ($model === '') {
 		$model = 'gpt-4o-mini';
 	}
+	$temperature = (float)($settings['temperature'] ?? 0.2);
+	$maxTokens = (int)($settings['max_output_tokens'] ?? 700);
 
-	$systemPrompt = "You are the school's AI assistant. Follow role-based access. Role: ".$role.". ".
+	$systemPrompt = "You are Edu AI inside a school management system. Follow role-based access. Role: ".$role.". ".
 		"Never reveal data outside the allowed scope. Do not invent names or statistics. ".
-		"Use CBE levels (EE/ME/AE/BE) and points (4, 3, 2, 1) when relevant. If data is missing, say so.";
+		"Use CBE levels (EE/ME/AE/BE) and points when relevant. Answer the user's question directly first. Use page context as support, not as the default response style, unless the user explicitly asks for page analysis.";
 
-	$context = json_encode($scope, JSON_UNESCAPED_SLASHES);
-	$userPrompt = "User question: ".$message."\nIntent: ".$intent."\nAllowed data (JSON): ".$context;
-	if ($historyText !== '') {
-		$userPrompt .= "\nConversation history:\n" . $historyText;
-	}
-
+	$userPrompt = app_ai_prompt_context($scope, $role, $intent, $tool, $message, $historyText, $language);
 	$payload = json_encode([
 		'model' => $model,
 		'input' => [
 			['role' => 'system', 'content' => $systemPrompt],
 			['role' => 'user', 'content' => $userPrompt],
 		],
-		'temperature' => 0.2,
-		'max_output_tokens' => 300,
-	]);
+		'temperature' => $temperature,
+		'max_output_tokens' => $maxTokens,
+	], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
 	$httpHeaders = ['Authorization: Bearer ' . $apiKey, 'Content-Type: application/json'];
-	$resp = app_http_post_json('https://api.openai.com/v1/responses', $payload, $httpHeaders, 20);
+	$resp = app_http_post_json('https://api.openai.com/v1/responses', $payload, $httpHeaders, 30);
 	if (!is_array($resp) || ($resp['http_code'] ?? 0) < 200 || ($resp['http_code'] ?? 0) >= 300) {
 		return '';
 	}

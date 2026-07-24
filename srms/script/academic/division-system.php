@@ -158,33 +158,34 @@ try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-$stmt = $conn->prepare("SELECT * FROM tbl_division_system");
+$stmt = $conn->prepare("SELECT division, min, max, min_point, max_point, points FROM tbl_division_system ORDER BY min DESC, points DESC");
 $stmt->execute();
-$result = $stmt->fetchAll();
+$result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 foreach($result as $row)
 {
+$division = (string)($row['division'] ?? '');
 ?>
 <tr>
-<td><?php echo $row[0]; ?></td>
-<td><?php echo $row[1]; ?></td>
-<td><?php echo $row[2]; ?></td>
-<td><?php echo $row[3]; ?></td>
-<td><?php echo $row[4]; ?></td>
-<td><?php echo $row[5]; ?></td>
+<td><?php echo htmlspecialchars($division); ?></td>
+<td><?php echo htmlspecialchars((string)($row['min'] ?? '')); ?></td>
+<td><?php echo htmlspecialchars((string)($row['max'] ?? '')); ?></td>
+<td><?php echo htmlspecialchars((string)($row['min_point'] ?? '')); ?></td>
+<td><?php echo htmlspecialchars((string)($row['max_point'] ?? '')); ?></td>
+<td><?php echo htmlspecialchars((string)($row['points'] ?? '')); ?></td>
 
 <td align="center">
 
-<textarea style="display:none;" id="division_<?php echo $row[0]; ?>"><?php echo $row[0]; ?></textarea>
-<textarea style="display:none;" id="min_<?php echo $row[0]; ?>"><?php echo $row[1]; ?></textarea>
-<textarea style="display:none;" id="max_<?php echo $row[0]; ?>"><?php echo $row[2]; ?></textarea>
-<textarea style="display:none;" id="min2_<?php echo $row[0]; ?>"><?php echo $row[3]; ?></textarea>
-<textarea style="display:none;" id="max2_<?php echo $row[0]; ?>"><?php echo $row[4]; ?></textarea>
-<textarea style="display:none;" id="points_<?php echo $row[0]; ?>"><?php echo $row[5]; ?></textarea>
+<textarea style="display:none;" id="division_<?php echo htmlspecialchars($division); ?>"><?php echo htmlspecialchars($division); ?></textarea>
+<textarea style="display:none;" id="min_<?php echo htmlspecialchars($division); ?>"><?php echo htmlspecialchars((string)($row['min'] ?? '')); ?></textarea>
+<textarea style="display:none;" id="max_<?php echo htmlspecialchars($division); ?>"><?php echo htmlspecialchars((string)($row['max'] ?? '')); ?></textarea>
+<textarea style="display:none;" id="min2_<?php echo htmlspecialchars($division); ?>"><?php echo htmlspecialchars((string)($row['min_point'] ?? '')); ?></textarea>
+<textarea style="display:none;" id="max2_<?php echo htmlspecialchars($division); ?>"><?php echo htmlspecialchars((string)($row['max_point'] ?? '')); ?></textarea>
+<textarea style="display:none;" id="points_<?php echo htmlspecialchars($division); ?>"><?php echo htmlspecialchars((string)($row['points'] ?? '')); ?></textarea>
 
 
-<a onclick="set_division('<?php echo $row[0]; ?>');" class="btn btn-primary btn-sm" href="javascript:void(0);" data-bs-toggle="modal" data-bs-target="#editModal">Edit</a>
-<a onclick="del('academic/core/drop_division.php?id=<?php echo $row[0]; ?>', 'Delete Division?');" class="btn btn-danger btn-sm" href="javascript:void(0);">Delete</a>
+<a onclick="set_division('<?php echo htmlspecialchars($division); ?>');" class="btn btn-primary btn-sm" href="javascript:void(0);" data-bs-toggle="modal" data-bs-target="#editModal">Edit</a>
+<a onclick="del('academic/core/drop_division.php?id=<?php echo urlencode($division); ?>', 'Delete Division?');" class="btn btn-danger btn-sm" href="javascript:void(0);">Delete</a>
 </td>
 </tr>
 <?php

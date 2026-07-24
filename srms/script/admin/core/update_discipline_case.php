@@ -37,6 +37,7 @@ try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 	app_ensure_discipline_management_schema($conn);
+	app_ensure_data_camp_schema($conn);
 
 	$currentStmt = $conn->prepare('SELECT status, case_status, category, action_taken, parent_visit_status FROM tbl_discipline_cases WHERE id = ? LIMIT 1');
 	$currentStmt->execute([$id]);
@@ -44,6 +45,7 @@ try {
 	if (!$currentCase) {
 		throw new RuntimeException('Discipline case not found.');
 	}
+	$beforeSnapshot = app_discipline_case_archive_payload($conn, $id);
 
 	if ($status === null || !in_array($status, $allowedStatus, true)) {
 		$status = strtolower(trim((string)($currentCase['status'] ?? 'pending')));
@@ -75,6 +77,26 @@ try {
 		WHERE id = ?');
 	$suggestedAction = app_discipline_suggest_action($category);
 	$stmt->execute([$status, $caseStatus, $category, $actionTaken, $suggestedAction, $parentVisitStatus, (int)$account_id, $id]);
+	$afterSnapshot = app_discipline_case_archive_payload($conn, $id);
+	$caseRow = (array)($afterSnapshot['case'] ?? $beforeSnapshot['case'] ?? []);
+	app_data_camp_store_event($conn, [
+		'module_key' => 'discipline',
+		'record_type' => 'discipline_case_updated',
+		'entity_table' => 'tbl_discipline_cases',
+		'entity_id' => (string)$id,
+		'title' => trim((string)($caseRow['student_name'] ?? '')) !== '' ? (string)$caseRow['student_name'] . ' Discipline Case' : ('Discipline Case #' . (string)$id),
+		'description' => 'Discipline case snapshot retained before and after update',
+		'class_id' => (int)($caseRow['class_id'] ?? 0) > 0 ? (int)$caseRow['class_id'] : null,
+		'student_id' => trim((string)($caseRow['student_id'] ?? '')) ?: null,
+		'owner_portal' => 'admin,academic',
+		'mime_type' => 'application/json',
+		'status' => 'retained',
+		'payload_json' => [
+			'before' => $beforeSnapshot,
+			'after' => $afterSnapshot,
+		],
+		'created_by' => (int)$account_id,
+	]);
 
 	$_SESSION['reply'] = array(array('success', 'Discipline case updated successfully.'));
 } catch (Throwable $e) {

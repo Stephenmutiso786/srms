@@ -1,6 +1,7 @@
 <?php
 $currentPage = basename($_SERVER['PHP_SELF'], '.php');
 require_once('const/rbac.php');
+require_once('const/edu_ai_portal_ui.php');
 $visibleAdminModules = app_current_user_visible_portal_modules('admin');
 
 function admin_menu_active($page)
@@ -51,9 +52,12 @@ function admin_sidebar_group_label(string $moduleKey): string
     'fees' => 'Finance',
     'import_export' => 'System',
     'communication' => 'Communication',
+    'announcement_center' => 'Communication',
     'sms_topup' => 'Communication',
     'elearning' => 'Academic',
     'feedback' => 'Communication',
+    'document_generator' => 'Communication',
+    'ai_command_center' => 'Reports',
     'library' => 'Resources',
     'inventory' => 'Resources',
     'transport' => 'Resources',
@@ -139,4 +143,5 @@ if ($sidebarDisplayName === '') {
     <a class="app-sidebar__footer-link" href="privacy" target="_blank"><i class="bi bi-shield-lock me-2"></i>Privacy Policy</a>
     <a class="app-sidebar__footer-link" href="terms" target="_blank"><i class="bi bi-file-text me-2"></i>Terms & Conditions</a>
   </div>
+  <?php app_render_portal_edu_ai('admin'); ?>
 </aside>

@@ -23,6 +23,7 @@ try {
 		ORDER BY t.id DESC");
 	$stmt->execute([$classId]);
 	$terms = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	app_sort_term_rows($terms);
 
 	if ($termId < 1 && !empty($terms)) {
 		$termId = (int)$terms[0]['id'];

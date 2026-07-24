@@ -4,6 +4,7 @@ session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/rbac.php');
+require_once('const/notify.php');
 
 app_require_authentication([], ['students.manage']);
 
@@ -15,7 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $parentId = (int)($_POST['parent_id'] ?? 0);
 $fname = ucfirst(trim((string)($_POST['fname'] ?? '')));
 $lname = ucfirst(trim((string)($_POST['lname'] ?? '')));
-$phone = trim((string)($_POST['phone'] ?? ''));
+$phone = app_normalize_phone_number(trim((string)($_POST['phone'] ?? '')), (string)(getenv('APP_DEFAULT_COUNTRY_CODE') ?: '254'));
 $email = trim((string)($_POST['email'] ?? ''));
 $status = (int)($_POST['status'] ?? 1);
 

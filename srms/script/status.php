@@ -2,33 +2,28 @@
 session_start();
 require_once('db/config.php');
 require_once('const/school.php');
+require_once('const/check_session.php');
+require_once('const/rbac.php');
 
-$started = microtime(true);
 $status = [
     'app_ok' => true,
     'db_ok' => false,
     'db_error' => '',
-    'db_latency_ms' => null,
-    'total_latency_ms' => null,
-    'time' => date('c'),
-    'driver' => DBDriver,
-    'app' => APP_NAME,
+    'last_checked' => gmdate('Y-m-d H:i:s'),
 ];
+$canViewDiagnostics = ($res ?? '0') === '1' && app_current_user_has_permission('system.manage');
 
 try {
-    $dbStarted = microtime(true);
     $conn = app_db();
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $conn->query('SELECT 1');
     $status['db_ok'] = true;
-    $status['db_latency_ms'] = round((microtime(true) - $dbStarted) * 1000, 2);
 } catch (Throwable $e) {
     $status['db_ok'] = false;
     $status['db_error'] = 'Database unreachable';
     error_log('[status] ' . $e->getMessage());
 }
 
-$status['total_latency_ms'] = round((microtime(true) - $started) * 1000, 2);
 $overallOk = ($status['app_ok'] && $status['db_ok']);
 
 function h($value): string {
@@ -63,7 +58,6 @@ body.status-page { background: linear-gradient(180deg, #edf4f0 0%, #f7fbf9 50%, 
 .actions { margin-top: 14px; display: flex; gap: 10px; flex-wrap: wrap; }
 .actions .btn { border-radius: 10px; font-weight: 700; }
 .health-panel { margin-top: 16px; background: #fff; border: 1px solid #deeaE5; border-radius: 16px; padding: 16px; box-shadow: 0 10px 22px rgba(12, 44, 35, .08); }
-.json-box { background: #0f1d1a; color: #d8f4ea; border-radius: 12px; padding: 12px; font-family: monospace; font-size: .85rem; overflow-x: auto; }
 @media (max-width: 860px) { .status-grid { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 560px) { .status-grid { grid-template-columns: 1fr; } }
 </style>
@@ -76,8 +70,9 @@ body.status-page { background: linear-gradient(180deg, #edf4f0 0%, #f7fbf9 50%, 
         <p class="status-sub">Use this page when the site seems down. It checks application and database readiness in real time.</p>
         <div class="actions">
             <a class="btn btn-light btn-sm" href="index.php"><i class="bi bi-box-arrow-left me-1"></i>Back to Login</a>
-            <a class="btn btn-outline-light btn-sm" href="api/health" target="_blank"><i class="bi bi-activity me-1"></i>API Basic Health</a>
-            <a class="btn btn-outline-light btn-sm" href="api/health?deep=1" target="_blank"><i class="bi bi-heart-pulse me-1"></i>API Deep Health</a>
+            <?php if ($canViewDiagnostics): ?>
+            <a class="btn btn-outline-light btn-sm" href="admin/system_diagnostics"><i class="bi bi-shield-lock me-1"></i>Admin Diagnostics</a>
+            <?php endif; ?>
         </div>
     </section>
 
@@ -107,36 +102,27 @@ body.status-page { background: linear-gradient(180deg, #edf4f0 0%, #f7fbf9 50%, 
             </div>
         </div>
         <div class="status-card">
-            <div class="label">DB Latency</div>
-            <div class="value"><?php echo $status['db_latency_ms'] !== null ? h($status['db_latency_ms']) . ' ms' : 'N/A'; ?></div>
+            <div class="label">Services</div>
+            <div class="value"><?php echo $status['db_ok'] ? 'Operational' : 'Attention Needed'; ?></div>
         </div>
         <div class="status-card">
-            <div class="label">Total Latency</div>
-            <div class="value"><?php echo h($status['total_latency_ms']); ?> ms</div>
+            <div class="label">Visibility</div>
+            <div class="value"><?php echo $canViewDiagnostics ? 'Admin Session Active' : 'Public Safe View'; ?></div>
         </div>
         <div class="status-card">
-            <div class="label">Time (UTC)</div>
-            <div class="value"><?php echo h(gmdate('Y-m-d H:i:s')); ?></div>
+            <div class="label">Last Checked</div>
+            <div class="value"><?php echo h($status['last_checked']); ?> UTC</div>
         </div>
     </div>
 
     <section class="health-panel">
-        <h3 class="mb-2">Diagnostic Payload</h3>
-        <div class="json-box"><?php echo h(json_encode([
-            'ok' => $overallOk,
-            'app' => $status['app'],
-            'driver' => $status['driver'],
-            'time' => $status['time'],
-            'checks' => [
-                'application' => ['ok' => true],
-                'database' => [
-                    'ok' => $status['db_ok'],
-                    'latency_ms' => $status['db_latency_ms'],
-                    'error' => $status['db_error'] !== '' ? $status['db_error'] : null,
-                ],
-            ],
-            'latency_ms' => $status['total_latency_ms'],
-        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)); ?></div>
+        <h3 class="mb-2">System Summary</h3>
+        <p class="mb-2"><?php echo $overallOk ? 'The application and database are responding normally.' : 'The system is reachable, but one or more services need attention.'; ?></p>
+        <ul class="mb-0">
+            <li>Application status: <?php echo $status['app_ok'] ? 'Running' : 'Unavailable'; ?></li>
+            <li>Database status: <?php echo $status['db_ok'] ? 'Connected' : 'Unavailable'; ?></li>
+            <li>Detailed technical diagnostics are restricted to authenticated system administrators.</li>
+        </ul>
     </section>
 </div>
 <script src="js/jquery-3.7.0.min.js"></script>

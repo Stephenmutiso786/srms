@@ -4,6 +4,7 @@ session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/rbac.php');
+require_once('const/system_notifications.php');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
@@ -60,9 +61,18 @@ $stmt->execute([$title, $announcement, $post_date, $legacyLevel]);
 				break;
 		}
 
-		$insertNote = $conn->prepare("INSERT INTO tbl_notifications (title, message, audience, class_id, term_id, link, created_by) VALUES (?,?,?,?,?,?,?)");
 		foreach ($audiences as $feedAudience) {
-			$insertNote->execute([$title, $plainMessage, $feedAudience, null, null, 'academic/announcement.php', (int)($account_id ?? 0)]);
+			app_system_notify($conn, $title, $plainMessage, [
+				'audience' => $feedAudience,
+				'class_id' => null,
+				'term_id' => null,
+				'link' => 'academic/announcement.php',
+				'created_by' => (int)($account_id ?? 0),
+				'module_name' => 'notifications',
+				'type' => 'info',
+				'priority' => 55,
+				'email_link' => 'academic/announcement.php',
+			]);
 		}
 	}
 

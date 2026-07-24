@@ -59,8 +59,19 @@ function app_diagnostics_writable(string $label, string $path): array
 		return app_diagnostics_item($label, 'warning', 'Path does not exist: '.$path, ['path' => $path]);
 	}
 
+	if (!is_dir($path)) {
+		return app_diagnostics_item($label, 'warning', 'Path exists but is not a directory', ['path' => $path]);
+	}
+
+	$probe = rtrim($path, '/').'/.__diag_write_'.uniqid('', true).'.tmp';
+	$writeOk = @file_put_contents($probe, 'ok');
+	if ($writeOk !== false) {
+		@unlink($probe);
+		return app_diagnostics_item($label, 'pass', 'Writable', ['path' => $path, 'probe' => 'create/delete ok']);
+	}
+
 	if (is_writable($path)) {
-		return app_diagnostics_item($label, 'pass', 'Writable', ['path' => $path]);
+		return app_diagnostics_item($label, 'pass', 'Writable', ['path' => $path, 'probe' => 'metadata writable']);
 	}
 
 	return app_diagnostics_item($label, 'fail', 'Not writable', ['path' => $path]);

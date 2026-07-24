@@ -20,6 +20,7 @@ $history = [];
 $disciplineCases = [];
 $visibleModules = [];
 $allocatedModules = [];
+$assessmentMode = 'normal';
 $summary = ['children' => 0, 'attendance_rate' => 0, 'avg_score' => 0, 'fees_balance' => 0, 'grade' => 'N/A', 'position' => '-'];
 $error = '';
 
@@ -96,7 +97,13 @@ try {
 			$reportId = report_find_card_id($conn, (string)$selectedStudentId, $selectedTermId);
 			if ($reportId > 0) {
 				$card = report_load_card($conn, $reportId);
-				$summary['avg_score'] = (float)($card['mean'] ?? 0);
+				$assessmentMode = (string)($card['assessment_mode'] ?? report_term_assessment_mode($conn, (int)$selectedStudent['class_id'], $selectedTermId));
+				$summary['avg_score'] = report_summary_mean_display_value(
+					$conn,
+					(float)($card['mean'] ?? 0),
+					$assessmentMode,
+					isset($card['mean_points']) ? (float)$card['mean_points'] : null
+				);
 				$summary['grade'] = (string)($card['grade'] ?? 'N/A');
 				$summary['position'] = isset($card['position'], $card['total_students']) ? ($card['position'].' / '.$card['total_students']) : '-';
 			}
@@ -134,6 +141,26 @@ try {
 } catch (Throwable $e) {
 	error_log("[".__FILE__.":".__LINE__." Throwable] " . $e->getMessage());
 	$error = "An internal error occurred.";
+}
+
+$usesPoints = report_assessment_mode_uses_points($assessmentMode);
+$meanLabel = $usesPoints ? 'Mean Points' : 'Mean Score';
+$scoreLabel = $usesPoints ? 'Points' : 'Score';
+$classMeanLabel = $usesPoints ? 'Class Mean Points' : 'Class Mean';
+$historyDisplay = [];
+if (isset($conn) && $conn instanceof PDO) {
+	foreach ($history as $point) {
+		$rowMode = (string)($point['assessment_mode'] ?? $assessmentMode);
+		$historyDisplay[] = [
+			'term_name' => (string)($point['term_name'] ?? ''),
+			'value' => report_summary_mean_display_value(
+				$conn,
+				(float)($point['mean'] ?? 0),
+				$rowMode,
+				isset($point['mean_points']) && $point['mean_points'] !== null ? (float)$point['mean_points'] : null
+			),
+		];
+	}
 }
 ?>
 <!DOCTYPE html>
@@ -251,7 +278,7 @@ body.app{background:linear-gradient(180deg,#eef5f3 0%,#f4f7f6 40%,#eef3f1 100%)}
 			<div class="dashboard-stats">
 				<div class="stat-card"><div class="label">Children</div><div class="value"><?php echo (int)$summary['children']; ?></div></div>
 				<div class="stat-card"><div class="label">Attendance</div><div class="value"><?php echo number_format((float)$summary['attendance_rate'],1); ?>%</div></div>
-				<div class="stat-card"><div class="label">Mean Score</div><div class="value"><?php echo number_format((float)$summary['avg_score'],2); ?></div></div>
+				<div class="stat-card"><div class="label"><?php echo htmlspecialchars($meanLabel); ?></div><div class="value"><?php echo number_format((float)$summary['avg_score'],2); ?></div></div>
 				<div class="stat-card"><div class="label">Fees Balance</div><div class="value">KES <?php echo number_format((float)$summary['fees_balance'],2); ?></div></div>
 				<div class="stat-card"><div class="label">Grade</div><div class="value"><?php echo htmlspecialchars($summary['grade']); ?></div></div>
 				<div class="stat-card"><div class="label">Position</div><div class="value"><?php echo htmlspecialchars((string)$summary['position']); ?></div></div>
@@ -266,14 +293,18 @@ body.app{background:linear-gradient(180deg,#eef5f3 0%,#f4f7f6 40%,#eef3f1 100%)}
 				<h3 class="tile-title">Subject Performance</h3>
 					<div class="table-responsive">
 						<table class="table table-hover table-striped">
-							<thead><tr><th>Subject</th><th>Score</th><th>Class Mean</th><th>Change</th><th>Grade</th></tr></thead>
+							<thead><tr><th>Subject</th><th><?php echo htmlspecialchars($scoreLabel); ?></th><th><?php echo htmlspecialchars($classMeanLabel); ?></th><th>Change</th><th>Grade</th></tr></thead>
 							<tbody>
 							<?php if (!$subjectRows) { ?><tr><td colspan="5" class="text-muted">No published subject data yet.</td></tr><?php } ?>
 							<?php foreach ($subjectRows as $row): ?>
+							<?php
+							$subjectDisplayValue = isset($conn) && $conn instanceof PDO ? report_subject_display_value($conn, (array)$row, $assessmentMode) : null;
+							$classMeanDisplayValue = isset($conn) && $conn instanceof PDO ? report_class_mean_display_value($conn, (array)$row, $assessmentMode) : null;
+							?>
 							<tr>
 								<td><?php echo htmlspecialchars($row['subject_name']); ?></td>
-								<td><?php echo number_format((float)$row['score'],1); ?></td>
-								<td><?php echo number_format((float)$row['class_mean'],1); ?></td>
+								<td><?php echo $subjectDisplayValue !== null ? number_format($subjectDisplayValue, 1) : '-'; ?></td>
+								<td><?php echo $classMeanDisplayValue !== null ? number_format($classMeanDisplayValue, 1) : '-'; ?></td>
 								<td><?php echo ($row['change'] >= 0 ? '+' : '') . number_format((float)$row['change'],1); ?></td>
 								<td><span class="grade-badge"><?php echo htmlspecialchars($row['grade']); ?></span></td>
 							</tr>
@@ -324,7 +355,7 @@ body.app{background:linear-gradient(180deg,#eef5f3 0%,#f4f7f6 40%,#eef3f1 100%)}
 	updateClock();
 	setInterval(updateClock, 1000);
 })();
-const parentTrend = <?php echo json_encode($history); ?>;
+const parentTrend = <?php echo json_encode($historyDisplay); ?>;
 const parentTrendEl = document.getElementById('parentTrendChart');
 if (parentTrendEl) {
 	const chart = echarts.init(parentTrendEl);
@@ -332,8 +363,8 @@ if (parentTrendEl) {
 		grid:{left:40,right:16,top:20,bottom:40},
 		tooltip:{trigger:'axis'},
 		xAxis:{type:'category',data:parentTrend.map(item=>item.term_name),axisLabel:{fontSize:10}},
-		yAxis:{type:'value',min:0,max:100},
-		series:[{type:'line',smooth:true,data:parentTrend.map(item=>item.mean),areaStyle:{color:'rgba(0,105,92,0.16)'},lineStyle:{color:'#00695C',width:2},itemStyle:{color:'#00695C'}}]
+		yAxis:{type:'value',min:0,max:<?php echo $usesPoints ? '4' : '100'; ?>},
+		series:[{type:'line',smooth:true,data:parentTrend.map(item=>item.value),areaStyle:{color:'rgba(0,105,92,0.16)'},lineStyle:{color:'#00695C',width:2},itemStyle:{color:'#00695C'}}]
 	});
 }
 

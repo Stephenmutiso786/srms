@@ -68,14 +68,14 @@ try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-$stmt = $conn->prepare("SELECT * FROM tbl_classes");
+$stmt = $conn->prepare("SELECT id, name FROM tbl_classes ORDER BY name");
 $stmt->execute();
-$result = $stmt->fetchAll();
+$result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 foreach($result as $row)
 {
 ?>
-<option value="<?php echo $row[0]; ?>"><?php echo $row[1]; ?> </option>
+<option value="<?php echo (int)$row['id']; ?>"><?php echo htmlspecialchars((string)$row['name']); ?> </option>
 <?php
 }
 

@@ -29,6 +29,8 @@ if ($classId < 1 || $academicYear === '') {
 try {
     $conn = app_db();
     $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    app_ensure_promotion_workflow_schema($conn);
+    app_ensure_student_alumni_schema($conn);
     $conn->beginTransaction();
 
     $batchId = app_create_promotion_batch($conn, $classId, $academicYear, $promotionCycle, (int)$account_id, $notes);
@@ -47,7 +49,9 @@ try {
     $studentCountStmt->execute([$batchId]);
     $studentCount = (int)$studentCountStmt->fetchColumn();
 
-    $conn->commit();
+    if ($conn->inTransaction()) {
+        $conn->commit();
+    }
     app_reply_redirect('success', 'Promotion batch created successfully with ' . $studentCount . ' students.', '../promotions?batch_id=' . $batchId);
 } catch (Throwable $e) {
     if (isset($conn) && $conn instanceof PDO && $conn->inTransaction()) {

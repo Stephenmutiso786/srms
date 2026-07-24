@@ -1,4 +1,4 @@
-const CACHE_NAME = "kyandulu-school-v5";
+const CACHE_NAME = "kyandulu-school-v11";
 const urlsToCache = [
   "./",
   "./school_main_website.php",

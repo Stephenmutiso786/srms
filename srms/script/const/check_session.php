@@ -3,7 +3,7 @@
 // Populates: $res, $level, $account_id (+ user fields).
 
 $res = "0";
-require_once('const/rbac.php');
+require_once(__DIR__ . '/rbac.php');
 
 if (!function_exists('app_set_auth_error')) {
 	function app_set_auth_error(int $status, string $title, string $message, array $details = []): void
@@ -134,35 +134,47 @@ function app_module_level_bridge_rules(): array
 
 function app_apply_module_level_bridge(PDO $conn, string $staffId, string $currentLevel): string
 {
+	static $cache = [];
 	$module = app_requested_staff_module();
 	if ($module === '' || $staffId === '' || $currentLevel === '') {
 		return $currentLevel;
 	}
 
+	$cacheKey = $module . '|' . $staffId . '|' . $currentLevel;
+	if (isset($cache[$cacheKey])) {
+		return $cache[$cacheKey];
+	}
+
 	$rules = app_module_level_bridge_rules();
 	if (!isset($rules[$module])) {
-		return $currentLevel;
+		$cache[$cacheKey] = $currentLevel;
+		return $cache[$cacheKey];
 	}
 
 	$expected = (string)$rules[$module]['expected_level'];
 	if ($module === 'teacher' && app_staff_has_active_teaching_assignment($conn, (int)$staffId)) {
-		return $expected;
+		$cache[$cacheKey] = $expected;
+		return $cache[$cacheKey];
 	}
 	if ($currentLevel === $expected || $currentLevel === '0' || $currentLevel === '9') {
-		return $currentLevel;
+		$cache[$cacheKey] = $currentLevel;
+		return $cache[$cacheKey];
 	}
 
-	if (!function_exists('app_has_permission')) {
-		require_once('const/rbac.php');
+	if (!function_exists('app_get_permissions')) {
+		require_once(__DIR__ . '/rbac.php');
 	}
 
+	$permissionSet = array_fill_keys(app_get_permissions($conn, $staffId, $currentLevel), true);
 	foreach ((array)$rules[$module]['permissions'] as $permissionCode) {
-		if (app_has_permission($conn, $staffId, $currentLevel, (string)$permissionCode)) {
-			return $expected;
+		if (!empty($permissionSet[(string)$permissionCode])) {
+			$cache[$cacheKey] = $expected;
+			return $cache[$cacheKey];
 		}
 	}
 
-	return $currentLevel;
+	$cache[$cacheKey] = $currentLevel;
+	return $cache[$cacheKey];
 }
 
 if (!isset($_COOKIE["__SRMS__logged"]) || !isset($_COOKIE["__SRMS__key"])) {
@@ -182,7 +194,7 @@ $levelInt = (int)$level;
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-	require_once('const/online_presence.php');
+	require_once(__DIR__ . '/online_presence.php');
 
 	$impersonationRow = null;
 	try {
@@ -242,7 +254,7 @@ try {
 		$email = (string)$row['email'];
 		$login = (string)$row['password'];
 		$level = (string)$row['level'];
-		$isSuperAdminController = app_is_super_admin_controller($conn, (string)$row['id'], (string)$level);
+		$isSuperAdminController = (strtolower(trim($email)) === strtolower(app_super_admin_owner_email())) || (int)$level === 9;
 		$level = app_apply_module_level_bridge($conn, (string)$row['id'], $level);
 		$designation = app_staff_primary_title($conn, (int)$row['id'], $level);
 		if ($isSuperAdminController || $level === "9") {
@@ -255,6 +267,7 @@ try {
 
 		app_online_touch($conn, $session_key);
 		$portal = app_staff_login_portal($conn, (int)$account_id, (string)$level);
+		$GLOBALS['app_staff_portal_home'] = $portal;
 		app_enforce_portal_route_permission($conn, $portal, (string)$account_id, (string)$level, '../');
 		app_set_auth_error(200, 'Authenticated', 'The session was validated successfully.', []);
 		$res = "1";

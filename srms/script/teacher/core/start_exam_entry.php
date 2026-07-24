@@ -84,12 +84,7 @@ try {
   }
 
   if (app_table_exists($conn, 'tbl_teacher_assignments')) {
-    $stmt = $conn->prepare("SELECT id FROM tbl_teacher_assignments
-      WHERE teacher_id = ? AND class_id = ? AND subject_id = ? AND status = 1
-      AND (term_id = ? OR term_id IS NULL OR term_id = 0)
-      ORDER BY year DESC, id DESC LIMIT 1");
-    $stmt->execute([(int)$account_id, (int)$exam['class_id'], (int)$combo['subject'], (int)$exam['term_id']]);
-    if (!$stmt->fetchColumn()) {
+    if (!app_teacher_assignment_is_effective($conn, (int)$account_id, (int)$exam['class_id'], (int)$combo['subject'], (int)$exam['term_id'], (int)($exam['year'] ?? date('Y')))) {
       throw new RuntimeException("No active assignment for this class/subject/term.");
     }
     app_sync_subject_combination($conn, (int)$account_id, (int)$combo['subject'], (int)$exam['class_id'], false);

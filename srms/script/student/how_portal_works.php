@@ -34,6 +34,7 @@ if ($res !== '1' || (int)$level !== 3) {
   <a class="app-header__logo" href="javascript:void(0);"><?php echo APP_NAME; ?></a>
   <a class="app-sidebar__toggle" href="#" data-toggle="sidebar" aria-label="Hide Sidebar"></a>
 </header>
+<?php include('student/partials/sidebar.php'); ?>
 
 <main class="app-content">
   <div class="guide-hero">

@@ -124,6 +124,48 @@ try {
     header('location:./');
 }
 
+function app_certificate_media_asset_path(string $storedValue, string $subDir): string
+{
+    $storedValue = trim($storedValue);
+    if ($storedValue === '') {
+        return '';
+    }
+    $path = $storedValue;
+    if (strpos($path, '/') === false) {
+        $path = 'images/' . trim($subDir, '/') . '/' . $path;
+    }
+    if (!app_pdf_image_path_is_safe($path) || !is_file($path)) {
+        return '';
+    }
+    return $path;
+}
+
+function app_certificate_draw_official_assets(TCPDF $pdf, float $signatureX, float $signatureY, float $signatureW, float $signatureH, float $stampX, float $stampY, float $stampSize): void
+{
+    $signaturePath = app_certificate_media_asset_path((string)(defined('WBHeadteacherSignature') ? WBHeadteacherSignature : ''), 'signatures');
+    $stampPath = app_certificate_media_asset_path((string)(defined('WBSchoolStamp') ? WBSchoolStamp : ''), 'stamps');
+    $headteacherName = trim((string)(defined('WBHeadteacherName') ? WBHeadteacherName : ''));
+    $headteacherTitle = trim((string)(defined('WBHeadteacherTitle') ? WBHeadteacherTitle : 'Headteacher'));
+    if ($headteacherTitle === '') {
+        $headteacherTitle = 'Headteacher';
+    }
+
+    if ($signaturePath !== '') {
+        $pdf->Image($signaturePath, $signatureX, $signatureY, $signatureW, $signatureH, '', '', '', false, 300, '', false, false, 0, false, false, false);
+    }
+
+    if ($stampPath !== '') {
+        $pdf->Image($stampPath, $stampX, $stampY, $stampSize, $stampSize, '', '', '', false, 300, '', false, false, 0, false, false, false);
+    }
+
+    if ($headteacherName !== '') {
+        $pdf->SetFont('helvetica', '', 7.2);
+        $pdf->SetTextColor(70, 80, 90);
+        $pdf->SetXY($signatureX, $signatureY + $signatureH + 1.5);
+        $pdf->Cell($signatureW + 18, 3.4, $headteacherName . ' - ' . $headteacherTitle, 0, 1, 'L');
+    }
+}
+
 /**
  * Render Primary Completion Certificate (Grade 6)
  */
@@ -199,7 +241,7 @@ function renderPrimaryCompletionCertificate($pdf, $cert, $studentPhoto, $logoHtm
           <p style="border-top:1px solid #000;margin:20px 0 0 0;min-height:30px;"></p>
         </td>
         <td width="50%" style="text-align:right;">
-          <p style="margin:0;"><strong>Headteacher / Principal</strong></p>
+          <p style="margin:0;"><strong>Headteacher</strong></p>
           <p style="border-top:1px solid #000;margin:20px 0 0 0;min-height:30px;"></p>
         </td>
       </tr>
@@ -210,6 +252,7 @@ function renderPrimaryCompletionCertificate($pdf, $cert, $studentPhoto, $logoHtm
     </table>';
     
     $pdf->writeHTML($html, true, false, true, false, '');
+    app_certificate_draw_official_assets($pdf, 24, 214, 34, 14, 154, 218, 24);
     $pdf->SetXY(15, 255);
     $pdf->write2DBarcode($verifyUrl, 'QRCODE,H', 15, 255, 25, 25);
 }
@@ -253,7 +296,7 @@ function renderConductCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verify
           <p style="border-top:1px solid #000;padding-top:20px;">Class Teacher</p>
         </td>
         <td width="50%" style="text-align:center;">
-          <p style="border-top:1px solid #000;padding-top:20px;">School Principal</p>
+          <p style="border-top:1px solid #000;padding-top:20px;">Headteacher</p>
         </td>
       </tr>
       <tr>
@@ -263,6 +306,7 @@ function renderConductCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verify
     </table>';
     
     $pdf->writeHTML($html, true, false, true, false, '');
+    app_certificate_draw_official_assets($pdf, 42, 216, 34, 14, 150, 212, 26);
 }
 
 /**
@@ -472,6 +516,7 @@ body {
 </html>';
 
   $pdf->writeHTML($html, true, false, true, false, '');
+  app_certificate_draw_official_assets($pdf, 109, 237, 34, 12, 146, 265, 18);
 
   // QR only, no printed URL.
   $pdf->SetXY(165, 255);
@@ -532,7 +577,7 @@ function renderGeneralCertificate($pdf, $cert, $studentPhoto, $logoHtml, $verify
     </table>';
     
     $pdf->writeHTML($html, true, false, true, false, '');
+    app_certificate_draw_official_assets($pdf, 38, 228, 34, 14, 154, 222, 24);
     $pdf->SetXY(15, 250);
     $pdf->write2DBarcode($verifyUrl, 'QRCODE,H', 15, 250, 20, 20);
 }
-

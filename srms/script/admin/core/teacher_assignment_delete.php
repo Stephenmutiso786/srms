@@ -33,7 +33,9 @@ try {
 	$stmt = $conn->prepare("DELETE FROM tbl_teacher_assignments WHERE id = ?");
 	$stmt->execute([$id]);
 
-	app_sync_subject_combination($conn, (int)$row['teacher_id'], (int)$row['subject_id'], (int)$row['class_id'], true);
+	if (!app_teacher_has_any_active_assignment($conn, (int)$row['teacher_id'], (int)$row['class_id'], (int)$row['subject_id'])) {
+		app_sync_subject_combination($conn, (int)$row['teacher_id'], (int)$row['subject_id'], (int)$row['class_id'], true);
+	}
 
 	$_SESSION['reply'] = array(array("success", "Allocation deleted."));
 	header("location:../teacher_allocation");

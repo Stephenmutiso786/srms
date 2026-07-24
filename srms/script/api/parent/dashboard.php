@@ -53,6 +53,7 @@ try {
 			ORDER BY t.id DESC");
 		$stmt->execute([(int)$selectedStudent['class_id']]);
 		$publishedTerms = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		app_sort_term_rows($publishedTerms);
 		if ($selectedTermId < 1 && !empty($publishedTerms)) {
 			$selectedTermId = (int)$publishedTerms[0]['id'];
 		}

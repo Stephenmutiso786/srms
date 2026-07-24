@@ -21,6 +21,7 @@ $summary = ['mean' => 0, 'grade' => 'N/A', 'position' => '-', 'total' => 0];
 $publicationState = 'draft';
 $isPublished = false;
 $selectedExam = null;
+$assessmentMode = 'normal';
 $error = '';
 
 try {
@@ -57,11 +58,19 @@ try {
 		if ($isPublished && $selectedExam) {
 			$examSummary = report_exam_summary($conn, $studentId, $classId, $termId, (int)$selectedExam['id']);
 			if ($examSummary) {
+				$assessmentMode = (string)($examSummary['assessment_mode'] ?? 'normal');
 				$summary = [
-					'mean' => (float)($examSummary['mean'] ?? 0),
+					'mean' => report_summary_mean_display_value(
+						$conn,
+						(float)($examSummary['mean'] ?? 0),
+						$assessmentMode,
+						isset($examSummary['mean_points']) ? (float)$examSummary['mean_points'] : null
+					),
 					'grade' => (string)($examSummary['grade'] ?? 'N/A'),
 					'position' => (string)($examSummary['position'] ?? '-'),
-					'total' => (float)($examSummary['total'] ?? 0),
+					'total' => report_assessment_mode_uses_points($assessmentMode)
+						? (float)($examSummary['total_points'] ?? 0)
+						: (float)($examSummary['total'] ?? 0),
 				];
 				$subjectRows = report_exam_subject_breakdown($conn, $studentId, $classId, $termId, (int)$selectedExam['id']);
 			}
@@ -70,11 +79,19 @@ try {
 		if ($isPublished) {
 			$card = report_ensure_card_generated($conn, $studentId, $classId, $termId);
 			if (!$selectedExam && $card) {
+				$assessmentMode = (string)($card['assessment_mode'] ?? report_term_assessment_mode($conn, $classId, $termId));
 				$summary = [
-					'mean' => (float)($card['mean'] ?? 0),
+					'mean' => report_summary_mean_display_value(
+						$conn,
+						(float)($card['mean'] ?? 0),
+						$assessmentMode,
+						isset($card['mean_points']) ? (float)$card['mean_points'] : null
+					),
 					'grade' => (string)($card['grade'] ?? 'N/A'),
 					'position' => isset($card['position'], $card['total_students']) ? ($card['position'].'/'.$card['total_students']) : '-',
-					'total' => (float)($card['total'] ?? 0),
+					'total' => report_assessment_mode_uses_points($assessmentMode)
+						? (float)($card['total_points'] ?? 0)
+						: (float)($card['total'] ?? 0),
 				];
 				$subjectRows = report_subject_breakdown($conn, $studentId, $classId, $termId);
 			}
@@ -85,6 +102,12 @@ try {
 	error_log("[".__FILE__.":".__LINE__." Throwable] " . $e->getMessage());
 	$error = "An internal error occurred.";
 }
+
+$usesPoints = report_assessment_mode_uses_points($assessmentMode);
+$meanLabel = $usesPoints ? 'Mean Points' : 'Mean Score';
+$totalLabel = $usesPoints ? 'Total Points' : 'Total Marks';
+$scoreLabel = $usesPoints ? 'Points' : 'Score';
+$classMeanLabel = $usesPoints ? 'Class Mean Points' : 'Class Mean';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -168,10 +191,10 @@ try {
 			</form>
 		</div>
 		<div class="metric-row mt-4">
-			<div class="metric-tile"><div class="label">Mean Score</div><div class="value"><?php echo number_format((float)$summary['mean'], 2); ?>%</div></div>
+			<div class="metric-tile"><div class="label"><?php echo htmlspecialchars($meanLabel); ?></div><div class="value"><?php echo number_format((float)$summary['mean'], 2); ?><?php echo $usesPoints ? '' : '%'; ?></div></div>
 			<div class="metric-tile"><div class="label">Overall Grade</div><div class="value"><?php echo htmlspecialchars($summary['grade']); ?></div></div>
 			<div class="metric-tile"><div class="label">Class Position</div><div class="value"><?php echo htmlspecialchars((string)$summary['position']); ?></div></div>
-			<div class="metric-tile"><div class="label">Total Marks</div><div class="value"><?php echo number_format((float)$summary['total'], 1); ?></div></div>
+			<div class="metric-tile"><div class="label"><?php echo htmlspecialchars($totalLabel); ?></div><div class="value"><?php echo number_format((float)$summary['total'], 1); ?></div></div>
 		</div>
 	</div>
 
@@ -186,9 +209,20 @@ try {
 				<div class="text-muted">No trend history yet.</div>
 				<?php } else { ?>
 				<div class="history-chart">
-					<?php foreach ($history as $point): $height = max(20, min(150, (float)$point['mean'] * 1.5)); ?>
+					<?php foreach ($history as $point):
+						$pointMode = (string)($point['assessment_mode'] ?? $assessmentMode);
+						$pointValue = report_summary_mean_display_value(
+							$conn,
+							(float)($point['mean'] ?? 0),
+							$pointMode,
+							isset($point['mean_points']) && $point['mean_points'] !== null ? (float)$point['mean_points'] : null
+						);
+						$height = $usesPoints
+							? max(20, min(150, $pointValue * 35))
+							: max(20, min(150, $pointValue * 1.5));
+					?>
 					<div class="history-bar" style="height: <?php echo $height; ?>px">
-						<div class="bar-value"><?php echo number_format((float)$point['mean'], 1); ?></div>
+						<div class="bar-value"><?php echo number_format($pointValue, 1); ?></div>
 						<div class="bar-label"><?php echo htmlspecialchars($point['term_name']); ?></div>
 					</div>
 					<?php endforeach; ?>
@@ -223,8 +257,8 @@ try {
 						<tr>
 							<th>Name</th>
 							<th>Performance</th>
-							<th>Score</th>
-							<th>Class Mean</th>
+							<th><?php echo htmlspecialchars($scoreLabel); ?></th>
+							<th><?php echo htmlspecialchars($classMeanLabel); ?></th>
 							<th>Grade</th>
 							<th>Teacher</th>
 							<th>Source</th>
@@ -232,11 +266,15 @@ try {
 					</thead>
 					<tbody>
 					<?php foreach ($subjectRows as $row): ?>
+						<?php
+						$subjectDisplayValue = report_subject_display_value($conn, (array)$row, $assessmentMode);
+						$classMeanDisplayValue = report_class_mean_display_value($conn, (array)$row, $assessmentMode);
+						?>
 						<tr>
 							<td><?php echo htmlspecialchars($row['subject_name']); ?></td>
 							<td><div class="performance-bar"><span style="width: <?php echo (float)$row['progress']; ?>%"></span></div></td>
-							<td><?php echo number_format((float)$row['score'], 2); ?>%</td>
-							<td><?php echo number_format((float)$row['class_mean'], 2); ?>%</td>
+							<td><?php echo $subjectDisplayValue !== null ? number_format($subjectDisplayValue, 2) : '-'; ?><?php echo $usesPoints ? '' : '%'; ?></td>
+							<td><?php echo $classMeanDisplayValue !== null ? number_format($classMeanDisplayValue, 2) : '-'; ?><?php echo $usesPoints ? '' : '%'; ?></td>
 							<td><?php echo htmlspecialchars($row['grade']); ?></td>
 							<td><?php echo htmlspecialchars($row['teacher_name'] ?? ''); ?></td>
 							<td><?php echo htmlspecialchars($row['source'] ?? 'Exam result'); ?></td>

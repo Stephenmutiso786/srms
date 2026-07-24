@@ -1,8 +1,9 @@
 <?php
 // Compatibility wrapper for the bulk results UI link which uses `class_id` and `term_id`.
-chdir('../');
-session_start();
-require_once('db/config.php');
+if (session_status() !== PHP_SESSION_ACTIVE) {
+	session_start();
+}
+require_once(__DIR__ . '/../db/config.php');
 
 // Map legacy query param names to the new endpoint's expected names, then include.
 if (isset($_GET['class_id']) && !isset($_GET['class'])) {
@@ -15,4 +16,4 @@ if (isset($_GET['exam_id']) && !isset($_GET['exam'])) {
 	$_GET['exam'] = $_GET['exam_id'];
 }
 
-require_once('admin/class_report_pdf.php');
+require_once(__DIR__ . '/class_report_pdf.php');

@@ -448,7 +448,7 @@ function app_report_card_subject_points_display(array $subject): string
 
 function app_report_card_qr_src(string $value): string
 {
-    return 'https://api.qrserver.com/v1/create-qr-code/?size=92x92&data=' . urlencode($value);
+    return rtrim(app_base_url(), '/') . '/qr_image.php?size=92&data=' . urlencode($value);
 }
 
 function app_report_card_build_rows(array $payload): array
@@ -498,11 +498,6 @@ function app_report_card_render(PDO $conn, array $payload): string
 	$compact = !empty($payload['compact']);
 	$pdfOnePage = !empty($payload['pdf_one_page']);
 	$displayRows = $rows;
-	$omittedRows = 0;
-	if ($pdfOnePage && count($displayRows) > 6) {
-		$omittedRows = count($displayRows) - 6;
-		$displayRows = array_slice($displayRows, 0, 6);
-	}
 
     $subjectCount = count($rows);
     $classMeanTotal = 0.0;
@@ -532,15 +527,6 @@ function app_report_card_render(PDO $conn, array $payload): string
         $subjectPoints = app_report_card_subject_points_value((array)$subject);
         list(, , $classMeanPointsRow) = report_cbe_grade_for_score($conn, $classMean);
         $dev = ($subjectPoints ?? 0.0) - (float)$classMeanPointsRow;
-		if ($pdfOnePage) {
-			$rowHtml .= '<tr>'
-				. '<td>' . htmlspecialchars((string)($subject['subject_name'] ?? ''), ENT_QUOTES, 'UTF-8') . '</td>'
-				. '<td class="center">' . app_report_card_subject_points_display((array)$subject) . '</td>'
-				. '<td class="center">' . htmlspecialchars((string)($subject['grade'] ?? ''), ENT_QUOTES, 'UTF-8') . '</td>'
-				. '</tr>';
-			continue;
-		}
-
         $rowHtml .= '<tr>'
             . '<td>' . htmlspecialchars((string)($subject['subject_name'] ?? ''), ENT_QUOTES, 'UTF-8') . '</td>'
             . '<td class="center">' . app_report_card_subject_points_display((array)$subject) . '</td>'
@@ -550,8 +536,8 @@ function app_report_card_render(PDO $conn, array $payload): string
             . '</tr>';
     }
 
-    if ($rowHtml === '') {
-		$rowHtml = '<tr><td colspan="' . ($pdfOnePage ? 3 : 5) . '" class="center">No subject data available.</td></tr>';
+	if ($rowHtml === '') {
+		$rowHtml = '<tr><td colspan="5" class="center">No subject data available.</td></tr>';
 	}
     $chartHtml = '';
     foreach (array_slice($rows, 0, 6) as $chartRow) {
@@ -605,11 +591,11 @@ function app_report_card_render(PDO $conn, array $payload): string
         . '<div class="stat-card">QR Status: <strong>' . ($verificationCode !== '' ? 'Ready' : 'Pending') . '</strong><span class="dev flat">verification</span></div>'
         . '</div>'
 		. '<table class="report-table"><thead>'
-		. '<tr><th>Subject</th><th class="center">Score</th><th class="center">Grade</th>' . ($pdfOnePage ? '' : '<th>Comment</th><th>Teacher</th>') . '</tr>'
+		. '<tr><th>Subject</th><th class="center">Score</th><th class="center">Grade</th><th>Comment</th><th>Teacher</th></tr>'
         . '</thead><tbody>' . $rowHtml . '</tbody></table>'
-		. ($pdfOnePage ? '' : '<footer class="remarks-section">'
-		. '<div class="remarks"><p><strong>Remarks</strong></p><p><strong>Class Teacher:</strong> ' . htmlspecialchars($teacherComment, ENT_QUOTES, 'UTF-8') . '</p><p><strong>Principal:</strong> ' . htmlspecialchars($headComment, ENT_QUOTES, 'UTF-8') . '</p></div>'
+		. '<footer class="remarks-section">'
+		. '<div class="remarks"><p><strong>Remarks</strong></p><p><strong>Class Teacher:</strong> ' . htmlspecialchars($teacherComment, ENT_QUOTES, 'UTF-8') . '</p><p><strong>Headteacher:</strong> ' . htmlspecialchars($headComment, ENT_QUOTES, 'UTF-8') . '</p></div>'
 		. '<div class="qr-code">' . $qrHtml . '</div>'
-		. '</footer>')
+		. '</footer>'
         . '</div>';
 }

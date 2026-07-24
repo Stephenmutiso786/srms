@@ -4,10 +4,22 @@ session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/school.php');
+require_once('const/pdf_branding.php');
 
-if ($res !== '1' || $level !== '2') {
+if ($res !== '1' || !in_array((string)$level, ['0', '1', '2'], true)) {
   header('location:../');
   exit;
+}
+
+$originPortal = strtolower(trim((string)($_GET['origin_portal'] ?? '')));
+if (!in_array($originPortal, ['teacher', 'academic', 'admin'], true)) {
+  if ((string)$level === '0') {
+    $originPortal = 'admin';
+  } elseif ((string)$level === '1') {
+    $originPortal = 'academic';
+  } else {
+    $originPortal = 'teacher';
+  }
 }
 
 $exams = [];
@@ -87,7 +99,7 @@ try {
         if ((int)$assignment['class_id'] !== (int)$exam['class_id']) {
           continue;
         }
-        if ((int)$assignment['term_id'] > 0 && (int)$assignment['term_id'] !== (int)$exam['term_id']) {
+        if (!app_teacher_assignment_is_effective($conn, (int)$account_id, (int)$exam['class_id'], (int)$assignment['subject_id'], (int)$exam['term_id'], (int)($exam['year'] ?? date('Y')))) {
           continue;
         }
         if (!empty($allowedSubjectIds) && !in_array((int)$assignment['subject_id'], $allowedSubjectIds, true)) {
@@ -158,15 +170,31 @@ try {
       throw new RuntimeException('You are not assigned to this exam subject.');
     }
 
-    $stmt = $conn->prepare("SELECT sc.id, sc.subject, s.name AS subject_name
+    $subjectSql = "SELECT sc.id, sc.subject, sc.teacher, sc.class, s.name AS subject_name
       FROM tbl_subject_combinations sc
       LEFT JOIN tbl_subjects s ON s.id = sc.subject
-      WHERE sc.id = ? AND sc.teacher = ?");
-    $stmt->execute([$selectedSubjectComb, (int)$account_id]);
+      WHERE sc.id = ?";
+    $subjectParams = [$selectedSubjectComb];
+    if ((string)$level === '2') {
+      $subjectSql .= " AND sc.teacher = ?";
+      $subjectParams[] = (int)$account_id;
+    }
+    $stmt = $conn->prepare($subjectSql);
+    $stmt->execute($subjectParams);
     $subjectMeta = $stmt->fetch(PDO::FETCH_ASSOC);
 
     if (!$subjectMeta) {
       throw new RuntimeException('Subject assignment not found.');
+    }
+
+    if ((string)$level === '2') {
+      $assignmentYear = (int)preg_replace('/[^0-9]/', '', strtok((string)($examMeta['academic_year'] ?? date('Y')), '/'));
+      if ($assignmentYear < 1) {
+        $assignmentYear = (int)date('Y');
+      }
+      if (!app_teacher_assignment_is_effective($conn, (int)$account_id, (int)$examMeta['class_id'], (int)$subjectMeta['subject'], (int)$examMeta['term_id'], $assignmentYear)) {
+        throw new RuntimeException('You are not assigned to this subject for the selected term.');
+      }
     }
 
     $classMeta = [
@@ -226,10 +254,66 @@ function app_sheet_h(?string $value): string
   return htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
 }
 
+function app_mark_sheet_layout(int $columnCount, bool $showCodes): array
+{
+  $columnCount = max(1, $columnCount);
+  $numberWidth = 7;
+  $admissionWidth = 14;
+  $codeWidth = $showCodes ? 14 : 0;
+  $marksTotalWidth = $showCodes ? 29 : 36;
+  $marksWidth = $marksTotalWidth / $columnCount;
+  $nameWidth = 100 - $numberWidth - $admissionWidth - $codeWidth - $marksTotalWidth;
+
+  if ($nameWidth < 22) {
+    $nameWidth = 22;
+    $marksTotalWidth = 100 - $numberWidth - $admissionWidth - $codeWidth - $nameWidth;
+    $marksWidth = $marksTotalWidth / $columnCount;
+  }
+
+  return [
+    'number' => $numberWidth,
+    'name' => $nameWidth,
+    'admission' => $admissionWidth,
+    'marks' => $marksWidth,
+    'code' => $codeWidth,
+  ];
+}
+
+function app_mark_sheet_render_profile(int $columnCount, bool $showCodes): array
+{
+  $columnCount = max(1, $columnCount);
+  $density = $columnCount + ($showCodes ? 1 : 0);
+  $landscape = $density >= 5;
+  $tableFontSize = 9;
+  $metaFontSize = 10;
+  $headerLabel = $showCodes ? 'Code (EE/ME/AE/BE)' : '';
+
+  if ($density >= 6) {
+    $tableFontSize = 7.5;
+    $metaFontSize = 9;
+    $headerLabel = $showCodes ? 'Code' : '';
+  } elseif ($density >= 5) {
+    $tableFontSize = 8;
+    $metaFontSize = 9.5;
+    $headerLabel = $showCodes ? 'Code' : '';
+  } elseif ($density >= 4) {
+    $tableFontSize = 8.5;
+  }
+
+  return [
+    'orientation' => $landscape ? 'L' : 'P',
+    'table_font_size' => $tableFontSize,
+    'meta_font_size' => $metaFontSize,
+    'header_code_label' => $headerLabel,
+    'is_dense' => $density >= 5,
+  ];
+}
+
 if ($downloadPdf && !empty($students) && $examMeta && $subjectMeta) {
   require_once('tcpdf/tcpdf.php');
 
-  $pdf = new TCPDF('P', 'mm', 'A4', true, 'UTF-8', false);
+  $renderProfile = app_mark_sheet_render_profile(count($columnTitles), $showCodes);
+  $pdf = new TCPDF($renderProfile['orientation'], 'mm', 'A4', true, 'UTF-8', false);
   $pdf->SetCreator((string)APP_NAME);
   $pdf->SetAuthor(trim((string)$fname . ' ' . (string)$lname));
   $pdf->SetTitle('Mark Sheet - ' . (string)($classMeta['name'] ?? 'Class'));
@@ -251,21 +335,24 @@ if ($downloadPdf && !empty($students) && $examMeta && $subjectMeta) {
   if ((string)WBEmail !== '') { $contacts[] = 'Email: ' . (string)WBEmail; }
   $contactsLine = implode(' | ', $contacts);
 
-  $nameWidth = $showCodes ? 48 : 58;
-  $admWidth = 24;
-  $codeWidth = $showCodes ? 24 : 0;
-  $fixedWidth = 8 + $nameWidth + $admWidth + $codeWidth;
-  $marksWidth = max(16, (190 - $fixedWidth) / max(1, count($columnTitles)));
+  $layout = app_mark_sheet_layout(count($columnTitles), $showCodes);
+  $numberWidth = $layout['number'];
+  $nameWidth = $layout['name'];
+  $admWidth = $layout['admission'];
+  $marksWidth = $layout['marks'];
+  $codeWidth = $layout['code'];
+  $pdfMetaFont = number_format((float)$renderProfile['meta_font_size'], 1, '.', '');
+  $pdfTableFont = number_format((float)$renderProfile['table_font_size'], 1, '.', '');
 
   $thead = '<tr>'
-    . '<th width="8%"><b>No</b></th>'
+    . '<th width="' . $numberWidth . '%"><b>No</b></th>'
     . '<th width="' . $nameWidth . '%"><b>Student Name</b></th>'
     . '<th width="' . $admWidth . '%"><b>Adm No</b></th>';
   foreach ($columnTitles as $title) {
     $thead .= '<th width="' . $marksWidth . '%"><b>' . app_sheet_h($title) . ' (/' . (int)$maxScore . ')</b></th>';
   }
   if ($showCodes) {
-    $thead .= '<th width="' . $codeWidth . '%"><b>Code (EE/ME/AE/BE)</b></th>';
+    $thead .= '<th width="' . $codeWidth . '%"><b>' . app_sheet_h((string)$renderProfile['header_code_label']) . '</b></th>';
   }
   $thead .= '</tr>';
 
@@ -291,23 +378,34 @@ if ($downloadPdf && !empty($students) && $examMeta && $subjectMeta) {
     . ($motto !== '' ? '<div style="text-align:center; font-size:10pt; color:#4b5f56; margin-top:2px;">' . app_sheet_h($motto) . '</div>' : '')
     . ($contactsLine !== '' ? '<div style="text-align:center; font-size:9pt; color:#4b5f56; margin-top:2px;">' . app_sheet_h($contactsLine) . '</div>' : '')
     . '<h3 style="text-align:center; margin:8px 0 6px 0;">Printable Mark Sheet</h3>'
-    . '<table cellpadding="4" cellspacing="0" border="1" style="font-size:10pt;">'
+    . '<table cellpadding="4" cellspacing="0" border="1" style="font-size:' . $pdfMetaFont . 'pt;">'
     . '<tr><td width="50%"><b>Class:</b> ' . app_sheet_h($className) . '</td><td width="50%"><b>Subject:</b> ' . app_sheet_h($subjectName) . '</td></tr>'
     . '<tr><td width="50%"><b>Assessment:</b> ' . app_sheet_h($assessmentLabel) . '</td><td width="50%"><b>Term:</b> ' . app_sheet_h($termName) . '</td></tr>'
     . '<tr><td width="50%"><b>Exam Session:</b> ' . app_sheet_h($examName) . '</td><td width="50%"><b>Purpose:</b> Raw mark capture for later system entry.</td></tr>'
     . '</table>'
     . '<br>'
-    . '<table cellpadding="4" cellspacing="0" border="1" style="font-size:9pt;">'
+    . '<table cellpadding="4" cellspacing="0" border="1" style="font-size:' . $pdfTableFont . 'pt; table-layout:fixed; width:100%;">'
     . '<thead>' . $thead . '</thead>'
     . '<tbody>' . $tbody . '</tbody>'
     . '</table>'
     . ($showCodes ? '<div style="font-size:8pt; color:#5f6b65; margin-top:5px;">Suggested coding key: EE = Exceeding Expectation, ME = Meeting Expectation, AE = Approaching Expectation, BE = Below Expectation.</div>' : '')
     . '<br><br>'
-    . '<table cellpadding="2" cellspacing="0" border="0" style="font-size:10pt;">'
+    . '<table cellpadding="2" cellspacing="0" border="0" style="font-size:' . $pdfMetaFont . 'pt;">'
     . '<tr><td width="55%">Teacher Signature: __________________________</td><td width="45%">Date: __________________</td></tr>'
     . '</table>';
 
   $pdf->writeHTML($html, true, false, true, false, '');
+  app_pdf_draw_official_footer($pdf, [
+    'base_y' => $pdf->getPageHeight() - 18,
+    'date_value' => date('Y-m-d'),
+    'title' => 'Headteacher',
+    'stamp_x' => $pdf->getPageWidth() - 24,
+    'stamp_y' => $pdf->getPageHeight() - 22,
+    'stamp_size' => 14,
+    'signature_width' => 24,
+    'signature_height' => 10,
+    'line_width' => 44,
+  ]);
   $filename = 'mark_sheet_' . preg_replace('/[^a-zA-Z0-9_-]+/', '_', strtolower($className . '_' . $subjectName)) . '.pdf';
   $pdf->Output($filename, 'D');
   exit;
@@ -343,15 +441,21 @@ body.print-sheet-page{background:linear-gradient(180deg,#eef5f2 0%,#f7fbf9 42%,#
 .sheet-stat .label{text-transform:uppercase;letter-spacing:.08em;font-size:.72rem;opacity:.8}
 .sheet-stat .value{font-size:1.2rem;font-weight:800;margin-top:4px}
 .sheet-wrap { background:#fff; border:1px solid #d6e2dd; border-radius:16px; padding:18px; box-shadow:0 12px 30px rgba(14,53,47,.08); }
+.sheet-wrap.sheet-dense { padding:16px 14px; }
 .sheet-header { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:12px; }
 .sheet-school { font-size:1.1rem; font-weight:800; color:#164e3a; line-height:1.2; }
 .sheet-sub { font-size:12px; color:#4b5f56; margin-top:4px; }
-.sheet-meta { width:100%; border-collapse:collapse; margin-top:8px; margin-bottom:10px; }
+.sheet-meta { width:100%; border-collapse:collapse; table-layout:fixed; margin-top:8px; margin-bottom:10px; }
 .sheet-meta td { border:1px solid #d5e0da; padding:6px 8px; font-size:12px; }
-.sheet-table { width:100%; border-collapse:collapse; }
-.sheet-table th, .sheet-table td { border:1px solid #333; padding:6px 8px; font-size:12px; }
+.sheet-table { width:100%; border-collapse:collapse; table-layout:fixed; }
+.sheet-table th, .sheet-table td { border:1px solid #333; padding:6px 8px; font-size:12px; vertical-align:middle; }
 .sheet-table th { background:#f4f6f5; text-align:center; }
 .sheet-table .name-cell { text-align:left; }
+.sheet-table .cell-center { text-align:center; }
+.sheet-table .wrap-tight { white-space:normal; word-break:break-word; overflow-wrap:anywhere; }
+.sheet-wrap.sheet-dense .sheet-table th, .sheet-wrap.sheet-dense .sheet-table td { padding:5px 5px; font-size:11px; }
+.sheet-wrap.sheet-dense .sheet-meta td { font-size:11px; }
+.sheet-wrap.sheet-dense .sheet-code-help { font-size:9px; }
 .sheet-sign { margin-top:18px; display:flex; justify-content:space-between; gap:12px; font-size:12px; flex-wrap:wrap; }
 .sheet-sign .line { min-width:240px; border-bottom:1px solid #333; height:26px; display:inline-block; }
 .sheet-code-help { font-size:10px; color:#5f6b65; margin-top:8px; }
@@ -359,10 +463,12 @@ body.print-sheet-page{background:linear-gradient(180deg,#eef5f2 0%,#f7fbf9 42%,#
 .logo-box img { max-width:100%; max-height:100%; object-fit:contain; }
 @media (max-width: 991px){.sheet-hero{grid-template-columns:1fr}.sheet-hero-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width: 600px){.sheet-hero-stats{grid-template-columns:1fr}.sheet-sign .line{min-width:180px}}
+@media (max-width: 1200px){.sheet-wrap.sheet-dense{overflow-x:auto}.sheet-wrap.sheet-dense .sheet-table{min-width:960px}}
 @media print {
   .app-header, .app-sidebar, .app-title, .print-controls, .app-footer, .no-print, .app-nav { display:none !important; }
   .app-content { margin:0 !important; padding:0 !important; }
   .sheet-wrap { border:none; border-radius:0; padding:0; }
+  .sheet-wrap.sheet-dense .sheet-table th, .sheet-wrap.sheet-dense .sheet-table td { font-size:10px; padding:4px 5px; }
 }
 </style>
 </head>
@@ -380,7 +486,13 @@ body.print-sheet-page{background:linear-gradient(180deg,#eef5f2 0%,#f7fbf9 42%,#
 </ul>
 </header>
 
+<?php if ($originPortal === 'admin') { ?>
+<?php include("admin/partials/sidebar.php"); ?>
+<?php } elseif ($originPortal === 'academic') { ?>
+<?php include("academic/partials/sidebar.php"); ?>
+<?php } else { ?>
 <?php include("teacher/partials/sidebar.php"); ?>
+<?php } ?>
 
 <main class="app-content">
 <div class="app-title">
@@ -415,6 +527,7 @@ body.print-sheet-page{background:linear-gradient(180deg,#eef5f2 0%,#f7fbf9 42%,#
 
 <div class="tile no-print" style="border-radius:18px;box-shadow:0 12px 28px rgba(14,53,47,.08);">
 <form method="GET" action="teacher/print_mark_sheet" class="row g-3" id="markSheetForm">
+  <input type="hidden" name="origin_portal" value="<?php echo htmlspecialchars($originPortal); ?>">
   <div class="col-md-4">
     <label class="form-label">Exam / Assessment Session</label>
     <select class="form-control select2" name="exam_id" id="examSelect" required>
@@ -477,25 +590,29 @@ body.print-sheet-page{background:linear-gradient(180deg,#eef5f2 0%,#f7fbf9 42%,#
     <button class="btn btn-primary" type="submit"><i class="bi bi-layout-text-window-reverse me-1"></i>Generate Mark Sheet</button>
     <?php if (!empty($students)): ?>
     <button class="btn btn-outline-secondary" type="button" onclick="window.print();"><i class="bi bi-printer me-1"></i>Print</button>
-    <a class="btn btn-outline-primary" href="<?php echo app_sheet_h('teacher/print_mark_sheet?' . http_build_query(array_merge($_GET, ['download' => '1']))); ?>"><i class="bi bi-file-earmark-pdf me-1"></i>Download PDF</a>
+    <a class="btn btn-outline-primary" href="<?php echo app_sheet_h('teacher/print_mark_sheet?' . http_build_query(array_merge($_GET, ['download' => '1', 'origin_portal' => $originPortal]))); ?>"><i class="bi bi-file-earmark-pdf me-1"></i>Download PDF</a>
     <?php endif; ?>
   </div>
 </form>
 </div>
 
 <?php if (!empty($students) && $examMeta && $subjectMeta): ?>
+<?php
+$sheetLayout = app_mark_sheet_layout(count($columnTitles), $showCodes);
+$sheetRenderProfile = app_mark_sheet_render_profile(count($columnTitles), $showCodes);
+?>
 <div class="tile print-controls no-print" style="border-radius:18px;box-shadow:0 12px 28px rgba(14,53,47,.08);">
   <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
     <div class="text-muted small">Loaded <?php echo count($students); ?> students</div>
     <div class="d-flex gap-2">
       <button class="btn btn-success" type="button" onclick="window.print();"><i class="bi bi-printer me-1"></i>Print Mark Sheet</button>
-      <a class="btn btn-outline-primary" href="<?php echo app_sheet_h('teacher/print_mark_sheet?' . http_build_query(array_merge($_GET, ['download' => '1']))); ?>"><i class="bi bi-file-earmark-pdf me-1"></i>Download PDF</a>
+      <a class="btn btn-outline-primary" href="<?php echo app_sheet_h('teacher/print_mark_sheet?' . http_build_query(array_merge($_GET, ['download' => '1', 'origin_portal' => $originPortal]))); ?>"><i class="bi bi-file-earmark-pdf me-1"></i>Download PDF</a>
     </div>
   </div>
 </div>
 
 <div class="tile" style="border-radius:18px;box-shadow:0 12px 28px rgba(14,53,47,.08);">
-  <div class="sheet-wrap">
+  <div class="sheet-wrap<?php echo !empty($sheetRenderProfile['is_dense']) ? ' sheet-dense' : ''; ?>">
     <div class="sheet-header">
       <div>
         <div class="sheet-school"><?php echo htmlspecialchars((string)(WBName !== '' ? WBName : APP_NAME)); ?></div>
@@ -529,16 +646,27 @@ body.print-sheet-page{background:linear-gradient(180deg,#eef5f2 0%,#f7fbf9 42%,#
     </table>
 
     <table class="sheet-table">
+      <colgroup>
+        <col style="width:<?php echo number_format((float)$sheetLayout['number'], 4, '.', ''); ?>%;">
+        <col style="width:<?php echo number_format((float)$sheetLayout['name'], 4, '.', ''); ?>%;">
+        <col style="width:<?php echo number_format((float)$sheetLayout['admission'], 4, '.', ''); ?>%;">
+        <?php foreach ($columnTitles as $title): ?>
+        <col style="width:<?php echo number_format((float)$sheetLayout['marks'], 4, '.', ''); ?>%;">
+        <?php endforeach; ?>
+        <?php if ($showCodes): ?>
+        <col style="width:<?php echo number_format((float)$sheetLayout['code'], 4, '.', ''); ?>%;">
+        <?php endif; ?>
+      </colgroup>
       <thead>
         <tr>
-          <th style="width:40px;">No</th>
+          <th>No</th>
           <th class="name-cell">Student Name</th>
-          <th style="width:110px;">Adm No</th>
+          <th>Adm No</th>
           <?php foreach ($columnTitles as $title): ?>
-          <th style="width:105px;"><?php echo htmlspecialchars($title); ?> (/<?php echo (int)$maxScore; ?>)</th>
+          <th class="wrap-tight"><?php echo htmlspecialchars($title); ?> (/<?php echo (int)$maxScore; ?>)</th>
           <?php endforeach; ?>
           <?php if ($showCodes): ?>
-          <th style="width:120px;">Code (EE/ME/AE/BE)</th>
+          <th class="wrap-tight"><?php echo htmlspecialchars((string)$sheetRenderProfile['header_code_label']); ?></th>
           <?php endif; ?>
         </tr>
       </thead>
@@ -548,14 +676,14 @@ body.print-sheet-page{background:linear-gradient(180deg,#eef5f2 0%,#f7fbf9 42%,#
           $admNo = (string)($student['admission_no'] ?? $student['id']);
         ?>
         <tr>
-          <td style="text-align:center;"><?php echo (int)($index + 1); ?></td>
-          <td class="name-cell"><?php echo htmlspecialchars($name); ?></td>
-          <td style="text-align:center;"><?php echo htmlspecialchars($admNo); ?></td>
+          <td class="cell-center"><?php echo (int)($index + 1); ?></td>
+          <td class="name-cell wrap-tight"><?php echo htmlspecialchars($name); ?></td>
+          <td class="cell-center wrap-tight"><?php echo htmlspecialchars($admNo); ?></td>
           <?php foreach ($columnTitles as $title): ?>
           <td>&nbsp;</td>
           <?php endforeach; ?>
           <?php if ($showCodes): ?>
-          <td>&nbsp;</td>
+          <td class="cell-center">&nbsp;</td>
           <?php endif; ?>
         </tr>
         <?php endforeach; ?>

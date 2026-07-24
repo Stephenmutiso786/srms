@@ -1,6 +1,7 @@
 <?php
 $currentPage = basename($_SERVER['PHP_SELF'], '.php');
 require_once('const/rbac.php');
+require_once('const/edu_ai_portal_ui.php');
 
 function teacher_menu_module_active(array $module)
 {
@@ -42,6 +43,7 @@ function teacher_sidebar_group_label(string $moduleKey): string
     'exam_timetable' => 'Academic',
     'grading_system' => 'Academic',
     'elearning' => 'Academic',
+    'assignment_generator' => 'Academic',
     'subject_combinations' => 'Academic',
     'roles' => 'Staff',
     'how_system_works' => 'Support',
@@ -82,4 +84,5 @@ $teacherSidebarGroupOrder = ['Overview', 'Academic', 'Student Welfare', 'Staff',
       <?php endforeach; ?>
     <?php endforeach; ?>
   </ul>
+  <?php app_render_portal_edu_ai('teacher'); ?>
 </aside>

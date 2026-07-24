@@ -17,12 +17,12 @@ try {
 	$conn = app_db();
 	$summary = app_apply_cbe_curriculum_defaults($conn, (int)$account_id);
 	$message = sprintf(
-		'CBE class and subject structure applied. Added %d subject(s), %d class(es), synced %d class-subject link(s), removed %d unused extra subject(s), removed %d unused extra class(es), skipped %d subject(s), and skipped %d class(es) that are still in use.',
+		'CBE class and subject structure merged into the current setup. Added %d subject(s), %d class(es), synced %d default class-subject link(s), preserved %d extra subject(s), preserved %d extra class(es), skipped %d subject(s), and skipped %d class(es).',
 		(int)$summary['subjects'],
 		(int)$summary['classes'],
 		(int)$summary['assignments'],
-		(int)$summary['removed_subjects'],
-		(int)$summary['removed_classes'],
+		(int)($summary['preserved_subjects'] ?? 0),
+		(int)($summary['preserved_classes'] ?? 0),
 		(int)($summary['skipped_subjects'] ?? 0),
 		(int)($summary['skipped_classes'] ?? 0)
 	);

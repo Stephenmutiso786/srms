@@ -46,6 +46,32 @@ try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 	$conn->beginTransaction();
+	app_ensure_finance_tables($conn);
+	app_ensure_data_camp_schema($conn);
+
+	foreach ($ids as $invoiceId) {
+		$archive = app_invoice_archive_payload($conn, (int)$invoiceId);
+		if (!$archive) {
+			continue;
+		}
+		$invoice = (array)($archive['invoice'] ?? []);
+		app_data_camp_store_event($conn, [
+			'module_key' => 'finance',
+			'record_type' => 'invoice_deleted',
+			'entity_table' => 'tbl_invoices',
+			'entity_id' => (string)$invoiceId,
+			'title' => 'Invoice #' . (string)$invoiceId,
+			'description' => 'Invoice, payments, receipts, and linked finance records retained before deletion',
+			'academic_year' => null,
+			'class_id' => (int)($invoice['class_id'] ?? 0) > 0 ? (int)$invoice['class_id'] : null,
+			'student_id' => trim((string)($invoice['student_id'] ?? '')) ?: null,
+			'owner_portal' => 'admin,accountant',
+			'mime_type' => 'application/json',
+			'status' => 'retained',
+			'payload_json' => $archive,
+			'created_by' => (int)($account_id ?? 0),
+		]);
+	}
 
 	if (app_table_exists($conn, 'tbl_receipts') && app_table_exists($conn, 'tbl_payments')) {
 		$stmt = $conn->prepare("DELETE FROM tbl_receipts WHERE payment_id IN (SELECT id FROM tbl_payments WHERE invoice_id IN ($placeholders))");

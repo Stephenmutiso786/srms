@@ -11,6 +11,11 @@ function app_report_verify_url(string $verificationCode): string
     return rtrim(app_base_url(), '/') . '/verify_report?code=' . urlencode($verificationCode);
 }
 
+function app_report_verify_pdf_url(string $verificationCode): string
+{
+    return rtrim(app_base_url(), '/') . '/verify_report_pdf?code=' . urlencode($verificationCode);
+}
+
 function app_report_student_photo_html(PDO $conn, string $studentId): array
 {
     $photoPath = '';
@@ -80,6 +85,8 @@ function app_report_card_pdf_html(PDO $conn, array $payload): string
     $schoolName = defined('WBName') ? (string)WBName : (defined('APP_NAME') ? (string)APP_NAME : 'School');
     $schoolMotto = defined('WBMotto') ? trim((string)WBMotto) : '';
     $schoolContact = trim(implode(' | ', array_filter([trim((string)WBAddress), trim((string)WBPhone), trim((string)WBEmail)])));
+    $headteacherTitle = defined('WBHeadteacherTitle') ? trim((string)WBHeadteacherTitle) : 'Headteacher';
+    $headteacherName = defined('WBHeadteacherName') ? trim((string)WBHeadteacherName) : '';
     $logoPath = 'images/logo/' . trim((string)WBLogo);
     $logoExists = trim((string)WBLogo) !== '' && app_pdf_image_path_is_safe($logoPath);
     list($photoPath, $photoExists) = app_report_student_photo_html($conn, (string)($payload['student_id'] ?? ''));
@@ -194,14 +201,14 @@ function app_report_card_pdf_html(PDO $conn, array $payload): string
         . '<tr><td class="label">Exam</td><td>' . htmlspecialchars($examName, ENT_QUOTES, 'UTF-8') . '</td><td class="label">KCPE</td><td>' . htmlspecialchars($kcpeScore, ENT_QUOTES, 'UTF-8') . '</td></tr>'
         . '</table>'
         . '<table class="stats">'
-        . '<tr><td class="label">Overall Grade</td><td>' . htmlspecialchars($overallGrade, ENT_QUOTES, 'UTF-8') . '</td><td class="label">Total Score</td><td>' . number_format($displayTotalScore, 1) . '</td><td class="label">Mean Score</td><td>' . number_format($displayMeanScore, 2) . '</td><td class="label">Attendance</td><td>' . htmlspecialchars($attendanceText, ENT_QUOTES, 'UTF-8') . '</td></tr>'
-        . '<tr><td class="label">Fees Balance</td><td>' . htmlspecialchars($feesText, ENT_QUOTES, 'UTF-8') . '</td><td class="label">Subjects</td><td>' . (int)$subjectCount . '</td><td class="label">Shown</td><td>' . count($displayRows) . '</td><td class="label">Status</td><td>One-page model</td></tr>'
+        . '<tr><td class="label">Overall Grade</td><td>' . htmlspecialchars($overallGrade, ENT_QUOTES, 'UTF-8') . '</td><td class="label">CBE Mean</td><td>' . number_format($displayMeanScore, 2) . '</td><td class="label">Attendance</td><td>' . htmlspecialchars($attendanceText, ENT_QUOTES, 'UTF-8') . '</td><td class="label">Subjects</td><td>' . (int)$subjectCount . '</td></tr>'
+        . '<tr><td class="label">Fees Balance</td><td>' . htmlspecialchars($feesText, ENT_QUOTES, 'UTF-8') . '</td><td class="label">Shown</td><td>' . count($displayRows) . '</td><td class="label">Status</td><td>One-page model</td><td class="label">Exam</td><td>' . htmlspecialchars($examName, ENT_QUOTES, 'UTF-8') . '</td></tr>'
         . '</table>'
         . '<table class="subjects">'
         . '<thead><tr><th style="width:58%;">Subject</th><th style="width:21%;text-align:center;">Score</th><th style="width:21%;text-align:center;">Grade</th></tr></thead>'
         . '<tbody>' . $subjectRows . '</tbody>'
         . '</table>'
-        . '<div class="footer-note">Verification: ' . htmlspecialchars(app_report_verify_url((string)($card['verification_code'] ?? '')), ENT_QUOTES, 'UTF-8') . '</div>'
+        . '<div class="footer-note">' . htmlspecialchars($headteacherTitle . ' - ' . $schoolName, ENT_QUOTES, 'UTF-8') . ' | Verification: ' . htmlspecialchars(app_report_verify_url((string)($card['verification_code'] ?? '')), ENT_QUOTES, 'UTF-8') . '</div>'
         . '</div></body></html>';
 }
 
@@ -219,8 +226,20 @@ function app_output_single_page_report_pdf(PDO $conn, TCPDF $pdf, array $payload
     $schoolName = defined('WBName') ? (string)WBName : (defined('APP_NAME') ? (string)APP_NAME : 'School');
     $schoolMotto = defined('WBMotto') ? trim((string)WBMotto) : '';
     $schoolContact = trim(implode(' | ', array_filter([trim((string)WBAddress), trim((string)WBPhone), trim((string)WBEmail)])));
+    $headteacherTitle = defined('WBHeadteacherTitle') ? trim((string)WBHeadteacherTitle) : 'Headteacher';
+    $headteacherName = defined('WBHeadteacherName') ? trim((string)WBHeadteacherName) : '';
     $logoPath = 'images/logo/' . trim((string)WBLogo);
     $logoExists = trim((string)WBLogo) !== '' && app_pdf_image_path_is_safe($logoPath) && is_file($logoPath);
+    $signaturePath = trim((string)(defined('WBHeadteacherSignature') ? WBHeadteacherSignature : ''));
+    if ($signaturePath !== '' && strpos($signaturePath, '/') === false) {
+        $signaturePath = 'images/signatures/' . $signaturePath;
+    }
+    $signatureExists = $signaturePath !== '' && app_pdf_image_path_is_safe($signaturePath) && is_file($signaturePath);
+    $stampPath = trim((string)(defined('WBSchoolStamp') ? WBSchoolStamp : ''));
+    if ($stampPath !== '' && strpos($stampPath, '/') === false) {
+        $stampPath = 'images/stamps/' . $stampPath;
+    }
+    $stampExists = $stampPath !== '' && app_pdf_image_path_is_safe($stampPath) && is_file($stampPath);
     list($photoPath, $photoExists) = app_report_student_photo_html($conn, (string)($payload['student_id'] ?? ''));
     $photoExists = $photoExists && app_pdf_image_path_is_safe($photoPath) && is_file($photoPath);
 
@@ -234,6 +253,8 @@ function app_output_single_page_report_pdf(PDO $conn, TCPDF $pdf, array $payload
     $examName = (string)($examSummary['exam_name'] ?? 'END TERM COMBINED');
     $assessmentMode = strtolower(trim((string)($card['assessment_mode'] ?? ($examSummary['assessment_mode'] ?? 'normal'))));
     $overallGrade = (string)($examSummary['grade'] ?? ($card['grade'] ?? 'N/A'));
+    $teacherComment = trim((string)($card['teacher_comment'] ?? $card['remark'] ?? ''));
+    $headteacherComment = trim((string)($card['headteacher_comment'] ?? $card['remark'] ?? ''));
     $currentMean = (float)($card['mean_points'] ?? 0);
     if ($currentMean <= 0 && isset($examSummary['mean_points'])) {
         $currentMean = (float)$examSummary['mean_points'];
@@ -242,7 +263,6 @@ function app_output_single_page_report_pdf(PDO $conn, TCPDF $pdf, array $payload
     if ($totalMarks <= 0 && isset($examSummary['total_points'])) {
         $totalMarks = (float)$examSummary['total_points'];
     }
-    $position = (string)($card['position'] ?? ($examSummary['position'] ?? '-'));
     $generatedDate = gmdate('d M Y');
     $academicYear = gmdate('Y');
     $trend = trim((string)($card['trend'] ?? ''));
@@ -472,63 +492,71 @@ function app_output_single_page_report_pdf(PDO $conn, TCPDF $pdf, array $payload
     // Calculate cell width (4 equal columns with padding)
     $gridCellW = ($innerW - 6) / 4;
 
-    // Row 1: Name, Class, ADM No, Total Score
+    // Row 1: Name, Class, ADM No, Attendance
     $pdf->SetX($margin + 2);
     $pdf->Cell($gridCellW, 5.0, 'Name: ' . $studentName, 0, 0, 'L', true);
     $pdf->Cell($gridCellW, 5.0, 'Class: ' . $className, 0, 0, 'L', true);
     $pdf->Cell($gridCellW, 5.0, 'ADM No: ' . ($schoolId !== '' ? $schoolId : $studentId), 0, 0, 'L', true);
-    $pdf->Cell($gridCellW, 5.0, 'Total Score: ' . (is_numeric($totalMarks) ? number_format($totalMarks, 1) : (string)$totalMarks), 0, 1, 'L', true);
+    $pdf->Cell($gridCellW, 5.0, 'Attendance: ' . $attendanceText, 0, 1, 'L', true);
 
-    // Row 2: Mean Score, Grade, Position, Term
+    // Row 2: CBE Mean, Grade, Term, Fees Balance
     $pdf->SetX($margin + 2);
     $pdf->SetFont('helvetica', 'B', 7.4);
-    $pdf->Cell($gridCellW, 5.0, 'Mean Score: ' . number_format($currentMean, 2), 0, 0, 'L', true);
+    $pdf->Cell($gridCellW, 5.0, 'CBE Mean: ' . number_format($currentMean, 2), 0, 0, 'L', true);
     $pdf->Cell($gridCellW, 5.0, 'Grade: ' . $overallGrade, 0, 0, 'L', true);
-    $pdf->Cell($gridCellW, 5.0, 'Position: ' . $position, 0, 0, 'L', true);
-    $pdf->Cell($gridCellW, 5.0, 'Term: ' . $termName, 0, 1, 'L', true);
+    $pdf->Cell($gridCellW, 5.0, 'Term: ' . $termName, 0, 0, 'L', true);
+    $pdf->Cell($gridCellW, 5.0, 'Fees Balance: ' . $feesText, 0, 1, 'L', true);
 
     $pdf->SetTextColor(27, 39, 51);
 
-    // ==== SUBJECT TABLE (full-width, keep original table) ====
-    $pdf->SetFont('helvetica', 'B', 7.4);
+    // ==== SUBJECT TABLE (adaptive to always fit one page) ====
+    $rowCount = max(1, count($displayRows));
+    $contentStartY = $pdf->GetY() + 4;
+    $footerTopY = $pageH - 33;
+    $availableContentHeight = max(78.0, $footerTopY - $contentStartY);
+    $remarksH = $rowCount >= 16 ? 18.0 : ($rowCount >= 12 ? 20.0 : 24.0);
+    $sectionGap = $rowCount >= 16 ? 2.0 : 3.0;
+    $tableHeaderH = $rowCount >= 16 ? 4.0 : 4.8;
+    $chartTitlePad = $rowCount >= 16 ? 7.5 : 8.5;
+    $usableSectionHeight = max(48.0, $availableContentHeight - $remarksH - ($sectionGap * 2) - $tableHeaderH - $chartTitlePad);
+    $baseUnit = $usableSectionHeight / max(1.0, $rowCount * 1.62);
+    $rowH = max(2.15, min(4.2, $baseUnit * 0.88));
+    $groupH = max(2.3, min(5.4, $baseUnit * 0.82));
+    $chartH = $chartTitlePad + ($groupH * $rowCount);
+    $tableFont = max(4.7, min(5.8, $rowH + 0.95));
+    $tableHeaderFont = max(5.3, min(6.6, $tableFont + 0.55));
+    $remarksFont = max(5.0, min(6.2, $tableFont));
+    $remarksLineH = max(4.0, min(5.5, $remarksFont * 0.82));
+
+    $pdf->SetFont('helvetica', 'B', $tableHeaderFont);
     $pdf->SetFillColor(243, 247, 251);
     $pdf->SetDrawColor(136, 147, 156);
     $tableX = $margin + 2;
     $tableW = $innerW - 4;
-    $pdf->SetY($pdf->GetY() + 4);
+    $pdf->SetY($contentStartY);
 
     if (!empty($rows)) {
-        // Subject | Score | Grade | Position | Dev | Trend
+        // Subject | Score | Grade | Comment | Teacher
         $pdf->SetX($tableX);
-        $pdf->Cell($tableW * 0.32, 4.8, 'Subject', 1, 0, 'L', true);
-        $pdf->Cell($tableW * 0.12, 4.8, 'Score', 1, 0, 'C', true);
-        $pdf->Cell($tableW * 0.10, 4.8, 'Grade', 1, 0, 'C', true);
-        $pdf->Cell($tableW * 0.14, 4.8, 'Position', 1, 0, 'C', true);
-        $pdf->Cell($tableW * 0.08, 4.8, 'Dev', 1, 0, 'C', true);
-        $pdf->Cell($tableW * 0.10, 4.8, 'Trend', 1, 1, 'C', true);
+        $subjectW = $tableW * 0.34;
+        $scoreW = $tableW * 0.12;
+        $gradeW = $tableW * 0.11;
+        $commentW = $tableW * 0.23;
+        $teacherW = $tableW - $subjectW - $scoreW - $gradeW - $commentW;
 
-        $pdf->SetFont('helvetica', '', 6.8);
+        $pdf->Cell($subjectW, $tableHeaderH, 'Subject', 1, 0, 'L', true);
+        $pdf->Cell($scoreW, $tableHeaderH, 'Score', 1, 0, 'C', true);
+        $pdf->Cell($gradeW, $tableHeaderH, 'Grade', 1, 0, 'C', true);
+        $pdf->Cell($commentW, $tableHeaderH, 'Comment', 1, 0, 'L', true);
+        $pdf->Cell($teacherW, $tableHeaderH, 'Teacher', 1, 1, 'L', true);
+
+        $pdf->SetFont('helvetica', '', $tableFont);
         $pdf->SetDrawColor(136, 147, 156);
         foreach ($displayRows as $subjectRow) {
             $pdf->SetX($tableX);
             $gradeText = (string)($subjectRow['grade'] ?? 'N/A');
-            $devRaw = isset($subjectRow['deviation']) && $subjectRow['deviation'] !== null ? (float)$subjectRow['deviation'] : null;
-            // Format deviation: if no previous data show '0+'; otherwise show sign
-            $devText = 'N/A';
-            if ($devRaw === null) {
-                $devText = 'N/A';
-            } else {
-                // Consider no-previous-exam when previous_mean is exactly 0 and change is 0
-                $prevMean = isset($subjectRow['previous_mean']) ? (float)$subjectRow['previous_mean'] : 0.0;
-                $change = isset($subjectRow['change']) ? (float)$subjectRow['change'] : 0.0;
-                if ($prevMean === 0.0 && $change === 0.0) {
-                    $devText = '0+';
-                } else {
-                    $devText = ($devRaw >= 0 ? '+' : '') . number_format($devRaw, 1);
-                }
-            }
-            $rankVal = isset($subjectRow['rank']) && trim((string)$subjectRow['rank']) !== '' ? (string)$subjectRow['rank'] : '-';
-
+            $subjectComment = trim((string)($subjectRow['remark'] ?? ''));
+            $teacherName = trim((string)($subjectRow['teacher_name'] ?? ''));
             // Highlight low performance: score < 50 OR grade indicating low (BE)
             $isLow = false;
             if (isset($subjectRow['score']) && $subjectRow['score'] !== null && is_numeric($subjectRow['score'])) {
@@ -542,101 +570,153 @@ function app_output_single_page_report_pdf(PDO $conn, TCPDF $pdf, array $payload
             } else {
                 $pdf->SetTextColor(27, 39, 51);
             }
-            $trendVal = (string)($subjectRow['trend'] ?? '-');
             $subjectLabel = (string)($subjectRow['subject_name'] ?? '');
 
-            $pdf->Cell($tableW * 0.32, 5.0, $subjectLabel, 1, 0, 'L');
+            $pdf->Cell($subjectW, $rowH, $subjectLabel, 1, 0, 'L');
             $scoreVal = app_report_card_subject_points_display((array)$subjectRow);
-            $pdf->Cell($tableW * 0.12, 5.0, $scoreVal, 1, 0, 'C');
-            $pdf->Cell($tableW * 0.10, 5.0, $gradeText, 1, 0, 'C');
-            $pdf->Cell($tableW * 0.14, 5.0, $rankVal, 1, 0, 'C');
-            $pdf->Cell($tableW * 0.08, 5.0, $devText, 1, 0, 'C');
-            $pdf->Cell($tableW * 0.10, 5.0, $trendVal, 1, 1, 'C');
+            $pdf->Cell($scoreW, $rowH, $scoreVal, 1, 0, 'C');
+            $pdf->Cell($gradeW, $rowH, $gradeText, 1, 0, 'C');
+            $pdf->Cell($commentW, $rowH, $subjectComment !== '' ? $subjectComment : 'No marks entered', 1, 0, 'L');
+            $pdf->Cell($teacherW, $rowH, $teacherName, 1, 1, 'L');
 
             // reset text color after row
             $pdf->SetTextColor(27, 39, 51);
         }
     }
-    
-    // ==== SUBJECT PERFORMANCE CHART (student vs class) ====
-    $chartY = $pdf->GetY() + 4;
-    $pdf->SetY($chartY);
 
-    // Prepare data arrays; keep the same subject count but use a taller chart area.
-    $subjectsList = array_slice($displayRows, 0, 8);
-    $labels = [];
-    $student_scores = [];
-    $class_averages = [];
-    foreach ($subjectsList as $r) {
-        $labels[] = (string)($r['subject_name'] ?? '');
-        $student_scores[] = isset($r['has_score']) && !$r['has_score'] ? 0 : ((isset($r['score']) && $r['score'] !== null) ? (float)$r['score'] : 0);
-        $class_averages[] = isset($r['class_mean']) && $r['class_mean'] !== '' ? (float)$r['class_mean'] : 0;
-    }
-
-    // Chart box styling
-    $pdf->SetDrawColor(221, 221, 221);
+    // ==== SUBJECT PERFORMANCE CHART ====
+    $chartY = $pdf->GetY() + $sectionGap;
+    $chartX = $margin + 2;
+    $chartW = $innerW - 4;
+    $pdf->SetDrawColor(216, 226, 235);
     $pdf->SetFillColor(249, 251, 253);
-    $boxX = $margin + 2;
-    $boxW = $innerW - 4;
-    $boxH = 56;
-    $pdf->Rect($boxX, $chartY, $boxW, $boxH, 'DF');
-
-    // Title + legend
-    $pdf->SetFont('helvetica', 'B', 7.2);
+    $pdf->Rect($chartX, $chartY, $chartW, $chartH, 'DF');
+    $pdf->SetFont('helvetica', 'B', max(6.8, $tableHeaderFont));
     $pdf->SetTextColor(31, 77, 117);
-    $pdf->SetXY($boxX + 4, $chartY + 3);
-    $pdf->Cell($boxW * 0.6, 4, 'Subject Performance', 0, 0, 'L');
+    $pdf->SetXY($chartX + 3, $chartY + 2);
+    $pdf->Cell($chartW - 6, 3.8, 'Subject Performance', 0, 1, 'L');
 
-    // Draw grouped bars
-    $labelW = 24;
-    $plotX = $boxX + 5 + $labelW;
-    $plotW = $boxW - ($labelW + 12);
-    $plotY = $chartY + 10;
-    $rows = count($labels);
-    $groupH = ($boxH - 15) / max(1, $rows);
-    $maxScore = 100.0;
+    $subjectsList = $displayRows;
+    usort($subjectsList, static function (array $left, array $right): int {
+        $leftScore = isset($left['score']) && $left['score'] !== null && is_numeric($left['score']) ? (float)$left['score'] : -1.0;
+        $rightScore = isset($right['score']) && $right['score'] !== null && is_numeric($right['score']) ? (float)$right['score'] : -1.0;
+        if ($leftScore === $rightScore) {
+            return strcmp((string)($left['subject_name'] ?? ''), (string)($right['subject_name'] ?? ''));
+        }
+        return $leftScore < $rightScore ? 1 : -1;
+    });
+    $plotX = $chartX + 8;
+    $plotY = $chartY + 8.5;
+    $plotW = $chartW - 14;
+    $labelReserveH = $rowCount >= 16 ? 13.0 : ($rowCount >= 12 ? 15.0 : 17.0);
+    $plotH = max(18.0, $chartH - ($plotY - $chartY) - $labelReserveH - 3.5);
+    $axisX = $plotX + 8.5;
+    $axisY = $plotY + $plotH;
+    $barsW = $plotW - 10.5;
+    $slotW = $barsW / max(1, $rowCount);
+    $barW = max(2.4, min(8.5, $slotW * ($rowCount >= 16 ? 0.58 : 0.64)));
+    $scoreFont = $rowCount >= 16 ? 4.2 : 4.8;
+    $labelFont = $rowCount >= 16 ? 3.7 : ($rowCount >= 12 ? 4.0 : 4.4);
 
-    $pdf->SetFont('helvetica', '', 6.2);
-    for ($i = 0; $i < $rows; $i++) {
-        $y = $plotY + ($i * $groupH);
-        $label = substr($labels[$i], 0, 16);
-        $s = isset($student_scores[$i]) ? $student_scores[$i] : 0;
-        $c = isset($class_averages[$i]) ? $class_averages[$i] : 0;
+    $pdf->SetDrawColor(222, 229, 236);
+    $pdf->SetTextColor(120, 130, 140);
+    $pdf->SetFont('helvetica', '', 4.5);
+    foreach ([0, 25, 50, 75, 100] as $tick) {
+        $lineY = $plotY + $plotH - (($tick / 100) * $plotH);
+        $pdf->Line($axisX, $lineY, $axisX + $barsW, $lineY);
+        $pdf->SetXY($plotX, $lineY - 1.6);
+        $pdf->Cell(7, 3.2, (string)$tick, 0, 0, 'R');
+    }
+    $pdf->SetDrawColor(180, 190, 200);
+    $pdf->Line($axisX, $plotY, $axisX, $axisY);
+    $pdf->Line($axisX, $axisY, $axisX + $barsW, $axisY);
 
-        // Label
-        $pdf->SetXY($boxX + 4, $y + 0.4);
-        $pdf->Cell($labelW, 3.1, $label, 0, 0, 'L');
+    foreach ($subjectsList as $index => $chartRow) {
+        $studentScore = isset($chartRow['score']) && $chartRow['score'] !== null ? (float)$chartRow['score'] : 0.0;
+        $studentScore = max(0.0, min(100.0, $studentScore));
+        $barH = $plotH * ($studentScore / 100.0);
+        $slotX = $axisX + ($index * $slotW);
+        $barX = $slotX + max(0.2, ($slotW - $barW) / 2);
+        $barY = $axisY - $barH;
 
-        // Background axis
-        $pdf->SetDrawColor(220, 220, 220);
-        $pdf->Rect($plotX, $y + 0.2, $plotW, max(1.0, $groupH - 0.7), 'D');
-
-        // Student bar (blue)
-        $pdf->SetFillColor(26, 143, 212);
-        $sW = ($plotW * min($s, $maxScore)) / $maxScore;
-        if ($sW > 0) {
-            $pdf->Rect($plotX + 1, $y + 0.35, $sW * 0.48, max(0.8, $groupH - 1.0), 'F');
+        if ($barH > 0) {
+            $pdf->SetFillColor(26, 143, 212);
+            $pdf->SetDrawColor(20, 118, 176);
+            $pdf->Rect($barX, $barY, $barW, $barH, 'DF');
         }
 
-        // Class bar (green) - placed to the right of student bar
-        $pdf->SetFillColor(56, 181, 106);
-        $cW = ($plotW * min($c, $maxScore)) / $maxScore;
-        if ($cW > 0) {
-            $pdf->Rect($plotX + 1 + ($sW * 0.48) + 1.5, $y + 0.35, $cW * 0.48, max(0.8, $groupH - 1.0), 'F');
-        }
+        $pdf->SetFont('helvetica', 'B', $scoreFont);
+        $pdf->SetTextColor(31, 77, 117);
+        $pdf->SetXY($slotX, max($plotY - 0.5, $barY - 3.2));
+        $pdf->Cell($slotW, 2.8, number_format($studentScore, 0), 0, 0, 'C');
 
+        $rawLabel = trim((string)($chartRow['subject_name'] ?? ''));
+        $label = preg_replace('/\s+/', "\n", $rawLabel, 1);
+        if (strlen($label) > ($rowCount >= 16 ? 16 : 22)) {
+            $label = substr($rawLabel, 0, $rowCount >= 16 ? 14 : 18);
+        }
+        $pdf->SetFont('helvetica', '', $labelFont);
+        $pdf->SetTextColor(27, 39, 51);
+        $pdf->SetXY($slotX - 0.3, $axisY + 1.4);
+        $pdf->MultiCell($slotW + 0.6, 2.1, $label, 0, 'C', false, 0);
     }
 
-    // ==== QR CODE AT BOTTOM CENTER ====
+    // ==== REMARKS SECTION BELOW GRAPH ====
+    $remarksY = $chartY + $chartH + $sectionGap;
+    $remarksX = $margin + 2;
+    $remarksW = $innerW - 30;
+    $pdf->SetDrawColor(216, 226, 235);
+    $pdf->SetFillColor(249, 251, 253);
+    $pdf->Rect($remarksX, $remarksY, $remarksW, $remarksH, 'DF');
+    $pdf->SetFont('helvetica', 'B', max(6.2, $tableHeaderFont - 0.5));
+    $pdf->SetTextColor(31, 77, 117);
+    $pdf->SetXY($remarksX + 3, $remarksY + 2);
+    $pdf->Cell($remarksW - 6, 4, 'Remarks', 0, 1, 'L');
+    $pdf->SetFont('helvetica', '', $remarksFont);
+    $pdf->SetTextColor(27, 39, 51);
+    $pdf->SetXY($remarksX + 3, $remarksY + 6.5);
+    $pdf->MultiCell($remarksW - 6, $remarksLineH, 'Class Teacher: ' . ($teacherComment !== '' ? $teacherComment : 'No class teacher remark available.'), 0, 'L', false, 1);
+    $pdf->SetX($remarksX + 3);
+    $pdf->MultiCell($remarksW - 6, $remarksLineH, $headteacherTitle . ': ' . ($headteacherComment !== '' ? $headteacherComment : 'No ' . strtolower($headteacherTitle) . ' remark available.'), 0, 'L', false, 1);
+
+    // ==== SIGNATURE + STAMP + QR AT THE BOTTOM ====
+    $signY = $pageH - 30;
+    $leftBlockX = $margin + 4;
+    $leftBlockW = 48;
+    if ($signatureExists) {
+        $pdf->Image($signaturePath, $leftBlockX, $signY - 7, 28, 10, '', '', '', false, 300, '', false, false, 0, false, false, false);
+    }
+    $pdf->SetDrawColor(120, 130, 140);
+    $pdf->Line($leftBlockX, $signY + 4, $leftBlockX + $leftBlockW, $signY + 4);
+    $pdf->SetFont('helvetica', 'B', 6.4);
+    $pdf->SetTextColor(60, 70, 80);
+    $pdf->SetXY($leftBlockX, $signY + 4.6);
+    $pdf->Cell($leftBlockW, 3.2, $headteacherTitle, 0, 1, 'L');
+    if ($headteacherName !== '') {
+        $pdf->SetFont('helvetica', '', 5.9);
+        $pdf->SetX($leftBlockX);
+        $pdf->Cell($leftBlockW, 2.8, $headteacherName, 0, 1, 'L');
+    }
+
     $qrSize = 22;
     $qrX = ($pageW / 2) - ($qrSize / 2);
     $qrY = $pageH - 28;
     $pdf->write2DBarcode($verificationUrl, 'QRCODE,H', $qrX, $qrY, $qrSize, $qrSize);
-    $pdf->SetFont('helvetica', '', 6.0);
-    $pdf->SetTextColor(80, 90, 100);
-    $url_display = strlen($verificationUrl) > 45 ? substr($verificationUrl, 0, 45) . '...' : $verificationUrl;
-    $pdf->SetXY($qrX - 5, $qrY + $qrSize + 1);
-    $pdf->Cell($qrSize + 10, 3, 'Verify: ' . $url_display, 0, 1, 'C');
+
+    $stampX = $pageW - $margin - 28;
+    $stampY = $pageH - 31;
+    if ($stampExists) {
+        $pdf->Image($stampPath, $stampX, $stampY, 22, 22, '', '', '', false, 300, '', false, false, 0, false, false, false);
+    } else {
+        $pdf->SetDrawColor(180, 190, 200);
+        $pdf->RoundedRect($stampX, $stampY, 22, 22, 2, '1111', 'D');
+        $pdf->SetFont('helvetica', 'B', 6.0);
+        $pdf->SetTextColor(100, 110, 120);
+        $pdf->SetXY($stampX, $stampY + 8);
+        $pdf->Cell(22, 4, 'SCHOOL', 0, 1, 'C');
+        $pdf->SetX($stampX);
+        $pdf->Cell(22, 4, 'STAMP', 0, 1, 'C');
+    }
 
     app_pdf_draw_document_watermark(
         $pdf,

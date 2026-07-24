@@ -98,10 +98,6 @@ try {
             if ($targetClassId < 1) {
                 throw new RuntimeException('Student #'.(string)$student['student_id'].' has no valid promotion target class.');
             }
-            $targetOccupancy = app_active_student_count_in_class($conn, $targetClassId);
-            if ($targetOccupancy > 0) {
-                throw new RuntimeException('Cannot promote into ' . (string)($student['to_class_name'] ?? 'the target class') . ' because it already has ' . $targetOccupancy . ' active student(s). Clear that class first or mark the learner as a repeater.');
-            }
         }
 
         if ($decisionStatus === 'promoted') {

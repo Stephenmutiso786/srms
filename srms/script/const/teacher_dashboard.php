@@ -12,19 +12,19 @@ $my_very_classes = array();
 
 $stmt = $conn->prepare("SELECT class FROM tbl_students GROUP BY class");
 $stmt->execute();
-$_classes = $stmt->fetchAll();
+$_classes = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
-foreach ($_classes as $key => $value) {
-array_push($usable_classes, $value[0]);
+foreach ($_classes as $value) {
+array_push($usable_classes, (string)$value);
 }
 
 $stmt = $conn->prepare("SELECT class FROM tbl_subject_combinations WHERE teacher = ?");
 $stmt->execute([$account_id]);
-$result = $stmt->fetchAll();
+$result = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
-foreach($result as $row)
+foreach($result as $classValue)
 {
-$class_list = app_unserialize($row[0]);
+$class_list = app_unserialize((string)$classValue);
 
 foreach ($class_list as $key => $value) {
 if (in_array($value, $usable_classes))
@@ -41,14 +41,13 @@ $my_subject++;
 }
 
 
-$matches = implode(',', $my_very_classes);
-$matches = preg_replace('/[A-Z0-9]/', '?', $matches);
-
-$stmt = $conn->prepare("SELECT class FROM tbl_students WHERE class IN ($matches)");
-$stmt->execute($my_very_classes);
-$result = $stmt->fetchAll();
-
-$my_students = count($result);
+if (!empty($my_very_classes)) {
+	$matches = implode(',', array_fill(0, count($my_very_classes), '?'));
+	$stmt = $conn->prepare("SELECT class FROM tbl_students WHERE class IN ($matches)");
+	$stmt->execute($my_very_classes);
+	$result = $stmt->fetchAll(PDO::FETCH_COLUMN);
+	$my_students = count($result);
+}
 }catch(PDOException $e)
 {
 error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());

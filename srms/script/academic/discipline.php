@@ -8,6 +8,13 @@ require_once('const/rbac.php');
 
 app_require_discipline_access();
 
+$leadershipTitle = trim((string)($designation ?? 'Academic Leadership'));
+if ($leadershipTitle === '') {
+	$leadershipTitle = 'Academic Leadership';
+}
+$disciplineManagerTitle = $leadershipTitle . ' Discipline Manager';
+$reviewNotePlaceholder = 'Optional ' . strtolower($leadershipTitle) . ' note';
+
 $cases = [];
 $categories = [];
 $students = [];
@@ -72,7 +79,7 @@ try {
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<title><?php echo APP_NAME; ?> - Deputy Discipline Manager</title>
+<title><?php echo APP_NAME; ?> - <?php echo htmlspecialchars($disciplineManagerTitle); ?></title>
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -105,7 +112,17 @@ try {
 </style>
 </head>
 <body class="app sidebar-mini">
-<header class="app-header"><a class="app-header__logo" href="javascript:void(0);"><?php echo APP_NAME; ?></a><a class="app-sidebar__toggle" href="#" data-toggle="sidebar" aria-label="Hide Sidebar"></a></header>
+<header class="app-header"><a class="app-header__logo" href="javascript:void(0);"><?php echo APP_NAME; ?></a>
+<a class="app-sidebar__toggle" href="#" data-toggle="sidebar" aria-label="Hide Sidebar"></a>
+<ul class="app-nav">
+<li class="dropdown"><a class="app-nav__item" href="#" data-bs-toggle="dropdown" aria-label="Open Profile Menu"><i class="bi bi-person fs-4"></i></a>
+<ul class="dropdown-menu settings-menu dropdown-menu-right">
+<li><a class="dropdown-item" href="academic/profile.php"><i class="bi bi-person me-2 fs-5"></i> Profile</a></li>
+<li><a class="dropdown-item" href="logout"><i class="bi bi-box-arrow-right me-2 fs-5"></i> Logout</a></li>
+</ul>
+</li>
+</ul>
+</header>
 <?php include('academic/partials/sidebar.php'); ?>
 <main class="app-content">
 <div class="app-title">
@@ -224,7 +241,7 @@ try {
 								<form method="POST" action="admin/core/send_discipline_notice.php" class="d-inline">
 									<input type="hidden" name="case_id" value="<?php echo (int)$case['id']; ?>">
 									<input type="hidden" name="return_to" value="../../academic/discipline.php">
-									<button class="btn btn-outline-primary btn-sm" type="submit">Send Notice</button>
+									<button class="btn btn-outline-primary btn-sm" type="submit">Send Notice + WhatsApp</button>
 								</form>
 								<form method="POST" action="admin/core/delete_discipline_case.php" class="d-inline" onsubmit="return confirm('Delete this discipline case?');">
 									<input type="hidden" name="id" value="<?php echo (int)$case['id']; ?>">
@@ -256,7 +273,7 @@ try {
 								</div>
 								<input type="hidden" name="status" value="<?php echo ((string)$case['case_status'] === 'Resolved') ? 'resolved' : 'reviewed'; ?>">
 								<input type="hidden" name="category" value="<?php echo htmlspecialchars((string)($case['category'] ?? 'Moderate')); ?>">
-								<textarea class="form-control form-control-sm mb-2" name="review_notes" rows="2" placeholder="Optional deputy note"></textarea>
+								<textarea class="form-control form-control-sm mb-2" name="review_notes" rows="2" placeholder="<?php echo htmlspecialchars($reviewNotePlaceholder); ?>"></textarea>
 								<button class="btn btn-primary btn-sm" type="submit">Update</button>
 							</form>
 						</td>

@@ -10,13 +10,17 @@ if ($res != "1" || !in_array((string)$level, ['0', '1'], true)) { header("locati
 app_require_permission('system.manage', '../admin');
 
 $terms = [];
+$defaultYearTerms = app_default_academic_year_terms();
+$currentAcademicYear = date('Y');
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 	app_ensure_terms_academic_year_schema($conn);
+	$currentAcademicYear = trim(app_setting_get($conn, 'current_academic_year', date('Y')));
 	$stmt = $conn->prepare("SELECT * FROM tbl_terms ORDER BY id DESC");
 	$stmt->execute();
 	$terms = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	app_sort_term_rows($terms);
 } catch (Throwable $e) {
 	$terms = [];
 }
@@ -58,8 +62,50 @@ try {
 <p>Admins and school admins can create, edit, activate, and retire school terms here.</p>
 </div>
 <ul class="app-breadcrumb breadcrumb">
+<li class="breadcrumb-item"><button class="btn btn-outline-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#yearModal">Add Academic Year</button></li>
 <li class="breadcrumb-item"><button class="btn btn-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#addModal">Add Term</button></li>
 </ul>
+</div>
+
+<div class="modal fade" id="yearModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="yearModalLabel" aria-hidden="true">
+<div class="modal-dialog">
+<div class="modal-content">
+<div class="modal-header">
+<h5 class="modal-title" id="yearModalLabel">Create Academic Year</h5>
+</div>
+<div class="modal-body">
+<form class="app_frm" method="POST" autocomplete="OFF" action="admin/core/new_academic_year">
+<div class="mb-2">
+<label class="form-label">Academic Year</label>
+<input required name="academic_year" class="form-control" type="text" value="<?php echo htmlspecialchars($currentAcademicYear); ?>" placeholder="Enter Academic Year e.g. 2026 or 2026/2027">
+</div>
+<div class="mb-2">
+<label class="form-label">Linked Terms</label>
+<?php foreach ($defaultYearTerms as $index => $termLabel): ?>
+<div class="form-check">
+<input class="form-check-input" type="checkbox" name="term_names[]" id="year_term_<?php echo $index; ?>" value="<?php echo htmlspecialchars($termLabel); ?>" checked>
+<label class="form-check-label" for="year_term_<?php echo $index; ?>"><?php echo htmlspecialchars($termLabel); ?></label>
+</div>
+<?php endforeach; ?>
+<div class="form-text">These terms will be created under this academic year together so term selection stays clear across the system.</div>
+</div>
+<div class="mb-2">
+<label class="form-label">Default Status</label>
+<select class="form-control" name="status" required>
+<option value="1">Active</option>
+<option value="0">Inactive</option>
+</select>
+</div>
+<div class="mb-3 form-check">
+<input class="form-check-input" type="checkbox" name="set_current_year" id="set_current_year_admin" value="1" checked>
+<label class="form-check-label" for="set_current_year_admin">Set as current academic year</label>
+</div>
+<button type="submit" class="btn btn-primary app_btn">Create Academic Year</button>
+<button type="button" class="btn btn-danger" data-bs-dismiss="modal">Close</button>
+</form>
+</div>
+</div>
+</div>
 </div>
 
 <div class="modal fade" id="addModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="addModalLabel" aria-hidden="true">

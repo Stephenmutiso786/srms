@@ -4,11 +4,18 @@ session_start();
 require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
+require_once('const/rbac.php');
 if ($res == "1" && $level == "2") {}else{header("location:../");}
 
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	if (!app_can_manage_student_attendance($conn, (string)$account_id, (string)$level)) {
+		app_render_access_error_page('Attendance access restricted', 'Student attendance is only available to admins and staff members who are currently allocated as class teachers.', 403, [
+			'portal' => 'teacher',
+			'account_id' => (string)$account_id,
+		]);
+	}
 
 	$myclasses = app_staff_class_teacher_ids($conn, (int)$account_id);
 
@@ -17,12 +24,12 @@ try {
 		$matches = implode(',', array_fill(0, count($myclasses), '?'));
 		$stmt = $conn->prepare("SELECT id, name FROM tbl_classes WHERE id IN ($matches) ORDER BY id");
 		$stmt->execute($myclasses);
-		$classes = $stmt->fetchAll();
+		$classes = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
 
 	$stmt = $conn->prepare("SELECT id, name FROM tbl_terms WHERE status = 1 ORDER BY id");
 	$stmt->execute();
-	$terms = $stmt->fetchAll();
+	$terms = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 	$sessions = [];
 	if (app_table_exists($conn, 'tbl_attendance_sessions') && count($myclasses) > 0) {
@@ -77,20 +84,20 @@ try {
 <h1>Attendance</h1>
 <p>Mark daily attendance for your classes.</p>
 </div>
+<div>
+<a class="btn btn-primary btn-sm" href="teacher/print_class_list"><i class="bi bi-printer me-1"></i> Print Class List</a>
+</div>
 </div>
 
 <div class="tile">
 <h3 class="tile-title">New Attendance Session</h3>
-<?php if (count($classes) < 1) { ?>
-<div class="alert alert-warning">No class-teacher assignment found. Only the assigned class teacher can mark student class attendance.</div>
-<?php } ?>
 <form class="row g-3" method="POST" action="teacher/core/new_attendance_session">
 <div class="col-md-4">
 <label class="form-label">Class</label>
 <select class="form-control" name="class_id" required <?php echo count($classes) < 1 ? 'disabled' : ''; ?>>
 <option value="" disabled selected>Select class</option>
 <?php foreach($classes as $c){ ?>
-<option value="<?php echo $c[0]; ?>"><?php echo $c[1]; ?></option>
+<option value="<?php echo (int)$c['id']; ?>"><?php echo htmlspecialchars((string)$c['name']); ?></option>
 <?php } ?>
 </select>
 </div>
@@ -99,7 +106,7 @@ try {
 <select class="form-control" name="term_id" <?php echo count($classes) < 1 ? 'disabled' : ''; ?>>
 <option value="">(optional)</option>
 <?php foreach($terms as $t){ ?>
-<option value="<?php echo $t[0]; ?>"><?php echo $t[1]; ?></option>
+<option value="<?php echo (int)$t['id']; ?>"><?php echo htmlspecialchars((string)$t['name']); ?></option>
 <?php } ?>
 </select>
 </div>
@@ -111,6 +118,16 @@ try {
 <button class="btn btn-primary" type="submit" <?php echo count($classes) < 1 ? 'disabled' : ''; ?>>Start Session</button>
 </div>
 </form>
+</div>
+
+<div class="tile mt-3">
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+  <div>
+    <h3 class="tile-title mb-1">Printable Class List</h3>
+    <p class="text-muted mb-0">Generate a clean class list with at least six working columns for attendance ticks, marks, and classroom notes.</p>
+  </div>
+  <a class="btn btn-outline-primary" href="teacher/print_class_list"><i class="bi bi-layout-text-window-reverse me-1"></i> Open Class List Tool</a>
+</div>
 </div>
 
 <div class="tile mt-3">

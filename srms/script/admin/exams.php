@@ -17,9 +17,11 @@ $terms = [];
 $subjects = [];
 $subjectClassMap = [];
 $examSubjectsMap = [];
+$examSubmissionGapMap = [];
 $componentCandidates = [];
 $gradingSystems = [];
 $defaultGradingSystemId = 0;
+$classGradingMap = [];
 
 try {
 	$conn = app_db();
@@ -34,9 +36,19 @@ try {
 		$types = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
 
-	$stmt = $conn->prepare("SELECT id, name FROM tbl_classes ORDER BY id");
+	$stmt = $conn->prepare("SELECT c.id, c.name, c.grading_system_id, gs.name AS grading_name, gs.type AS grading_type
+		FROM tbl_classes c
+		LEFT JOIN tbl_grading_systems gs ON gs.id = c.grading_system_id
+		ORDER BY c.id");
 	$stmt->execute();
 	$classes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	foreach ($classes as $classRow) {
+		$classGradingMap[(int)$classRow['id']] = [
+			'grading_system_id' => (int)($classRow['grading_system_id'] ?? 0),
+			'grading_name' => (string)($classRow['grading_name'] ?? ''),
+			'grading_type' => (string)($classRow['grading_type'] ?? ''),
+		];
+	}
 
 	$stmt = $conn->prepare("SELECT id, name FROM tbl_terms ORDER BY id");
 	$stmt->execute();
@@ -67,7 +79,7 @@ try {
 	app_ensure_exam_subjects_table($conn);
 
 	if (app_table_exists($conn, 'tbl_exams')) {
-	$stmt = $conn->prepare("SELECT e.id, e.name,
+	$stmt = $conn->prepare("SELECT e.id, e.name, e.class_id, e.term_id,
 			CASE WHEN COALESCE(e.status, 'draft') = 'open' THEN 'active' ELSE COALESCE(e.status, 'draft') END AS status,
 			e.created_at, t.name AS term_name, c.name AS class_name, et.name AS type_name,
 			gs.name AS grading_name, COALESCE(e.assessment_mode, 'normal') AS assessment_mode,
@@ -104,6 +116,11 @@ try {
 			ORDER BY e.created_at DESC");
 		$stmt->execute();
 		$componentCandidates = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+		foreach ($exams as $examRow) {
+			$gapSummary = report_exam_submission_gap_summary($conn, (int)($examRow['id'] ?? 0));
+			$examSubmissionGapMap[(int)($examRow['id'] ?? 0)] = $gapSummary;
+		}
 	}
 } catch (Throwable $e) {
 	$_SESSION['reply'] = array (array("danger", "Failed to load exam data."));
@@ -243,14 +260,8 @@ try {
 </div>
 <div class="col-md-6 mb-3">
 <label class="form-label">Grading System</label>
-<select class="form-control" name="grading_system_id" required>
-<?php foreach ($gradingSystems as $system): ?>
-<option value="<?php echo (int)$system['id']; ?>" <?php echo $defaultGradingSystemId === (int)$system['id'] ? 'selected' : ''; ?>>
-	<?php echo htmlspecialchars($system['name']); ?> (<?php echo htmlspecialchars(strtoupper((string)$system['type'])); ?>)
-</option>
-<?php endforeach; ?>
-</select>
-<div class="small text-muted mt-1">This controls how scores become grades for reports, analytics, and publishing.</div>
+<input class="form-control" id="examGradingSystemDisplay" type="text" value="Auto from selected class" readonly>
+<div class="small text-muted mt-1">This is assigned automatically from Class Management for each selected class. Change it there, not here.</div>
 </div>
 <div class="col-md-6 mb-3">
 <label class="form-label">Assessment Mode</label>
@@ -331,6 +342,15 @@ Subjects are pulled automatically from the selected source exams in consolidated
 </thead>
 <tbody>
 <?php foreach ($exams as $exam): ?>
+<?php
+$examSubjectTotal = count($examSubjectsMap[(int)$exam['id']] ?? []);
+$submissionCount = (int)($exam['submission_count'] ?? 0);
+$missingSubmissions = $examSubjectTotal > 0 && $submissionCount < $examSubjectTotal;
+$gapSummary = $examSubmissionGapMap[(int)$exam['id']] ?? [];
+$missingSubjectNames = array_map(static function ($row) {
+	return (string)($row['subject_name'] ?? '');
+}, (array)($gapSummary['missing_subjects'] ?? []));
+?>
 <tr>
 <td><input class="form-check-input exam-checkbox" type="checkbox" name="exam_ids[]" value="<?php echo (int)$exam['id']; ?>" form="bulkExamsForm"></td>
 <td><?php echo htmlspecialchars($exam['name']); ?></td>
@@ -341,11 +361,27 @@ Subjects are pulled automatically from the selected source exams in consolidated
 <td><?php echo htmlspecialchars($exam['term_name'] ?? ''); ?></td>
 <td><?php echo htmlspecialchars($exam['grading_name'] ?? 'Default'); ?></td>
 <td><span class="badge bg-<?php echo htmlspecialchars(app_exam_status_badge((string)($exam['status'] ?? 'draft'))); ?>"><?php echo htmlspecialchars(ucfirst((string)($exam['status'] ?? 'draft'))); ?></span></td>
-<td><?php echo (int)($exam['submission_count'] ?? 0); ?></td>
+<td title="Submitted/finalized subject sheets out of total exam subjects">
+<?php echo $submissionCount; ?><?php echo $examSubjectTotal > 0 ? ' / ' . $examSubjectTotal : ''; ?>
+<?php if ($missingSubmissions) { ?><div class="small text-danger">Missing</div><?php } ?>
+<?php if ($missingSubmissions && !empty($missingSubjectNames)) { ?><div class="small text-muted"><?php echo htmlspecialchars(implode(', ', $missingSubjectNames)); ?></div><?php } ?>
+</td>
 <td><?php echo htmlspecialchars((string)($exam['created_at'] ?? '')); ?></td>
 <td>
 	<div class="d-flex flex-wrap gap-2">
+	<?php
+		$examClassId = (int)($exam['class_id'] ?? 0);
+		$examTermId = (int)($exam['term_id'] ?? 0);
+		$examIdValue = (int)($exam['id'] ?? 0);
+		$examStatusValue = strtolower(trim((string)($exam['status'] ?? 'draft')));
+		$canDownloadExamPdf = $examClassId > 0 && $examTermId > 0 && $examIdValue > 0
+			&& in_array($examStatusValue, ['finalized', 'published'], true);
+	?>
 	<a class="btn btn-sm btn-outline-secondary" href="admin/edit_exam?id=<?php echo (int)$exam['id']; ?>">Edit</a>
+	<?php if ($canDownloadExamPdf): ?>
+	<a class="btn btn-sm btn-outline-primary" href="admin/merit_list_pdf?class_id=<?php echo $examClassId; ?>&term_id=<?php echo $examTermId; ?>&exam_id=<?php echo $examIdValue; ?>" target="_blank" title="Download class merit list PDF for this exam">Merit PDF</a>
+	<a class="btn btn-sm btn-outline-success" href="admin/class_report_cards_pdf?class_id=<?php echo $examClassId; ?>&term_id=<?php echo $examTermId; ?>&exam=<?php echo $examIdValue; ?>&download=1" target="_blank" title="Download whole-class report cards PDF for this exam">Class PDF</a>
+	<?php endif; ?>
 	<form class="d-inline" action="admin/core/update_exam_status" method="POST">
 		<input type="hidden" name="exam_id" value="<?php echo (int)$exam['id']; ?>">
 		<?php if (($exam['status'] ?? '') === 'draft') { ?>
@@ -354,10 +390,14 @@ Subjects are pulled automatically from the selected source exams in consolidated
 			<button type="submit" class="btn btn-sm btn-outline-success" name="status" value="finalized">Finalize</button>
 		<?php } elseif (($exam['status'] ?? '') === 'active') { ?>
 			<button type="submit" class="btn btn-sm btn-outline-info" name="status" value="reviewed">Mark Reviewed</button>
-		<?php } elseif (($exam['status'] ?? '') === 'reviewed') { ?>
+		<?php } elseif (($exam['status'] ?? '') === 'reviewed' && !$missingSubmissions) { ?>
 			<button type="submit" class="btn btn-sm btn-outline-success" name="status" value="finalized">Finalize</button>
-		<?php } elseif (($exam['status'] ?? '') === 'finalized') { ?>
+		<?php } elseif (($exam['status'] ?? '') === 'reviewed' && $missingSubmissions) { ?>
+			<button type="button" class="btn btn-sm btn-outline-secondary" disabled title="All exam subjects must submit marks before finalizing">Finalize</button>
+		<?php } elseif (($exam['status'] ?? '') === 'finalized' && !$missingSubmissions) { ?>
 			<button type="submit" class="btn btn-sm btn-outline-dark" name="status" value="published">Publish</button>
+		<?php } elseif (($exam['status'] ?? '') === 'finalized' && $missingSubmissions) { ?>
+			<button type="button" class="btn btn-sm btn-outline-secondary" disabled title="All exam subjects must submit marks before publishing">Publish</button>
 		<?php } elseif (($exam['status'] ?? '') === 'published') { ?>
 			<button type="submit" class="btn btn-sm btn-outline-warning" name="status" value="finalized">Unpublish</button>
 		<?php } ?>
@@ -407,6 +447,33 @@ bindSelectAll('selectAllExamTypesHead', '.examtype-checkbox');
 bindSelectAll('selectAllExams', '.exam-checkbox');
 bindSelectAll('selectAllExamsHead', '.exam-checkbox');
 
+const classGradingMap = <?php echo json_encode($classGradingMap); ?>;
+
+function updateExamGradingSystemDisplay() {
+  var classSelect = document.getElementById('examClassIds');
+  var display = document.getElementById('examGradingSystemDisplay');
+  if (!classSelect || !display) return;
+  var selectedClasses = Array.from(classSelect.selectedOptions).map(function(option) {
+    return parseInt(option.value || '0', 10);
+  }).filter(Boolean);
+  if (!selectedClasses.length) {
+    display.value = 'Auto from selected class';
+    return;
+  }
+
+  var labels = selectedClasses.map(function(classId) {
+    var meta = classGradingMap[classId] || {};
+    if (meta.grading_name) {
+      return meta.grading_name + (meta.grading_type ? ' (' + String(meta.grading_type).toUpperCase() + ')' : '');
+    }
+    var option = classSelect.querySelector('option[value="' + classId + '"]');
+    var classLabel = option ? option.textContent.trim() : ('Class #' + classId);
+    return classLabel + ': No grading system assigned';
+  });
+  var uniqueLabels = Array.from(new Set(labels));
+  display.value = uniqueLabels.length === 1 ? uniqueLabels[0] : 'Multiple class grading systems will be applied automatically';
+}
+
 function filterExamSubjects() {
   var selectedClasses = Array.from(document.getElementById('examClassIds').selectedOptions).map(function(opt){ return parseInt(opt.value, 10); });
   document.querySelectorAll('#examSubjectIds option').forEach(function(option){
@@ -421,6 +488,7 @@ function filterExamSubjects() {
   });
 }
 document.getElementById('examClassIds').addEventListener('change', filterExamSubjects);
+document.getElementById('examClassIds').addEventListener('change', updateExamGradingSystemDisplay);
 const assessmentModeSelect = document.getElementById('assessmentModeSelect');
 const componentExamWrap = document.getElementById('componentExamWrap');
 const componentExamIds = document.getElementById('componentExamIds');
@@ -518,6 +586,7 @@ assessmentModeSelect.addEventListener('change', toggleAssessmentModeFields);
 document.getElementById('examClassIds').addEventListener('change', filterComponentExams);
 termSelect.addEventListener('change', filterComponentExams);
 filterExamSubjects();
+updateExamGradingSystemDisplay();
 toggleAssessmentModeFields();
 </script>
 </body>

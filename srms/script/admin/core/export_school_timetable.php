@@ -116,6 +116,13 @@ try {
 		$table .= '</tbody></table>';
 
 		$pdf->writeHTML($table, true, false, true, false, '');
+		app_pdf_draw_official_footer($pdf, [
+			'base_y' => $pdf->getPageHeight() - 20,
+			'date_value' => date('Y-m-d'),
+			'title' => 'Headteacher',
+			'stamp_x' => $pdf->getPageWidth() - 30,
+			'stamp_size' => 16,
+		]);
 		$pdf->Output($fileBase . '.pdf', 'D');
 		exit;
 	}

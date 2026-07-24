@@ -19,7 +19,6 @@ $classIds = $_POST['class_ids'] ?? [];
 $subjectIds = $_POST['subject_ids'] ?? [];
 $componentExamIds = $_POST['component_exam_ids'] ?? [];
 $termId = (int)($_POST['term_id'] ?? 0);
-$gradingSystemId = (int)($_POST['grading_system_id'] ?? 0);
 $assessmentMode = trim((string)($_POST['assessment_mode'] ?? 'normal'));
 $assessmentModeLower = strtolower($assessmentMode);
 if ($assessmentModeLower === 'kpsea') {
@@ -48,19 +47,7 @@ try {
 	app_ensure_exam_components_table($conn);
 	$createdBy = isset($account_id) ? (int)$account_id : null;
 
-	if ($gradingSystemId < 1 && app_table_exists($conn, 'tbl_grading_systems')) {
-		$preferredType = in_array($assessmentMode, ['cbe', 'KPSEA', 'KJSEA', 'consolidated'], true) ? 'cbe' : 'marks';
-		$stmt = $conn->prepare("SELECT id FROM tbl_grading_systems WHERE is_active = 1 AND type = ? ORDER BY is_default DESC, id ASC LIMIT 1");
-		$stmt->execute([$preferredType]);
-		$gradingSystemId = (int)$stmt->fetchColumn();
-		if ($gradingSystemId < 1) {
-			$stmt = $conn->prepare("SELECT id FROM tbl_grading_systems WHERE is_active = 1 ORDER BY is_default DESC, id ASC LIMIT 1");
-			$stmt->execute();
-			$gradingSystemId = (int)$stmt->fetchColumn();
-		}
-	}
-
-	if ($name === '' || empty($classIds) || $termId < 1 || $gradingSystemId < 1) {
+	if ($name === '' || empty($classIds) || $termId < 1) {
 		$_SESSION['reply'] = array (array("danger", "Fill all required fields."));
 		header("location:../exams");
 		exit;
@@ -105,14 +92,6 @@ try {
 	app_ensure_exam_assessment_mode_column($conn);
 	app_ensure_exam_subjects_table($conn);
 
-	if (app_table_exists($conn, 'tbl_grading_systems')) {
-		$stmt = $conn->prepare("SELECT id FROM tbl_grading_systems WHERE id = ? AND is_active = 1 LIMIT 1");
-		$stmt->execute([$gradingSystemId]);
-		if (!$stmt->fetchColumn()) {
-			throw new RuntimeException("Select an active grading system.");
-		}
-	}
-
 	$classSubjectMap = [];
 	if (app_table_exists($conn, 'tbl_subject_class_assignments')) {
 		$stmt = $conn->prepare("SELECT class_id, subject_id FROM tbl_subject_class_assignments");
@@ -140,22 +119,17 @@ try {
 		$effectiveAssessmentMode = $assessmentMode;
 
 		$classGradingSystemId = (int)(app_class_grading_system_id($conn, $classId) ?? 0);
-		$effectiveGradingSystemId = $classGradingSystemId > 0 ? $classGradingSystemId : $gradingSystemId;
-		if ($classGradingSystemId < 1 && $assessmentMode === 'KJSEA' && app_table_exists($conn, 'tbl_grading_systems')) {
-			$systemStmt = $conn->prepare("SELECT id FROM tbl_grading_systems WHERE is_active = 1 AND name = ? LIMIT 1");
-			$systemStmt->execute(['CBE KJSEA System']);
-			$kjseaSystemId = (int)$systemStmt->fetchColumn();
-			if ($kjseaSystemId > 0) {
-				$effectiveGradingSystemId = $kjseaSystemId;
-			}
+		if ($classGradingSystemId < 1) {
+			$label = $className !== '' ? $className : ('class #' . $classId);
+			throw new RuntimeException('Assign a grading system to ' . $label . ' in Class Management before creating exams.');
 		}
-		$recommendedGradingSystemId = app_class_recommended_grading_system_id($conn, $className);
-		if ($classGradingSystemId < 1 && $recommendedGradingSystemId && app_class_recommended_exam_mode($className) === 'cbe') {
-			$selectedTypeStmt = $conn->prepare("SELECT type FROM tbl_grading_systems WHERE id = ? LIMIT 1");
-			$selectedTypeStmt->execute([$effectiveGradingSystemId]);
-			$selectedType = strtolower(trim((string)($selectedTypeStmt->fetchColumn() ?? '')));
-			if (($effectiveGradingSystemId < 1 || $selectedType === '' || $selectedType === 'marks')) {
-				$effectiveGradingSystemId = $recommendedGradingSystemId;
+		$effectiveGradingSystemId = $classGradingSystemId;
+		if (app_table_exists($conn, 'tbl_grading_systems')) {
+			$stmt = $conn->prepare("SELECT id FROM tbl_grading_systems WHERE id = ? AND is_active = 1 LIMIT 1");
+			$stmt->execute([$effectiveGradingSystemId]);
+			if (!(int)$stmt->fetchColumn()) {
+				$label = $className !== '' ? $className : ('class #' . $classId);
+				throw new RuntimeException('The grading system assigned to ' . $label . ' is inactive. Update it in Class Management first.');
 			}
 		}
 
@@ -235,6 +209,23 @@ try {
 			}
 		}
 		$weightStmt->execute([$examId, $weightPercentage > 0 ? $weightPercentage : 100]);
+		$examSnapshot = app_exam_archive_payload($conn, $examId);
+		if ($examSnapshot) {
+			app_data_camp_store_event($conn, [
+				'module_key' => 'exams',
+				'record_type' => 'exam_created',
+				'entity_table' => 'tbl_exams',
+				'entity_id' => (string)$examId,
+				'title' => $name,
+				'description' => 'Exam structure snapshot retained at creation',
+				'class_id' => $classId,
+				'owner_portal' => 'admin,academic,teacher',
+				'mime_type' => 'application/json',
+				'status' => 'retained',
+				'payload_json' => $examSnapshot,
+				'created_by' => (int)($createdBy ?? 0),
+			]);
+		}
 		$created++;
 	}
 

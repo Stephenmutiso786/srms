@@ -1,8 +1,12 @@
 <?php
 $schoolNameFromDb = '';
-$schoolLogoFromDb = 'school_logo1711003619.png';
+$schoolLogoFromDb = 'school_logo.png';
 $schoolResSysFromDb = 1;
 $schoolResAviFromDb = 1;
+$schoolHeadteacherNameFromDb = '';
+$schoolHeadteacherTitleFromDb = 'Headteacher';
+$schoolHeadteacherSignatureFromDb = '';
+$schoolStampFromDb = '';
 
 try
 {
@@ -11,14 +15,21 @@ $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
 $stmt = $conn->prepare("SELECT * FROM tbl_school LIMIT 1");
 $stmt->execute();
-$result = $stmt->fetchAll();
+$result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 foreach($result as $row)
 {
-	$schoolNameFromDb = (string)($row[1] ?? '');
-	$schoolLogoFromDb = (string)($row[2] ?? $schoolLogoFromDb);
-	$schoolResSysFromDb = (int)($row[3] ?? $schoolResSysFromDb);
-	$schoolResAviFromDb = (int)($row[4] ?? $schoolResAviFromDb);
+	$schoolNameFromDb = trim((string)($row['school_name'] ?? $row['name'] ?? ''));
+	$schoolLogoFromDb = trim((string)($row['school_logo'] ?? $row['logo'] ?? $schoolLogoFromDb));
+	$schoolResSysFromDb = (int)($row['res_system'] ?? $row['result_system'] ?? $schoolResSysFromDb);
+	$schoolResAviFromDb = (int)($row['res_avi'] ?? $row['allow_results'] ?? $schoolResAviFromDb);
 }
+
+	if (function_exists('app_setting_get')) {
+		$schoolHeadteacherNameFromDb = trim((string)app_setting_get($conn, 'headteacher_name', ''));
+		$schoolHeadteacherTitleFromDb = trim((string)app_setting_get($conn, 'headteacher_title', 'Headteacher'));
+		$schoolHeadteacherSignatureFromDb = trim((string)app_setting_get($conn, 'headteacher_signature_path', ''));
+		$schoolStampFromDb = trim((string)app_setting_get($conn, 'school_stamp_path', ''));
+	}
 
 }catch(PDOException $e)
 {
@@ -77,6 +88,9 @@ if (!defined('WBEmail')) {
 	try {
 		if (function_exists('app_setting_get')) {
 			$email = (string)app_setting_get($conn, 'school_email', '');
+			if (trim($email) === '') {
+				$email = (string)app_setting_get($conn, 'public_school_email', '');
+			}
 		}
 	} catch (Throwable $e) {
 		$email = '';
@@ -84,9 +98,14 @@ if (!defined('WBEmail')) {
 	DEFINE('WBEmail', $email);
 }
 
+if (!defined('WBHeadteacherName')) { DEFINE('WBHeadteacherName', $schoolHeadteacherNameFromDb); }
+if (!defined('WBHeadteacherTitle')) { DEFINE('WBHeadteacherTitle', $schoolHeadteacherTitleFromDb !== '' ? $schoolHeadteacherTitleFromDb : 'Headteacher'); }
+if (!defined('WBHeadteacherSignature')) { DEFINE('WBHeadteacherSignature', $schoolHeadteacherSignatureFromDb); }
+if (!defined('WBSchoolStamp')) { DEFINE('WBSchoolStamp', $schoolStampFromDb); }
+
 try {
 	if (!defined('WBLogo')) {
-		DEFINE('WBLogo', 'school_logo1711003619.png');
+		DEFINE('WBLogo', 'school_logo.png');
 	}
 	$logoFile = trim((string)WBLogo);
 	if ($logoFile !== '') {

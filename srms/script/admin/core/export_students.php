@@ -37,6 +37,11 @@ try {
 		}
 		$tbl .= '</tbody></table>';
 		$pdf->writeHTML($tbl, true, false, true, false, '');
+		app_pdf_draw_official_footer($pdf, [
+			'base_y' => $pdf->getPageHeight() - 24,
+			'date_value' => date('Y-m-d'),
+			'title' => 'Headteacher',
+		]);
 		$pdf->Output('students.pdf', 'D');
 		exit;
 	}

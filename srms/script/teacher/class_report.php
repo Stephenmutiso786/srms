@@ -14,6 +14,7 @@ $rows = [];
 $subjects = [];
 $termName = '';
 $className = '';
+$assessmentMode = 'normal';
 
 try {
 	$conn = app_db();
@@ -30,6 +31,7 @@ try {
 	$stmt = $conn->prepare("SELECT name FROM tbl_classes WHERE id = ? LIMIT 1");
 	$stmt->execute([$classId]);
 	$className = (string)$stmt->fetchColumn();
+	$assessmentMode = report_term_assessment_mode($conn, $classId, $termId);
 
 	$stmt = $conn->prepare("SELECT rc.id, rc.student_id, rc.mean, rc.grade,
 		st.fname, st.mname, st.lname, st.school_id
@@ -69,13 +71,18 @@ try {
 			if (!in_array($subjectName, $subjects, true)) {
 				$subjects[] = $subjectName;
 			}
-			$rowSubjects[$subjectName] = $subject['score'];
+			$rowSubjects[$subjectName] = report_subject_display_value($conn, (array)$subject, $assessmentMode);
 		}
 		$rows[] = [
 			'student_id' => (string)$card['student_id'],
 			'school_id' => (string)($card['school_id'] ?? ''),
 			'name' => trim(($card['fname'] ?? '') . ' ' . ($card['mname'] ?? '') . ' ' . ($card['lname'] ?? '')),
-			'mean' => $card['mean'],
+			'mean' => report_summary_mean_display_value(
+				$conn,
+				(float)($card['mean'] ?? 0),
+				$assessmentMode,
+				isset($cardRow['mean_points']) ? (float)$cardRow['mean_points'] : null
+			),
 			'grade' => $card['grade'],
 			'subjects' => $rowSubjects,
 		];
@@ -83,6 +90,9 @@ try {
 } catch (Throwable $e) {
 	$rows = [];
 }
+
+$usesPoints = report_assessment_mode_uses_points($assessmentMode);
+$averageLabel = $usesPoints ? 'Mean Points' : 'Average';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -121,7 +131,7 @@ try {
 <?php foreach ($subjects as $subjectName): ?>
 <th><?php echo htmlspecialchars($subjectName); ?></th>
 <?php endforeach; ?>
-<th>Average</th>
+<th><?php echo htmlspecialchars($averageLabel); ?></th>
 <th>Grade</th>
 </tr>
 </thead>
@@ -131,9 +141,9 @@ try {
 <td><?php echo htmlspecialchars($row['school_id'] ?: $row['student_id']); ?></td>
 <td><?php echo htmlspecialchars($row['name']); ?></td>
 <?php foreach ($subjects as $subjectName): ?>
-<td><?php echo isset($row['subjects'][$subjectName]) ? htmlspecialchars((string)$row['subjects'][$subjectName]) : '-'; ?></td>
+<td><?php echo isset($row['subjects'][$subjectName]) && $row['subjects'][$subjectName] !== null ? htmlspecialchars(number_format((float)$row['subjects'][$subjectName], $usesPoints ? 1 : 0)) : '-'; ?></td>
 <?php endforeach; ?>
-<td><?php echo htmlspecialchars((string)$row['mean']); ?>%</td>
+<td><?php echo htmlspecialchars(number_format((float)$row['mean'], 2)); ?><?php echo $usesPoints ? '' : '%'; ?></td>
 <td><?php echo htmlspecialchars($row['grade']); ?></td>
 </tr>
 <?php endforeach; ?>

@@ -3,8 +3,9 @@ chdir('../../');
 session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
+require_once('const/rbac.php');
 
-if (!isset($res) || $res !== "1" || !isset($level) || $level !== "2") {
+if (!isset($res) || $res !== "1" || !isset($level) || !in_array((string)$level, ['0', '1', '2', '9'], true)) {
 	header("location:../../");
 	exit;
 }
@@ -43,6 +44,11 @@ if ($classId < 1 || $sessionDate === '') {
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	if (!app_can_manage_student_attendance($conn, (string)$account_id, (string)$level)) {
+		$_SESSION['reply'] = array(array("error", "Student attendance is only available to admins and staff members who are currently allocated as class teachers."));
+		header("location:" . app_attendance_redirect_target($originPortal, $originPortal === 'admin' ? 'attendance_mark' : 'attendance'));
+		exit;
+	}
 
 	if (!app_table_exists($conn, 'tbl_attendance_sessions') || !app_table_exists($conn, 'tbl_attendance_records')) {
 		$_SESSION['reply'] = array(array("error", "Attendance tables are not installed. Run the Postgres migration 001_rbac_attendance.sql."));
@@ -50,7 +56,7 @@ try {
 		exit;
 	}
 
-	if (!app_staff_is_active_class_teacher($conn, (int)$account_id, $classId)) {
+	if (!app_is_attendance_admin_level((string)$level) && !app_staff_is_active_class_teacher($conn, (int)$account_id, $classId)) {
 		$_SESSION['reply'] = array(array("error", "Only the assigned class teacher can start class attendance for this class."));
 		header("location:" . app_attendance_redirect_target($originPortal, $originPortal === 'admin' ? 'attendance_mark' : 'attendance'));
 		exit;
@@ -65,6 +71,24 @@ try {
 		$stmt = $conn->prepare("INSERT INTO tbl_attendance_sessions (class_id, term_id, session_date, session_type, subject_id, created_by) VALUES (?,?,?,?,?,?)");
 		$stmt->execute([$classId, $termId, $sessionDate, 'daily', null, (int)$account_id]);
 		$sessionId = (int)$conn->lastInsertId();
+		$attendanceSnapshot = app_attendance_session_archive_payload($conn, $sessionId);
+		if ($attendanceSnapshot) {
+			$sessionMeta = (array)($attendanceSnapshot['session'] ?? []);
+			app_data_camp_store_event($conn, [
+				'module_key' => 'attendance',
+				'record_type' => 'attendance_session_created',
+				'entity_table' => 'tbl_attendance_sessions',
+				'entity_id' => (string)$sessionId,
+				'title' => 'Attendance Session ' . $sessionDate,
+				'description' => 'Attendance session snapshot retained at creation',
+				'class_id' => (int)($sessionMeta['class_id'] ?? 0) > 0 ? (int)$sessionMeta['class_id'] : $classId,
+				'owner_portal' => 'admin,academic,teacher',
+				'mime_type' => 'application/json',
+				'status' => 'retained',
+				'payload_json' => $attendanceSnapshot,
+				'created_by' => (int)$account_id,
+			]);
+		}
 	}
 
 	app_audit_log($conn, 'staff', (string)$account_id, 'attendance.session.create', 'attendance_session', (string)$sessionId);

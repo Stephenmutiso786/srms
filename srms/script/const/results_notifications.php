@@ -1,9 +1,9 @@
 <?php
-require_once('db/config.php');
-require_once('const/report_engine.php');
-require_once('const/report_pdf_template.php');
-require_once('const/notify.php');
-require_once('tcpdf/tcpdf.php');
+require_once(__DIR__ . '/../db/config.php');
+require_once(__DIR__ . '/report_engine.php');
+require_once(__DIR__ . '/report_pdf_template.php');
+require_once(__DIR__ . '/notify.php');
+require_once(__DIR__ . '/../tcpdf/tcpdf.php');
 
 function app_results_competency_summary(PDO $conn, string $studentId, int $classId, int $termId): array
 {
@@ -42,8 +42,18 @@ function app_results_competency_summary(PDO $conn, string $studentId, int $class
     return $rows;
 }
 
-function app_results_status_from_mean(float $mean, string $className): array
+function app_results_status_from_mean(float $mean, string $className, string $termName = ''): array
 {
+    $normalizedTerm = strtoupper(trim($termName));
+    $isFinalTerm = strpos($normalizedTerm, 'TERM THREE') !== false || strpos($normalizedTerm, 'TERM 3') !== false || strpos($normalizedTerm, 'THIRD TERM') !== false;
+
+    if (!$isFinalTerm) {
+        if ($mean >= 40.0) {
+            return ['status' => 'RESULT RELEASED', 'recommendation' => ''];
+        }
+        return ['status' => 'RESULT RELEASED', 'recommendation' => ''];
+    }
+
     if ($mean >= 40.0) {
         if (stripos($className, '6') !== false) {
             return ['status' => 'PROMOTED to JSS', 'recommendation' => ''];
@@ -60,8 +70,8 @@ function app_results_sms_message(array $ctx): string
     $lines[] = $ctx['school_name'];
     $lines[] = 'Student: ' . $ctx['student_name'];
     $lines[] = 'Class: ' . $ctx['class_name'];
-    $lines[] = 'Mean Score: ' . number_format((float)$ctx['mean'], 0) . '% (' . $ctx['grade'] . ')';
-    $lines[] = 'Position: ' . $ctx['position'] . '/' . $ctx['total_students'];
+    $lines[] = 'CBE Mean: ' . number_format((float)$ctx['cbe_mean'], 2);
+    $lines[] = 'Overall Grade: ' . $ctx['grade'];
 
     if (!empty($ctx['competencies'])) {
         $lines[] = 'Competencies:';
@@ -74,8 +84,9 @@ function app_results_sms_message(array $ctx): string
     if ($ctx['recommendation'] !== '') {
         $lines[] = $ctx['recommendation'];
     }
-    if ($ctx['portal_url'] !== '') {
-        $lines[] = 'Portal: ' . $ctx['portal_url'];
+    $portalUrl = isset($ctx['portal_url']) ? (string)$ctx['portal_url'] : '';
+    if ($portalUrl !== '') {
+        $lines[] = 'Portal: ' . $portalUrl;
     }
 
     $msg = implode("\n", $lines);
@@ -84,8 +95,8 @@ function app_results_sms_message(array $ctx): string
             $ctx['school_name'],
             'Student: ' . $ctx['student_name'],
             'Class: ' . $ctx['class_name'],
-            'Mean: ' . number_format((float)$ctx['mean'], 0) . '% (' . $ctx['grade'] . ')',
-            'Position: ' . $ctx['position'] . '/' . $ctx['total_students'],
+            'CBE Mean: ' . number_format((float)$ctx['cbe_mean'], 2),
+            'Grade: ' . $ctx['grade'],
             'Status: ' . $ctx['status'],
             'Check portal/email for full details.'
         ]);
@@ -94,8 +105,34 @@ function app_results_sms_message(array $ctx): string
     return $msg;
 }
 
+function app_results_whatsapp_message(array $ctx): string
+{
+    $headteacherTitle = trim((string)($ctx['headteacher_title'] ?? 'Headteacher'));
+    $lines = [];
+    $lines[] = $ctx['school_name'];
+    $lines[] = 'Official Report Card Notice';
+    $lines[] = 'Dear Parent,';
+    $lines[] = 'Student: ' . $ctx['student_name'];
+    $lines[] = 'Admission No: ' . $ctx['school_id'];
+    $lines[] = 'Class: ' . $ctx['class_name'];
+    $lines[] = 'Term: ' . $ctx['term_name'];
+    $lines[] = 'CBE Mean: ' . number_format((float)$ctx['cbe_mean'], 2);
+    $lines[] = 'Overall Grade: ' . $ctx['grade'];
+    $lines[] = 'Status: ' . $ctx['status'];
+    if ($ctx['recommendation'] !== '') {
+        $lines[] = $ctx['recommendation'];
+    }
+    $lines[] = 'Please find the attached official report card PDF.';
+    $lines[] = 'Regards,';
+    $lines[] = $headteacherTitle;
+    $lines[] = $ctx['school_name'];
+
+    return implode("\n", $lines);
+}
+
 function app_results_email_html(array $ctx): string
 {
+    $headteacherTitle = trim((string)($ctx['headteacher_title'] ?? 'Headteacher'));
     $competencyHtml = '';
     if (!empty($ctx['competencies'])) {
         $competencyHtml .= '<p><strong>CBE Competencies:</strong></p><ul>';
@@ -120,14 +157,14 @@ function app_results_email_html(array $ctx): string
         . 'Class: ' . htmlspecialchars($ctx['class_name']) . '<br>'
         . 'Admission No: ' . htmlspecialchars($ctx['school_id']) . '</p>'
         . '<p><strong>Academic Performance:</strong><br>'
-        . 'Mean Score: ' . number_format((float)$ctx['mean'], 2) . '% (' . htmlspecialchars($ctx['grade']) . ')<br>'
-        . 'Position: ' . (int)$ctx['position'] . ' out of ' . (int)$ctx['total_students'] . ' students</p>'
+        . 'CBE Mean Points: ' . number_format((float)$ctx['cbe_mean'], 2) . '<br>'
+        . 'Overall Grade: ' . htmlspecialchars($ctx['grade']) . '</p>'
         . $competencyHtml
         . '<p><strong>Final Decision:</strong><br>' . htmlspecialchars($ctx['status']) . '</p>'
         . $recommendationHtml
         . $portalHtml
         . '<p>Attachments:<br>1. Report Card PDF<br>2. Progress Summary</p>'
-        . '<p>Regards,<br>Headteacher<br>' . htmlspecialchars($ctx['school_name']) . '</p>';
+        . '<p>Regards,<br>' . htmlspecialchars($headteacherTitle) . '<br>' . htmlspecialchars($ctx['school_name']) . '</p>';
 }
 
 function app_results_temp_report_pdf(PDO $conn, array $ctx): ?array
@@ -154,7 +191,12 @@ function app_results_temp_report_pdf(PDO $conn, array $ctx): ?array
         ]);
         $pdf->Output($tmpPath, 'F');
 
-        return ['path' => $tmpPath, 'name' => 'ReportCard-' . preg_replace('/[^A-Za-z0-9_-]/', '', $ctx['school_id']) . '.pdf'];
+        $studentToken = preg_replace('/[^A-Za-z0-9_-]+/', '_', (string)($ctx['student_name'] ?? $ctx['school_id']));
+        $classToken = preg_replace('/[^A-Za-z0-9_-]+/', '_', (string)($ctx['class_name'] ?? 'Class'));
+        $termToken = preg_replace('/[^A-Za-z0-9_-]+/', '_', (string)($ctx['term_name'] ?? 'Term'));
+        $yearToken = preg_replace('/[^A-Za-z0-9_-]+/', '', (string)date('Y'));
+
+        return ['path' => $tmpPath, 'name' => $studentToken . '_' . $classToken . '_' . $termToken . '_' . $yearToken . '_Report.pdf'];
     } catch (Throwable $e) {
         return null;
     }
@@ -179,6 +221,7 @@ function app_results_delivery_report_html(array $stats): string
     $html = '<div style="text-align:left; line-height:1.5">';
     $html .= '<p><strong>Delivery Summary</strong><br>'
         . 'SMS Sent: ' . (int)($stats['sent_sms'] ?? 0) . ', SMS Failed: ' . (int)($stats['failed_sms'] ?? 0) . '<br>'
+        . 'WhatsApp Sent: ' . (int)($stats['sent_whatsapp'] ?? 0) . ', WhatsApp Failed: ' . (int)($stats['failed_whatsapp'] ?? 0) . '<br>'
         . 'Email Sent: ' . (int)($stats['sent_email'] ?? 0) . ', Email Failed: ' . (int)($stats['failed_email'] ?? 0) . '<br>'
         . 'Missing Contacts: ' . (int)($stats['missing_contacts'] ?? 0) . '<br>'
         . 'Fees Not Cleared: ' . (int)($stats['skipped_fees'] ?? 0) . '</p>';
@@ -229,7 +272,7 @@ function app_results_delivery_report_html(array $stats): string
 function app_results_send_notifications(PDO $conn, int $examId, string $channel = 'both'): array
 {
     $channel = strtolower(trim($channel));
-    if (!in_array($channel, ['sms', 'email', 'both'], true)) {
+    if (!in_array($channel, ['sms', 'email', 'whatsapp', 'both', 'all'], true)) {
         $channel = 'both';
     }
 
@@ -281,9 +324,12 @@ function app_results_send_notifications(PDO $conn, int $examId, string $channel 
 
     $portalBase = rtrim(app_base_url(), '/');
     $schoolName = defined('WBName') ? (string)WBName : (defined('APP_NAME') ? (string)APP_NAME : 'School');
+    $headteacherTitle = defined('WBHeadteacherTitle') ? trim((string)WBHeadteacherTitle) : 'Headteacher';
 
     $sentSms = 0;
     $failedSms = 0;
+    $sentWhatsapp = 0;
+    $failedWhatsapp = 0;
     $sentEmail = 0;
     $failedEmail = 0;
     $missingContacts = 0;
@@ -316,9 +362,14 @@ function app_results_send_notifications(PDO $conn, int $examId, string $channel 
 
         $attendance = report_attendance_summary($conn, $studentId, $classId, $termId);
         $competencies = app_results_competency_summary($conn, $studentId, $classId, $termId);
-        $statusPack = app_results_status_from_mean((float)($card['mean'] ?? 0), (string)($exam['class_name'] ?? 'Class'));
+        $statusPack = app_results_status_from_mean(
+            (float)($card['mean'] ?? 0),
+            (string)($exam['class_name'] ?? 'Class'),
+            (string)($exam['term_name'] ?? '')
+        );
 
         $resultUrl = $portalBase !== '' ? ($portalBase . '/verify_report?code=' . urlencode((string)($card['verification_code'] ?? ''))) : '';
+        $pdfUrl = $portalBase !== '' ? ($portalBase . '/verify_report_pdf?code=' . urlencode((string)($card['verification_code'] ?? ''))) : '';
 
         $ctx = [
             'school_name' => $schoolName,
@@ -328,12 +379,15 @@ function app_results_send_notifications(PDO $conn, int $examId, string $channel 
             'class_name' => (string)($exam['class_name'] ?? 'Class'),
             'term_name' => (string)($exam['term_name'] ?? 'Term'),
             'mean' => (float)($card['mean'] ?? 0),
+            'cbe_mean' => isset($card['mean_points']) ? (float)$card['mean_points'] : (float)($card['mean'] ?? 0),
             'grade' => (string)($card['grade'] ?? 'N/A'),
             'position' => (int)($card['position'] ?? 0),
             'total_students' => (int)($card['total_students'] ?? 0),
             'status' => $statusPack['status'],
             'recommendation' => $statusPack['recommendation'],
             'portal_url' => $resultUrl,
+            'pdf_url' => $pdfUrl,
+            'headteacher_title' => $headteacherTitle,
             'competencies' => $competencies,
             'attendance' => $attendance,
             'fees_balance' => $feesBalance,
@@ -363,16 +417,20 @@ function app_results_send_notifications(PDO $conn, int $examId, string $channel 
         if ($studentEmail !== '') { $emailTargets[] = $studentEmail; }
         if (empty($emailTargets) && $studentEmail !== '') { $emailTargets[] = $studentEmail; }
 
-        if (($channel === 'sms' || $channel === 'both') && empty($smsTargets) && ($channel !== 'email')) {
+        if (($channel === 'sms') && empty($smsTargets)) {
             $missingContacts++;
             app_results_record_delivery($failed, 'sms', 'N/A', $studentName, 'failed', 'No SMS contact found for parent or student');
         }
-        if (($channel === 'email' || $channel === 'both') && empty($emailTargets) && ($channel !== 'sms')) {
+        if (($channel === 'whatsapp' || $channel === 'both' || $channel === 'all') && empty($smsTargets)) {
+            $missingContacts++;
+            app_results_record_delivery($failed, 'whatsapp', 'N/A', $studentName, 'failed', 'No WhatsApp contact found for parent or student');
+        }
+        if (($channel === 'email' || $channel === 'both' || $channel === 'all') && empty($emailTargets)) {
             $missingContacts++;
             app_results_record_delivery($failed, 'email', 'N/A', $studentName, 'failed', 'No email contact found for parent or student');
         }
 
-        if ($channel === 'sms' || $channel === 'both') {
+        if ($channel === 'sms' || $channel === 'all') {
             $smsMessage = app_results_sms_message($ctx);
             $sentMap = [];
             foreach ($smsTargets as $to) {
@@ -390,7 +448,62 @@ function app_results_send_notifications(PDO $conn, int $examId, string $channel 
             }
         }
 
-        if ($channel === 'email' || $channel === 'both') {
+        if ($channel === 'whatsapp' || $channel === 'both' || $channel === 'all') {
+            $whatsAppMessage = app_results_whatsapp_message($ctx);
+            $sentMap = [];
+            $attachment = app_results_temp_report_pdf($conn, $ctx);
+            if (!$attachment || !isset($attachment['path']) || !is_file((string)$attachment['path'])) {
+                foreach ($smsTargets as $to) {
+                    $key = 'whatsapp:' . $to;
+                    if (isset($sentMap[$key])) { continue; }
+                    $sentMap[$key] = true;
+                    $failedWhatsapp++;
+                    app_results_record_delivery($failed, 'whatsapp', $to, $studentName, 'failed', 'Unable to generate the report PDF attachment');
+                }
+            } else {
+                foreach ($smsTargets as $to) {
+                    $key = 'whatsapp:' . $to;
+                    if (isset($sentMap[$key])) { continue; }
+                    $sentMap[$key] = true;
+                    $targetRole = ($parentPhone !== '' && app_normalize_phone_number($to, (string)(getenv('APP_DEFAULT_COUNTRY_CODE') ?: '254')) === app_normalize_phone_number($parentPhone, (string)(getenv('APP_DEFAULT_COUNTRY_CODE') ?: '254')))
+                        ? 'parent'
+                        : 'student';
+                    $result = app_send_whatsapp_document(
+                        $conn,
+                        $to,
+                        $whatsAppMessage,
+                        (string)$attachment['path'],
+                        (string)($attachment['name'] ?? ''),
+                        [
+                            'entity_type' => 'result_notification',
+                            'exam_id' => (int)($exam['id'] ?? 0),
+                            'student_id' => $studentId,
+                            'student_name' => $studentName,
+                            'school_id' => $schoolId,
+                            'class_id' => $classId,
+                            'term_id' => $termId,
+                            'term_name' => (string)($exam['term_name'] ?? ''),
+                            'channel' => 'whatsapp',
+                            'target_role' => $targetRole,
+                            'cbe_mean' => isset($ctx['cbe_mean']) ? (float)$ctx['cbe_mean'] : null,
+                            'grade' => (string)($ctx['grade'] ?? ''),
+                        ]
+                    );
+                    if (!empty($result['ok'])) {
+                        $sentWhatsapp++;
+                        app_results_record_delivery($delivered, 'whatsapp', $to, $studentName, 'delivered', 'Sent successfully');
+                    } else {
+                        $failedWhatsapp++;
+                        app_results_record_delivery($failed, 'whatsapp', $to, $studentName, 'failed', (string)($result['error'] ?? 'WhatsApp send failed'));
+                    }
+                }
+            }
+            if ($attachment && isset($attachment['path']) && is_file((string)$attachment['path'])) {
+                @unlink((string)$attachment['path']);
+            }
+        }
+
+        if ($channel === 'email' || $channel === 'both' || $channel === 'all') {
             $emailSubject = 'Academic Results - ' . $schoolName;
             $emailHtml = app_results_email_html($ctx);
             $attachment = app_results_temp_report_pdf($conn, $ctx);
@@ -425,6 +538,8 @@ function app_results_send_notifications(PDO $conn, int $examId, string $channel 
     return [
         'sent_sms' => $sentSms,
         'failed_sms' => $failedSms,
+        'sent_whatsapp' => $sentWhatsapp,
+        'failed_whatsapp' => $failedWhatsapp,
         'sent_email' => $sentEmail,
         'failed_email' => $failedEmail,
         'missing_contacts' => $missingContacts,
@@ -433,4 +548,160 @@ function app_results_send_notifications(PDO $conn, int $examId, string $channel 
         'delivered' => $delivered,
         'failed' => $failed,
     ];
+}
+
+function app_results_resend_single_whatsapp(PDO $conn, int $examId, string $studentId, string $recipient = ''): array
+{
+    $stmt = $conn->prepare('SELECT e.id, e.status, e.class_id, e.term_id, e.name, e.assessment_mode, c.name AS class_name, t.name AS term_name
+        FROM tbl_exams e
+        LEFT JOIN tbl_classes c ON c.id = e.class_id
+        LEFT JOIN tbl_terms t ON t.id = e.term_id
+        WHERE e.id = ? LIMIT 1');
+    $stmt->execute([$examId]);
+    $exam = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$exam) {
+        return ['ok' => false, 'error' => 'Exam not found.'];
+    }
+
+    $classId = (int)($exam['class_id'] ?? 0);
+    $termId = (int)($exam['term_id'] ?? 0);
+    if ($classId < 1 || $termId < 1) {
+        return ['ok' => false, 'error' => 'Exam class/term missing.'];
+    }
+
+    $sql = 'SELECT s.id, s.school_id, s.fname, s.mname, s.lname';
+    if (app_column_exists($conn, 'tbl_students', 'phone')) { $sql .= ', s.phone AS student_phone'; }
+    if (app_column_exists($conn, 'tbl_students', 'email')) { $sql .= ', s.email AS student_email'; }
+    if (app_table_exists($conn, 'tbl_parent_students') && app_table_exists($conn, 'tbl_parents')) {
+        if (app_column_exists($conn, 'tbl_parents', 'phone')) {
+            $sql .= ', (SELECT p.phone FROM tbl_parent_students ps JOIN tbl_parents p ON p.id = ps.parent_id WHERE ps.student_id = s.id LIMIT 1) AS parent_phone';
+        }
+        if (app_column_exists($conn, 'tbl_parents', 'email')) {
+            $sql .= ', (SELECT p.email FROM tbl_parent_students ps JOIN tbl_parents p ON p.id = ps.parent_id WHERE ps.student_id = s.id LIMIT 1) AS parent_email';
+        }
+    }
+    $sql .= ' FROM tbl_students s WHERE s.class = ? AND s.id = ? LIMIT 1';
+
+    $stmt = $conn->prepare($sql);
+    $stmt->execute([$classId, $studentId]);
+    $student = $stmt->fetch(PDO::FETCH_ASSOC);
+    if (!$student) {
+        return ['ok' => false, 'error' => 'Student not found for this exam class.'];
+    }
+
+    $settings = report_get_settings($conn);
+    $requireFeesClear = ((int)($settings['require_fees_clear'] ?? 0) === 1);
+
+    $card = report_ensure_card_generated($conn, $studentId, $classId, $termId);
+    if (!$card) {
+        return ['ok' => false, 'error' => 'Report card is not available yet.'];
+    }
+
+    $feesBalance = report_fees_balance($conn, $studentId, $termId);
+    if ($requireFeesClear && $feesBalance > 0) {
+        return ['ok' => false, 'error' => 'Fees clearance is required before sending this result.'];
+    }
+
+    $studentName = trim((string)($student['fname'] ?? '') . ' ' . (string)($student['mname'] ?? '') . ' ' . (string)($student['lname'] ?? ''));
+    $schoolId = trim((string)($student['school_id'] ?? ''));
+    if ($schoolId === '') {
+        $schoolId = $studentId;
+    }
+
+    $attendance = report_attendance_summary($conn, $studentId, $classId, $termId);
+    $competencies = app_results_competency_summary($conn, $studentId, $classId, $termId);
+    $statusPack = app_results_status_from_mean(
+        (float)($card['mean'] ?? 0),
+        (string)($exam['class_name'] ?? 'Class'),
+        (string)($exam['term_name'] ?? '')
+    );
+
+    $portalBase = rtrim(app_base_url(), '/');
+    $schoolName = defined('WBName') ? (string)WBName : (defined('APP_NAME') ? (string)APP_NAME : 'School');
+    $headteacherTitle = defined('WBHeadteacherTitle') ? trim((string)WBHeadteacherTitle) : 'Headteacher';
+
+    $ctx = [
+        'school_name' => $schoolName,
+        'student_id' => $studentId,
+        'student_name' => $studentName,
+        'school_id' => $schoolId,
+        'class_name' => (string)($exam['class_name'] ?? 'Class'),
+        'term_name' => (string)($exam['term_name'] ?? 'Term'),
+        'mean' => (float)($card['mean'] ?? 0),
+        'cbe_mean' => isset($card['mean_points']) ? (float)$card['mean_points'] : (float)($card['mean'] ?? 0),
+        'grade' => (string)($card['grade'] ?? 'N/A'),
+        'status' => $statusPack['status'],
+        'recommendation' => $statusPack['recommendation'],
+        'portal_url' => $portalBase !== '' ? ($portalBase . '/verify_report?code=' . urlencode((string)($card['verification_code'] ?? ''))) : '',
+        'pdf_url' => $portalBase !== '' ? ($portalBase . '/verify_report_pdf?code=' . urlencode((string)($card['verification_code'] ?? ''))) : '',
+        'headteacher_title' => $headteacherTitle,
+        'competencies' => $competencies,
+        'attendance' => $attendance,
+        'fees_balance' => $feesBalance,
+        'card' => $card,
+        'exam_summary' => [
+            'exam_id' => (int)($exam['id'] ?? 0),
+            'exam_name' => (string)($exam['name'] ?? ''),
+            'assessment_mode' => (string)($exam['assessment_mode'] ?? 'normal'),
+            'status' => (string)($exam['status'] ?? ''),
+        ],
+    ];
+
+    $targets = [];
+    $parentPhone = trim((string)($student['parent_phone'] ?? ''));
+    $studentPhone = trim((string)($student['student_phone'] ?? ''));
+    if ($recipient !== '') {
+        $targets[] = $recipient;
+    } else {
+        if ($parentPhone !== '') { $targets[] = $parentPhone; }
+        if ($studentPhone !== '') { $targets[] = $studentPhone; }
+    }
+    $targets = array_values(array_unique(array_filter($targets)));
+    if (empty($targets)) {
+        return ['ok' => false, 'error' => 'No WhatsApp contact found for this student.'];
+    }
+
+    $attachment = app_results_temp_report_pdf($conn, $ctx);
+    if (!$attachment || !isset($attachment['path']) || !is_file((string)$attachment['path'])) {
+        return ['ok' => false, 'error' => 'Unable to generate the report PDF attachment.'];
+    }
+
+    $message = app_results_whatsapp_message($ctx);
+    $lastResult = ['ok' => false, 'error' => 'No send attempted.'];
+    foreach ($targets as $to) {
+        $targetRole = ($parentPhone !== '' && app_normalize_phone_number($to, (string)(getenv('APP_DEFAULT_COUNTRY_CODE') ?: '254')) === app_normalize_phone_number($parentPhone, (string)(getenv('APP_DEFAULT_COUNTRY_CODE') ?: '254')))
+            ? 'parent'
+            : 'student';
+        $lastResult = app_send_whatsapp_document(
+            $conn,
+            $to,
+            $message,
+            (string)$attachment['path'],
+            (string)($attachment['name'] ?? ''),
+            [
+                'entity_type' => 'result_notification',
+                'exam_id' => (int)($exam['id'] ?? 0),
+                'student_id' => $studentId,
+                'student_name' => $studentName,
+                'school_id' => $schoolId,
+                'class_id' => $classId,
+                'term_id' => $termId,
+                'term_name' => (string)($exam['term_name'] ?? ''),
+                'channel' => 'whatsapp',
+                'target_role' => $targetRole,
+                'retry' => true,
+                'cbe_mean' => isset($ctx['cbe_mean']) ? (float)$ctx['cbe_mean'] : null,
+                'grade' => (string)($ctx['grade'] ?? ''),
+            ]
+        );
+        if (!empty($lastResult['ok'])) {
+            break;
+        }
+    }
+
+    if (isset($attachment['path']) && is_file((string)$attachment['path'])) {
+        @unlink((string)$attachment['path']);
+    }
+
+    return $lastResult;
 }

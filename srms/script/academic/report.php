@@ -9,6 +9,23 @@ require_once('const/rbac.php');
 if ($res == "1" && $level == "1") {}else{header("location:../");}
 app_require_permission('report.generate', 'academic');
 app_require_unlocked('reports', 'academic');
+
+$classOptions = [];
+$termOptions = [];
+try {
+	$conn = app_db();
+	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+	$stmt = $conn->prepare("SELECT id, name FROM tbl_classes ORDER BY name");
+	$stmt->execute();
+	$classOptions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+	$stmt = $conn->prepare("SELECT id, name FROM tbl_terms WHERE status = '1' ORDER BY id");
+	$stmt->execute();
+	$termOptions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+	error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -63,28 +80,9 @@ app_require_unlocked('reports', 'academic');
 <label class="form-label">Select Class</label>
 <select class="form-control select2" name="student" id="reportClassSelect" required style="width: 100%;" onchange="loadPublishedExams('reportClassSelect','reportTermSelect','reportExamSelect');">
 <option value="" selected disabled> Select One</option>
-<?php
-try {
-$conn = app_db();
-$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-$stmt = $conn->prepare("SELECT * FROM tbl_classes");
-$stmt->execute();
-$result = $stmt->fetchAll();
-
-foreach($result as $row)
-{
-?>
-<option value="<?php echo $row[0]; ?>"><?php echo $row[1]; ?> </option>
-<?php
-}
-
-}catch(PDOException $e)
-{
-error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
-echo "Connection failed.";
-}
-?>
+<?php foreach($classOptions as $row) { ?>
+<option value="<?php echo (int)($row['id'] ?? 0); ?>"><?php echo htmlspecialchars((string)($row['name'] ?? '')); ?> </option>
+<?php } ?>
 </select>
 </div>
 
@@ -92,28 +90,9 @@ echo "Connection failed.";
 <label class="form-label">Select Term</label>
 <select class="form-control select2" name="term" id="reportTermSelect" required style="width: 100%;" onchange="loadPublishedExams('reportClassSelect','reportTermSelect','reportExamSelect');">
 <option selected disabled value="">Select One</option>
-<?php
-try {
-$conn = app_db();
-$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-$stmt = $conn->prepare("SELECT * FROM tbl_terms WHERE status = '1'");
-$stmt->execute();
-$result = $stmt->fetchAll();
-
-foreach($result as $row)
-{
-?>
-<option value="<?php echo $row[0]; ?>"><?php echo $row[1]; ?> </option>
-<?php
-}
-
-}catch(PDOException $e)
-{
-error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
-echo "Connection failed.";
-}
-?>
+<?php foreach($termOptions as $row) { ?>
+<option value="<?php echo (int)($row['id'] ?? 0); ?>"><?php echo htmlspecialchars((string)($row['name'] ?? '')); ?> </option>
+<?php } ?>
 </select>
 </div>
 
@@ -146,19 +125,9 @@ echo "Connection failed.";
 <label class="form-label">Select Class</label>
 <select class="form-control select2" name="class" id="classPdfClassSelect" required style="width: 100%;" onchange="loadPublishedExams('classPdfClassSelect','classPdfTermSelect','classPdfExamSelect');">
 <option value="" selected disabled> Select One</option>
-<?php
-try {
-$stmt = $conn->prepare("SELECT * FROM tbl_classes");
-$stmt->execute();
-$result = $stmt->fetchAll();
-foreach($result as $row)
-{
-?>
-<option value="<?php echo $row[0]; ?>"><?php echo $row[1]; ?> </option>
-<?php
-}
-} catch(Throwable $e) {}
-?>
+<?php foreach($classOptions as $row) { ?>
+<option value="<?php echo (int)($row['id'] ?? 0); ?>"><?php echo htmlspecialchars((string)($row['name'] ?? '')); ?> </option>
+<?php } ?>
 </select>
 </div>
 
@@ -166,19 +135,9 @@ foreach($result as $row)
 <label class="form-label">Select Term</label>
 <select class="form-control select2" name="term" id="classPdfTermSelect" required style="width: 100%;" onchange="loadPublishedExams('classPdfClassSelect','classPdfTermSelect','classPdfExamSelect');">
 <option selected disabled value="">Select One</option>
-<?php
-try {
-$stmt = $conn->prepare("SELECT * FROM tbl_terms WHERE status = '1'");
-$stmt->execute();
-$result = $stmt->fetchAll();
-foreach($result as $row)
-{
-?>
-<option value="<?php echo $row[0]; ?>"><?php echo $row[1]; ?> </option>
-<?php
-}
-} catch(Throwable $e) {}
-?>
+<?php foreach($termOptions as $row) { ?>
+<option value="<?php echo (int)($row['id'] ?? 0); ?>"><?php echo htmlspecialchars((string)($row['name'] ?? '')); ?> </option>
+<?php } ?>
 </select>
 </div>
 

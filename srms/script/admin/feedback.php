@@ -14,6 +14,7 @@ $statusFilter = trim((string)($_GET['status'] ?? 'all'));
 $rows = [];
 $summary = ['open' => 0, 'resolved' => 0, 'answered' => 0, 'total' => 0];
 $edubotStats = ['messages' => 0, 'actors' => 0];
+$aiMeta = ['provider' => 'Internal Edu AI', 'model' => 'Built-in fallback', 'enabled' => false];
 
 try {
 	$conn = app_db();
@@ -57,6 +58,14 @@ try {
       $edubotStats['actors'] = (int)$stmt->fetchColumn();
     }
   }
+	$provider = strtolower(trim(app_setting_get($conn, 'ai_provider', 'gemini')));
+	$model = trim(app_setting_get($conn, 'ai_model', $provider === 'gemini' ? 'gemini-2.0-flash' : 'gpt-4o-mini'));
+	$key = trim(app_setting_get($conn, 'ai_api_key', ''));
+	$aiMeta = [
+		'provider' => $provider === 'gemini' ? 'Google Gemini' : ($provider === 'openai' ? 'OpenAI' : 'Internal Edu AI'),
+		'model' => $model !== '' ? $model : 'Built-in fallback',
+		'enabled' => app_setting_get($conn, 'ai_enabled', '1') === '1' && $key !== '',
+	];
 } catch (Throwable $e) {
 	error_log("[".__FILE__.":".__LINE__." Throwable] " . $e->getMessage());
 }
@@ -125,31 +134,58 @@ try {
 <main class="app-content">
 <div class="app-title">
 <div>
-<h1>Edu Bot & Feedback</h1>
-<p class="mb-0 text-muted">Chat with Edu Bot, review memory-backed conversations, and manage feedback in one place.</p>
+<h1>Edu AI & Feedback</h1>
+<p class="mb-0 text-muted">Chat with the upgraded Edu AI workbench, review memory-backed conversations, and manage feedback in one place.</p>
 </div>
 </div>
 
 <div class="bot-shell">
   <div class="bot-shell__header">
     <div>
-      <div class="bot-shell__title">Edu Bot</div>
-      <div class="bot-shell__meta">Memory-backed school assistant for reports, attendance, CBE points, and analytics.</div>
+      <div class="bot-shell__title">Edu AI Workbench</div>
+      <div class="bot-shell__meta">Gemini-ready school assistant for report comments, exams, lesson plans, attendance, fees, discipline, translation, and analytics.</div>
     </div>
-    <div class="bot-shell__pill"><i class="bi bi-chat-dots"></i> <?php echo (int)$edubotStats['messages']; ?> stored messages • <?php echo (int)$edubotStats['actors']; ?> users</div>
+    <div class="bot-shell__pill"><i class="bi bi-chat-dots"></i> <?php echo (int)$edubotStats['messages']; ?> stored messages • <?php echo (int)$edubotStats['actors']; ?> users • <?php echo htmlspecialchars($aiMeta['provider']); ?><?php echo $aiMeta['enabled'] ? ' • ' . htmlspecialchars($aiMeta['model']) : ' • fallback only'; ?></div>
   </div>
   <div class="bot-chat">
     <div id="botHistory" class="bot-history" aria-live="polite"></div>
     <div id="botTyping" class="bot-typing d-none"><span>Edu Bot is typing</span><span class="bot-dots"><span></span><span></span><span></span></span></div>
     <div class="bot-quick">
-      <button type="button" data-bot-prompt="Top 5 students">Top students</button>
-      <button type="button" data-bot-prompt="Weak students">Weak students</button>
-      <button type="button" data-bot-prompt="Class performance">Class performance</button>
-      <button type="button" data-bot-prompt="Attendance summary">Attendance summary</button>
-      <button type="button" data-bot-prompt="Explain CBE points and grades">CBE help</button>
+      <button type="button" data-bot-tool="report_comments" data-bot-prompt="Generate CBC report comments for a learner who is strong in Science but inconsistent in Languages.">Report comments</button>
+      <button type="button" data-bot-tool="exam_generator" data-bot-prompt="Generate Grade 7 integrated science CBC questions on the digestive system.">Exam generator</button>
+      <button type="button" data-bot-tool="lesson_plan" data-bot-prompt="Create a Grade 3 CBC lesson plan for reading comprehension.">Lesson plan</button>
+      <button type="button" data-bot-tool="attendance_analysis" data-bot-prompt="Analyse attendance trends and suggest interventions for recurring absences.">Attendance analysis</button>
+      <button type="button" data-bot-tool="discipline_letter" data-bot-prompt="Draft a discipline letter for a learner repeatedly coming late to school.">Discipline letter</button>
+      <button type="button" data-bot-tool="translation" data-bot-prompt="Translate this into Swahili: Dear parent, your child has shown great improvement this term.">Translation</button>
+    </div>
+    <div class="row g-2 mt-2">
+      <div class="col-md-6">
+        <label class="form-label">AI Tool</label>
+        <select id="botTool" class="form-control">
+          <option value="general">General Assistant</option>
+          <option value="report_comments">Report Comments</option>
+          <option value="exam_generator">Exam Generator</option>
+          <option value="lesson_plan">Lesson Plan</option>
+          <option value="performance_analysis">Performance Analysis</option>
+          <option value="attendance_analysis">Attendance Analysis</option>
+          <option value="discipline_letter">Discipline Letter</option>
+          <option value="fee_reminder">Fee Reminder</option>
+          <option value="translation">Translate EN/Sw</option>
+          <option value="assignment_generator">Assignment Generator</option>
+          <option value="grading_assistance">Grading Help</option>
+          <option value="timetable_suggestions">Timetable Suggestions</option>
+        </select>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Response Language</label>
+        <select id="botLanguage" class="form-control">
+          <option value="English">English</option>
+          <option value="Swahili">Swahili</option>
+        </select>
+      </div>
     </div>
     <div class="bot-composer">
-      <textarea id="botMessage" placeholder="Ask Edu Bot about school data or type a greeting..."></textarea>
+      <textarea id="botMessage" placeholder="Ask Edu AI to analyse, draft, translate, or generate content for the school..."></textarea>
       <button type="button" id="botSendBtn"><i class="bi bi-send me-2"></i>Send</button>
     </div>
   </div>
@@ -252,6 +288,8 @@ try {
   const typingEl = document.getElementById('botTyping');
   const messageEl = document.getElementById('botMessage');
   const sendBtn = document.getElementById('botSendBtn');
+  const toolEl = document.getElementById('botTool');
+  const languageEl = document.getElementById('botLanguage');
   const quickButtons = document.querySelectorAll('[data-bot-prompt]');
 
   function escapeHtml(text) {
@@ -286,7 +324,7 @@ try {
       renderMessage(role, item.text || '', item.created_at || '');
     });
     if (!historyEl.children.length) {
-      renderMessage('bot', 'Hello, I am Edu Bot. Ask me about CBE points, grades, attendance, fees, report cards, or school analytics.', 'ready');
+      renderMessage('bot', 'Hello, I am Edu AI. Use the tool selector for report comments, exam questions, lesson plans, attendance analysis, fee reminders, translation, discipline letters, and more.', 'ready');
     }
   }
 
@@ -318,7 +356,7 @@ try {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
       credentials: 'same-origin',
-      body: new URLSearchParams({ action: 'chat', category: 'ai', message: text }).toString()
+      body: new URLSearchParams({ action: 'chat', category: 'ai', message: text, tool: toolEl.value, language: languageEl.value }).toString()
     })
       .then(function (response) { return response.json(); })
       .then(function (data) {
@@ -347,6 +385,9 @@ try {
 
   quickButtons.forEach(function (button) {
     button.addEventListener('click', function () {
+      if (button.getAttribute('data-bot-tool')) {
+        toolEl.value = button.getAttribute('data-bot-tool');
+      }
       sendMessage(button.getAttribute('data-bot-prompt'));
     });
   });

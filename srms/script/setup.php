@@ -70,7 +70,7 @@ try {
 			$schoolCount = (int)$conn->query("SELECT COUNT(*) FROM tbl_school")->fetchColumn();
 			if ($schoolCount < 1) {
 				$stmt = $conn->prepare("INSERT INTO tbl_school (name, logo, result_system, allow_results) VALUES (?,?,?,?)");
-				$stmt->execute([$schoolName, 'school_logo1711003619.png', 1, 1]);
+				$stmt->execute([$schoolName, 'school_logo.png', 1, 1]);
 			}
 		}
 
@@ -119,4 +119,3 @@ try {
 	http_response_code(500);
 	render_page(APP_NAME . " - Setup", "<h3>Database error</h3><p>" . htmlspecialchars($e->getMessage()) . "</p>");
 }
-

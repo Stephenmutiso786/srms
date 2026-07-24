@@ -9,24 +9,65 @@ if ($res == "1" && $level == "1") {}else{header("location:../");}
 if (isset($_SESSION['student_result'])) {
 $std = $_SESSION['student_result']['student'];
 $term = $_SESSION['student_result']['term'];
+$examId = (int)($_SESSION['student_result']['exam'] ?? 0);
+$studentData = null;
+$termData = null;
+$classData = null;
+$subjectRows = [];
+$selectedExamName = '';
+$useExamId = false;
+$lockedSubjectIds = [];
+$hasLockedSubjects = false;
+$examReadOnly = false;
 
 try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-$stmt = $conn->prepare("SELECT * FROM tbl_students WHERE id = ?");
+$stmt = $conn->prepare("SELECT id, fname, mname, lname, class FROM tbl_students WHERE id = ?");
 $stmt->execute([$std]);
-$std_data = $stmt->fetchAll();
+$studentData = $stmt->fetch(PDO::FETCH_ASSOC);
 
-$stmt = $conn->prepare("SELECT * FROM tbl_terms WHERE id = ?");
+$stmt = $conn->prepare("SELECT id, name FROM tbl_terms WHERE id = ?");
 $stmt->execute([$term]);
-$term_data = $stmt->fetchAll();
+$termData = $stmt->fetch(PDO::FETCH_ASSOC);
 
-$stmt = $conn->prepare("SELECT * FROM tbl_classes WHERE id = ?");
-$stmt->execute([$std_data[0][6]]);
-$class_data = $stmt->fetchAll();
+$useExamId = app_column_exists($conn, 'tbl_exam_results', 'exam_id');
+if ($examId > 0 && app_table_exists($conn, 'tbl_exams')) {
+	$stmt = $conn->prepare("SELECT id, name, COALESCE(status, 'draft') AS status FROM tbl_exams WHERE id = ?");
+	$stmt->execute([$examId]);
+	$examData = $stmt->fetch(PDO::FETCH_ASSOC);
+	$selectedExamName = (string)($examData['name'] ?? '');
+	$examReadOnly = in_array(strtolower(trim((string)($examData['status'] ?? 'draft'))), ['finalized', 'published'], true);
+}
 
-$tit = ''.$std_data[0][1].' '.$std_data[0][2].' '.$std_data[0][3].' ('.$term_data[0][1].' Results)';
+$studentClassId = (int)($studentData['class'] ?? 0);
+$stmt = $conn->prepare("SELECT id, name FROM tbl_classes WHERE id = ?");
+$stmt->execute([$studentClassId]);
+$classData = $stmt->fetch(PDO::FETCH_ASSOC);
+
+$stmt = $conn->prepare("SELECT sc.id, sc.class, sb.name AS subject_name
+	FROM tbl_subject_combinations sc
+	LEFT JOIN tbl_subjects sb ON sb.id = sc.subject
+	ORDER BY sb.name");
+$stmt->execute();
+$subjectRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+if ($useExamId && $examId > 0) {
+	foreach ($subjectRows as $subjectRow) {
+		$subjectId = (int)($subjectRow['id'] ?? 0);
+		if ($subjectId < 1) {
+			continue;
+		}
+		$status = app_exam_submission_status($conn, $examId, $subjectId);
+		if (in_array($status, ['submitted', 'reviewed', 'finalized'], true)) {
+			$lockedSubjectIds[$subjectId] = $status;
+			$hasLockedSubjects = true;
+		}
+	}
+}
+
+$tit = trim((string)($studentData['fname'] ?? '').' '.(string)($studentData['mname'] ?? '').' '.(string)($studentData['lname'] ?? '')).' ('.(string)($termData['name'] ?? 'Term').' Results'.($selectedExamName !== '' ? ' - '.$selectedExamName : '').')';
 }catch(PDOException $e)
 {
 error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
@@ -85,34 +126,56 @@ header("location:./");
 
 <form enctype="multipart/form-data" action="academic/core/update_results.php" class="app_frm row" method="POST" autocomplete="OFF">
 
+<?php if ($useExamId && $examId < 1) { ?>
+<div class="col-12">
+<div class="alert alert-warning">Select a specific exam first before editing individual results.</div>
+</div>
+<?php } ?>
+<?php if ($examReadOnly) { ?>
+<div class="col-12">
+<div class="alert alert-warning">This exam is already finalized or published. Academic edits are disabled.</div>
+</div>
+<?php } ?>
+<?php if ($hasLockedSubjects) { ?>
+<div class="col-12">
+<div class="alert alert-info">Some subjects are already submitted for review. Submitted, reviewed, and finalized mark sheets are read-only for academic edits.</div>
+</div>
+<?php } ?>
+
 <?php
 $tscore = 0;
-$stmt = $conn->prepare("SELECT * FROM tbl_subject_combinations LEFT JOIN tbl_subjects ON tbl_subject_combinations.subject = tbl_subjects.id");
-$stmt->execute();
-$result = $stmt->fetchAll();
+foreach ($subjectRows as $row) {
+$class_list = app_unserialize((string)($row['class'] ?? ''));
 
-foreach ($result as $key => $row) {
-$class_list = app_unserialize($row[1]);
-
-if (in_array($std_data[0][6], $class_list))
+if (in_array((int)($studentData['class'] ?? 0), $class_list))
 {
 
 $score = 0;
+$subjectId = (int)($row['id'] ?? 0);
+$subjectLockedStatus = $lockedSubjectIds[$subjectId] ?? '';
 
-$stmt = $conn->prepare("SELECT * FROM tbl_exam_results WHERE class = ? AND subject_combination = ? AND term = ? AND student = ?");
-$stmt->execute([$std_data[0][6], $row[0], $term, $std]);
-$ex_result = $stmt->fetchAll();
+if ($useExamId && $examId > 0) {
+	$stmt = $conn->prepare("SELECT score FROM tbl_exam_results WHERE class = ? AND subject_combination = ? AND term = ? AND student = ? AND exam_id = ? LIMIT 1");
+	$stmt->execute([(int)($studentData['class'] ?? 0), (int)($row['id'] ?? 0), $term, $std, $examId]);
+} else {
+	$stmt = $conn->prepare("SELECT score FROM tbl_exam_results WHERE class = ? AND subject_combination = ? AND term = ? AND student = ? LIMIT 1");
+	$stmt->execute([(int)($studentData['class'] ?? 0), (int)($row['id'] ?? 0), $term, $std]);
+}
+$scoreValue = $stmt->fetchColumn();
 
-if (!empty($ex_result[0][5])) {
-$score = $ex_result[0][5];
+if ($scoreValue !== false && $scoreValue !== null && $scoreValue !== '') {
+$score = (float)$scoreValue;
 $tscore = $tscore + $score;
 }
 
 ?>
 
 <div class="mb-3 col-md-2">
-<label class="form-label"><?php echo $row[6]; ?></label>
-<input value="<?php echo $score; ?>" name="<?php echo $row[0];?>" class="form-control" required type="number" placeholder="Enter score">
+<label class="form-label"><?php echo htmlspecialchars((string)($row['subject_name'] ?? '')); ?></label>
+<input value="<?php echo htmlspecialchars((string)$score); ?>" name="<?php echo (int)($row['id'] ?? 0);?>" class="form-control" required type="number" placeholder="Enter score" <?php echo ($subjectLockedStatus !== '' || $examReadOnly) ? 'readonly' : ''; ?>>
+<?php if ($subjectLockedStatus !== '') { ?>
+<div class="small text-muted mt-1">Locked: <?php echo htmlspecialchars(ucfirst($subjectLockedStatus)); ?></div>
+<?php } ?>
 </div>
 
 <?php
@@ -124,11 +187,12 @@ $tscore = $tscore + $score;
 ?>
 <input type="hidden" name="student" value="<?php echo $std; ?>">
 <input type="hidden" name="term" value="<?php echo $term; ?>">
-<input type="hidden" name="class" value="<?php echo $std_data[0][6]; ?>">
+<input type="hidden" name="exam" value="<?php echo $examId; ?>">
+<input type="hidden" name="class" value="<?php echo (int)($studentData['class'] ?? 0); ?>">
 <div class="">
-<button class="btn btn-primary app_btn" type="submit">Save Results</button>
+<button class="btn btn-primary app_btn" type="submit" <?php echo ($useExamId && $examId < 1) || $examReadOnly ? 'disabled' : ''; ?>>Save Results</button>
 <?php if ($tscore > 0) {
-?><a onclick="del('academic/core/drop_results.php?src=single_results&std=<?php echo $std; ?>&class=<?php echo $std_data[0][6]; ?>&term=<?php echo $term; ?>', 'Delete Results?');" href="javascript:void(0);" class="btn btn-danger">Delete</a><?php
+?><a onclick="del('academic/core/drop_results.php?src=single_results&std=<?php echo $std; ?>&class=<?php echo (int)($studentData['class'] ?? 0); ?>&term=<?php echo $term; ?>&exam=<?php echo $examId; ?>', 'Delete Results?');" href="javascript:void(0);" class="btn btn-danger <?php echo $hasLockedSubjects ? 'disabled' : ''; ?>" <?php echo $hasLockedSubjects ? 'aria-disabled="true"' : ''; ?>>Delete</a><?php
 }
 ?>
 </div>

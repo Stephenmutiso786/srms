@@ -23,6 +23,10 @@ $academicFirstName = trim((string)($fname ?? ''));
 if ($academicFirstName === '') {
 	$academicFirstName = 'Academic Lead';
 }
+$leadershipTitle = trim((string)($designation ?? 'Academic Leadership'));
+if ($leadershipTitle === '') {
+	$leadershipTitle = 'Academic Leadership';
+}
 
 try {
 	$conn = app_db();
@@ -219,7 +223,7 @@ try {
 <div class="shortcut-panel">
 	<div class="d-flex flex-wrap gap-2 align-items-center justify-content-between">
 		<div>
-			<strong>Deputy Quick Actions</strong>
+			<strong>Academic Quick Actions</strong>
 			<div class="text-muted">Run academics, discipline, exams, communication, and reports from one place.</div>
 		</div>
 		<div class="shortcut-actions">
@@ -253,7 +257,7 @@ try {
 <div class="module-grid">
 	<div class="role-panel">
 		<h3 class="tile-title mb-2">Assigned Roles</h3>
-		<div class="small text-muted">Roles attached to this deputy or academic account.</div>
+		<div class="small text-muted">Roles attached to this academic leadership account.</div>
 		<div class="role-chip-wrap">
 			<?php if (!empty($roleNames)): ?>
 				<?php foreach ($roleNames as $roleName): ?>
@@ -290,7 +294,7 @@ try {
 <div class="tile mt-4">
 	<h3 class="tile-title">Promotion Queue</h3>
 	<div class="alert alert-warning mb-3">
-		<strong><?php echo (int)$promotionQueue['pending_review']; ?> batch(es)</strong> waiting for Headteacher or Deputy review.
+		<strong><?php echo (int)$promotionQueue['pending_review']; ?> batch(es)</strong> waiting for leadership review under <?php echo htmlspecialchars($leadershipTitle); ?>.
 	</div>
 	<div class="alert alert-info mb-3">
 		<strong><?php echo (int)$promotionQueue['ready_for_super_admin']; ?> batch(es)</strong> waiting for Super Admin completion.

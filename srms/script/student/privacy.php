@@ -32,6 +32,8 @@ if ($res !== '1' || (int)$level !== 3) {
 </head>
 <body class="app sidebar-mini">
 <header class="app-header"><a class="app-header__logo" href="javascript:void(0);"><?php echo APP_NAME; ?></a><a class="app-sidebar__toggle" href="#" data-toggle="sidebar" aria-label="Hide Sidebar"></a></header>
+<?php include('student/partials/sidebar.php'); ?>
+<main class="app-content">
 <div class="policy-wrap">
   <div class="policy-card">
     <div class="policy-hero">
@@ -58,6 +60,7 @@ if ($res !== '1' || (int)$level !== 3) {
     </div>
   </div>
 </div>
+</main>
 <script src="js/jquery-3.7.0.min.js"></script><script src="js/bootstrap.min.js"></script><script src="js/main.js"></script>
 </body>
 </html>

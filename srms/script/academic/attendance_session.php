@@ -27,6 +27,9 @@ try {
 		throw new RuntimeException("Attendance tables are not installed. Run the Postgres migration 001_rbac_attendance.sql.");
 	}
 
+	if (!app_can_manage_student_attendance($conn, (string)$account_id, (string)$level)) {
+		throw new RuntimeException("Student attendance is only available to admins and class teachers.");
+	}
 	$allowed = app_staff_class_teacher_ids($conn, (int)$account_id);
 
 	$stmt = $conn->prepare("SELECT s.id, s.class_id, s.session_date, s.term_id, c.name AS class_name
@@ -41,7 +44,7 @@ try {
 	}
 
 	$classId = (int)$session['class_id'];
-	if (!in_array($classId, $allowed, true)) {
+	if (!app_is_attendance_admin_level((string)$level) && !in_array($classId, $allowed, true)) {
 		throw new RuntimeException("Only the assigned class teacher can view this attendance session.");
 	}
 

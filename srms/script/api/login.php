@@ -54,22 +54,22 @@ UNION SELECT id, email, password, level, status FROM tbl_students WHERE id = ? O
 
 	$stmt = $conn->prepare($sql);
 	$stmt->execute($params);
-	$rows = $stmt->fetchAll(PDO::FETCH_NUM);
+	$rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	if (!$rows) {
 		api_fail('Invalid login credentials.', 401);
 	}
 
 	foreach ($rows as $row) {
-		$status = (string)($row[4] ?? '0');
+		$status = (string)($row['status'] ?? '0');
 		if ($status !== '1') {
 			continue;
 		}
-		if (!password_verify($password, (string)$row[2])) {
+		if (!password_verify($password, (string)($row['password'] ?? ''))) {
 			continue;
 		}
 
-		$accountId = (string)$row[0];
-		$loginLevel = (int)$row[3];
+		$accountId = (string)($row['id'] ?? '');
+		$loginLevel = (int)($row['level'] ?? 0);
 		$sessionId = app_upper_session_token(GRS(20));
 		$ip = app_request_client_ip();
 
@@ -77,33 +77,27 @@ UNION SELECT id, email, password, level, status FROM tbl_students WHERE id = ? O
 			if (!$hasParentSessions) {
 				api_fail('Parent portal is not enabled on this server yet.', 409);
 			}
-			$stmt = $conn->prepare("DELETE FROM tbl_login_sessions WHERE parent = ?");
-			$stmt->execute([(int)$accountId]);
 			$stmt = $conn->prepare("INSERT INTO tbl_login_sessions (session_key, parent, ip_address) VALUES (?,?,?)");
 			$stmt->execute([$sessionId, (int)$accountId, $ip]);
 			app_audit_log($conn, 'parent', $accountId, 'auth.login', 'session', $sessionId);
 		} elseif ($loginLevel === 3) {
-			$stmt = $conn->prepare("DELETE FROM tbl_login_sessions WHERE student = ?");
-			$stmt->execute([$accountId]);
 			$stmt = $conn->prepare("INSERT INTO tbl_login_sessions (session_key, student, ip_address) VALUES (?,?,?)");
 			$stmt->execute([$sessionId, $accountId, $ip]);
 			app_audit_log($conn, 'student', $accountId, 'auth.login', 'session', $sessionId);
 		} else {
-			$stmt = $conn->prepare("DELETE FROM tbl_login_sessions WHERE staff = ?");
-			$stmt->execute([$accountId]);
 			$stmt = $conn->prepare("INSERT INTO tbl_login_sessions (session_key, staff, ip_address) VALUES (?,?,?)");
 			$stmt->execute([$sessionId, $accountId, $ip]);
 			app_audit_log($conn, 'staff', $accountId, 'auth.login', 'session', $sessionId);
 		}
 
-		app_issue_auth_cookies((string)$row[3], $sessionId, false, 4320);
+		app_issue_auth_cookies((string)($row['level'] ?? ''), $sessionId, false, 43200);
 		$portal = '';
 		if ($loginLevel === 4) {
 			$portal = 'parent';
 		} elseif ($loginLevel === 3) {
 			$portal = 'student';
 		} else {
-			$portal = app_staff_login_portal($conn, (int)$accountId, (string)$row[3]);
+			$portal = app_staff_login_portal($conn, (int)$accountId, (string)($row['level'] ?? ''));
 		}
 		api_json([
 			'ok' => true,

@@ -17,7 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $examId = (int)($_POST['exam_id'] ?? 0);
 $channel = strtolower(trim((string)($_POST['channel'] ?? '')));
-if ($examId < 1 || !in_array($channel, ['sms', 'email', 'both'], true)) {
+if ($examId < 1 || !in_array($channel, ['sms', 'email', 'whatsapp', 'both', 'all'], true)) {
     $_SESSION['reply'] = array(array('danger', 'Invalid notification request.'));
     header('location:../publish_results');
     exit;
@@ -32,6 +32,7 @@ try {
     try {
         $dispatchMessage = 'Results notifications dispatched via ' . strtoupper($channel)
             . '. SMS sent: ' . (int)$stats['sent_sms']
+            . ', WhatsApp sent: ' . (int)($stats['sent_whatsapp'] ?? 0)
             . ', Email sent: ' . (int)$stats['sent_email']
             . ', Missing contacts: ' . (int)$stats['missing_contacts'] . '.';
         app_system_notify($conn, 'Results Notification Dispatch', $dispatchMessage, [
@@ -46,12 +47,13 @@ try {
     app_audit_log($conn, 'staff', (string)$account_id, 'results.notify.' . $channel, 'exam', (string)$examId, $stats);
 
     $summary = 'SMS Sent: ' . (int)$stats['sent_sms'] . ', SMS Failed: ' . (int)$stats['failed_sms']
+        . ' | WhatsApp Sent: ' . (int)($stats['sent_whatsapp'] ?? 0) . ', WhatsApp Failed: ' . (int)($stats['failed_whatsapp'] ?? 0)
         . ' | Email Sent: ' . (int)$stats['sent_email'] . ', Email Failed: ' . (int)$stats['failed_email']
         . ' | Missing Contacts: ' . (int)$stats['missing_contacts']
         . ' | Fees Not Cleared: ' . (int)$stats['skipped_fees'];
     $detailsHtml = app_results_delivery_report_html($stats);
 
-    if ((int)$stats['sent_sms'] > 0 || (int)$stats['sent_email'] > 0) {
+    if ((int)$stats['sent_sms'] > 0 || (int)($stats['sent_whatsapp'] ?? 0) > 0 || (int)$stats['sent_email'] > 0) {
         $_SESSION['reply'] = array(array('success', 'Result notifications sent. ' . $summary, array('html' => $detailsHtml)));
     } else {
         $_SESSION['reply'] = array(array('danger', 'No notifications sent. ' . $summary, array('html' => $detailsHtml)));

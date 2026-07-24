@@ -5,6 +5,7 @@ require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/school.php');
 require_once('const/rbac.php');
+require_once('const/edu_ai_portal_ui.php');
 
 if ($res !== '1') { header('location:../'); exit; }
 app_require_permission('bom.view', '../');
@@ -35,9 +36,9 @@ try {
 <link rel="stylesheet" type="text/css" href="cdn.jsdelivr.net/npm/bootstrap-icons%401.10.5/font/bootstrap-icons.css">
 </head>
 <body class="app sidebar-mini">
-<header class="app-header"><a class="app-header__logo" href="javascript:void(0);"><?php echo APP_NAME; ?></a><a class="app-sidebar__toggle" href="#" data-toggle="sidebar"></a></header>
+<header class="app-header"><a class="app-header__logo" href="javascript:void(0);"><?php echo APP_NAME; ?></a><a class="app-sidebar__toggle" href="#" data-toggle="sidebar"></a><ul class="app-nav"></ul></header>
 <div class="app-sidebar__overlay" data-toggle="sidebar"></div>
-<aside class="app-sidebar"><ul class="app-menu"><?php foreach ($visibleModules as $module): ?><li><a class="app-menu__item<?php echo basename((string)$module['href']) === basename($_SERVER['PHP_SELF'], '.php') ? ' active' : ''; ?>" href="<?php echo htmlspecialchars((string)$module['href']); ?>"><span class="app-menu__label"><?php echo htmlspecialchars((string)$module['label']); ?></span></a></li><?php endforeach; ?></ul></aside>
+<aside class="app-sidebar"><div class="app-sidebar__user"><div><p class="app-sidebar__user-name"><?php echo htmlspecialchars(trim((string)($profile['fname'] ?? '') . ' ' . (string)($profile['lname'] ?? ''))); ?></p><p class="app-sidebar__user-designation"><?php echo htmlspecialchars((string)($designation ?? 'BOM Member')); ?></p></div></div><ul class="app-menu"><?php foreach ($visibleModules as $module): ?><li><a class="app-menu__item<?php echo basename((string)$module['href']) === basename($_SERVER['PHP_SELF'], '.php') ? ' active' : ''; ?>" href="<?php echo htmlspecialchars((string)$module['href']); ?>"><span class="app-menu__label"><?php echo htmlspecialchars((string)$module['label']); ?></span></a></li><?php endforeach; ?></ul><?php app_render_portal_edu_ai('bom'); ?></aside>
 <main class="app-content">
 <div class="app-title"><div><h1>My BOM Profile</h1></div></div>
 <div class="tile">

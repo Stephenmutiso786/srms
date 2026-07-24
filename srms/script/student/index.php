@@ -37,6 +37,7 @@ $subjectRows = [];
 $history = [];
 $disciplineCases = [];
 $reportCard = null;
+$assessmentMode = 'normal';
 $visibleModules = [];
 $allocatedModules = [];
 $error = '';
@@ -151,18 +152,34 @@ try {
 			$examBreakdown = report_exam_subject_breakdown($conn, (string)$account_id, $studentClassId, $selectedTermId, (int)$selectedExam['id']);
 			if ($examSummary) {
 				$dashboardMode = 'exam';
-				$summary['avg_score'] = (float)($examSummary['mean'] ?? 0);
+				$assessmentMode = (string)($examSummary['assessment_mode'] ?? 'normal');
+				$summary['avg_score'] = report_summary_mean_display_value(
+					$conn,
+					(float)($examSummary['mean'] ?? 0),
+					$assessmentMode,
+					isset($examSummary['mean_points']) ? (float)$examSummary['mean_points'] : null
+				);
 				$summary['grade'] = (string)($examSummary['grade'] ?? 'N/A');
 				$summary['position'] = (string)($examSummary['position'] ?? '-');
-				$summary['total_marks'] = (float)($examSummary['total'] ?? 0);
+				$summary['total_marks'] = report_assessment_mode_uses_points($assessmentMode)
+					? (float)($examSummary['total_points'] ?? 0)
+					: (float)($examSummary['total'] ?? 0);
 				$subjectRows = $examBreakdown;
 			}
 		}
 		if ($dashboardMode !== 'exam' && $reportCard) {
-			$summary['avg_score'] = (float)($reportCard['mean'] ?? 0);
+			$assessmentMode = (string)($reportCard['assessment_mode'] ?? report_term_assessment_mode($conn, $studentClassId, $selectedTermId));
+			$summary['avg_score'] = report_summary_mean_display_value(
+				$conn,
+				(float)($reportCard['mean'] ?? 0),
+				$assessmentMode,
+				isset($reportCard['mean_points']) ? (float)$reportCard['mean_points'] : null
+			);
 			$summary['grade'] = (string)($reportCard['grade'] ?? 'N/A');
 			$summary['position'] = isset($reportCard['position'], $reportCard['total_students']) ? ($reportCard['position'].' / '.$reportCard['total_students']) : '-';
-			$summary['total_marks'] = (float)($reportCard['total'] ?? 0);
+			$summary['total_marks'] = report_assessment_mode_uses_points($assessmentMode)
+				? (float)($reportCard['total_points'] ?? 0)
+				: (float)($reportCard['total'] ?? 0);
 			$subjectRows = report_subject_breakdown($conn, (string)$account_id, $studentClassId, $selectedTermId);
 		}
 		$history = report_student_term_history($conn, (string)$account_id, $studentClassId, 12);
@@ -187,7 +204,7 @@ try {
 		}
 
 		if (app_table_exists($conn, 'tbl_announcements')) {
-			$stmt = $conn->prepare("SELECT * FROM tbl_announcements WHERE level IN ('1','2','3') ORDER BY id DESC LIMIT 5");
+			$stmt = $conn->prepare("SELECT id, title, announcement, create_date FROM tbl_announcements WHERE level IN ('1','2','3') ORDER BY id DESC LIMIT 5");
 			$stmt->execute();
 			$announcements = $stmt->fetchAll(PDO::FETCH_ASSOC);
 		}
@@ -197,6 +214,27 @@ try {
 } catch (Throwable $e) {
 	error_log("[".__FILE__.":".__LINE__." Throwable] " . $e->getMessage());
 	$error = "An internal error occurred.";
+}
+
+$usesPoints = report_assessment_mode_uses_points($assessmentMode);
+$totalMetricLabel = $usesPoints ? 'Total Points' : 'Total Marks';
+$meanMetricLabel = $usesPoints ? 'Mean Points' : 'Mean Score';
+$subjectValueLabel = $usesPoints ? 'Points' : 'Score';
+$classMeanMetricLabel = $usesPoints ? 'Class Mean Points' : 'Class Mean';
+$historyDisplay = [];
+if (isset($conn) && $conn instanceof PDO) {
+	foreach ($history as $point) {
+		$rowMode = (string)($point['assessment_mode'] ?? $assessmentMode);
+		$historyDisplay[] = [
+			'term_name' => (string)($point['term_name'] ?? ''),
+			'value' => report_summary_mean_display_value(
+				$conn,
+				(float)($point['mean'] ?? 0),
+				$rowMode,
+				isset($point['mean_points']) && $point['mean_points'] !== null ? (float)$point['mean_points'] : null
+			),
+		];
+	}
 }
 ?>
 <!DOCTYPE html>
@@ -380,8 +418,8 @@ body.app{background:var(--student-bg)}
 						</div>
 
 						<div class="metric-boxes">
-							<div class="metric-box"><div class="label">Total Marks</div><div class="value"><?php echo number_format((float)$summary['total_marks'], 0); ?></div></div>
-							<div class="metric-box"><div class="label">Mean Points</div><div class="value"><?php echo number_format((float)$summary['avg_score'], 2); ?></div></div>
+							<div class="metric-box"><div class="label"><?php echo htmlspecialchars($totalMetricLabel); ?></div><div class="value"><?php echo number_format((float)$summary['total_marks'], $usesPoints ? 1 : 0); ?></div></div>
+							<div class="metric-box"><div class="label"><?php echo htmlspecialchars($meanMetricLabel); ?></div><div class="value"><?php echo number_format((float)$summary['avg_score'], 2); ?></div></div>
 							<div class="metric-box"><div class="label">Fees Balance</div><div class="value">KES <?php echo number_format((float)$summary['fees_balance'], 2); ?></div></div>
 							<div class="metric-box"><div class="label">Overall Position</div><div class="value"><?php echo htmlspecialchars((string)$summary['position']); ?></div></div>
 							<div class="metric-box"><div class="label">Average Position</div><div class="value"><?php echo count($history) > 0 ? number_format(array_sum(array_column($history,'mean'))/count($history),2) : '0.00'; ?></div></div>
@@ -391,11 +429,11 @@ body.app{background:var(--student-bg)}
 							<thead>
 								<tr>
 									<th>Name</th>
-									<th>Points</th>
+									<th><?php echo htmlspecialchars($subjectValueLabel); ?></th>
 									<th><?php echo $dashboardMode === 'exam' ? 'Exam' : 'Dev Exam'; ?></th>
 									<th><?php echo $dashboardMode === 'exam' ? 'Source' : 'Dev Target'; ?></th>
 									<th>Grade</th>
-									<th>Class Rank</th>
+									<th><?php echo htmlspecialchars($classMeanMetricLabel); ?></th>
 								</tr>
 							</thead>
 							<tbody>
@@ -403,9 +441,13 @@ body.app{background:var(--student-bg)}
 								<tr><td colspan="6"><div class="empty-card">No published subject analytics yet. When the school releases results, each subject will show here with trend and class comparison.</div></td></tr>
 							<?php } ?>
 							<?php foreach ($subjectRows as $row): ?>
+								<?php
+								$subjectDisplayValue = isset($conn) && $conn instanceof PDO ? report_subject_display_value($conn, (array)$row, $assessmentMode) : null;
+								$classMeanDisplayValue = isset($conn) && $conn instanceof PDO ? report_class_mean_display_value($conn, (array)$row, $assessmentMode) : null;
+								?>
 								<tr>
 									<td class="subject-name"><?php echo htmlspecialchars($row['subject_name']); ?></td>
-									<td><?php echo number_format((float)($row['score'] ?? $row['combined_score'] ?? 0), 0); ?></td>
+									<td><?php echo $subjectDisplayValue !== null ? number_format($subjectDisplayValue, $usesPoints ? 1 : 0) : '-'; ?></td>
 									<td class="<?php echo $dashboardMode === 'exam' ? '' : ($row['trend'] === 'up' ? 'trend-up' : ($row['trend'] === 'down' ? 'trend-down' : 'trend-steady')); ?>">
 										<?php if ($dashboardMode === 'exam'): ?>
 											<i class="bi bi-journal-text me-1"></i><?php echo htmlspecialchars((string)($selectedExam['name'] ?? 'Selected exam')); ?>
@@ -422,7 +464,7 @@ body.app{background:var(--student-bg)}
 										<?php endif; ?>
 									</td>
 									<td><?php echo htmlspecialchars($row['grade']); ?></td>
-									<td><?php echo number_format((float)($row['class_mean'] ?? 0), 1); ?>/100</td>
+									<td><?php echo $classMeanDisplayValue !== null ? number_format($classMeanDisplayValue, 1) : '-'; ?><?php echo $usesPoints ? '' : '/100'; ?></td>
 								</tr>
 							<?php endforeach; ?>
 							</tbody>
@@ -467,9 +509,9 @@ body.app{background:var(--student-bg)}
 						<?php if (!$announcements) { ?><div class="note-item text-muted">No announcements at the moment.</div><?php } ?>
 						<?php foreach ($announcements as $row): ?>
 							<div class="note-item">
-								<div class="fw-bold"><?php echo htmlspecialchars((string)$row[1]); ?></div>
-								<div class="small text-muted mt-1"><?php echo htmlspecialchars((string)$row[2]); ?></div>
-								<div class="small text-muted mt-2"><?php echo htmlspecialchars((string)$row[3]); ?></div>
+								<div class="fw-bold"><?php echo htmlspecialchars((string)($row['title'] ?? '')); ?></div>
+								<div class="small text-muted mt-1"><?php echo htmlspecialchars((string)($row['announcement'] ?? '')); ?></div>
+								<div class="small text-muted mt-2"><?php echo htmlspecialchars((string)($row['create_date'] ?? '')); ?></div>
 							</div>
 						<?php endforeach; ?>
 						</div>
@@ -529,7 +571,8 @@ $(function() {
 </script>
 <script>
 const subjectRows = <?php echo json_encode($subjectRows); ?>;
-const historyRows = <?php echo json_encode($history); ?>;
+const historyRows = <?php echo json_encode($historyDisplay); ?>;
+const usesPoints = <?php echo $usesPoints ? 'true' : 'false'; ?>;
 
 const termTrendEl = document.getElementById('termTrendChart');
 if (termTrendEl) {
@@ -538,12 +581,22 @@ if (termTrendEl) {
 		grid: {left: 40, right: 12, top: 20, bottom: 30},
 		tooltip: {trigger: 'axis'},
 		xAxis: {type: 'category', data: subjectRows.map(row => row.subject_name), axisLabel: {fontSize: 10}},
-		yAxis: {type: 'value', min: 0, max: 100},
+		yAxis: {type: 'value', min: 0, max: usesPoints ? 4 : 100},
 		series: [
 			{
 				type: 'line',
 				smooth: true,
-				data: subjectRows.map(row => row.class_mean),
+				data: subjectRows.map(row => {
+					if (usesPoints) {
+						if (row.class_mean_points !== undefined && row.class_mean_points !== null && row.class_mean_points !== '') {
+							return Number(row.class_mean_points);
+						}
+						if (row.class_mean !== undefined && row.class_mean !== null && row.class_mean !== '') {
+							return Number(row.class_mean);
+						}
+					}
+					return row.class_mean;
+				}),
 				areaStyle: {color: 'rgba(67,186,78,0.18)'},
 				lineStyle: {color: '#00695C', width: 2},
 				itemStyle: {color: '#00695C'}
@@ -559,13 +612,13 @@ if (historyEl) {
 		grid: {left: 40, right: 12, top: 20, bottom: 50},
 		tooltip: {trigger: 'axis'},
 		xAxis: {type: 'category', data: historyRows.map(row => row.term_name), axisLabel: {fontSize: 10, rotate: 25}},
-		yAxis: {type: 'value', min: 0, max: 100},
+		yAxis: {type: 'value', min: 0, max: usesPoints ? 4 : 100},
 		series: [
 			{
-				name: 'Mean Score',
+				name: usesPoints ? 'Mean Points' : 'Mean Score',
 				type: 'line',
 				smooth: true,
-				data: historyRows.map(row => row.mean),
+				data: historyRows.map(row => row.value),
 				lineStyle: {color: '#00695C', width: 2},
 				itemStyle: {color: '#00695C'}
 			}

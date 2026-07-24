@@ -23,7 +23,7 @@ $redirectTo = ltrim($redirectTo, '/');
 if ($redirectTo === '' && $loginMode === 'elearning') {
 	$redirectTo = 'elearning';
 }
-$cookie_length = "4320";
+$cookie_length = "43200";
 
 if ($_username === '' || $_password === '') {
 	$_SESSION['reply'] = array(array("danger", "Enter both username and password."));
@@ -63,7 +63,7 @@ UNION ALL SELECT id, email, password, level, status FROM tbl_students WHERE id =
 }
 
 $stmt->execute($params);
-$result = $stmt->fetchAll();
+$result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 if (count($result) < 1) {
 $_SESSION['reply'] = array (array("danger", "Invalid login credentials"));
@@ -73,14 +73,14 @@ header("location:../");
 foreach($result as $row)
 {
 
-if ($row[4] > 0) {
+if ((int)($row['status'] ?? 0) > 0) {
 
-if (password_verify($_password, $row[2])) {
-$account_id = $row[0];
+if (password_verify($_password, (string)($row['password'] ?? ''))) {
+$account_id = (string)($row['id'] ?? '');
 $session_id = app_upper_session_token(GRS(20));
 $ip = app_request_client_ip();
 
-$loginLevel = (int)$row[3];
+$loginLevel = (int)($row['level'] ?? 0);
 
 $maintenanceEnabled = app_setting_get($conn, 'maintenance_mode_enabled', '0') === '1';
 if ($maintenanceEnabled) {
@@ -103,30 +103,21 @@ if ($loginLevel === 4) {
 		exit;
 	}
 
-	$stmt = $conn->prepare("DELETE FROM tbl_login_sessions WHERE parent = ?");
-	$stmt->execute([(int)$account_id]);
-
 	$stmt = $conn->prepare("INSERT INTO tbl_login_sessions (session_key, parent, ip_address) VALUES (?,?,?)");
 	$stmt->execute([$session_id, (int)$account_id, $ip]);
 	app_audit_log($conn, 'parent', (string)$account_id, 'auth.login', 'session', (string)$session_id);
 } elseif ($loginLevel === 3) {
-$stmt = $conn->prepare("DELETE FROM tbl_login_sessions WHERE student = ?");
-$stmt->execute([$account_id]);
-
 $stmt = $conn->prepare("INSERT INTO tbl_login_sessions (session_key, student, ip_address) VALUES (?,?,?)");
 $stmt->execute([$session_id, $account_id, $ip]);
 	app_audit_log($conn, 'student', (string)$account_id, 'auth.login', 'session', (string)$session_id);
 }else{
-$stmt = $conn->prepare("DELETE FROM tbl_login_sessions WHERE staff = ?");
-$stmt->execute([$account_id]);
-
 $stmt = $conn->prepare("INSERT INTO tbl_login_sessions (session_key, staff, ip_address) VALUES (?,?,?)");
 $stmt->execute([$session_id, $account_id, $ip]);
 	app_audit_log($conn, 'staff', (string)$account_id, 'auth.login', 'session', (string)$session_id);
 }
 
 
-app_issue_auth_cookies((string)$row[3], (string)$session_id, false, (int)$cookie_length);
+app_issue_auth_cookies((string)($row['level'] ?? ''), (string)$session_id, false, (int)$cookie_length);
 
 $portal = '';
 if ($loginLevel === 3) {
@@ -134,7 +125,7 @@ if ($loginLevel === 3) {
 } elseif ($loginLevel === 4) {
 	$portal = 'parent';
 } else {
-	$portal = app_staff_login_portal($conn, (int)$account_id, (string)$row[3]);
+	$portal = app_staff_login_portal($conn, (int)$account_id, (string)($row['level'] ?? ''));
 }
 
 if ($redirectTo !== '') {

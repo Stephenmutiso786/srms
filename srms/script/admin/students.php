@@ -108,13 +108,13 @@ $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
 $empty_classes = array();
 
-$stmt = $conn->prepare("SELECT * FROM tbl_classes");
+$stmt = $conn->prepare("SELECT id, name FROM tbl_classes ORDER BY name");
 $stmt->execute();
-$classes = $stmt->fetchAll();
+$classes = $stmt->fetchAll(PDO::FETCH_ASSOC);
 $jssChoiceMap = app_cbe_jss_choice_id_map($conn);
 
 foreach ($classes as $value) {
-$empty_classes[$value[0]] = $value[1];
+$empty_classes[(string)$value['id']] = (string)$value['name'];
 }
 
 
@@ -149,7 +149,7 @@ if (($row['display_image'] ?? '') == "DEFAULT") {
 <td><?php echo $row['lname']; ?></td>
 <td><?php echo $row['gender']; ?></td>
 <td><?php echo $row['email']; ?></td>
-<td><?php echo $empty_classes[$row['class']]; ?></td>
+<td><?php echo htmlspecialchars((string)($empty_classes[(string)$row['class']] ?? '')); ?></td>
 <td>
 <?php if (isset($onlineStudents[(string)$row['id']])) { ?>
 <span class="online-pill"><span class="online-dot"></span>Online</span>
@@ -243,14 +243,14 @@ try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-$stmt = $conn->prepare("SELECT * FROM tbl_classes");
+$stmt = $conn->prepare("SELECT id, name FROM tbl_classes ORDER BY name");
 $stmt->execute();
-$result = $stmt->fetchAll();
+$result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 foreach($result as $row)
 {
 ?>
-<option value="<?php echo htmlspecialchars((string)$row[0]); ?>" data-cbe-band="<?php echo htmlspecialchars(app_cbe_class_band((string)$row[1])); ?>"><?php echo htmlspecialchars((string)$row[1]); ?> </option>
+<option value="<?php echo htmlspecialchars((string)$row['id']); ?>" data-cbe-band="<?php echo htmlspecialchars(app_cbe_class_band((string)$row['name'])); ?>"><?php echo htmlspecialchars((string)$row['name']); ?> </option>
 <?php
 }
 

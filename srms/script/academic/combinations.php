@@ -5,6 +5,47 @@ require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
 if ($res == "1" && $level == "1") {}else{header("location:../");}
+
+$subjectOptions = [];
+$classOptions = [];
+$teacherOptions = [];
+$combinationRows = [];
+$classNameMap = [];
+try {
+	$conn = app_db();
+	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+	$stmt = $conn->prepare("SELECT id, name FROM tbl_subjects ORDER BY name");
+	$stmt->execute();
+	$subjectOptions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+	$stmt = $conn->prepare("SELECT id, name FROM tbl_classes ORDER BY name");
+	$stmt->execute();
+	$classOptions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	foreach ($classOptions as $classRow) {
+		$classNameMap[(string)($classRow['id'] ?? '')] = (string)($classRow['name'] ?? '');
+	}
+
+	$stmt = $conn->prepare("SELECT id, fname, lname FROM tbl_staff WHERE level = '2' ORDER BY fname, lname");
+	$stmt->execute();
+	$teacherOptions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+	$stmt = $conn->prepare("SELECT
+		sc.id,
+		sc.class,
+		sc.reg_date,
+		sb.name AS subject_name,
+		st.fname AS teacher_fname,
+		st.lname AS teacher_lname
+		FROM tbl_subject_combinations sc
+		LEFT JOIN tbl_subjects sb ON sb.id = sc.subject
+		LEFT JOIN tbl_staff st ON st.id = sc.teacher
+		ORDER BY sc.reg_date DESC, sc.id DESC");
+	$stmt->execute();
+	$combinationRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+	error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -64,26 +105,10 @@ if ($res == "1" && $level == "1") {}else{header("location:../");}
 <select class="form-control select2" name="subject" required style="width: 100%;">
 <option selected disabled value="">Select one</option>
 <?php
-try {
-$conn = app_db();
-$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-$stmt = $conn->prepare("SELECT * FROM tbl_subjects ORDER BY name");
-$stmt->execute();
-$result = $stmt->fetchAll();
-
-foreach($result as $row)
-{
 ?>
-<option value="<?php echo $row[0]; ?>"><?php echo $row[1]; ?> </option>
-<?php
-}
-
-}catch(PDOException $e)
-{
-error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
-echo "Connection failed.";
-}
+<?php foreach($subjectOptions as $row) { ?>
+<option value="<?php echo (int)($row['id'] ?? 0); ?>"><?php echo htmlspecialchars((string)($row['name'] ?? '')); ?> </option>
+<?php } ?>
 ?>
 </select>
 </div>
@@ -93,26 +118,10 @@ echo "Connection failed.";
 <label class="form-label">Select Class</label>
 <select multiple="true" class="form-control select2" name="class[]" required style="width: 100%;">
 <?php
-try {
-$conn = app_db();
-$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-$stmt = $conn->prepare("SELECT * FROM tbl_classes");
-$stmt->execute();
-$result = $stmt->fetchAll();
-
-foreach($result as $row)
-{
 ?>
-<option value="<?php echo $row[0]; ?>"><?php echo $row[1]; ?> </option>
-<?php
-}
-
-}catch(PDOException $e)
-{
-error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
-echo "Connection failed.";
-}
+<?php foreach($classOptions as $row) { ?>
+<option value="<?php echo (int)($row['id'] ?? 0); ?>"><?php echo htmlspecialchars((string)($row['name'] ?? '')); ?> </option>
+<?php } ?>
 ?>
 </select>
 </div>
@@ -122,26 +131,10 @@ echo "Connection failed.";
 <select class="form-control select2" name="teacher" required style="width: 100%;">
 <option selected disabled value="">Select one</option>
 <?php
-try {
-$conn = app_db();
-$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-$stmt = $conn->prepare("SELECT * FROM tbl_staff WHERE level = '2'");
-$stmt->execute();
-$result = $stmt->fetchAll();
-
-foreach($result as $row)
-{
 ?>
-<option value="<?php echo $row[0]; ?>"><?php echo $row[1].' '.$row[2]; ?> </option>
-<?php
-}
-
-}catch(PDOException $e)
-{
-error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
-echo "Connection failed.";
-}
+<?php foreach($teacherOptions as $row) { ?>
+<option value="<?php echo (int)($row['id'] ?? 0); ?>"><?php echo htmlspecialchars(trim((string)($row['fname'] ?? '').' '.(string)($row['lname'] ?? ''))); ?> </option>
+<?php } ?>
 ?>
 </select>
 </div>
@@ -186,66 +179,28 @@ echo "Connection failed.";
 </tr>
 </thead>
 <tbody>
-<?php
-
-try {
-$conn = app_db();
-$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-$empty_classes = array();
-
-$stmt = $conn->prepare("SELECT * FROM tbl_classes");
-$stmt->execute();
-$classes = $stmt->fetchAll();
-
-foreach ($classes as $value) {
-$empty_classes[$value[0]] = $value[1];
+<?php foreach($combinationRows as $row) {
+$classList = app_unserialize((string)($row['class'] ?? ''));
+$classNames = [];
+foreach ($classList as $classId) {
+	$classId = (string)$classId;
+	if (isset($classNameMap[$classId])) {
+		$classNames[] = $classNameMap[$classId];
+	}
 }
-
-
-$stmt = $conn->prepare("SELECT * FROM tbl_subject_combinations
-  LEFT JOIN tbl_subjects ON tbl_subject_combinations.subject = tbl_subjects.id
-  LEFT JOIN tbl_staff ON tbl_subject_combinations.teacher = tbl_staff.id");
-$stmt->execute();
-$result = $stmt->fetchAll();
-
-foreach($result as $row)
-{
-$class_list = app_unserialize($row[1]);
 ?>
 
 <tr>
-<td><?php echo $row[6]; ?></td>
-<td><?php echo $row[8].' '.$row[9]; ?></td>
-<td>
-<?php
-$st = 1;
-foreach ($class_list as $value2) {
-if ($st < count($class_list)) {
-print ''.$empty_classes[$value2].', ';
-}else{
-print ''.$empty_classes[$value2].'';
-}
-$st++;
-}
-?>
-</td>
-<td><?php echo $row[4]; ?></td>
+<td><?php echo htmlspecialchars((string)($row['subject_name'] ?? '')); ?></td>
+<td><?php echo htmlspecialchars(trim((string)($row['teacher_fname'] ?? '').' '.(string)($row['teacher_lname'] ?? ''))); ?></td>
+<td><?php echo htmlspecialchars(implode(', ', $classNames)); ?></td>
+<td><?php echo htmlspecialchars((string)($row['reg_date'] ?? '')); ?></td>
 <td align="center">
-<a onclick="set_combination('<?php echo $row[0]; ?>');" class="btn btn-primary btn-sm" href="javascript:void(0);" data-bs-toggle="modal" data-bs-target="#editModal">Edit</a>
-<a onclick="del('academic/core/drop_comb.php?id=<?php echo $row[0]; ?>', 'Delete Subject Combination?');" class="btn btn-danger btn-sm" href="javascript:void(0);">Delete</a>
+<a onclick="set_combination('<?php echo (int)($row['id'] ?? 0); ?>');" class="btn btn-primary btn-sm" href="javascript:void(0);" data-bs-toggle="modal" data-bs-target="#editModal">Edit</a>
+<a onclick="del('academic/core/drop_comb.php?id=<?php echo (int)($row['id'] ?? 0); ?>', 'Delete Subject Combination?');" class="btn btn-danger btn-sm" href="javascript:void(0);">Delete</a>
 </td>
 </tr>
-<?php
-}
-
-}catch(PDOException $e)
-{
-error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
-echo "Connection failed.";
-}
-
-?>
+<?php } ?>
 
 </tbody>
 </table>

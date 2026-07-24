@@ -4,6 +4,7 @@ session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/rbac.php');
+require_once('const/edu_ai_portal_ui.php');
 
 if ($res != '1') { header('location:../'); exit; }
 app_require_permission('finance.manage', '../');
@@ -144,6 +145,7 @@ try {
 <li><a class="app-menu__item active" href="admin/installment_plans"><i class="app-menu__icon feather icon-layers"></i><span class="app-menu__label">Installment Plans</span></a></li>
 <li><a class="app-menu__item" href="admin/financial_reports"><i class="app-menu__icon feather icon-bar-chart"></i><span class="app-menu__label">Reports</span></a></li>
 </ul>
+<?php app_render_portal_edu_ai('admin'); ?>
 </aside>
 
 <main class="app-content">

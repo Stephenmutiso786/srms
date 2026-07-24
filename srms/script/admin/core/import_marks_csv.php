@@ -28,9 +28,10 @@ if (!$uploadCheck['ok']) {
 $classIdForm = (int)($_POST['class_id'] ?? 0);
 $termIdForm = (int)($_POST['term_id'] ?? 0);
 $subjectIdForm = (int)($_POST['subject_id'] ?? 0);
+$examIdForm = (int)($_POST['exam_id'] ?? 0);
 
-if ($classIdForm < 1 || $termIdForm < 1 || $subjectIdForm < 1) {
-	$_SESSION['reply'] = array (array("danger", "Select class, term, and subject."));
+if ($classIdForm < 1 || $termIdForm < 1 || $subjectIdForm < 1 || $examIdForm < 1) {
+	$_SESSION['reply'] = array (array("danger", "Select class, term, subject, and exam."));
 	header("location:../import_export");
 	exit;
 }
@@ -38,12 +39,22 @@ if ($classIdForm < 1 || $termIdForm < 1 || $subjectIdForm < 1) {
 $total = 0;
 $success = 0;
 $failed = 0;
+$skipped = 0;
 $details = [];
 
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 	app_require_unlocked('exams', '../import_export');
+	$useExamId = app_column_exists($conn, 'tbl_exam_results', 'exam_id');
+	if (app_table_exists($conn, 'tbl_exams')) {
+		$stmt = $conn->prepare("SELECT COALESCE(status, 'draft') AS status FROM tbl_exams WHERE id = ? AND class_id = ? AND term_id = ? LIMIT 1");
+		$stmt->execute([$examIdForm, $classIdForm, $termIdForm]);
+		$examStatus = strtolower(trim((string)$stmt->fetchColumn()));
+		if ($examStatus === 'published') {
+			throw new RuntimeException("Published exams are view-only. Import is allowed only before publish, including finalized exams.");
+		}
+	}
 
 	$combos = [];
 	$stmt = $conn->prepare("SELECT id, class, subject FROM tbl_subject_combinations WHERE subject = ?");
@@ -94,16 +105,80 @@ try {
 		}
 
 		try {
-			$stmt = $conn->prepare("SELECT id FROM tbl_exam_results WHERE student = ? AND class = ? AND subject_combination = ? AND term = ? LIMIT 1");
-			$stmt->execute([$studentId, $classIdForm, $comboId, $termIdForm]);
-			$existing = $stmt->fetchColumn();
-
-			if ($existing) {
-				$stmt = $conn->prepare("UPDATE tbl_exam_results SET score = ? WHERE id = ?");
-				$stmt->execute([$score, $existing]);
+			if ($useExamId) {
+				$stmt = $conn->prepare("SELECT id, score FROM tbl_exam_results WHERE student = ? AND class = ? AND subject_combination = ? AND term = ? AND exam_id = ? LIMIT 1");
+				$stmt->execute([$studentId, $classIdForm, $comboId, $termIdForm, $examIdForm]);
+				$existing = $stmt->fetch(PDO::FETCH_ASSOC);
+				$existingId = (int)($existing['id'] ?? 0);
+				$existingScore = $existing['score'] ?? null;
+				if ($existingId > 0) {
+					if ($existingScore !== null && $existingScore !== '') {
+						$skipped++;
+						$details[] = "Row $total skipped: mark already exists for student $studentId.";
+						continue;
+					}
+					$stmt = $conn->prepare("UPDATE tbl_exam_results SET score = ? WHERE id = ?");
+					$stmt->execute([$score, $existingId]);
+					app_audit_log($conn, 'staff', (string)$account_id, 'exam_marks.import_fill_missing', 'exam_result', (string)$existingId, [
+						'student' => (string)$studentId,
+						'class' => (string)$classIdForm,
+						'term' => (string)$termIdForm,
+						'exam_id' => (string)$examIdForm,
+						'subject_combination' => (string)$comboId,
+						'previous_score' => $existingScore,
+						'new_score' => $score,
+						'source' => 'admin.import_marks_csv',
+					]);
+				} else {
+					$stmt = $conn->prepare("INSERT INTO tbl_exam_results (student, class, subject_combination, term, score, exam_id) VALUES (?,?,?,?,?,?)");
+					$stmt->execute([$studentId, $classIdForm, $comboId, $termIdForm, $score, $examIdForm]);
+					app_audit_log($conn, 'staff', (string)$account_id, 'exam_marks.import_fill_missing', 'exam_result', (string)$conn->lastInsertId(), [
+						'student' => (string)$studentId,
+						'class' => (string)$classIdForm,
+						'term' => (string)$termIdForm,
+						'exam_id' => (string)$examIdForm,
+						'subject_combination' => (string)$comboId,
+						'previous_score' => null,
+						'new_score' => $score,
+						'source' => 'admin.import_marks_csv',
+					]);
+				}
 			} else {
-				$stmt = $conn->prepare("INSERT INTO tbl_exam_results (student, class, subject_combination, term, score) VALUES (?,?,?,?,?)");
-				$stmt->execute([$studentId, $classIdForm, $comboId, $termIdForm, $score]);
+				$stmt = $conn->prepare("SELECT id, score FROM tbl_exam_results WHERE student = ? AND class = ? AND subject_combination = ? AND term = ? LIMIT 1");
+				$stmt->execute([$studentId, $classIdForm, $comboId, $termIdForm]);
+				$existing = $stmt->fetch(PDO::FETCH_ASSOC);
+				$existingId = (int)($existing['id'] ?? 0);
+				$existingScore = $existing['score'] ?? null;
+				if ($existingId > 0) {
+					if ($existingScore !== null && $existingScore !== '') {
+						$skipped++;
+						$details[] = "Row $total skipped: mark already exists for student $studentId.";
+						continue;
+					}
+					$stmt = $conn->prepare("UPDATE tbl_exam_results SET score = ? WHERE id = ?");
+					$stmt->execute([$score, $existingId]);
+					app_audit_log($conn, 'staff', (string)$account_id, 'exam_marks.import_fill_missing', 'exam_result', (string)$existingId, [
+						'student' => (string)$studentId,
+						'class' => (string)$classIdForm,
+						'term' => (string)$termIdForm,
+						'subject_combination' => (string)$comboId,
+						'previous_score' => $existingScore,
+						'new_score' => $score,
+						'source' => 'admin.import_marks_csv',
+					]);
+				} else {
+					$stmt = $conn->prepare("INSERT INTO tbl_exam_results (student, class, subject_combination, term, score) VALUES (?,?,?,?,?)");
+					$stmt->execute([$studentId, $classIdForm, $comboId, $termIdForm, $score]);
+					app_audit_log($conn, 'staff', (string)$account_id, 'exam_marks.import_fill_missing', 'exam_result', (string)$conn->lastInsertId(), [
+						'student' => (string)$studentId,
+						'class' => (string)$classIdForm,
+						'term' => (string)$termIdForm,
+						'subject_combination' => (string)$comboId,
+						'previous_score' => null,
+						'new_score' => $score,
+						'source' => 'admin.import_marks_csv',
+					]);
+				}
 			}
 			$success++;
 		} catch (Throwable $e) {
@@ -119,7 +194,7 @@ try {
 		$stmt->execute(['marks', $total, $success, $failed, implode("\n", $details), $account_id]);
 	}
 
-	$_SESSION['reply'] = array (array("success", "Import done. Total: $total, Success: $success, Failed: $failed"));
+	$_SESSION['reply'] = array (array("success", "Import done. Total: $total, Added/Filled: $success, Skipped existing: $skipped, Failed: $failed"));
 	header("location:../import_export");
 } catch (Throwable $e) {
 	$_SESSION['reply'] = array (array("danger", "Import failed: ".$e->getMessage()));

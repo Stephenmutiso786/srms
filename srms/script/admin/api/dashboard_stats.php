@@ -103,13 +103,18 @@ try {
 	if (app_table_exists($conn, 'tbl_terms') && app_table_exists($conn, 'tbl_exam_results')) {
 		$avgScoreByTerm = $safeRows(function () use ($conn) {
 			$scoreColumn = app_column_exists($conn, 'tbl_exam_results', 'score') ? 'score' : 'marks';
-			$stmt = $conn->prepare("SELECT t.id, t.name, COALESCE(AVG(r.$scoreColumn), 0) AS avg_score
+			$hasAcademicYear = app_column_exists($conn, 'tbl_terms', 'academic_year');
+			$stmt = $conn->prepare("SELECT t.id, t.name"
+				. ($hasAcademicYear ? ", t.academic_year" : ", '' AS academic_year")
+				. ", COALESCE(AVG(r.$scoreColumn), 0) AS avg_score
 				FROM tbl_terms t
 				LEFT JOIN tbl_exam_results r ON r.term = t.id
-				GROUP BY t.id, t.name
+				GROUP BY t.id, t.name" . ($hasAcademicYear ? ", t.academic_year" : "") . "
 				ORDER BY t.id");
 			$stmt->execute();
-			return $stmt->fetchAll(PDO::FETCH_ASSOC);
+			$rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+			app_sort_term_rows($rows);
+			return $rows;
 		});
 	}
 

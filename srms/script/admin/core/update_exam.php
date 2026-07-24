@@ -18,7 +18,6 @@ $examId = (int)($_POST['exam_id'] ?? 0);
 $name = trim($_POST['name'] ?? '');
 $classId = (int)($_POST['class_id'] ?? 0);
 $termId = (int)($_POST['term_id'] ?? 0);
-$gradingSystemId = (int)($_POST['grading_system_id'] ?? 0);
 $examTypeId = $_POST['exam_type_id'] ?? null;
 $examTypeId = $examTypeId === '' ? null : (int)$examTypeId;
 $weightPercentage = (float)($_POST['weight_percentage'] ?? 100);
@@ -41,19 +40,7 @@ try {
 	app_ensure_exam_components_table($conn);
 	app_ensure_exam_type($conn);
 	app_ensure_exam_weights_table($conn);
-
-	if ($gradingSystemId < 1 && app_table_exists($conn, 'tbl_grading_systems')) {
-		$preferredType = in_array($assessmentMode, ['cbe', 'consolidated'], true) ? 'cbe' : 'marks';
-		$stmt = $conn->prepare("SELECT id FROM tbl_grading_systems WHERE is_active = 1 AND type = ? ORDER BY is_default DESC, id ASC LIMIT 1");
-		$stmt->execute([$preferredType]);
-		$gradingSystemId = (int)$stmt->fetchColumn();
-		if ($gradingSystemId < 1) {
-			$stmt = $conn->prepare("SELECT id FROM tbl_grading_systems WHERE is_active = 1 ORDER BY is_default DESC, id ASC LIMIT 1");
-			$stmt->execute();
-			$gradingSystemId = (int)$stmt->fetchColumn();
-		}
-	}
-	if ($examId < 1 || $name === '' || $classId < 1 || $termId < 1 || $gradingSystemId < 1) {
+	if ($examId < 1 || $name === '' || $classId < 1 || $termId < 1) {
 		$_SESSION['reply'] = array(array("danger", "Fill all required fields."));
 		header("location:../exams");
 		exit;
@@ -74,31 +61,24 @@ try {
 	if (!$exam) {
 		throw new RuntimeException("Exam not found.");
 	}
+	$beforeSnapshot = app_exam_archive_payload($conn, $examId);
 
 	$classStmt = $conn->prepare("SELECT name FROM tbl_classes WHERE id = ? LIMIT 1");
 	$classStmt->execute([$classId]);
 	$className = (string)($classStmt->fetchColumn() ?? '');
 
 	$classGradingSystemId = (int)(app_class_grading_system_id($conn, $classId) ?? 0);
-	if ($classGradingSystemId > 0) {
-		$gradingSystemId = $classGradingSystemId;
+	if ($classGradingSystemId < 1) {
+		$label = $className !== '' ? $className : ('class #' . $classId);
+		throw new RuntimeException('Assign a grading system to ' . $label . ' in Class Management before editing exams.');
 	}
-	if ($classGradingSystemId < 1 && $assessmentMode === 'kjsea' && app_table_exists($conn, 'tbl_grading_systems')) {
-		$systemStmt = $conn->prepare("SELECT id FROM tbl_grading_systems WHERE is_active = 1 AND name = ? LIMIT 1");
-		$systemStmt->execute(['CBE KJSEA System']);
-		$kjseaSystemId = (int)$systemStmt->fetchColumn();
-		if ($kjseaSystemId > 0) {
-			$gradingSystemId = $kjseaSystemId;
-		}
-	}
-
-	$recommendedGradingSystemId = app_class_recommended_grading_system_id($conn, $className);
-	if ($classGradingSystemId < 1 && $recommendedGradingSystemId && app_class_recommended_exam_mode($className) === 'cbe') {
-		$selectedTypeStmt = $conn->prepare("SELECT type FROM tbl_grading_systems WHERE id = ? LIMIT 1");
-		$selectedTypeStmt->execute([$gradingSystemId]);
-		$selectedType = strtolower(trim((string)($selectedTypeStmt->fetchColumn() ?? '')));
-		if (($gradingSystemId < 1 || $selectedType === '' || $selectedType === 'marks')) {
-			$gradingSystemId = $recommendedGradingSystemId;
+	$gradingSystemId = $classGradingSystemId;
+	if (app_table_exists($conn, 'tbl_grading_systems')) {
+		$stmt = $conn->prepare("SELECT id FROM tbl_grading_systems WHERE id = ? AND is_active = 1 LIMIT 1");
+		$stmt->execute([$gradingSystemId]);
+		if (!(int)$stmt->fetchColumn()) {
+			$label = $className !== '' ? $className : ('class #' . $classId);
+			throw new RuntimeException('The grading system assigned to ' . $label . ' is inactive. Update it in Class Management first.');
 		}
 	}
 
@@ -197,6 +177,24 @@ try {
 			$stmt->execute([$examId, $componentExamId]);
 		}
 	}
+	$afterSnapshot = app_exam_archive_payload($conn, $examId);
+	app_data_camp_store_event($conn, [
+		'module_key' => 'exams',
+		'record_type' => 'exam_updated',
+		'entity_table' => 'tbl_exams',
+		'entity_id' => (string)$examId,
+		'title' => $name,
+		'description' => 'Exam snapshot retained before and after edit',
+		'class_id' => $classId,
+		'owner_portal' => 'admin,academic,teacher',
+		'mime_type' => 'application/json',
+		'status' => 'retained',
+		'payload_json' => [
+			'before' => $beforeSnapshot,
+			'after' => $afterSnapshot,
+		],
+		'created_by' => (int)($account_id ?? 0),
+	]);
 
 	$_SESSION['reply'] = array(array("success", "Exam updated successfully."));
 	header("location:../exams");

@@ -69,20 +69,20 @@ try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-$stmt = $conn->prepare("SELECT * FROM tbl_division_system");
+$stmt = $conn->prepare("SELECT division, min, max, min_point, max_point, points FROM tbl_division_system ORDER BY min DESC, points DESC");
 $stmt->execute();
-$result = $stmt->fetchAll();
+$result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 foreach($result as $row)
 {
 ?>
 <tr>
-<td><?php echo $row[0]; ?></td>
-<td><?php echo $row[1]; ?></td>
-<td><?php echo $row[2]; ?></td>
-<td><?php echo $row[3]; ?></td>
-<td><?php echo $row[4]; ?></td>
-<td><?php echo $row[5]; ?></td>
+<td><?php echo htmlspecialchars((string)$row['division']); ?></td>
+<td><?php echo htmlspecialchars((string)$row['min']); ?></td>
+<td><?php echo htmlspecialchars((string)$row['max']); ?></td>
+<td><?php echo htmlspecialchars((string)$row['min_point']); ?></td>
+<td><?php echo htmlspecialchars((string)$row['max_point']); ?></td>
+<td><?php echo htmlspecialchars((string)$row['points']); ?></td>
 
 </tr>
 <?php

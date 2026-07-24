@@ -21,6 +21,7 @@ $photo = serialize($_FILES["image"]);
 try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$beforeSnapshot = app_student_archive_payload($conn, (string)$reg_no);
 
 $isPgsql = (defined('DBDriver') && DBDriver === 'pgsql');
 $stmt = $isPgsql
@@ -83,6 +84,26 @@ if ($classBand === 'junior_secondary') {
 } else {
 	app_clear_student_subject_choices($conn, (string)$reg_no);
 }
+
+$afterSnapshot = app_student_archive_payload($conn, (string)$reg_no);
+app_data_camp_store_event($conn, [
+	'module_key' => 'students',
+	'record_type' => 'student_updated',
+	'entity_table' => 'tbl_students',
+	'entity_id' => (string)$reg_no,
+	'title' => trim($fname . ' ' . $mname . ' ' . $lname) ?: ('Student ' . (string)$reg_no),
+	'description' => 'Student profile snapshot retained before and after update',
+	'class_id' => (int)$class > 0 ? (int)$class : null,
+	'student_id' => (string)$reg_no,
+	'owner_portal' => 'admin,academic',
+	'mime_type' => 'application/json',
+	'status' => 'retained',
+	'payload_json' => [
+		'before' => $beforeSnapshot,
+		'after' => $afterSnapshot,
+	],
+	'created_by' => (int)($account_id ?? 0),
+]);
 
 $_SESSION['reply'] = array (array("success",'Student updated successfully'));
 header("location:../students");

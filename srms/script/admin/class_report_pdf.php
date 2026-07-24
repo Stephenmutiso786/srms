@@ -1,12 +1,16 @@
 <?php
-chdir('../');
-session_start();
-require_once('db/config.php');
-require_once('const/school.php');
-require_once('const/check_session.php');
-require_once('const/report_engine.php');
-require_once('const/report_pdf_template.php');
-require_once('tcpdf/tcpdf.php');
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    session_start();
+}
+require_once(__DIR__ . '/../db/config.php');
+require_once(__DIR__ . '/../const/school.php');
+require_once(__DIR__ . '/../const/check_session.php');
+require_once(__DIR__ . '/../const/report_engine.php');
+require_once(__DIR__ . '/../const/report_pdf_template.php');
+require_once(__DIR__ . '/../tcpdf/tcpdf.php');
+
+@set_time_limit(0);
+@ini_set('memory_limit', '-1');
 
 if ($res !== '1' || $level !== '0' || !isset($_GET['term'], $_GET['class'])) { header('location:../'); exit; }
 
@@ -26,6 +30,12 @@ try {
         exit;
     }
 
+    // Pre-generate the class batch once so we don't recompute ranking/report data per student.
+    $batch = report_class_merit_list($conn, $classId, $termId, (int)$account_id, $examId);
+    if (empty($batch['rows'])) {
+        throw new RuntimeException('No report cards could be generated for the selected class and term.');
+    }
+
     // Fetch students in class
     $stmt = $conn->prepare("SELECT s.id AS student_id, CONCAT(COALESCE(s.fname, ''), ' ', COALESCE(s.lname, '')) AS student_name, c.name AS class_name, s.school_id, s.class
         FROM tbl_students s
@@ -42,19 +52,21 @@ try {
     }
 
     $pdf = new TCPDF(PDF_PAGE_ORIENTATION, PDF_UNIT, PDF_PAGE_FORMAT, true, 'UTF-8', false);
+    $examOptions = report_term_exam_options($conn, $classId, $termId);
+    if ($examId < 1 && !empty($examOptions)) {
+        $examId = (int)$examOptions[0]['id'];
+    }
+    $selectedExamId = $examId;
+    $stmt = $conn->prepare('SELECT name FROM tbl_terms WHERE id = ? LIMIT 1');
+    $stmt->execute([$termId]);
+    $termName = (string)$stmt->fetchColumn();
 
     foreach ($students as $student) {
         $studentId = (string)($student['student_id'] ?? '');
         if ($studentId === '') { continue; }
 
-        // Ensure report card exists and is up-to-date
-        $card = report_ensure_card_generated($conn, $studentId, $classId, $termId, (int)$account_id, $examId);
-        if (!$card) {
-            $rankData = report_rank_students($conn, $classId, $termId, $examId);
-            $report = report_compute_for_student($conn, $studentId, $classId, $termId, $examId);
-            $reportId = report_store_card($conn, $studentId, $classId, $termId, $report, $rankData['positions'], (int)$rankData['total_students'], (int)$account_id, $examId);
-            $card = report_load_card($conn, $reportId);
-        }
+        $reportId = report_find_card_id($conn, $studentId, $termId, $selectedExamId);
+        $card = $reportId > 0 ? report_load_card($conn, $reportId) : null;
 
         if (!$card) {
             // skip students we couldn't generate cards for
@@ -65,23 +77,15 @@ try {
         $feesBalance = report_fees_balance($conn, $studentId, $termId);
         $examSummary = null;
         $examBreakdown = [];
-        $examOptions = report_term_exam_options($conn, $classId, $termId);
-        if ($examId < 1 && !empty($examOptions)) {
-            $examId = (int)$examOptions[0]['id'];
-        }
-        if ($examId > 0) {
+        if ($selectedExamId > 0) {
             foreach ($examOptions as $option) {
-                if ((int)$option['id'] === $examId) {
-                    $examSummary = report_exam_summary($conn, $studentId, $classId, $termId, $examId);
-                    $examBreakdown = report_exam_subject_breakdown($conn, $studentId, $classId, $termId, $examId);
+                if ((int)$option['id'] === $selectedExamId) {
+                    $examSummary = report_exam_summary($conn, $studentId, $classId, $termId, $selectedExamId);
+                    $examBreakdown = report_exam_subject_breakdown($conn, $studentId, $classId, $termId, $selectedExamId);
                     break;
                 }
             }
         }
-
-        $stmt = $conn->prepare('SELECT name FROM tbl_terms WHERE id = ? LIMIT 1');
-        $stmt->execute([$termId]);
-        $termName = (string)$stmt->fetchColumn();
 
         app_output_single_page_report_pdf($conn, $pdf, [
             'student_id' => $studentId,

@@ -46,16 +46,31 @@ function app_online_prepare_schema(PDO $conn): bool
 
 function app_online_touch(PDO $conn, string $sessionKey): void
 {
-    if ($sessionKey === '' || !app_online_prepare_schema($conn)) {
-        return;
-    }
+	if ($sessionKey === '' || !app_online_prepare_schema($conn)) {
+		return;
+	}
 
-    try {
-        $stmt = $conn->prepare("UPDATE tbl_login_sessions SET last_seen = CURRENT_TIMESTAMP WHERE session_key = ?");
-        $stmt->execute([$sessionKey]);
-    } catch (Throwable $e) {
-        // Ignore touch failures.
-    }
+	if (session_status() === PHP_SESSION_ACTIVE) {
+		$touchKey = '__srms_last_online_touch';
+		$touchMap = isset($_SESSION[$touchKey]) && is_array($_SESSION[$touchKey]) ? $_SESSION[$touchKey] : [];
+		$lastTouchedAt = isset($touchMap[$sessionKey]) ? (int)$touchMap[$sessionKey] : 0;
+		if ($lastTouchedAt > 0 && (time() - $lastTouchedAt) < 60) {
+			return;
+		}
+	}
+
+	try {
+		$stmt = $conn->prepare("UPDATE tbl_login_sessions SET last_seen = CURRENT_TIMESTAMP WHERE session_key = ?");
+		$stmt->execute([$sessionKey]);
+		if (session_status() === PHP_SESSION_ACTIVE) {
+			if (!isset($_SESSION['__srms_last_online_touch']) || !is_array($_SESSION['__srms_last_online_touch'])) {
+				$_SESSION['__srms_last_online_touch'] = [];
+			}
+			$_SESSION['__srms_last_online_touch'][$sessionKey] = time();
+		}
+	} catch (Throwable $e) {
+		// Ignore touch failures.
+	}
 }
 
 function app_online_fetch_maps(PDO $conn, int $windowSeconds = 180): array

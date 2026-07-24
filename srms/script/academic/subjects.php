@@ -112,19 +112,21 @@ try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-$stmt = $conn->prepare("SELECT * FROM tbl_subjects");
+$stmt = $conn->prepare("SELECT id, name FROM tbl_subjects ORDER BY name");
 $stmt->execute();
-$result = $stmt->fetchAll();
+$result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 foreach($result as $row)
 {
+$subjectId = (int)($row['id'] ?? 0);
+$subjectName = (string)($row['name'] ?? '');
 ?>
-<textarea style="display:none;" id="subject_<?php echo $row[0]; ?>"><?php echo $row[1]; ?></textarea>
+<textarea style="display:none;" id="subject_<?php echo $subjectId; ?>"><?php echo htmlspecialchars($subjectName); ?></textarea>
 <tr>
-<td><?php echo $row[1]; ?></td>
+<td><?php echo htmlspecialchars($subjectName); ?></td>
 <td align="center">
-<a onclick="set_subject('<?php echo $row[0]; ?>');" class="btn btn-primary btn-sm" href="javascript:void(0);" data-bs-toggle="modal" data-bs-target="#editModal">Edit</a>
-<a onclick="del('academic/core/drop_subject.php?id=<?php echo $row[0]; ?>', 'Delete Subject?');" class="btn btn-danger btn-sm" href="javascript:void(0);">Delete</a>
+<a onclick="set_subject('<?php echo $subjectId; ?>');" class="btn btn-primary btn-sm" href="javascript:void(0);" data-bs-toggle="modal" data-bs-target="#editModal">Edit</a>
+<a onclick="del('academic/core/drop_subject.php?id=<?php echo $subjectId; ?>', 'Delete Subject?');" class="btn btn-danger btn-sm" href="javascript:void(0);">Delete</a>
 </td>
 </tr>
 <?php

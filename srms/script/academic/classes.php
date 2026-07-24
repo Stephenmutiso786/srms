@@ -154,14 +154,25 @@ try {
 try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$dateColumn = 'registration_date';
+if (app_column_exists($conn, 'tbl_classes', 'reg_date')) {
+	$dateColumn = 'reg_date';
+} elseif (app_column_exists($conn, 'tbl_classes', 'created_at')) {
+	$dateColumn = 'created_at';
+}
 
-$stmt = $conn->prepare("SELECT * FROM tbl_classes");
+$stmt = $conn->prepare("SELECT id, name, {$dateColumn} AS added_on FROM tbl_classes");
 $stmt->execute();
-$result = $stmt->fetchAll();
+$result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+usort($result, static function (array $a, array $b): int {
+	return app_compare_names_by_type((string)($a['name'] ?? ''), (string)($b['name'] ?? ''), 'class');
+});
 
 foreach($result as $row)
 {
-	$classGradingSystemId = (int)($classGradingMap[(int)$row[0]] ?? 0);
+	$classId = (int)($row['id'] ?? 0);
+	$className = (string)($row['name'] ?? '');
+	$classGradingSystemId = (int)($classGradingMap[$classId] ?? 0);
 	$classGradingLabel = 'Auto / Default';
 	foreach ($gradingSystems as $gradingSystem) {
 		if ((int)$gradingSystem['id'] === $classGradingSystemId) {
@@ -170,15 +181,15 @@ foreach($result as $row)
 		}
 	}
 ?>
-<textarea style="display:none;" id="class_<?php echo $row[0]; ?>"><?php echo $row[1]; ?></textarea>
-<textarea style="display:none;" id="class_grading_<?php echo $row[0]; ?>"><?php echo $classGradingSystemId; ?></textarea>
+<textarea style="display:none;" id="class_<?php echo $classId; ?>"><?php echo htmlspecialchars($className); ?></textarea>
+<textarea style="display:none;" id="class_grading_<?php echo $classId; ?>"><?php echo $classGradingSystemId; ?></textarea>
 <tr>
-<td><?php echo $row[1]; ?></td>
+<td><?php echo htmlspecialchars($className); ?></td>
 <td><?php echo htmlspecialchars($classGradingLabel); ?></td>
-<td><?php echo $row[2]; ?></td>
+<td><?php echo htmlspecialchars((string)($row['added_on'] ?? '')); ?></td>
 <td align="center">
-<a onclick="set_class('<?php echo $row[0]; ?>');" class="btn btn-primary btn-sm" href="javascript:void(0);" data-bs-toggle="modal" data-bs-target="#editModal">Edit</a>
-<a onclick="del('academic/core/drop_class.php?id=<?php echo $row[0]; ?>', 'Delete Class?');" class="btn btn-danger btn-sm" href="javascript:void(0);">Delete</a>
+<a onclick="set_class('<?php echo $classId; ?>');" class="btn btn-primary btn-sm" href="javascript:void(0);" data-bs-toggle="modal" data-bs-target="#editModal">Edit</a>
+<a onclick="del('academic/core/drop_class.php?id=<?php echo $classId; ?>', 'Delete Class?');" class="btn btn-danger btn-sm" href="javascript:void(0);">Delete</a>
 </td>
 </tr>
 <?php
@@ -187,7 +198,7 @@ foreach($result as $row)
 }catch(PDOException $e)
 {
 error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
-echo "Connection failed.";
+echo '<tr><td colspan="4" class="text-center text-danger">Failed to load classes right now.</td></tr>';
 }
 
 ?>

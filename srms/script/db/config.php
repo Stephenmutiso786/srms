@@ -167,9 +167,21 @@ function app_db(): PDO
 		return $pdo;
 	}
 
+	$pdo = app_db_connect();
+	app_migrate_cbc_to_cbe_schema($pdo);
+	return $pdo;
+}
+
+function app_db_connect(?int $timeoutOverride = null): PDO
+{
+	$effectiveTimeout = $timeoutOverride;
+	if ($effectiveTimeout === null || $effectiveTimeout <= 0) {
+		$effectiveTimeout = DBConnectTimeout > 0 ? DBConnectTimeout : 5;
+	}
+
 	$options = [
 		PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-		PDO::ATTR_TIMEOUT => (DBConnectTimeout > 0 ? DBConnectTimeout : 5),
+		PDO::ATTR_TIMEOUT => $effectiveTimeout,
 	];
 
 	if (DBDriver === 'mysql') {
@@ -205,9 +217,16 @@ function app_db(): PDO
 		}
 	}
 
-	$pdo = new PDO(DB_DSN, DBUser, DBPass, $options);
-	app_migrate_cbc_to_cbe_schema($pdo);
-	return $pdo;
+	return new PDO(DB_DSN, DBUser, DBPass, $options);
+}
+
+function app_try_db(int $timeoutSeconds = 1): ?PDO
+{
+	try {
+		return app_db_connect($timeoutSeconds);
+	} catch (Throwable $e) {
+		return null;
+	}
 }
 
 function app_cookie_secure(): bool
@@ -657,6 +676,12 @@ function app_ensure_school_roles(PDO $conn): void
 
 function app_staff_primary_title(PDO $conn, int $staffId, string $level = ''): string
 {
+	static $cache = [];
+	$cacheKey = $staffId . '|' . trim($level);
+	if (isset($cache[$cacheKey])) {
+		return $cache[$cacheKey];
+	}
+
 	$resolvedLevel = trim($level);
 	if ($resolvedLevel === '' && $staffId > 0 && app_table_exists($conn, 'tbl_staff')) {
 		try {
@@ -678,19 +703,22 @@ function app_staff_primary_title(PDO $conn, int $staffId, string $level = ''): s
 				ORDER BY r.level DESC, r.name ASC
 				LIMIT 1");
 			$stmt->execute([$staffId]);
-			$roleName = trim((string)$stmt->fetchColumn());
-			if ($roleName !== '') {
-				if ($baseTitle !== '') {
-					return $baseTitle . ' / ' . $roleName;
+				$roleName = trim((string)$stmt->fetchColumn());
+				if ($roleName !== '') {
+					if ($baseTitle !== '') {
+						$cache[$cacheKey] = $baseTitle . ' / ' . $roleName;
+						return $cache[$cacheKey];
+					}
+					$cache[$cacheKey] = $roleName;
+					return $cache[$cacheKey];
 				}
-				return $roleName;
+			} catch (Throwable $e) {
+				// fall through to level title
 			}
-		} catch (Throwable $e) {
-			// fall through to level title
 		}
-	}
 
-	return $baseTitle;
+	$cache[$cacheKey] = $baseTitle;
+	return $cache[$cacheKey];
 }
 
 function app_super_admin_owner_email(): string
@@ -825,8 +853,13 @@ function app_is_super_admin_controller(PDO $conn, string $accountId = '', string
 
 function app_staff_has_permission_code(PDO $conn, int $staffId, string $permissionCode): bool
 {
+	static $cache = [];
 	if ($staffId < 1 || $permissionCode === '') {
 		return false;
+	}
+	$cacheKey = $staffId . '|' . strtolower(trim($permissionCode));
+	if (isset($cache[$cacheKey])) {
+		return $cache[$cacheKey];
 	}
 	if (!app_table_exists($conn, 'tbl_user_roles') || !app_table_exists($conn, 'tbl_role_permissions') || !app_table_exists($conn, 'tbl_permissions')) {
 		return false;
@@ -835,14 +868,16 @@ function app_staff_has_permission_code(PDO $conn, int $staffId, string $permissi
 		$stmt = $conn->prepare("SELECT 1
 			FROM tbl_user_roles ur
 			JOIN tbl_role_permissions rp ON rp.role_id = ur.role_id
-			JOIN tbl_permissions p ON p.id = rp.permission_id
-			WHERE ur.staff_id = ? AND p.code = ?
-			LIMIT 1");
-		$stmt->execute([$staffId, $permissionCode]);
-		return (bool)$stmt->fetchColumn();
-	} catch (Throwable $e) {
-		return false;
-	}
+				JOIN tbl_permissions p ON p.id = rp.permission_id
+				WHERE ur.staff_id = ? AND p.code = ?
+				LIMIT 1");
+			$stmt->execute([$staffId, $permissionCode]);
+			$cache[$cacheKey] = (bool)$stmt->fetchColumn();
+			return $cache[$cacheKey];
+		} catch (Throwable $e) {
+			$cache[$cacheKey] = false;
+			return $cache[$cacheKey];
+		}
 }
 
 function app_staff_login_portal(PDO $conn, int $staffId, string $level): string
@@ -1133,6 +1168,9 @@ function app_ensure_discipline_management_schema(PDO $conn): void
 		'parent_sms_sent_at' => defined('DBDriver') && DBDriver === 'pgsql'
 			? "ALTER TABLE tbl_discipline_cases ADD COLUMN parent_sms_sent_at timestamp NULL"
 			: "ALTER TABLE tbl_discipline_cases ADD COLUMN parent_sms_sent_at timestamp NULL",
+		'parent_whatsapp_sent_at' => defined('DBDriver') && DBDriver === 'pgsql'
+			? "ALTER TABLE tbl_discipline_cases ADD COLUMN parent_whatsapp_sent_at timestamp NULL"
+			: "ALTER TABLE tbl_discipline_cases ADD COLUMN parent_whatsapp_sent_at timestamp NULL",
 		'parent_reminder_sent_at' => defined('DBDriver') && DBDriver === 'pgsql'
 			? "ALTER TABLE tbl_discipline_cases ADD COLUMN parent_reminder_sent_at timestamp NULL"
 			: "ALTER TABLE tbl_discipline_cases ADD COLUMN parent_reminder_sent_at timestamp NULL",
@@ -2373,14 +2411,14 @@ function app_sync_student_finance_class_links(PDO $conn, ?string $studentId = nu
 			WHERE s.id = i.student_id
 			  AND i.status <> 'void'
 			  AND s.class IS NOT NULL
-			  AND (i.class_id IS NULL OR i.class_id <> s.class)";
+			  AND i.class_id IS NULL";
 	} else {
 		$sql = "UPDATE tbl_invoices i
 			JOIN tbl_students s ON s.id = i.student_id
 			SET i.class_id = s.class
 			WHERE i.status <> 'void'
 			  AND s.class IS NOT NULL
-			  AND (i.class_id IS NULL OR i.class_id <> s.class)";
+			  AND i.class_id IS NULL";
 	}
 	$params = [];
 	if ($studentId !== null && trim($studentId) !== '') {
@@ -3063,6 +3101,9 @@ function app_ensure_data_camp_schema(PDO $conn): void
 				source_url varchar(255) DEFAULT NULL,
 				mime_type varchar(100) DEFAULT NULL,
 				payload_json text DEFAULT NULL,
+				payload_encoding varchar(20) DEFAULT NULL,
+				payload_bytes integer DEFAULT NULL,
+				payload_original_bytes integer DEFAULT NULL,
 				status varchar(30) NOT NULL DEFAULT 'active',
 				source_key varchar(190) DEFAULT NULL,
 				created_by integer DEFAULT NULL,
@@ -3090,6 +3131,9 @@ function app_ensure_data_camp_schema(PDO $conn): void
 				source_url varchar(255) DEFAULT NULL,
 				mime_type varchar(100) DEFAULT NULL,
 				payload_json longtext DEFAULT NULL,
+				payload_encoding varchar(20) DEFAULT NULL,
+				payload_bytes int DEFAULT NULL,
+				payload_original_bytes int DEFAULT NULL,
 				status varchar(30) NOT NULL DEFAULT 'active',
 				source_key varchar(190) DEFAULT NULL,
 				created_by int DEFAULT NULL,
@@ -3113,6 +3157,9 @@ function app_ensure_data_camp_schema(PDO $conn): void
 			'source_url' => "ALTER TABLE tbl_data_camp_records ADD COLUMN source_url varchar(255) DEFAULT NULL",
 			'mime_type' => "ALTER TABLE tbl_data_camp_records ADD COLUMN mime_type varchar(100) DEFAULT NULL",
 			'payload_json' => "ALTER TABLE tbl_data_camp_records ADD COLUMN payload_json text DEFAULT NULL",
+			'payload_encoding' => "ALTER TABLE tbl_data_camp_records ADD COLUMN payload_encoding varchar(20) DEFAULT NULL",
+			'payload_bytes' => "ALTER TABLE tbl_data_camp_records ADD COLUMN payload_bytes integer DEFAULT NULL",
+			'payload_original_bytes' => "ALTER TABLE tbl_data_camp_records ADD COLUMN payload_original_bytes integer DEFAULT NULL",
 			'status' => "ALTER TABLE tbl_data_camp_records ADD COLUMN status varchar(30) NOT NULL DEFAULT 'active'",
 			'source_key' => "ALTER TABLE tbl_data_camp_records ADD COLUMN source_key varchar(190) DEFAULT NULL",
 			'created_by' => "ALTER TABLE tbl_data_camp_records ADD COLUMN created_by integer DEFAULT NULL",
@@ -3127,6 +3174,9 @@ function app_ensure_data_camp_schema(PDO $conn): void
 			'source_url' => "ALTER TABLE tbl_data_camp_records ADD COLUMN source_url varchar(255) DEFAULT NULL",
 			'mime_type' => "ALTER TABLE tbl_data_camp_records ADD COLUMN mime_type varchar(100) DEFAULT NULL",
 			'payload_json' => "ALTER TABLE tbl_data_camp_records ADD COLUMN payload_json longtext DEFAULT NULL",
+			'payload_encoding' => "ALTER TABLE tbl_data_camp_records ADD COLUMN payload_encoding varchar(20) DEFAULT NULL",
+			'payload_bytes' => "ALTER TABLE tbl_data_camp_records ADD COLUMN payload_bytes int DEFAULT NULL",
+			'payload_original_bytes' => "ALTER TABLE tbl_data_camp_records ADD COLUMN payload_original_bytes int DEFAULT NULL",
 			'status' => "ALTER TABLE tbl_data_camp_records ADD COLUMN status varchar(30) NOT NULL DEFAULT 'active'",
 			'source_key' => "ALTER TABLE tbl_data_camp_records ADD COLUMN source_key varchar(190) DEFAULT NULL",
 			'created_by' => "ALTER TABLE tbl_data_camp_records ADD COLUMN created_by int DEFAULT NULL",
@@ -3138,12 +3188,139 @@ function app_ensure_data_camp_schema(PDO $conn): void
 				$conn->exec($sql);
 				app_forget_column_exists_cache('tbl_data_camp_records', $column);
 			} catch (Throwable $e) {
-				error_log('[app_ensure_data_camp_schema] ' . $column . ': ' . $e->getMessage());
+				$message = strtolower((string)$e->getMessage());
+				if (strpos($message, 'duplicate column') === false && strpos($message, 'already exists') === false) {
+					error_log('[app_ensure_data_camp_schema] ' . $column . ': ' . $e->getMessage());
+				}
 			}
 		}
 	}
 
+	app_data_camp_compact_legacy_payloads($conn);
 	$done = true;
+}
+
+function app_data_camp_encode_payload(?string $payloadJson): array
+{
+	$payloadJson = $payloadJson !== null ? trim($payloadJson) : '';
+	if ($payloadJson === '') {
+		return [
+			'payload_json' => null,
+			'payload_encoding' => null,
+			'payload_bytes' => null,
+			'payload_original_bytes' => null,
+		];
+	}
+
+	$originalBytes = strlen($payloadJson);
+	$encoded = [
+		'payload_json' => $payloadJson,
+		'payload_encoding' => 'json',
+		'payload_bytes' => $originalBytes,
+		'payload_original_bytes' => $originalBytes,
+	];
+
+	if ($originalBytes < 1024 || !function_exists('gzencode')) {
+		return $encoded;
+	}
+
+	$compressed = @gzencode($payloadJson, 6);
+	if (!is_string($compressed) || $compressed === '') {
+		return $encoded;
+	}
+
+	$compressedB64 = base64_encode($compressed);
+	if ($compressedB64 === '' || strlen($compressedB64) >= $originalBytes) {
+		return $encoded;
+	}
+
+	return [
+		'payload_json' => $compressedB64,
+		'payload_encoding' => 'gzip+base64',
+		'payload_bytes' => strlen($compressedB64),
+		'payload_original_bytes' => $originalBytes,
+	];
+}
+
+function app_data_camp_payload_json(array $record): string
+{
+	$stored = trim((string)($record['payload_json'] ?? ''));
+	if ($stored === '') {
+		return '';
+	}
+
+	$encoding = strtolower(trim((string)($record['payload_encoding'] ?? 'json')));
+	if ($encoding === '' || $encoding === 'json') {
+		return $stored;
+	}
+
+	if ($encoding === 'gzip+base64') {
+		$binary = base64_decode($stored, true);
+		if (!is_string($binary) || $binary === '') {
+			return '';
+		}
+		$decoded = @gzdecode($binary);
+		return is_string($decoded) ? $decoded : '';
+	}
+
+	return $stored;
+}
+
+function app_data_camp_payload_array(array $record): array
+{
+	$payloadJson = app_data_camp_payload_json($record);
+	if ($payloadJson === '') {
+		return [];
+	}
+
+	$decoded = json_decode($payloadJson, true);
+	return is_array($decoded) ? $decoded : [];
+}
+
+function app_data_camp_compact_legacy_payloads(PDO $conn, int $limit = 25): void
+{
+	if (!function_exists('gzencode') || $limit < 1 || !app_table_exists($conn, 'tbl_data_camp_records')) {
+		return;
+	}
+
+	try {
+		$sql = "SELECT id, payload_json, payload_encoding, payload_bytes, payload_original_bytes
+			FROM tbl_data_camp_records
+			WHERE payload_json IS NOT NULL
+			  AND payload_json <> ''
+			  AND (
+				payload_encoding IS NULL OR payload_encoding = '' OR payload_bytes IS NULL OR payload_original_bytes IS NULL
+			  )
+			ORDER BY id ASC";
+		if (DBDriver !== 'pgsql') {
+			$sql .= " LIMIT " . (int)$limit;
+		}
+		$stmt = $conn->query($sql);
+		$rows = $stmt ? $stmt->fetchAll(PDO::FETCH_ASSOC) : [];
+		if (DBDriver === 'pgsql' && count($rows) > $limit) {
+			$rows = array_slice($rows, 0, $limit);
+		}
+
+		if (!$rows) {
+			return;
+		}
+
+		$update = $conn->prepare("UPDATE tbl_data_camp_records
+			SET payload_json = ?, payload_encoding = ?, payload_bytes = ?, payload_original_bytes = ?, updated_at = CURRENT_TIMESTAMP
+			WHERE id = ?");
+		foreach ($rows as $row) {
+			$encoded = app_data_camp_encode_payload((string)($row['payload_json'] ?? ''));
+			$update->execute([
+				$encoded['payload_json'],
+				$encoded['payload_encoding'],
+				$encoded['payload_bytes'],
+				$encoded['payload_original_bytes'],
+				(int)$row['id'],
+			]);
+		}
+	} catch (Throwable $e) {
+		error_log('[app_data_camp_compact_legacy_payloads] ' . $e->getMessage());
+	}
 }
 
 function app_data_camp_store_record(PDO $conn, array $data): int
@@ -3161,6 +3338,7 @@ function app_data_camp_store_record(PDO $conn, array $data): int
 	if (array_key_exists('payload_json', $data) && $data['payload_json'] !== null) {
 		$payloadJson = is_string($data['payload_json']) ? $data['payload_json'] : json_encode($data['payload_json']);
 	}
+	$payloadMeta = app_data_camp_encode_payload($payloadJson);
 
 	$sourceKey = trim((string)($data['source_key'] ?? ''));
 	$params = [
@@ -3177,7 +3355,10 @@ function app_data_camp_store_record(PDO $conn, array $data): int
 		trim((string)($data['file_path'] ?? '')) ?: null,
 		trim((string)($data['source_url'] ?? '')) ?: null,
 		trim((string)($data['mime_type'] ?? '')) ?: null,
-		$payloadJson,
+		$payloadMeta['payload_json'],
+		$payloadMeta['payload_encoding'],
+		$payloadMeta['payload_bytes'],
+		$payloadMeta['payload_original_bytes'],
 		trim((string)($data['status'] ?? 'active')) ?: 'active',
 		$sourceKey !== '' ? $sourceKey : null,
 		(int)($data['created_by'] ?? 0) > 0 ? (int)$data['created_by'] : null,
@@ -3189,10 +3370,10 @@ function app_data_camp_store_record(PDO $conn, array $data): int
 		$existingId = (int)($stmt->fetchColumn() ?: 0);
 		if ($existingId > 0) {
 			$stmt = $conn->prepare('UPDATE tbl_data_camp_records
-				SET module_key = ?, record_type = ?, entity_table = ?, entity_id = ?, title = ?, description = ?, academic_year = ?, class_id = ?, student_id = ?, owner_portal = ?, file_path = ?, source_url = ?, mime_type = ?, payload_json = ?, status = ?, created_by = ?, updated_at = CURRENT_TIMESTAMP
+				SET module_key = ?, record_type = ?, entity_table = ?, entity_id = ?, title = ?, description = ?, academic_year = ?, class_id = ?, student_id = ?, owner_portal = ?, file_path = ?, source_url = ?, mime_type = ?, payload_json = ?, payload_encoding = ?, payload_bytes = ?, payload_original_bytes = ?, status = ?, created_by = ?, updated_at = CURRENT_TIMESTAMP
 				WHERE id = ?');
 			$updateParams = $params;
-			unset($updateParams[15]);
+			unset($updateParams[19]);
 			$updateParams[] = $existingId;
 			$stmt->execute(array_values($updateParams));
 			return $existingId;
@@ -3200,10 +3381,271 @@ function app_data_camp_store_record(PDO $conn, array $data): int
 	}
 
 	$stmt = $conn->prepare('INSERT INTO tbl_data_camp_records
-		(module_key, record_type, entity_table, entity_id, title, description, academic_year, class_id, student_id, owner_portal, file_path, source_url, mime_type, payload_json, status, source_key, created_by)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+		(module_key, record_type, entity_table, entity_id, title, description, academic_year, class_id, student_id, owner_portal, file_path, source_url, mime_type, payload_json, payload_encoding, payload_bytes, payload_original_bytes, status, source_key, created_by)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
 	$stmt->execute($params);
 	return (int)$conn->lastInsertId();
+}
+
+function app_data_camp_store_event(PDO $conn, array $data): int
+{
+	$entityId = trim((string)($data['entity_id'] ?? ''));
+	$recordType = trim((string)($data['record_type'] ?? 'event'));
+	$moduleKey = trim((string)($data['module_key'] ?? 'system'));
+	$sourceKey = trim((string)($data['source_key'] ?? ''));
+	if ($sourceKey === '') {
+		$suffix = str_replace('.', '', sprintf('%.4f', microtime(true)));
+		$data['source_key'] = $moduleKey . ':' . $recordType . ':' . ($entityId !== '' ? $entityId : 'na') . ':' . $suffix;
+	}
+	return app_data_camp_store_record($conn, $data);
+}
+
+function app_student_archive_payload(PDO $conn, string $studentId): array
+{
+	$studentId = trim($studentId);
+	if ($studentId === '' || !app_table_exists($conn, 'tbl_students')) {
+		return [];
+	}
+
+	$stmt = $conn->prepare("SELECT * FROM tbl_students WHERE id = ? LIMIT 1");
+	$stmt->execute([$studentId]);
+	$student = $stmt->fetch(PDO::FETCH_ASSOC);
+	if (!$student) {
+		return [];
+	}
+
+	$payload = ['student' => $student];
+
+	if (app_table_exists($conn, 'tbl_parent_students') && app_column_exists($conn, 'tbl_parent_students', 'student_id')) {
+		$stmt = $conn->prepare("SELECT * FROM tbl_parent_students WHERE student_id = ?");
+		$stmt->execute([$studentId]);
+		$payload['parent_links'] = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+	}
+
+	if (app_table_exists($conn, 'tbl_invoices') && app_column_exists($conn, 'tbl_invoices', 'student_id')) {
+		$stmt = $conn->prepare("SELECT * FROM tbl_invoices WHERE student_id = ? ORDER BY id DESC");
+		$stmt->execute([$studentId]);
+		$invoices = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+		$payload['invoices'] = $invoices;
+		if ($invoices && app_table_exists($conn, 'tbl_invoice_lines')) {
+			$invoiceIds = array_map('intval', array_column($invoices, 'id'));
+			$placeholders = implode(',', array_fill(0, count($invoiceIds), '?'));
+			$stmt = $conn->prepare("SELECT * FROM tbl_invoice_lines WHERE invoice_id IN ($placeholders) ORDER BY id ASC");
+			$stmt->execute($invoiceIds);
+			$payload['invoice_lines'] = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+			if (app_table_exists($conn, 'tbl_payments')) {
+				$stmt = $conn->prepare("SELECT * FROM tbl_payments WHERE invoice_id IN ($placeholders) ORDER BY id ASC");
+				$stmt->execute($invoiceIds);
+				$payments = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+				$payload['payments'] = $payments;
+				if ($payments && app_table_exists($conn, 'tbl_receipts')) {
+					$paymentIds = array_map('intval', array_column($payments, 'id'));
+					$paymentPlaceholders = implode(',', array_fill(0, count($paymentIds), '?'));
+					$stmt = $conn->prepare("SELECT * FROM tbl_receipts WHERE payment_id IN ($paymentPlaceholders) ORDER BY id ASC");
+					$stmt->execute($paymentIds);
+					$payload['receipts'] = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+				}
+			}
+		}
+	}
+
+	return $payload;
+}
+
+function app_invoice_archive_payload(PDO $conn, int $invoiceId): array
+{
+	if ($invoiceId < 1 || !app_table_exists($conn, 'tbl_invoices')) {
+		return [];
+	}
+
+	$stmt = $conn->prepare("SELECT * FROM tbl_invoices WHERE id = ? LIMIT 1");
+	$stmt->execute([$invoiceId]);
+	$invoice = $stmt->fetch(PDO::FETCH_ASSOC);
+	if (!$invoice) {
+		return [];
+	}
+
+	$payload = ['invoice' => $invoice];
+
+	if (app_table_exists($conn, 'tbl_invoice_lines')) {
+		$stmt = $conn->prepare("SELECT * FROM tbl_invoice_lines WHERE invoice_id = ? ORDER BY id ASC");
+		$stmt->execute([$invoiceId]);
+		$payload['lines'] = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+	}
+
+	$payments = [];
+	if (app_table_exists($conn, 'tbl_payments')) {
+		$stmt = $conn->prepare("SELECT * FROM tbl_payments WHERE invoice_id = ? ORDER BY id ASC");
+		$stmt->execute([$invoiceId]);
+		$payments = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+		$payload['payments'] = $payments;
+	}
+
+	if ($payments && app_table_exists($conn, 'tbl_receipts')) {
+		$paymentIds = array_map('intval', array_column($payments, 'id'));
+		$paymentPlaceholders = implode(',', array_fill(0, count($paymentIds), '?'));
+		$stmt = $conn->prepare("SELECT * FROM tbl_receipts WHERE payment_id IN ($paymentPlaceholders) ORDER BY id ASC");
+		$stmt->execute($paymentIds);
+		$payload['receipts'] = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+	}
+
+	if (app_table_exists($conn, 'tbl_fee_installments')) {
+		$stmt = $conn->prepare("SELECT * FROM tbl_fee_installments WHERE invoice_id = ? ORDER BY id ASC");
+		$stmt->execute([$invoiceId]);
+		$payload['installments'] = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+	}
+
+	if (app_table_exists($conn, 'tbl_mpesa_stk_requests')) {
+		$stmt = $conn->prepare("SELECT * FROM tbl_mpesa_stk_requests WHERE invoice_id = ? ORDER BY id ASC");
+		$stmt->execute([$invoiceId]);
+		$payload['mpesa_requests'] = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+	}
+
+	return $payload;
+}
+
+function app_discipline_case_archive_payload(PDO $conn, int $caseId): array
+{
+	if ($caseId < 1 || !app_table_exists($conn, 'tbl_discipline_cases')) {
+		return [];
+	}
+
+	$stmt = $conn->prepare("SELECT * FROM tbl_discipline_cases WHERE id = ? LIMIT 1");
+	$stmt->execute([$caseId]);
+	$case = $stmt->fetch(PDO::FETCH_ASSOC);
+	if (!$case) {
+		return [];
+	}
+
+	$payload = ['case' => $case];
+
+	if (app_table_exists($conn, 'tbl_discipline_hearings')) {
+		$stmt = $conn->prepare("SELECT * FROM tbl_discipline_hearings WHERE case_id = ? ORDER BY id ASC");
+		$stmt->execute([$caseId]);
+		$payload['hearings'] = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+	}
+
+	if (app_table_exists($conn, 'tbl_discipline_letters')) {
+		$stmt = $conn->prepare("SELECT * FROM tbl_discipline_letters WHERE case_id = ? ORDER BY id ASC");
+		$stmt->execute([$caseId]);
+		$payload['letters'] = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+	}
+
+	return $payload;
+}
+
+function app_attendance_session_archive_payload(PDO $conn, int $sessionId): array
+{
+	if ($sessionId < 1 || !app_table_exists($conn, 'tbl_attendance_sessions')) {
+		return [];
+	}
+
+	$stmt = $conn->prepare("SELECT * FROM tbl_attendance_sessions WHERE id = ? LIMIT 1");
+	$stmt->execute([$sessionId]);
+	$session = $stmt->fetch(PDO::FETCH_ASSOC);
+	if (!$session) {
+		return [];
+	}
+
+	$payload = ['session' => $session];
+	if (app_table_exists($conn, 'tbl_attendance_records')) {
+		$stmt = $conn->prepare("SELECT * FROM tbl_attendance_records WHERE session_id = ? ORDER BY student_id ASC");
+		$stmt->execute([$sessionId]);
+		$records = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+		$payload['records'] = $records;
+		$summary = ['present' => 0, 'absent' => 0, 'late' => 0, 'excused' => 0];
+		foreach ($records as $record) {
+			$status = strtolower(trim((string)($record['status'] ?? '')));
+			if (array_key_exists($status, $summary)) {
+				$summary[$status]++;
+			}
+		}
+		$payload['summary'] = $summary;
+	}
+
+	return $payload;
+}
+
+function app_exam_archive_payload(PDO $conn, int $examId): array
+{
+	if ($examId < 1 || !app_table_exists($conn, 'tbl_exams')) {
+		return [];
+	}
+
+	$stmt = $conn->prepare("SELECT * FROM tbl_exams WHERE id = ? LIMIT 1");
+	$stmt->execute([$examId]);
+	$exam = $stmt->fetch(PDO::FETCH_ASSOC);
+	if (!$exam) {
+		return [];
+	}
+
+	$payload = ['exam' => $exam];
+
+	if (app_table_exists($conn, 'tbl_exam_subjects')) {
+		$stmt = $conn->prepare("SELECT * FROM tbl_exam_subjects WHERE exam_id = ? ORDER BY subject_id ASC");
+		$stmt->execute([$examId]);
+		$payload['subjects'] = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+	}
+
+	if (app_table_exists($conn, 'tbl_exam_components')) {
+		$stmt = $conn->prepare("SELECT * FROM tbl_exam_components WHERE exam_id = ? ORDER BY component_exam_id ASC");
+		$stmt->execute([$examId]);
+		$payload['components'] = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+	}
+
+	if (app_table_exists($conn, 'tbl_exam_weights')) {
+		$stmt = $conn->prepare("SELECT * FROM tbl_exam_weights WHERE exam_id = ? LIMIT 1");
+		$stmt->execute([$examId]);
+		$weight = $stmt->fetch(PDO::FETCH_ASSOC);
+		if ($weight) {
+			$payload['weight'] = $weight;
+		}
+	}
+
+	if (app_table_exists($conn, 'tbl_exam_mark_submissions')) {
+		$stmt = $conn->prepare("SELECT * FROM tbl_exam_mark_submissions WHERE exam_id = ? ORDER BY id ASC");
+		$stmt->execute([$examId]);
+		$payload['mark_submissions'] = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+	}
+
+	if (app_table_exists($conn, 'tbl_exam_results') && app_column_exists($conn, 'tbl_exam_results', 'exam_id')) {
+		$stmt = $conn->prepare("SELECT * FROM tbl_exam_results WHERE exam_id = ? ORDER BY id ASC");
+		$stmt->execute([$examId]);
+		$payload['results'] = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+	}
+
+	if (app_table_exists($conn, 'tbl_exam_results_locks')) {
+		$stmt = $conn->prepare("SELECT * FROM tbl_exam_results_locks WHERE exam_id = ? LIMIT 1");
+		$stmt->execute([$examId]);
+		$lockRow = $stmt->fetch(PDO::FETCH_ASSOC);
+		if ($lockRow) {
+			$payload['result_lock'] = $lockRow;
+		}
+	}
+
+	return $payload;
+}
+
+function app_exam_submission_archive_payload(PDO $conn, int $submissionId): array
+{
+	if ($submissionId < 1 || !app_table_exists($conn, 'tbl_exam_mark_submissions')) {
+		return [];
+	}
+
+	$stmt = $conn->prepare("SELECT * FROM tbl_exam_mark_submissions WHERE id = ? LIMIT 1");
+	$stmt->execute([$submissionId]);
+	$submission = $stmt->fetch(PDO::FETCH_ASSOC);
+	if (!$submission) {
+		return [];
+	}
+
+	$payload = ['submission' => $submission];
+	$examId = (int)($submission['exam_id'] ?? 0);
+	if ($examId > 0) {
+		$payload['exam'] = app_exam_archive_payload($conn, $examId);
+	}
+
+	return $payload;
 }
 
 function app_promotion_terminal_grade_level(): int
@@ -3345,11 +3787,9 @@ function app_create_promotion_batch(PDO $conn, int $classId, string $academicYea
 	$targetClassOccupiedCount = $promotionTarget['type'] === 'class'
 		? app_active_student_count_in_class($conn, (int)$promotionTarget['class_id'])
 		: 0;
-	$needsHeadteacherReview = (bool)($rule['require_headteacher_approval'] ?? true) || $targetClassOccupiedCount > 0;
+	$needsHeadteacherReview = (bool)($rule['require_headteacher_approval'] ?? true);
 	$nextClassId = $promotionTarget['type'] === 'class' ? (int)$promotionTarget['class_id'] : 0;
-	$targetWarning = $targetClassOccupiedCount > 0
-		? 'Target class ' . $promotionTarget['label'] . ' already has ' . $targetClassOccupiedCount . ' active student(s). Review or clear that class before final promotion.'
-		: '';
+	$targetWarning = '';
 
 	$batchColumns = ['class_id', 'academic_year', 'promotion_cycle', 'status', 'created_by', 'notes'];
 	$batchNotes = trim($notes);
@@ -3443,10 +3883,7 @@ function app_create_promotion_batch(PDO $conn, int $classId, string $academicYea
 		if ($status === 'promoted' && $promotionTarget['type'] === 'alumni') {
 			$status = 'alumni';
 		}
-		if ($status === 'promoted' && $targetClassOccupiedCount > 0) {
-			$status = 'conditional';
-			$notesLine[] = $targetWarning;
-		} elseif ($status === 'promoted' && $needsHeadteacherReview) {
+		if ($status === 'promoted' && $needsHeadteacherReview) {
 			$status = 'conditional';
 		}
 
@@ -3526,6 +3963,7 @@ function app_auto_prepare_year_end_promotions(PDO $conn, int $createdBy = 0): ar
 	];
 
 	app_ensure_promotion_workflow_schema($conn);
+	app_ensure_student_alumni_schema($conn);
 	$settings = app_promotion_settings($conn);
 	$sessionEndDate = trim(app_setting_get($conn, 'session_end_date', ''));
 	$academicYear = trim(app_setting_get($conn, 'current_academic_year', date('Y')));
@@ -3744,18 +4182,183 @@ function app_get_teacher_subject_combination_id(PDO $conn, int $teacherId, int $
 		return 0;
 	}
 
-	$stmt = $conn->prepare("SELECT id, class FROM tbl_subject_combinations WHERE teacher = ? AND subject = ? LIMIT 1");
+	$stmt = $conn->prepare("SELECT id, class FROM tbl_subject_combinations WHERE teacher = ? AND subject = ? ORDER BY id DESC");
 	$stmt->execute([$teacherId, $subjectId]);
-	$row = $stmt->fetch(PDO::FETCH_ASSOC);
-	if ($row) {
-		$classList = app_unserialize($row['class']);
-		if (!in_array((string)$classId, array_map('strval', $classList), true) && $createIfMissing) {
-			return app_sync_subject_combination($conn, $teacherId, $subjectId, $classId, false);
+	$bestMatchId = 0;
+	$sharedMatchId = 0;
+	foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+		$classList = array_map('strval', app_unserialize((string)($row['class'] ?? '')));
+		if (!in_array((string)$classId, $classList, true)) {
+			continue;
 		}
-		return in_array((string)$classId, array_map('strval', $classList), true) ? (int)$row['id'] : 0;
+		if (count($classList) === 1) {
+			$bestMatchId = (int)$row['id'];
+			break;
+		}
+		if ($sharedMatchId < 1) {
+			$sharedMatchId = (int)$row['id'];
+		}
+	}
+
+	if ($bestMatchId > 0) {
+		return $bestMatchId;
+	}
+	if ($sharedMatchId > 0) {
+		return $createIfMissing ? app_sync_subject_combination($conn, $teacherId, $subjectId, $classId, false) : $sharedMatchId;
 	}
 
 	return $createIfMissing ? app_sync_subject_combination($conn, $teacherId, $subjectId, $classId, false) : 0;
+}
+
+function app_teacher_effective_assignment(PDO $conn, int $classId, int $subjectId, int $termId = 0, int $year = 0): ?array
+{
+	static $cache = [];
+
+	if ($classId < 1 || $subjectId < 1 || !app_table_exists($conn, 'tbl_teacher_assignments')) {
+		return null;
+	}
+
+	if ($year < 1) {
+		$year = (int)date('Y');
+	}
+
+	$cacheKey = $classId . '|' . $subjectId . '|' . $termId . '|' . $year;
+	if (array_key_exists($cacheKey, $cache)) {
+		return $cache[$cacheKey];
+	}
+
+	try {
+		$stmt = $conn->prepare("SELECT id, teacher_id, class_id, subject_id, term_id, year, status
+			FROM tbl_teacher_assignments
+			WHERE class_id = ? AND subject_id = ? AND year = ? AND status = 1
+			ORDER BY id DESC");
+		$stmt->execute([$classId, $subjectId, $year]);
+		$rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		if (!$rows) {
+			$cache[$cacheKey] = null;
+			return null;
+		}
+
+		$targetTermOrder = $termId > 0 ? app_term_sequence_order($conn, $termId) : 0;
+		$bestRow = null;
+		$bestTermOrder = -1;
+		$fallbackRow = null;
+
+		foreach ($rows as $row) {
+			$rowTermId = (int)($row['term_id'] ?? 0);
+			if ($rowTermId < 1) {
+				if ($fallbackRow === null) {
+					$fallbackRow = $row;
+				}
+				continue;
+			}
+
+			$rowTermOrder = app_term_sequence_order($conn, $rowTermId);
+			if ($targetTermOrder > 0) {
+				if ($rowTermOrder > 0 && $rowTermOrder <= $targetTermOrder && $rowTermOrder >= $bestTermOrder) {
+					$bestRow = $row;
+					$bestTermOrder = $rowTermOrder;
+				}
+				continue;
+			}
+
+			if ($rowTermOrder >= $bestTermOrder) {
+				$bestRow = $row;
+				$bestTermOrder = $rowTermOrder;
+			}
+		}
+
+		$cache[$cacheKey] = $bestRow ?: $fallbackRow;
+		return $cache[$cacheKey];
+	} catch (Throwable $e) {
+		$cache[$cacheKey] = null;
+		return null;
+	}
+}
+
+function app_teacher_assignment_is_effective(PDO $conn, int $teacherId, int $classId, int $subjectId, int $termId = 0, int $year = 0): bool
+{
+	if ($teacherId < 1 || $classId < 1 || $subjectId < 1) {
+		return false;
+	}
+
+	$assignment = app_teacher_effective_assignment($conn, $classId, $subjectId, $termId, $year);
+	if (!$assignment) {
+		return false;
+	}
+
+	return (int)($assignment['teacher_id'] ?? 0) === $teacherId;
+}
+
+function app_term_sequence_order(PDO $conn, int $termId): int
+{
+	static $cache = [];
+
+	if ($termId < 1 || !app_table_exists($conn, 'tbl_terms')) {
+		return 0;
+	}
+
+	if (isset($cache[$termId])) {
+		return $cache[$termId];
+	}
+
+	try {
+		$stmt = $conn->prepare("SELECT name FROM tbl_terms WHERE id = ? LIMIT 1");
+		$stmt->execute([$termId]);
+		$name = strtolower(trim((string)$stmt->fetchColumn()));
+		if ($name === '') {
+			$cache[$termId] = 0;
+			return 0;
+		}
+
+		if (strpos($name, 'term one') !== false || preg_match('/\bterm\s*1\b/', $name)) {
+			$cache[$termId] = 1;
+			return 1;
+		}
+		if (strpos($name, 'term two') !== false || preg_match('/\bterm\s*2\b/', $name)) {
+			$cache[$termId] = 2;
+			return 2;
+		}
+		if (strpos($name, 'term three') !== false || preg_match('/\bterm\s*3\b/', $name)) {
+			$cache[$termId] = 3;
+			return 3;
+		}
+
+		if (preg_match('/\b1st\b/', $name)) {
+			$cache[$termId] = 1;
+			return 1;
+		}
+		if (preg_match('/\b2nd\b/', $name)) {
+			$cache[$termId] = 2;
+			return 2;
+		}
+		if (preg_match('/\b3rd\b/', $name)) {
+			$cache[$termId] = 3;
+			return 3;
+		}
+	} catch (Throwable $e) {
+	}
+
+	$cache[$termId] = 0;
+	return 0;
+}
+
+function app_teacher_has_any_active_assignment(PDO $conn, int $teacherId, int $classId, int $subjectId): bool
+{
+	if ($teacherId < 1 || $classId < 1 || $subjectId < 1 || !app_table_exists($conn, 'tbl_teacher_assignments')) {
+		return false;
+	}
+
+	try {
+		$stmt = $conn->prepare("SELECT 1
+			FROM tbl_teacher_assignments
+			WHERE teacher_id = ? AND class_id = ? AND subject_id = ? AND status = 1
+			LIMIT 1");
+		$stmt->execute([$teacherId, $classId, $subjectId]);
+		return (bool)$stmt->fetchColumn();
+	} catch (Throwable $e) {
+		return false;
+	}
 }
 
 function app_refresh_exam_status(PDO $conn, int $examId): string
@@ -3824,6 +4427,16 @@ function app_reply_redirect(string $type, string $message, string $location): vo
 		@session_start();
 	}
 	$_SESSION['reply'] = array(array($type, $message));
+	header("location:" . $location);
+	exit;
+}
+
+function app_reply_redirect_html(string $type, string $message, string $location, string $html = ''): void
+{
+	if (session_status() !== PHP_SESSION_ACTIVE) {
+		@session_start();
+	}
+	$_SESSION['reply'] = array(array($type, $message, ['html' => $html]));
 	header("location:" . $location);
 	exit;
 }
@@ -4500,7 +5113,7 @@ function app_ensure_overall_grading_defaults(PDO $conn): void
 		$stmt = $conn->prepare("SELECT level, min_mark, max_mark, points FROM tbl_cbe_grading ORDER BY sort_order ASC, min_mark DESC");
 		$stmt->execute();
 		$currentBands = $stmt->fetchAll(PDO::FETCH_ASSOC);
-		if (!app_cbe_rows_match_overall_default($currentBands)) {
+		if (count($currentBands) < 1) {
 			$conn->exec("DELETE FROM tbl_cbe_grading");
 			$stmt = $conn->prepare("INSERT INTO tbl_cbe_grading (level, min_mark, max_mark, points, sort_order, active) VALUES (?,?,?,?,?,?)");
 			foreach ($defaultRows as $row) {
@@ -4517,6 +5130,34 @@ function app_delete_students(PDO $conn, array $ids): void
 	}
 
 	$placeholders = implode(',', array_fill(0, count($ids), '?'));
+
+	if (app_table_exists($conn, 'tbl_students')) {
+		$stmt = $conn->prepare("SELECT id, fname, mname, lname, class FROM tbl_students WHERE id IN ($placeholders)");
+		$stmt->execute($ids);
+		foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $studentRow) {
+			$studentId = trim((string)($studentRow['id'] ?? ''));
+			if ($studentId === '') {
+				continue;
+			}
+			$payload = app_student_archive_payload($conn, $studentId);
+			if ($payload) {
+				app_data_camp_store_event($conn, [
+					'module_key' => 'students',
+					'record_type' => 'student_deleted',
+					'entity_table' => 'tbl_students',
+					'entity_id' => $studentId,
+					'title' => trim((string)($studentRow['fname'] ?? '') . ' ' . (string)($studentRow['mname'] ?? '') . ' ' . (string)($studentRow['lname'] ?? '')) ?: ('Student ' . $studentId),
+					'description' => 'Student record and linked history snapshot retained before deletion',
+					'class_id' => (int)($studentRow['class'] ?? 0) > 0 ? (int)$studentRow['class'] : null,
+					'student_id' => $studentId,
+					'owner_portal' => 'admin,academic',
+					'mime_type' => 'application/json',
+					'status' => 'retained',
+					'payload_json' => $payload,
+				]);
+			}
+		}
+	}
 
 	if (app_table_exists($conn, 'tbl_students')) {
 		$stmt = $conn->prepare("SELECT id, display_image FROM tbl_students WHERE id IN ($placeholders)");
@@ -4876,6 +5517,163 @@ function app_reset_school_people_data(PDO $conn): array
 		}
 		throw $e;
 	}
+}
+
+function app_reset_school_wipe_tables(): array
+{
+	return [
+		'tbl_exam_mark_submissions',
+		'tbl_cbe_mark_submissions',
+		'tbl_exam_results',
+		'tbl_report_card_subjects',
+		'tbl_report_cards',
+		'tbl_exam_schedule',
+		'tbl_exam_subjects',
+		'tbl_exams',
+		'tbl_results_locks',
+		'tbl_validation_issues',
+		'tbl_insights_alerts',
+		'tbl_attendance_records',
+		'tbl_attendance_sessions',
+		'tbl_staff_attendance',
+		'tbl_school_timetable',
+		'tbl_class_teachers',
+		'tbl_teacher_assignments',
+		'tbl_subject_combinations',
+		'tbl_assignment_submissions',
+		'tbl_assignments',
+		'tbl_attendance_elearning',
+		'tbl_live_classes',
+		'tbl_quiz_results',
+		'tbl_quizzes',
+		'tbl_lesson_content',
+		'tbl_lessons',
+		'tbl_courses',
+		'tbl_transport_assignments',
+		'tbl_parent_students',
+		'tbl_notifications',
+		'tbl_login_sessions',
+		'tbl_ai_recommendations',
+		'tbl_cbe_assessments',
+		'tbl_invoices',
+		'tbl_payments',
+		'tbl_invoice_lines',
+	];
+}
+
+function app_reset_school_backup_tables(): array
+{
+	return array_values(array_unique(array_merge(
+		app_reset_school_wipe_tables(),
+		[
+			'tbl_students',
+			'tbl_staff',
+			'tbl_parents',
+			'tbl_classes',
+			'tbl_subjects',
+			'tbl_terms',
+			'tbl_school',
+			'tbl_app_settings',
+			'tbl_result_settings',
+			'tbl_subject_weights',
+			'tbl_cbe_grading',
+			'tbl_grading_systems',
+			'tbl_grading_scales',
+		]
+	)));
+}
+
+function app_reset_school_preview(PDO $conn): array
+{
+	$preview = [
+		'students' => 0,
+		'parents' => 0,
+		'staff_to_remove' => 0,
+		'admins_to_keep' => 0,
+		'tables' => [],
+		'total_rows_to_clear' => 0,
+		'backup_tables' => app_reset_school_backup_tables(),
+	];
+
+	if (app_table_exists($conn, 'tbl_students')) {
+		$preview['students'] = (int)$conn->query("SELECT COUNT(*) FROM tbl_students")->fetchColumn();
+	}
+	if (app_table_exists($conn, 'tbl_parents')) {
+		$preview['parents'] = (int)$conn->query("SELECT COUNT(*) FROM tbl_parents")->fetchColumn();
+	}
+	if (app_table_exists($conn, 'tbl_staff')) {
+		if (app_column_exists($conn, 'tbl_staff', 'level')) {
+			$preview['admins_to_keep'] = (int)$conn->query("SELECT COUNT(*) FROM tbl_staff WHERE level IN ('0','1','9')")->fetchColumn();
+			$preview['staff_to_remove'] = (int)$conn->query("SELECT COUNT(*) FROM tbl_staff WHERE level NOT IN ('0','1','9')")->fetchColumn();
+		} else {
+			$preview['admins_to_keep'] = (int)$conn->query("SELECT COUNT(*) FROM tbl_staff")->fetchColumn();
+		}
+	}
+
+	foreach (app_reset_school_wipe_tables() as $table) {
+		if (!app_table_exists($conn, $table)) {
+			continue;
+		}
+		try {
+			$count = (int)$conn->query("SELECT COUNT(*) FROM {$table}")->fetchColumn();
+			$preview['tables'][$table] = $count;
+			$preview['total_rows_to_clear'] += $count;
+		} catch (Throwable $e) {
+			$preview['tables'][$table] = -1;
+		}
+	}
+
+	return $preview;
+}
+
+function app_reset_school_backup_export(PDO $conn, ?int $userId = null): array
+{
+	$baseDir = dirname(__DIR__) . '/backups/reset_exports';
+	if (!is_dir($baseDir)) {
+		@mkdir($baseDir, 0775, true);
+	}
+	if (!is_dir($baseDir) || !is_writable($baseDir)) {
+		throw new RuntimeException('Reset backup directory is not writable.');
+	}
+
+	$timestamp = date('Ymd_His');
+	$fileBase = 'new_school_reset_backup_' . $timestamp;
+	$fileName = $fileBase . '.json';
+	$filePath = $baseDir . '/' . $fileName;
+	$data = [
+		'generated_at' => date('c'),
+		'generated_by' => (int)($userId ?? 0),
+		'preview' => app_reset_school_preview($conn),
+		'tables' => [],
+	];
+
+	foreach (app_reset_school_backup_tables() as $table) {
+		if (!app_table_exists($conn, $table)) {
+			continue;
+		}
+		try {
+			$stmt = $conn->query("SELECT * FROM {$table}");
+			$data['tables'][$table] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		} catch (Throwable $e) {
+			$data['tables'][$table] = [
+				'__error' => 'Failed to export this table: ' . $e->getMessage(),
+			];
+		}
+	}
+
+	$json = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+	if (!is_string($json)) {
+		throw new RuntimeException('Failed to encode reset backup.');
+	}
+	if (@file_put_contents($filePath, $json) === false) {
+		throw new RuntimeException('Failed to write reset backup file.');
+	}
+
+	return [
+		'path' => $filePath,
+		'file' => $fileName,
+		'size' => (int)@filesize($filePath),
+	];
 }
 
 function app_delete_subject(PDO $conn, int $id): void
@@ -5307,6 +6105,224 @@ function app_term_compose_name(string $termName, string $academicYear): string
 		return '';
 	}
 	return $academicYear !== '' ? trim($termName . ' ' . $academicYear) : $termName;
+}
+
+function app_is_valid_academic_year(string $value): bool
+{
+	return (bool)preg_match('/^\d{4}(\/\d{4})?$/', trim($value));
+}
+
+function app_default_academic_year_terms(): array
+{
+	return ['Term One', 'Term Two', 'Term Three'];
+}
+
+function app_term_names_from_input($rawTerms): array
+{
+	$terms = [];
+	if (is_array($rawTerms)) {
+		foreach ($rawTerms as $term) {
+			$baseName = app_term_base_name((string)$term);
+			if ($baseName !== '') {
+				$terms[] = $baseName;
+			}
+		}
+	}
+
+	$terms = array_values(array_unique(array_filter($terms, static function (string $term): bool {
+		return trim($term) !== '';
+	})));
+	app_sort_named_term_labels($terms);
+	return $terms;
+}
+
+function app_sort_named_term_labels(array &$terms): void
+{
+	usort($terms, static function ($left, $right): int {
+		$left = ['name' => (string)$left];
+		$right = ['name' => (string)$right];
+		return app_term_sort_compare($left, $right, 'name', 'academic_year', 'id');
+	});
+}
+
+function app_create_academic_year_terms(PDO $conn, string $academicYear, array $termNames, string $status = '0', int $userId = 0, bool $setCurrentYear = false): array
+{
+	app_ensure_terms_academic_year_schema($conn);
+
+	$academicYear = trim($academicYear);
+	$status = ((string)$status === '1') ? '1' : '0';
+	$termNames = app_term_names_from_input($termNames);
+
+	if ($academicYear === '' || !app_is_valid_academic_year($academicYear)) {
+		throw new RuntimeException('Invalid academic year format. Use 2026 or 2026/2027.');
+	}
+	if (count($termNames) < 1) {
+		throw new RuntimeException('Select at least one term for the academic year.');
+	}
+
+	$created = [];
+	$existing = [];
+	$insertStmt = $conn->prepare("INSERT INTO tbl_terms (name, academic_year, status) VALUES (?, ?, ?)");
+	$checkStmt = $conn->prepare("SELECT id FROM tbl_terms WHERE name = ? LIMIT 1");
+
+	foreach ($termNames as $termName) {
+		$storedName = app_term_compose_name($termName, $academicYear);
+		$checkStmt->execute([$storedName]);
+		$existingId = (int)($checkStmt->fetchColumn() ?: 0);
+		if ($existingId > 0) {
+			$existing[] = ['id' => $existingId, 'name' => $storedName];
+			continue;
+		}
+
+		$insertStmt->execute([$storedName, $academicYear, $status]);
+		$created[] = ['id' => (int)$conn->lastInsertId(), 'name' => $storedName];
+	}
+
+	if ($setCurrentYear) {
+		app_setting_set($conn, 'current_academic_year', $academicYear, $userId > 0 ? $userId : null, false);
+	}
+
+	return [
+		'academic_year' => $academicYear,
+		'created' => $created,
+		'existing' => $existing,
+	];
+}
+
+function app_term_sequence_from_name(string $value): int
+{
+	$value = strtolower(app_term_base_name($value));
+	if ($value === '') {
+		return 999;
+	}
+
+	$map = [
+		'one' => 1,
+		'first' => 1,
+		'1' => 1,
+		'1st' => 1,
+		'two' => 2,
+		'second' => 2,
+		'2' => 2,
+		'2nd' => 2,
+		'three' => 3,
+		'third' => 3,
+		'3' => 3,
+		'3rd' => 3,
+	];
+
+	foreach ($map as $token => $order) {
+		if (preg_match('/\bterm\s*' . preg_quote($token, '/') . '\b/i', $value) || preg_match('/\b' . preg_quote($token, '/') . '\s*term\b/i', $value)) {
+			return $order;
+		}
+	}
+
+	if (preg_match('/\b([1-9])\b/', $value, $matches)) {
+		return (int)$matches[1];
+	}
+
+	return 999;
+}
+
+function app_term_sort_compare(array $left, array $right, $nameKey = 'name', $yearKey = 'academic_year', $idKey = 'id'): int
+{
+	$leftYear = trim((string)($left[$yearKey] ?? app_extract_academic_year((string)($left[$nameKey] ?? ''))));
+	$rightYear = trim((string)($right[$yearKey] ?? app_extract_academic_year((string)($right[$nameKey] ?? ''))));
+	$leftYearNumber = (int)preg_replace('/[^0-9]/', '', strtok($leftYear, '/'));
+	$rightYearNumber = (int)preg_replace('/[^0-9]/', '', strtok($rightYear, '/'));
+	if ($leftYearNumber !== $rightYearNumber) {
+		return $rightYearNumber <=> $leftYearNumber;
+	}
+
+	$leftOrder = app_term_sequence_from_name((string)($left[$nameKey] ?? ''));
+	$rightOrder = app_term_sequence_from_name((string)($right[$nameKey] ?? ''));
+	if ($leftOrder !== $rightOrder) {
+		return $leftOrder <=> $rightOrder;
+	}
+
+	$leftId = (int)($left[$idKey] ?? 0);
+	$rightId = (int)($right[$idKey] ?? 0);
+	if ($leftId !== $rightId) {
+		return $leftId <=> $rightId;
+	}
+
+	return strcasecmp((string)($left[$nameKey] ?? ''), (string)($right[$nameKey] ?? ''));
+}
+
+function app_sort_term_rows(array &$rows, $nameKey = 'name', $yearKey = 'academic_year', $idKey = 'id'): void
+{
+	usort($rows, static function ($left, $right) use ($nameKey, $yearKey, $idKey): int {
+		$left = is_array($left) ? $left : [];
+		$right = is_array($right) ? $right : [];
+		return app_term_sort_compare($left, $right, $nameKey, $yearKey, $idKey);
+	});
+}
+
+function app_class_sort_key(string $className, $storedGrade = null): array
+{
+	$canonical = app_cbe_canonical_class_name($className);
+	$parts = app_class_name_parts($className);
+	$stream = strtolower(trim((string)($parts['stream'] ?? '')));
+	$stream = $stream !== '' ? $stream : strtolower(trim($className));
+
+	if ($canonical === 'PP1') {
+		return [0, 1, $stream, strtolower($className)];
+	}
+	if ($canonical === 'PP2') {
+		return [0, 2, $stream, strtolower($className)];
+	}
+
+	$gradeLevel = app_effective_grade_level($className, $storedGrade);
+	if ($gradeLevel > 0) {
+		return [1, $gradeLevel, $stream, strtolower($className)];
+	}
+
+	return [2, 999, $stream, strtolower($className)];
+}
+
+function app_class_sort_compare(array $left, array $right, $nameKey = 'name', $gradeKey = 'grade'): int
+{
+	$leftKey = app_class_sort_key((string)($left[$nameKey] ?? ''), $left[$gradeKey] ?? null);
+	$rightKey = app_class_sort_key((string)($right[$nameKey] ?? ''), $right[$gradeKey] ?? null);
+	$keyCompare = $leftKey <=> $rightKey;
+	if ($keyCompare !== 0) {
+		return $keyCompare;
+	}
+
+	return strcasecmp((string)($left[$nameKey] ?? ''), (string)($right[$nameKey] ?? ''));
+}
+
+function app_sort_class_rows(array &$rows, $nameKey = 'name', $gradeKey = 'grade'): void
+{
+	usort($rows, static function ($left, $right) use ($nameKey, $gradeKey): int {
+		$left = is_array($left) ? $left : [];
+		$right = is_array($right) ? $right : [];
+		return app_class_sort_compare($left, $right, $nameKey, $gradeKey);
+	});
+}
+
+function app_sort_named_options(array $options, string $type = 'class'): array
+{
+	if (count($options) < 2) {
+		return $options;
+	}
+
+	$rows = [];
+	foreach ($options as $id => $name) {
+		$rows[] = ['id' => $id, 'name' => (string)$name];
+	}
+
+	if ($type === 'term') {
+		app_sort_term_rows($rows);
+	} else {
+		app_sort_class_rows($rows);
+	}
+
+	$sorted = [];
+	foreach ($rows as $row) {
+		$sorted[$row['id']] = (string)$row['name'];
+	}
+	return $sorted;
 }
 
 function app_ensure_terms_academic_year_schema(PDO $conn): void
@@ -5906,6 +6922,8 @@ function app_apply_cbe_curriculum_defaults(PDO $conn, ?int $userId = null): arra
 		'removed_classes' => 0,
 		'skipped_subjects' => 0,
 		'skipped_classes' => 0,
+		'preserved_subjects' => 0,
+		'preserved_classes' => 0,
 		'errors' => [],
 	];
 
@@ -6014,16 +7032,28 @@ function app_apply_cbe_curriculum_defaults(PDO $conn, ?int $userId = null): arra
 		}
 
 		foreach ($classIdMap as $className => $classId) {
-			$subjectIds = [];
+			$defaultSubjectIds = [];
 			foreach (app_cbe_default_subjects_for_class($className) as $subjectName) {
 				if (isset($subjectIdMap[$subjectName])) {
-					$subjectIds[] = (int)$subjectIdMap[$subjectName];
+					$defaultSubjectIds[] = (int)$subjectIdMap[$subjectName];
 				}
 			}
+
+			$existingSubjectIds = [];
+			if (app_table_exists($conn, 'tbl_subject_class_assignments') && app_column_exists($conn, 'tbl_subject_class_assignments', 'class_id') && app_column_exists($conn, 'tbl_subject_class_assignments', 'subject_id')) {
+				$stmt = $conn->prepare("SELECT subject_id FROM tbl_subject_class_assignments WHERE class_id = ?");
+				$stmt->execute([$classId]);
+				$existingSubjectIds = array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+			}
+
+			$subjectIds = array_values(array_unique(array_merge($existingSubjectIds, $defaultSubjectIds)));
+			$preservedCount = max(0, count($subjectIds) - count(array_unique($defaultSubjectIds)));
+			$summary['preserved_subjects'] += $preservedCount;
+
 			$savepoint = app_tx_savepoint_begin($conn, 'cbe_assignments');
 			try {
 				app_save_class_subject_assignments($conn, $classId, $subjectIds, $userId);
-				$summary['assignments'] += count($subjectIds);
+				$summary['assignments'] += count(array_unique($defaultSubjectIds));
 				app_tx_savepoint_release($conn, $savepoint);
 			} catch (Throwable $e) {
 				app_tx_savepoint_rollback($conn, $savepoint);
@@ -6044,53 +7074,7 @@ function app_apply_cbe_curriculum_defaults(PDO $conn, ?int $userId = null): arra
 			if (in_array($subjectName, $subjectNames, true)) {
 				continue;
 			}
-			$refChecks = [
-				['tbl_subject_class_assignments', 'subject_id', 'SELECT COUNT(*) FROM tbl_subject_class_assignments WHERE subject_id = ?'],
-				['tbl_teacher_assignments', 'subject_id', 'SELECT COUNT(*) FROM tbl_teacher_assignments WHERE subject_id = ?'],
-				['tbl_exam_subjects', 'subject_id', 'SELECT COUNT(*) FROM tbl_exam_subjects WHERE subject_id = ?'],
-				['tbl_subject_combinations', 'subject', 'SELECT COUNT(*) FROM tbl_subject_combinations WHERE subject = ?'],
-				['tbl_subject_combinations', 'subject_id', 'SELECT COUNT(*) FROM tbl_subject_combinations WHERE subject_id = ?'],
-				['tbl_exam_results', 'subject_id', 'SELECT COUNT(*) FROM tbl_exam_results WHERE subject_id = ?'],
-				['tbl_courses', 'subject_id', 'SELECT COUNT(*) FROM tbl_courses WHERE subject_id = ?'],
-				['tbl_exam_schedule', 'subject_id', 'SELECT COUNT(*) FROM tbl_exam_schedule WHERE subject_id = ?'],
-				['tbl_school_timetable', 'subject_id', 'SELECT COUNT(*) FROM tbl_school_timetable WHERE subject_id = ?'],
-				['tbl_report_card_subjects', 'subject_id', 'SELECT COUNT(*) FROM tbl_report_card_subjects WHERE subject_id = ?'],
-			];
-			$inUse = false;
-			foreach ($refChecks as $check) {
-				if (!app_table_exists($conn, $check[0]) || !app_column_exists($conn, $check[0], $check[1])) {
-					continue;
-				}
-				$checkSavepoint = app_tx_savepoint_begin($conn, 'cbe_subject_refcheck');
-				try {
-					$stmt = $conn->prepare($check[2]);
-					$stmt->execute([$subjectId]);
-					if ((int)$stmt->fetchColumn() > 0) {
-						$inUse = true;
-					}
-					app_tx_savepoint_release($conn, $checkSavepoint);
-					if ($inUse) {
-						break;
-					}
-				} catch (Throwable $e) {
-					app_tx_savepoint_rollback($conn, $checkSavepoint);
-					$inUse = true;
-					$summary['errors'][] = 'Skipped subject "' . $subjectName . '" because dependencies could not be verified safely.';
-					break;
-				}
-			}
-			if (!$inUse) {
-				$savepoint = app_tx_savepoint_begin($conn, 'cbe_subject_cleanup');
-				try {
-					app_delete_subject($conn, $subjectId);
-					$summary['removed_subjects']++;
-					app_tx_savepoint_release($conn, $savepoint);
-				} catch (Throwable $e) {
-					app_tx_savepoint_rollback($conn, $savepoint);
-					$summary['skipped_subjects']++;
-					$summary['errors'][] = 'Skipped subject "' . $subjectName . '" because it is still linked elsewhere.';
-				}
-			}
+			$summary['preserved_subjects']++;
 		}
 
 		$classRows = [];
@@ -6107,56 +7091,7 @@ function app_apply_cbe_curriculum_defaults(PDO $conn, ?int $userId = null): arra
 			if (in_array($className, $classNames, true) || in_array($parts['grade'], $classNames, true)) {
 				continue;
 			}
-			$refChecks = [
-				['tbl_students', 'class', 'SELECT COUNT(*) FROM tbl_students WHERE class = ?'],
-				['tbl_teacher_assignments', 'class_id', 'SELECT COUNT(*) FROM tbl_teacher_assignments WHERE class_id = ?'],
-				['tbl_exams', 'class_id', 'SELECT COUNT(*) FROM tbl_exams WHERE class_id = ?'],
-				['tbl_school_timetable', 'class_id', 'SELECT COUNT(*) FROM tbl_school_timetable WHERE class_id = ?'],
-				['tbl_courses', 'class_id', 'SELECT COUNT(*) FROM tbl_courses WHERE class_id = ?'],
-				['tbl_class_teachers', 'class_id', 'SELECT COUNT(*) FROM tbl_class_teachers WHERE class_id = ?'],
-				['tbl_exam_schedule', 'class_id', 'SELECT COUNT(*) FROM tbl_exam_schedule WHERE class_id = ?'],
-				['tbl_results_locks', 'class_id', 'SELECT COUNT(*) FROM tbl_results_locks WHERE class_id = ?'],
-			];
-			$inUse = false;
-			foreach ($refChecks as $check) {
-				if (!app_table_exists($conn, $check[0]) || !app_column_exists($conn, $check[0], $check[1])) {
-					continue;
-				}
-				$checkSavepoint = app_tx_savepoint_begin($conn, 'cbe_class_refcheck');
-				try {
-					$stmt = $conn->prepare($check[2]);
-					$stmt->execute([$classId]);
-					if ((int)$stmt->fetchColumn() > 0) {
-						$inUse = true;
-					}
-					app_tx_savepoint_release($conn, $checkSavepoint);
-					if ($inUse) {
-						break;
-					}
-				} catch (Throwable $e) {
-					app_tx_savepoint_rollback($conn, $checkSavepoint);
-					$inUse = true;
-					$summary['errors'][] = 'Skipped class "' . $className . '" because dependencies could not be verified safely.';
-					break;
-				}
-			}
-			if (!$inUse) {
-				$savepoint = app_tx_savepoint_begin($conn, 'cbe_class_cleanup');
-				try {
-					if (app_force_delete_class($conn, $classId)) {
-						$summary['removed_classes']++;
-						app_tx_savepoint_release($conn, $savepoint);
-					} else {
-						app_tx_savepoint_rollback($conn, $savepoint);
-						$summary['skipped_classes']++;
-						$summary['errors'][] = 'Skipped class "' . $className . '" because it could not be removed safely.';
-					}
-				} catch (Throwable $e) {
-					app_tx_savepoint_rollback($conn, $savepoint);
-					$summary['skipped_classes']++;
-					$summary['errors'][] = 'Skipped class "' . $className . '" because it is still linked elsewhere.';
-				}
-			}
+			$summary['preserved_classes']++;
 		}
 
 		$conn->commit();

@@ -39,8 +39,36 @@ try {
 
 	if ($action === 'set_active' || $action === 'set_blocked') {
 		$status = $action === 'set_active' ? 1 : 0;
+		$stmt = $conn->prepare("SELECT id, fname, mname, lname, class, status FROM tbl_students WHERE id IN ($placeholders)");
+		$stmt->execute($ids);
+		$studentRows = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
 		$stmt = $conn->prepare("UPDATE tbl_students SET status = ? WHERE id IN ($placeholders)");
 		$stmt->execute(array_merge([$status], $ids));
+		foreach ($studentRows as $studentRow) {
+			$studentId = trim((string)($studentRow['id'] ?? ''));
+			if ($studentId === '') {
+				continue;
+			}
+			app_data_camp_store_event($conn, [
+				'module_key' => 'students',
+				'record_type' => 'student_status_changed',
+				'entity_table' => 'tbl_students',
+				'entity_id' => $studentId,
+				'title' => trim((string)($studentRow['fname'] ?? '') . ' ' . (string)($studentRow['mname'] ?? '') . ' ' . (string)($studentRow['lname'] ?? '')) ?: ('Student ' . $studentId),
+				'description' => 'Student status snapshot retained during bulk status update',
+				'class_id' => (int)($studentRow['class'] ?? 0) > 0 ? (int)$studentRow['class'] : null,
+				'student_id' => $studentId,
+				'owner_portal' => 'admin,academic',
+				'mime_type' => 'application/json',
+				'status' => 'retained',
+				'payload_json' => [
+					'before_status' => $studentRow['status'] ?? null,
+					'after_status' => $status,
+					'student_snapshot' => app_student_archive_payload($conn, $studentId),
+				],
+				'created_by' => (int)($account_id ?? 0),
+			]);
+		}
 		$conn->commit();
 		$_SESSION['reply'] = array (array("success","Selected students updated successfully"));
 		header("location:../students");

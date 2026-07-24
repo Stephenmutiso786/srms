@@ -1,24 +1,28 @@
 <?php
-require_once('db/config.php');
+require_once(__DIR__ . '/../db/config.php');
 
-function app_pdf_supports_alpha_images(): bool
-{
-	return extension_loaded('gd') || extension_loaded('imagick');
+if (!function_exists('app_pdf_supports_alpha_images')) {
+	function app_pdf_supports_alpha_images(): bool
+	{
+		return extension_loaded('gd') || extension_loaded('imagick');
+	}
 }
 
-function app_pdf_image_path_is_safe(string $path): bool
-{
-	$path = trim($path);
-	if ($path === '' || !is_file($path)) {
-		return false;
-	}
+if (!function_exists('app_pdf_image_path_is_safe')) {
+	function app_pdf_image_path_is_safe(string $path): bool
+	{
+		$path = trim($path);
+		if ($path === '' || !is_file($path)) {
+			return false;
+		}
 
-	$extension = strtolower((string)pathinfo($path, PATHINFO_EXTENSION));
-	if (in_array($extension, ['png', 'webp', 'gif'], true) && !app_pdf_supports_alpha_images()) {
-		return false;
-	}
+		$extension = strtolower((string)pathinfo($path, PATHINFO_EXTENSION));
+		if (in_array($extension, ['png', 'webp', 'gif'], true) && !app_pdf_supports_alpha_images()) {
+			return false;
+		}
 
-	return true;
+		return true;
+	}
 }
 
 function idcard_school_meta(PDO $conn): array

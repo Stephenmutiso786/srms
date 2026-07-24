@@ -25,24 +25,34 @@ if ($st_rec == 0) {
 
 }else{
 
-$fname = ucfirst($r[0]);
-$lname = ucfirst($r[1]);
-$email = $r[2];
-$gender = $r[3];
+$cells = array_pad($r, 6, '');
+$importRow = [
+	'fname' => ucfirst(trim((string)$cells[0])),
+	'lname' => ucfirst(trim((string)$cells[1])),
+	'email' => trim((string)$cells[2]),
+	'gender' => trim((string)$cells[3]),
+	'status' => trim((string)$cells[4]),
+	'password' => (string)$cells[5],
+];
+
+$fname = $importRow['fname'];
+$lname = $importRow['lname'];
+$email = $importRow['email'];
+$gender = $importRow['gender'];
 $role = '2';
-$pass = password_hash($r[5], PASSWORD_DEFAULT);
-$status = $r[4];
+$pass = password_hash($importRow['password'], PASSWORD_DEFAULT);
+$status = $importRow['status'];
 if ($status == "Active") {
 $status = 1;
 }else{
 $status = 0;
 }
 
-$stmt = $conn->prepare("SELECT email FROM tbl_staff WHERE email = ? UNION SELECT email FROM tbl_students WHERE email = ?");
+$stmt = $conn->prepare("SELECT 1 FROM tbl_staff WHERE email = ? UNION SELECT 1 FROM tbl_students WHERE email = ?");
 $stmt->execute([$email, $email]);
-$result = $stmt->fetchAll();
+$result = $stmt->fetchColumn();
 
-if (count($result) > 0) {
+if ($result) {
 
 }else{
 

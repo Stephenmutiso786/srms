@@ -67,16 +67,19 @@ try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-$stmt = $conn->prepare("SELECT * FROM tbl_terms");
+$stmt = $conn->prepare("SELECT id, name, status, academic_year FROM tbl_terms");
 $stmt->execute();
-$result = $stmt->fetchAll();
+$result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+usort($result, static function (array $a, array $b): int {
+	return app_compare_names_by_type((string)($a['name'] ?? ''), (string)($b['name'] ?? ''), 'term');
+});
 
 foreach($result as $row)
 {
 ?>
 <tr>
-<td><?php echo $row[1]; ?></td>
-<td align="center"><?php if ($row[2] == "1") { print '<span class="me-1 badge badge-pill bg-success">ACTIVE</span>'; }else{ print '<span class="me-1 badge badge-pill bg-danger">INACTIVE</span>'; } ?></td>
+<td><?php echo htmlspecialchars((string)$row['name']); ?></td>
+<td align="center"><?php if ((string)($row['status'] ?? '') == "1") { print '<span class="me-1 badge badge-pill bg-success">ACTIVE</span>'; }else{ print '<span class="me-1 badge badge-pill bg-danger">INACTIVE</span>'; } ?></td>
 </tr>
 <?php
 }

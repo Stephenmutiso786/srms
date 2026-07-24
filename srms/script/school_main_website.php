@@ -4,7 +4,7 @@ require_once('const/school.php');
 require_once('const/public_media.php');
 
 $schoolName = (defined('WBName') && trim((string)WBName) !== '') ? (string)WBName : (defined('APP_NAME') && trim((string)APP_NAME) !== '' ? (string)APP_NAME : 'ELIMU HUB');
-$schoolLogo = (defined('WBLogo') && trim((string)WBLogo) !== '') ? 'images/logo/' . trim((string)WBLogo) : 'images/logo/school_logo1711003619.png';
+$schoolLogo = (defined('WBLogo') && trim((string)WBLogo) !== '') ? 'images/logo/' . trim((string)WBLogo) : 'images/logo/school_logo.png';
 $schoolMotto = 'Nurturing Excellence Through CBE Education';
 $schoolTagline = 'A trusted learning community shaping future-ready leaders.';
 $schoolLocation = 'Kiunduani, Kibwezi West';

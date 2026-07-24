@@ -4,6 +4,7 @@ session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/school.php');
+require_once('const/report_engine.php');
 if ($res == "1" && $level == "2") {}else{header("location:../");}
 
 $exams = [];
@@ -11,6 +12,7 @@ $classSubjects = [];
 $useTeacherAssignments = false;
 $examModeMap = [];
 $rejectedMarksCount = 0;
+$teacherGapWarnings = [];
 
 try {
   $conn = app_db();
@@ -69,7 +71,7 @@ try {
         if ((int)$assignment['class_id'] !== (int)$exam['class_id']) {
           continue;
         }
-        if ((int)$assignment['term_id'] > 0 && (int)$assignment['term_id'] !== (int)$exam['term_id']) {
+        if (!app_teacher_assignment_is_effective($conn, (int)$account_id, (int)$exam['class_id'], (int)$assignment['subject_id'], (int)$exam['term_id'], (int)($exam['year'] ?? date('Y')))) {
           continue;
         }
         if (!empty($allowedSubjectIds) && !in_array((int)$assignment['subject_id'], $allowedSubjectIds, true)) {
@@ -111,6 +113,21 @@ try {
   }
   foreach ($exams as $exam) {
     $examModeMap[(int)$exam['id']] = (($exam['assessment_mode'] ?? 'normal') === 'cbe') ? 'cbe' : 'normal';
+    $gapSummary = report_exam_submission_gap_summary($conn, (int)$exam['id']);
+    foreach ((array)($gapSummary['missing_subjects'] ?? []) as $missingSubject) {
+      if ((int)($missingSubject['teacher_id'] ?? 0) !== (int)$account_id) {
+        continue;
+      }
+      $teacherGapWarnings[] = [
+        'exam_id' => (int)$exam['id'],
+        'exam_name' => (string)($exam['name'] ?? ''),
+        'class_name' => (string)($exam['class_name'] ?? ''),
+        'term_name' => (string)($exam['term_name'] ?? ''),
+        'subject_name' => (string)($missingSubject['subject_name'] ?? ''),
+        'missing_students_count' => (int)($missingSubject['missing_students_count'] ?? 0),
+        'missing_students' => array_slice((array)($missingSubject['missing_students'] ?? []), 0, 5),
+      ];
+    }
   }
 
   // Include reopenable exams: exams where this teacher has a rejected submission
@@ -222,6 +239,21 @@ body.exam-entry-page{background:linear-gradient(180deg,#eef5f2 0%,#f7fbf9 45%,#e
   </div>
 </div>
 <?php } ?>
+<?php if (!empty($teacherGapWarnings)) { ?>
+<div class="alert alert-danger mb-3" style="border-left: 4px solid #dc3545;">
+  <div class="fw-bold mb-2">Missing marks still need your attention</div>
+  <?php foreach ($teacherGapWarnings as $warning): ?>
+  <div class="mb-2">
+    <strong><?php echo htmlspecialchars($warning['subject_name']); ?></strong>
+    in <?php echo htmlspecialchars($warning['exam_name'] . ' - ' . $warning['class_name']); ?>
+    has <?php echo (int)$warning['missing_students_count']; ?> learner(s) missing marks.
+    <?php if (!empty($warning['missing_students'])) { ?>
+    Missing: <?php echo htmlspecialchars(implode(', ', array_map(static function ($row) { return (string)($row['student_name'] ?? ''); }, $warning['missing_students']))); ?>
+    <?php } ?>
+  </div>
+  <?php endforeach; ?>
+</div>
+<?php } ?>
 
 <section class="exam-hero mb-3">
   <div class="exam-hero-copy">
@@ -327,6 +359,7 @@ body.exam-entry-page{background:linear-gradient(180deg,#eef5f2 0%,#f7fbf9 45%,#e
     const url = new URL('teacher/print_mark_sheet', document.baseURI || window.location.href);
     url.searchParams.set('exam_id', examId);
     url.searchParams.set('subject_combination', subjectId);
+    url.searchParams.set('origin_portal', 'teacher');
     window.open(url.toString(), '_blank');
   });
 </script>

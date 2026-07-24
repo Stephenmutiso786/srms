@@ -26,10 +26,12 @@ if (!$isAllowedRedirect) {
 $loginBackgroundSrc = '';
 $loginBackgroundMeta = ['src' => '', 'width' => 0, 'height' => 0];
 try {
-  $conn = app_db();
-  $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-  $loginBackgroundMeta = app_public_login_background_data($conn);
-  $loginBackgroundSrc = isset($loginBackgroundMeta['src']) ? (string)$loginBackgroundMeta['src'] : '';
+  $conn = app_try_db(1);
+  if ($conn instanceof PDO) {
+    $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    $loginBackgroundMeta = app_public_login_background_data($conn);
+    $loginBackgroundSrc = isset($loginBackgroundMeta['src']) ? (string)$loginBackgroundMeta['src'] : '';
+  }
 } catch (Throwable $e) {
   $loginBackgroundSrc = '';
   $loginBackgroundMeta = ['src' => '', 'width' => 0, 'height' => 0];

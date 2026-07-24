@@ -20,6 +20,7 @@ try {
   }
   $conn = app_db();
   $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+  $beforeSnapshot = app_exam_submission_archive_payload($conn, $submissionId);
   $stmt = $conn->prepare("UPDATE tbl_exam_mark_submissions SET status = 'draft', reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ? WHERE id = ? AND status IN ('reviewed','finalized')");
   $stmt->execute([(int)$account_id, $submissionId]);
   $meta = $conn->prepare("SELECT exam_id FROM tbl_exam_mark_submissions WHERE id = ? LIMIT 1");
@@ -29,6 +30,25 @@ try {
     app_refresh_exam_status($conn, $examId);
   }
   app_audit_log($conn, 'staff', (string)$account_id, 'exam_marks.unlock', 'submission', (string)$submissionId);
+  $afterSnapshot = app_exam_submission_archive_payload($conn, $submissionId);
+  $submissionMeta = (array)($afterSnapshot['submission'] ?? $beforeSnapshot['submission'] ?? []);
+  app_data_camp_store_event($conn, [
+    'module_key' => 'exams',
+    'record_type' => 'exam_marks_unlocked',
+    'entity_table' => 'tbl_exam_mark_submissions',
+    'entity_id' => (string)$submissionId,
+    'title' => 'Exam Mark Submission #' . (string)$submissionId,
+    'description' => 'Marks submission snapshot retained before and after unlock',
+    'class_id' => (int)($submissionMeta['class_id'] ?? 0) > 0 ? (int)$submissionMeta['class_id'] : null,
+    'owner_portal' => 'admin,academic,teacher',
+    'mime_type' => 'application/json',
+    'status' => 'retained',
+    'payload_json' => [
+      'before' => $beforeSnapshot,
+      'after' => $afterSnapshot,
+    ],
+    'created_by' => (int)$account_id,
+  ]);
   $_SESSION['reply'] = array (array("success", "Marks unlocked to draft."));
 } catch (Throwable $e) {
 	error_log("[".__FILE__.":".__LINE__." Throwable] " . $e->getMessage());

@@ -131,7 +131,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['kpsea_csv'])) {
 		while (($row = fgetcsv($handle)) !== false) {
 			$rowNum++;
 
-			if (empty($row) || (count($row) === 1 && $row[0] === '')) {
+			$firstCellValue = reset($row);
+			$firstCell = trim((string)($firstCellValue === false ? '' : $firstCellValue));
+			if (empty($row) || (count($row) === 1 && $firstCell === '')) {
 				continue;
 			}
 
@@ -207,18 +209,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['kpsea_csv'])) {
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
 	<title>KPSEA Results Import - ELIMU HUB</title>
+	<base href="../">
+	<link rel="stylesheet" type="text/css" href="css/main.css">
+	<link rel="icon" href="images/icon.ico">
+	<link rel="stylesheet" type="text/css" href="cdn.jsdelivr.net/npm/bootstrap-icons%401.10.5/font/bootstrap-icons.css">
 	<link href="../cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-	<link rel="stylesheet" href="../css/app.css?t=<?php echo filemtime('../css/app.css'); ?>">
 </head>
-<body>
-<div class="container-fluid">
-	<?php require_once('partials/topbar.php'); ?>
-	<div class="row g-0">
-		<?php require_once('partials/sidebar.php'); ?>
-		<main class="col-lg-10 ms-lg-auto p-4">
-			<div class="page-header mb-4">
+<body class="app sidebar-mini">
+<header class="app-header"><a class="app-header__logo" href="javascript:void(0);"><?php echo APP_NAME; ?></a><a class="app-sidebar__toggle" href="#" data-toggle="sidebar" aria-label="Hide Sidebar"></a></header>
+<?php include('admin/partials/sidebar.php'); ?>
+<main class="app-content">
+			<div class="app-title">
+				<div>
 				<h1>KPSEA Results Import</h1>
 				<p class="text-muted">Bulk import Kenya Primary School Examination (KPSEA) results from CSV file</p>
+				</div>
 			</div>
 
 			<?php if (isset($_SESSION['reply']) && is_array($_SESSION['reply'])) {
@@ -287,9 +292,10 @@ KYS003,1,78,2026</pre>
 				</div>
 			</div>
 		</main>
-	</div>
-</div>
 
 <script src="../cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="js/jquery-3.7.0.min.js"></script>
+<script src="js/bootstrap.min.js"></script>
+<script src="js/main.js"></script>
 </body>
 </html>

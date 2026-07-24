@@ -39,25 +39,25 @@ try {
 	$grading = app_default_marks_grading_rows($conn);
 
 	if ($hasSelection) {
-		$stmt = $conn->prepare("SELECT * FROM tbl_students WHERE class = ?");
+		$stmt = $conn->prepare("SELECT id, fname, mname, lname, gender, class, display_image FROM tbl_students WHERE class = ?");
 		$stmt->execute([$class]);
-		$std_data = $stmt->fetchAll();
+		$std_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-		$stmt = $conn->prepare("SELECT * FROM tbl_terms WHERE id = ?");
+		$stmt = $conn->prepare("SELECT id, name FROM tbl_terms WHERE id = ?");
 		$stmt->execute([$term]);
-		$term_data = $stmt->fetchAll();
+		$term_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 		if (!empty($std_data)) {
-			$stmt = $conn->prepare("SELECT * FROM tbl_classes WHERE id = ?");
-			$stmt->execute([(int)$std_data[0][6]]);
-			$class_data = $stmt->fetchAll();
+			$stmt = $conn->prepare("SELECT id, name FROM tbl_classes WHERE id = ?");
+			$stmt->execute([(int)($std_data[0]['class'] ?? 0)]);
+			$class_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
 		}
 
 		$termPublished = report_term_is_published($conn, $class, $term);
 		$examOptions = report_term_exam_options($conn, $class, $term);
 
 		if (!empty($class_data) && !empty($term_data)) {
-			$tit = (string)($class_data[0][1] ?? 'Results') . ' (' . (string)($term_data[0][1] ?? 'Term') . ' Results)';
+			$tit = (string)($class_data[0]['name'] ?? 'Results') . ' (' . (string)($term_data[0]['name'] ?? 'Term') . ' Results)';
 		}
 	}
 } catch (PDOException $e) {
@@ -146,7 +146,7 @@ try {
 	<div><button class="btn btn-primary" type="submit">Apply</button></div>
 </form>
 <button class="btn btn-primary" type="button" onclick="window.print();"><i class="bi bi-printer me-2"></i>Print All</button>
-<a class="btn btn-danger ms-2" href="javascript:void(0);" onclick="del('academic/core/drop_results.php?src=bulk_results&amp;std=all&amp;class=<?php echo $class; ?>&amp;term=<?php echo $term; ?>', 'Delete all results for this class and term?');"><i class="bi bi-trash me-2"></i>Delete All</a>
+<a class="btn btn-danger ms-2" href="javascript:void(0);" onclick="del('academic/core/drop_results.php?src=bulk_results&amp;std=all&amp;class=<?php echo $class; ?>&amp;term=<?php echo $term; ?>&amp;exam=<?php echo $examId; ?>', 'Delete all results for this class, term, and exam?');"><i class="bi bi-trash me-2"></i>Delete All</a>
 </div>
 </div>
 
@@ -189,9 +189,10 @@ $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 $useExamId = app_column_exists($conn, 'tbl_exam_results', 'exam_id');
 $selectedExamName = '';
+$studentRowsById = [];
+$studentScores = [];
 
 if (!$termPublished) {
-	$result = [];
 	$result2 = [];
 }
 
@@ -207,53 +208,68 @@ if ($useExamId && $examId > 0) {
 $tit = $tit . ($selectedExamName !== '' ? ' - ' . $selectedExamName : ($examId > 0 ? ' - Selected Exam' : ''));
 
 if ($termPublished && (!$useExamId || $examId > 0)) {
-	$stmt = $conn->prepare("SELECT * FROM tbl_subject_combinations LEFT JOIN tbl_subjects ON tbl_subject_combinations.subject = tbl_subjects.id");
-	$stmt->execute();
-	$result = $stmt->fetchAll();
-
-	$stmt = $conn->prepare("SELECT * FROM tbl_students WHERE class = ?");
+	$stmt = $conn->prepare("SELECT id, fname, mname, lname, gender, class, display_image FROM tbl_students WHERE class = ?");
 	$stmt->execute([$class]);
-	$result2 = $stmt->fetchAll();
+	$result2 = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+	foreach ($result2 as $studentRow) {
+		$studentId = trim((string)($studentRow['id'] ?? ''));
+		if ($studentId !== '') {
+			$studentRowsById[$studentId] = $studentRow;
+		}
+	}
+
+	$subjectMeta = report_fetch_subjects_for_class($conn, $class, $term, $examId);
+	$validCombinationIds = [];
+	foreach ($subjectMeta as $subjectRow) {
+		$combinationId = (int)($subjectRow['combination_id'] ?? 0);
+		if ($combinationId > 0) {
+			$validCombinationIds[$combinationId] = true;
+		}
+	}
+
+	$sql = "SELECT id, student, subject_combination, score
+		FROM tbl_exam_results
+		WHERE class = ? AND term = ?";
+	$params = [$class, $term];
+	if ($useExamId && $examId > 0) {
+		$sql .= " AND exam_id = ?";
+		$params[] = $examId;
+	}
+	$sql .= " ORDER BY id DESC";
+	$stmt = $conn->prepare($sql);
+	$stmt->execute($params);
+
+	$seenStudentSubjects = [];
+	foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $resultRow) {
+		$studentId = trim((string)($resultRow['student'] ?? ''));
+		$combinationId = (int)($resultRow['subject_combination'] ?? 0);
+		if ($studentId === '' || !isset($studentRowsById[$studentId]) || $combinationId < 1) {
+			continue;
+		}
+		if (!empty($validCombinationIds) && !isset($validCombinationIds[$combinationId])) {
+			continue;
+		}
+
+		$dedupeKey = $studentId . ':' . $combinationId;
+		if (isset($seenStudentSubjects[$dedupeKey])) {
+			continue;
+		}
+		$seenStudentSubjects[$dedupeKey] = true;
+		$studentScores[$studentId][] = (float)($resultRow['score'] ?? 0);
+	}
 } else {
-	$result = [];
 	$result2 = [];
 }
 
 foreach($result2 as $row2)
 {
-$tscore = 0;
-$t_subjects = 0;
-$subssss = array();
+$studentId = trim((string)($row2['id'] ?? ''));
+$subssss = $studentScores[$studentId] ?? [];
+$tscore = !empty($subssss) ? array_sum($subssss) : 0;
+$t_subjects = count($subssss);
 $grd = 'N/A';
 $rm = 'No marks entered';
-
-foreach ($result as $key => $row) {
-$class_list = app_unserialize($row[1]);
-
-if (in_array($class, $class_list))
-{
-$score = 0;
-
-if ($useExamId && $examId > 0) {
-	$stmt = $conn->prepare("SELECT * FROM tbl_exam_results WHERE class = ? AND subject_combination = ? AND term = ? AND student = ? AND exam_id = ?");
-	$stmt->execute([$class, $row[0], $term, $row2[0], $examId]);
-} else {
-	$stmt = $conn->prepare("SELECT * FROM tbl_exam_results WHERE class = ? AND subject_combination = ? AND term = ? AND student = ?");
-	$stmt->execute([$class, $row[0], $term, $row2[0]]);
-}
-$ex_result = $stmt->fetchAll();
-
-if (isset($ex_result[0][5]) && $ex_result[0][5] !== '') {
-	$score = (float)$ex_result[0][5];
-	$tscore = $tscore + $score;
-	$t_subjects++;
-	array_push($subssss, $score);
-}
-
-}
-
-
-}
 
 if ($t_subjects == "0") {
 $av = '0';
@@ -267,18 +283,18 @@ list($grd, $rm) = report_grade_for_score($conn, (float)$av, report_default_gradi
 <tr>
 <td width="10">
 <?php
-if ($row2[9] == "DEFAULT") {
+if (($row2['display_image'] ?? 'DEFAULT') == "DEFAULT") {
 
 
 
-?><img src="images/students/<?php echo $row2[4]; ?>.png" class="avatar_img_sm"><?php
+?><img src="images/students/<?php echo htmlspecialchars((string)($row2['gender'] ?? '')); ?>.png" class="avatar_img_sm"><?php
 }else{
-?><img src="images/students/<?php echo $row2[9]; ?>" class="avatar_img_sm"><?php
+?><img src="images/students/<?php echo htmlspecialchars((string)($row2['display_image'] ?? '')); ?>" class="avatar_img_sm"><?php
 }
 ?>
 </td>
-<td><?php echo $row2[0]; ?></td>
-<td><?php echo $row2[1].' '.$row2[2].' '.$row2[3].''; ?></td>
+<td><?php echo htmlspecialchars((string)($row2['id'] ?? '')); ?></td>
+<td><?php echo htmlspecialchars(trim((string)($row2['fname'] ?? '').' '.(string)($row2['mname'] ?? '').' '.(string)($row2['lname'] ?? ''))); ?></td>
 <td><?php echo $tscore; ?></td>
 <td><?php echo $av; ?></td>
 <td><?php echo $grd; ?></td>
@@ -287,9 +303,9 @@ if ($row2[9] == "DEFAULT") {
 <td><?php echo get_points($subssss); ?></td>
 
 <td align="center" width="190" class="no-print">
-<a href="academic/core/edit_result.php?std=<?php echo $row2[0]; ?>&term=<?php echo $term;?>" class="btn btn-primary btn-sm" href="javascript:void(0);">Edit</a>
-<a href="<?php echo ($examId > 0) ? 'academic/save_pdf.php?std=' . urlencode((string)$row2[0]) . '&term=' . (int)$term . '&exam=' . (int)$examId . '&download=1' : 'javascript:void(0);'; ?>" class="btn btn-primary btn-sm<?php echo $examId > 0 ? '' : ' disabled'; ?>">Report</a>
-<a onclick="del('academic/core/drop_results.php?src=bulk_results&std=<?php echo $row2[0]; ?>&class=<?php echo $class; ?>&term=<?php echo $term; ?>', 'Delete Results?');" href="javascript:void(0);" class="btn btn-danger btn-sm">Delete</a>
+<a href="academic/core/edit_result.php?std=<?php echo (int)($row2['id'] ?? 0); ?>&term=<?php echo $term; ?>&exam=<?php echo $examId; ?>" class="btn btn-primary btn-sm" href="javascript:void(0);">Edit</a>
+<a href="<?php echo ($examId > 0) ? 'academic/save_pdf.php?std=' . urlencode((string)($row2['id'] ?? 0)) . '&term=' . (int)$term . '&exam=' . (int)$examId . '&download=1' : 'javascript:void(0);'; ?>" class="btn btn-primary btn-sm<?php echo $examId > 0 ? '' : ' disabled'; ?>">Report</a>
+<a onclick="del('academic/core/drop_results.php?src=bulk_results&std=<?php echo (int)($row2['id'] ?? 0); ?>&class=<?php echo $class; ?>&term=<?php echo $term; ?>&exam=<?php echo $examId; ?>', 'Delete Results?');" href="javascript:void(0);" class="btn btn-danger btn-sm">Delete</a>
 </td>
 
 </tr>
@@ -299,7 +315,7 @@ if ($row2[9] == "DEFAULT") {
 }catch(PDOException $e)
 {
 error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
-echo "Connection failed.";
+echo '<tr><td colspan="9" class="text-center text-danger">Failed to load results right now.</td></tr>';
 }
 
 ?>

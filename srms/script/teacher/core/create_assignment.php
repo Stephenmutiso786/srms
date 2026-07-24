@@ -4,6 +4,7 @@ session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/school.php');
+require_once('const/system_notifications.php');
 if ($res == "1" && $level == "2") {}else{header("location:../");}
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -59,17 +60,16 @@ try {
   $assignmentId = $conn->lastInsertId();
   app_audit_log($conn, 'staff', (string)$account_id, 'elearning.assignment.create', 'assignment', (string)$assignmentId);
 
-  if (app_table_exists($conn, 'tbl_notifications')) {
-    $stmt = $conn->prepare("INSERT INTO tbl_notifications (title, message, audience, class_id, link, created_by) VALUES (?,?,?,?,?,?)");
-    $stmt->execute([
-      'New Assignment',
-      $title,
-      'class',
-      (int)$course['class_id'],
-      'student/elearning',
-      (int)$account_id
-    ]);
-  }
+  app_system_notify($conn, 'New Assignment', $title, [
+    'audience' => 'class',
+    'class_id' => (int)$course['class_id'],
+    'link' => 'student/elearning',
+    'created_by' => (int)$account_id,
+    'module_name' => 'elearning',
+    'type' => 'info',
+    'priority' => 62,
+    'email_link' => 'student/elearning',
+  ]);
 
   $_SESSION['reply'] = array (array("success", "Assignment created."));
 } catch (Throwable $e) {

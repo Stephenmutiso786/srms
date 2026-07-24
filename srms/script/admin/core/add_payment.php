@@ -169,6 +169,38 @@ try {
 		'receipt_error' => $receiptError,
 	]);
 
+	$invoiceSnapshot = app_invoice_archive_payload($conn, $invoiceId);
+	if ($invoiceSnapshot) {
+		$invoiceMeta = (array)($invoiceSnapshot['invoice'] ?? []);
+		$paymentMeta = null;
+		foreach ((array)($invoiceSnapshot['payments'] ?? []) as $paymentRow) {
+			if ((int)($paymentRow['id'] ?? 0) === $paymentId) {
+				$paymentMeta = $paymentRow;
+				break;
+			}
+		}
+		app_data_camp_store_event($conn, [
+			'module_key' => 'finance',
+			'record_type' => 'payment_recorded',
+			'entity_table' => 'tbl_payments',
+			'entity_id' => (string)$paymentId,
+			'title' => 'Payment for Invoice #' . (string)$invoiceId,
+			'description' => 'Fee payment and refreshed invoice snapshot retained for audit history',
+			'class_id' => (int)($invoiceMeta['class_id'] ?? 0) > 0 ? (int)$invoiceMeta['class_id'] : null,
+			'student_id' => trim((string)($invoiceMeta['student_id'] ?? '')) ?: null,
+			'owner_portal' => 'admin,accountant,parent,student',
+			'mime_type' => 'application/json',
+			'status' => 'retained',
+			'payload_json' => [
+				'payment_id' => $paymentId,
+				'payment' => $paymentMeta,
+				'invoice_snapshot' => $invoiceSnapshot,
+				'receipt_number' => $receiptNo,
+			],
+			'created_by' => (int)$account_id,
+		]);
+	}
+
 	if ($receiptNo !== '') {
 		$_SESSION['reply'] = array(array("success", "Cash payment recorded. Receipt: " . $receiptNo));
 	} else {

@@ -1,13 +1,14 @@
 <?php
-chdir('../../');
-session_start();
-require_once('db/config.php');
-require_once('const/school.php');
-require_once('const/check_session.php');
-require_once('const/rbac.php');
-require_once('const/report_engine.php');
-require_once('const/report_pdf_template.php');
-require_once('tcpdf/tcpdf.php');
+if (session_status() !== PHP_SESSION_ACTIVE) {
+	session_start();
+}
+require_once(__DIR__ . '/../../db/config.php');
+require_once(__DIR__ . '/../../const/school.php');
+require_once(__DIR__ . '/../../const/check_session.php');
+require_once(__DIR__ . '/../../const/rbac.php');
+require_once(__DIR__ . '/../../const/report_engine.php');
+require_once(__DIR__ . '/../../const/report_pdf_template.php');
+require_once(__DIR__ . '/../../tcpdf/tcpdf.php');
 
 if ($res !== '1' || $level !== '0') { header('location:../'); exit; }
 app_require_permission('report.generate', '../report');
@@ -28,7 +29,8 @@ if ($termId < 1) {
 	exit;
 }
 
-set_time_limit(0);
+@set_time_limit(0);
+@ini_set('memory_limit', '-1');
 
 try {
 	$conn = app_db();

@@ -3,8 +3,9 @@ chdir('../../');
 session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
+require_once('const/rbac.php');
 
-if (!isset($res) || $res !== "1" || !isset($level) || $level !== "2") {
+if (!isset($res) || $res !== "1" || !isset($level) || !in_array((string)$level, ['0', '1', '2', '9'], true)) {
 	header("location:../../");
 	exit;
 }
@@ -43,6 +44,11 @@ $allowedStatuses = ['present', 'absent', 'late', 'excused'];
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	if (!app_can_manage_student_attendance($conn, (string)$account_id, (string)$level)) {
+		$_SESSION['reply'] = array(array("error", "Student attendance is only available to admins and staff members who are currently allocated as class teachers."));
+		header("location:" . app_attendance_redirect_target($originPortal, $originPortal === 'admin' ? 'attendance_mark' : 'attendance'));
+		exit;
+	}
 
 	// Ensure session belongs to one of the teacher's classes.
 	$stmt = $conn->prepare("SELECT class_id FROM tbl_attendance_sessions WHERE id = ? LIMIT 1");
@@ -54,11 +60,13 @@ try {
 		exit;
 	}
 
-	if (!app_staff_is_active_class_teacher($conn, (int)$account_id, $classId)) {
+	if (!app_is_attendance_admin_level((string)$level) && !app_staff_is_active_class_teacher($conn, (int)$account_id, $classId)) {
 		$_SESSION['reply'] = array(array("error", "Only the assigned class teacher can edit this attendance session."));
 		header("location:" . app_attendance_redirect_target($originPortal, $originPortal === 'admin' ? 'attendance_mark' : 'attendance'));
 		exit;
 	}
+
+	$beforeSnapshot = app_attendance_session_archive_payload($conn, $sessionId);
 
 	$isPgsql = (defined('DBDriver') && DBDriver === 'pgsql');
 
@@ -82,6 +90,27 @@ try {
 	}
 
 	$conn->commit();
+	$afterSnapshot = app_attendance_session_archive_payload($conn, $sessionId);
+	if ($afterSnapshot) {
+		$sessionMeta = (array)($afterSnapshot['session'] ?? $beforeSnapshot['session'] ?? []);
+		app_data_camp_store_event($conn, [
+			'module_key' => 'attendance',
+			'record_type' => 'attendance_session_updated',
+			'entity_table' => 'tbl_attendance_sessions',
+			'entity_id' => (string)$sessionId,
+			'title' => 'Attendance Session ' . (string)($sessionMeta['session_date'] ?? $sessionId),
+			'description' => 'Attendance session snapshot retained before and after save',
+			'class_id' => (int)($sessionMeta['class_id'] ?? 0) > 0 ? (int)$sessionMeta['class_id'] : $classId,
+			'owner_portal' => 'admin,academic,teacher',
+			'mime_type' => 'application/json',
+			'status' => 'retained',
+			'payload_json' => [
+				'before' => $beforeSnapshot,
+				'after' => $afterSnapshot,
+			],
+			'created_by' => (int)$account_id,
+		]);
+	}
 
 	app_audit_log($conn, 'staff', (string)$account_id, 'attendance.session.save', 'attendance_session', (string)$sessionId);
 

@@ -74,7 +74,7 @@ try {
 		if ($card) {
 			$attendance = report_attendance_summary($conn, $studentId, (int)$student['class_id'], $termId);
 			$feesBalance = report_fees_balance($conn, $studentId, $termId);
-			$subjectBreakdown = report_subject_breakdown($conn, $studentId, (int)$student['class_id'], $termId);
+			$subjectBreakdown = report_subject_breakdown($conn, $studentId, (int)$student['class_id'], $termId, $examId);
 		}
 		$reportArchive = report_student_report_archive($conn, $studentId, 24);
 	}

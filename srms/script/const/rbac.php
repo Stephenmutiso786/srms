@@ -47,9 +47,16 @@ function app_default_permissions_for_level(int $level): array
 
 function app_get_permissions(PDO $conn, string $staffId, string $level): array
 {
+	static $cache = [];
 	if (isset($GLOBALS['super_admin']) && $GLOBALS['super_admin'] === true) {
 		return ['*'];
 	}
+
+	$cacheKey = trim($staffId) . '|' . trim($level);
+	if ($cacheKey !== '|' && isset($cache[$cacheKey])) {
+		return $cache[$cacheKey];
+	}
+
 	$levelInt = (int)$level;
 	$defaults = app_default_permissions_for_level($levelInt);
 	if ($staffId !== '' && function_exists('app_staff_has_active_teaching_assignment')) {
@@ -62,7 +69,8 @@ function app_get_permissions(PDO $conn, string $staffId, string $level): array
 		}
 	}
 	if (in_array('*', $defaults, true)) {
-		return ['*'];
+		$cache[$cacheKey] = ['*'];
+		return $cache[$cacheKey];
 	}
 
 	if (function_exists('app_ensure_school_roles')) {
@@ -74,7 +82,8 @@ function app_get_permissions(PDO $conn, string $staffId, string $level): array
 	}
 
 	if (!app_table_exists($conn, 'tbl_user_roles') || !app_table_exists($conn, 'tbl_role_permissions') || !app_table_exists($conn, 'tbl_permissions')) {
-		return $defaults;
+		$cache[$cacheKey] = $defaults;
+		return $cache[$cacheKey];
 	}
 
 	try {
@@ -83,13 +92,14 @@ function app_get_permissions(PDO $conn, string $staffId, string $level): array
 			JOIN tbl_role_permissions rp ON rp.role_id = ur.role_id
 			JOIN tbl_permissions p ON p.id = rp.permission_id
 			WHERE ur.staff_id = ?");
-		$stmt->execute([(int)$staffId]);
-		$rows = $stmt->fetchAll(PDO::FETCH_COLUMN);
-		if (!$rows || count($rows) === 0) {
-			return $defaults;
-		}
-		$rolePermissions = array_values(array_unique(array_filter(array_map(static function ($code): string {
-			return strtolower(trim((string)$code));
+			$stmt->execute([(int)$staffId]);
+			$rows = $stmt->fetchAll(PDO::FETCH_COLUMN);
+			if (!$rows || count($rows) === 0) {
+				$cache[$cacheKey] = $defaults;
+				return $cache[$cacheKey];
+			}
+			$rolePermissions = array_values(array_unique(array_filter(array_map(static function ($code): string {
+				return strtolower(trim((string)$code));
 		}, $rows), static function (string $code): bool {
 			return $code !== '';
 		})));
@@ -97,13 +107,15 @@ function app_get_permissions(PDO $conn, string $staffId, string $level): array
 		$defaultPermissions = array_values(array_unique(array_filter(array_map(static function ($code): string {
 			return strtolower(trim((string)$code));
 		}, $defaults), static function (string $code): bool {
-			return $code !== '';
-		})));
+				return $code !== '';
+			})));
 
-		return array_values(array_unique(array_merge($defaultPermissions, $rolePermissions)));
-	} catch (Throwable $e) {
-		return $defaults;
-	}
+			$cache[$cacheKey] = array_values(array_unique(array_merge($defaultPermissions, $rolePermissions)));
+			return $cache[$cacheKey];
+		} catch (Throwable $e) {
+			$cache[$cacheKey] = $defaults;
+			return $cache[$cacheKey];
+		}
 }
 
 function app_has_permission(PDO $conn, string $staffId, string $level, string $permission): bool
@@ -533,6 +545,7 @@ function app_teacher_portal_module_catalog(): array
 		['key' => 'exam_timetable', 'label' => 'Exam Timetable', 'href' => 'teacher/exam_timetable', 'icon' => 'feather icon-calendar', 'description' => 'Exam timetable planning', 'permissions' => ['timetable.manage', 'exams.manage'], 'core' => false],
 		['key' => 'grading_system', 'label' => 'Grading System', 'href' => 'teacher/grading-system', 'icon' => 'feather icon-award', 'description' => 'Grading and assessment setup', 'permissions' => ['exams.manage', 'academic.manage'], 'core' => false, 'routes' => ['teacher/division-system']],
 		['key' => 'elearning', 'label' => 'E-Learning', 'href' => 'teacher/elearning', 'icon' => 'feather icon-book-open', 'description' => 'Digital lessons and content', 'permissions' => ['academic.manage'], 'core' => false],
+		['key' => 'assignment_generator', 'label' => 'AI Assignment Generator', 'href' => 'teacher/assignment_generator', 'icon' => 'feather icon-edit', 'description' => 'Generate assignments and marking guides with Edu AI', 'permissions' => ['marks.enter', 'academic.manage'], 'core' => false],
 		['key' => 'subject_combinations', 'label' => 'Subject Combinations', 'href' => 'teacher/combinations', 'icon' => 'feather icon-book-open', 'description' => 'Subject allocation and combinations', 'permissions' => ['teacher.allocate', 'academic.manage'], 'core' => false],
 		['key' => 'roles', 'label' => 'Roles', 'href' => 'teacher/roles', 'icon' => 'feather icon-shield', 'description' => 'Assign staff roles', 'permissions' => ['staff.manage'], 'core' => false],
 		['key' => 'how_system_works', 'label' => 'How The System Works', 'href' => 'teacher/how_system_works', 'icon' => 'feather icon-help-circle', 'description' => 'Help and guidance', 'permissions' => [], 'core' => true],
@@ -600,9 +613,12 @@ function app_portal_module_catalog(string $portal): array
 			['key' => 'fees', 'label' => 'Fees & Finance', 'href' => 'admin/fees', 'icon' => 'feather icon-credit-card', 'description' => 'Fee and finance tools', 'permissions' => ['finance.manage', 'finance.view'], 'core' => true, 'routes' => ['admin/financial_reports', 'admin/installment_plans', 'admin/fee_structure', 'admin/invoices', 'admin/expense_approvals']],
 			['key' => 'import_export', 'label' => 'Import / Export', 'href' => 'admin/import_export', 'icon' => 'feather icon-upload-cloud', 'description' => 'Data import and export', 'permissions' => ['system.manage'], 'core' => false],
 			['key' => 'communication', 'label' => 'Communication', 'href' => 'admin/communication', 'icon' => 'feather icon-message-circle', 'description' => 'Announcements and messages', 'permissions' => ['communication.manage'], 'core' => true],
+			['key' => 'announcement_center', 'label' => 'Announcement Center', 'href' => 'admin/announcement_center', 'icon' => 'feather icon-bell', 'description' => 'Central announcements, alerts, and AI drafting', 'permissions' => ['communication.manage'], 'core' => false],
 			['key' => 'sms_topup', 'label' => 'SMS Tokens', 'href' => 'admin/sms_topup', 'icon' => 'feather icon-credit-card', 'description' => 'SMS wallet', 'permissions' => ['communication.manage', 'finance.manage'], 'core' => false],
 			['key' => 'elearning', 'label' => 'E-Learning', 'href' => 'admin/elearning', 'icon' => 'feather icon-book-open', 'description' => 'Digital learning', 'permissions' => ['academic.manage'], 'core' => true],
 			['key' => 'feedback', 'label' => 'Edu Bot & Feedback', 'href' => 'admin/feedback', 'icon' => 'feather icon-message-square', 'description' => 'Memory-backed school assistant and feedback tools', 'permissions' => ['academic.manage'], 'core' => false],
+			['key' => 'document_generator', 'label' => 'AI Document Generator', 'href' => 'admin/document_generator', 'icon' => 'feather icon-file-plus', 'description' => 'Generate official letters, comments, reminders, and plans', 'permissions' => ['academic.manage', 'report.generate', 'communication.manage'], 'core' => false],
+			['key' => 'ai_command_center', 'label' => 'AI Command Center', 'href' => 'admin/ai_command_center', 'icon' => 'feather icon-cpu', 'description' => 'School intelligence, risks, health score, and predictions', 'permissions' => ['report.view', 'academic.manage', 'finance.view'], 'core' => false],
 			['key' => 'library', 'label' => 'Library', 'href' => 'admin/library', 'icon' => 'feather icon-book', 'description' => 'Library inventory', 'permissions' => ['library.manage'], 'core' => false],
 			['key' => 'inventory', 'label' => 'Inventory', 'href' => 'admin/inventory', 'icon' => 'feather icon-box', 'description' => 'Asset inventory', 'permissions' => ['inventory.manage'], 'core' => false],
 			['key' => 'transport', 'label' => 'Transport', 'href' => 'admin/transport', 'icon' => 'feather icon-truck', 'description' => 'Fleet management', 'permissions' => ['transport.manage'], 'core' => false],
@@ -621,7 +637,7 @@ function app_portal_module_catalog(string $portal): array
 			['key' => 'promotion_rules', 'label' => 'Promotion Rules', 'href' => 'admin/promotion_rules', 'icon' => 'feather icon-shuffle', 'description' => 'Promotion rules', 'permissions' => ['students.manage'], 'core' => false],
 			['key' => 'promotions', 'label' => 'Student Promotions', 'href' => 'admin/promotions', 'icon' => 'feather icon-arrow-up', 'description' => 'Promote learners', 'permissions' => ['students.manage'], 'core' => false],
 			['key' => 'alumni', 'label' => 'Alumni Register', 'href' => 'admin/alumni', 'icon' => 'feather icon-user-check', 'description' => 'Completed learners retained as alumni', 'permissions' => ['students.manage', 'report.view'], 'core' => false],
-			['key' => 'data_camp', 'label' => 'Data Camp', 'href' => 'admin/data_camp', 'icon' => 'feather icon-database', 'description' => 'Permanent school archive and retained records', 'permissions' => ['report.view'], 'core' => false],
+			['key' => 'data_camp', 'label' => 'Data Camp', 'href' => 'admin/data_camp', 'icon' => 'feather icon-database', 'description' => 'Permanent school archive and retained records', 'permissions' => [], 'core' => false],
 			['key' => 'analytics_engine', 'label' => 'Analytics Engine', 'href' => 'admin/analytics_engine', 'icon' => 'feather icon-activity', 'description' => 'Analytics engine', 'permissions' => ['report.view'], 'core' => false],
 			['key' => 'benchmarking', 'label' => 'Benchmarking', 'href' => 'admin/benchmarking', 'icon' => 'feather icon-trending-up', 'description' => 'Benchmarking', 'permissions' => ['report.view'], 'core' => false],
 			['key' => 'notifications', 'label' => 'Notifications', 'href' => 'admin/notifications', 'icon' => 'feather icon-bell', 'description' => 'Notification queue', 'permissions' => ['communication.manage'], 'core' => false],
@@ -708,6 +724,11 @@ function app_portal_visible_modules(PDO $conn, string $portal, string $staffId, 
 	$visible = [];
 
 	foreach ($modules as $module) {
+		$moduleKey = strtolower(trim((string)($module['key'] ?? '')));
+		if ($moduleKey === 'attendance' && in_array($portal, ['teacher', 'academic'], true) && !app_can_manage_student_attendance($conn, $staffId, $level)) {
+			continue;
+		}
+
 		$permissions = array_values(array_filter(array_map('strval', (array)($module['permissions'] ?? []))));
 		if (empty($permissions)) {
 			$visible[] = $module;
@@ -775,6 +796,37 @@ function app_teacher_portal_visible_modules(PDO $conn, string $staffId, string $
 function app_teacher_portal_allocated_modules(PDO $conn, string $staffId, string $level): array
 {
 	return app_portal_allocated_modules($conn, 'teacher', $staffId, $level);
+}
+
+function app_is_attendance_admin_level(string $level): bool
+{
+	if (isset($GLOBALS['super_admin']) && $GLOBALS['super_admin'] === true) {
+		return true;
+	}
+
+	return in_array((int)$level, [0, 9], true);
+}
+
+function app_staff_has_class_teacher_assignment(PDO $conn, int $staffId): bool
+{
+	if ($staffId < 1 || !function_exists('app_staff_class_teacher_ids')) {
+		return false;
+	}
+
+	try {
+		return count(app_staff_class_teacher_ids($conn, $staffId)) > 0;
+	} catch (Throwable $e) {
+		return false;
+	}
+}
+
+function app_can_manage_student_attendance(PDO $conn, string $staffId, string $level): bool
+{
+	if (app_is_attendance_admin_level($level)) {
+		return true;
+	}
+
+	return app_staff_has_class_teacher_assignment($conn, (int)$staffId);
 }
 
 function app_render_access_error_page(string $title, string $message, int $status = 403, array $details = []): void
@@ -1055,10 +1107,14 @@ function app_enforce_portal_route_permission(PDO $conn, string $portal, string $
 	}
 
 	$portalHome = $portal;
-	try {
-		$portalHome = app_staff_login_portal($conn, (int)$staffId, $level) ?: $portal;
-	} catch (Throwable $e) {
-		$portalHome = $portal;
+	if (!empty($GLOBALS['app_staff_portal_home']) && is_string($GLOBALS['app_staff_portal_home'])) {
+		$portalHome = strtolower(trim((string)$GLOBALS['app_staff_portal_home'])) ?: $portal;
+	} else {
+		try {
+			$portalHome = app_staff_login_portal($conn, (int)$staffId, $level) ?: $portal;
+		} catch (Throwable $e) {
+			$portalHome = $portal;
+		}
 	}
 
 	$requestRoute = app_request_route_from_portal($portal);

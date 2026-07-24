@@ -4,6 +4,7 @@ session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/school.php');
+require_once('const/system_notifications.php');
 if ($res == "1" && $level == "2") {}else{header("location:../");}
 
 function app_normalize_live_meeting_link(string $meetingLink): string
@@ -103,17 +104,16 @@ try {
   $liveId = $conn->lastInsertId();
   app_audit_log($conn, 'staff', (string)$account_id, 'elearning.live.create', 'live_class', (string)$liveId);
 
-  if (app_table_exists($conn, 'tbl_notifications')) {
-    $stmt = $conn->prepare("INSERT INTO tbl_notifications (title, message, audience, class_id, link, created_by) VALUES (?,?,?,?,?,?)");
-    $stmt->execute([
-      'Live Class Scheduled',
-      $title,
-      'class',
-      (int)$course['class_id'],
-      'student/elearning',
-      (int)$account_id
-    ]);
-  }
+  app_system_notify($conn, 'Live Class Scheduled', $title, [
+    'audience' => 'class',
+    'class_id' => (int)$course['class_id'],
+    'link' => 'student/elearning',
+    'created_by' => (int)$account_id,
+    'module_name' => 'elearning',
+    'type' => 'info',
+    'priority' => 60,
+    'email_link' => 'student/elearning',
+  ]);
 
   $_SESSION['reply'] = array (array("success", "Live class scheduled."));
 } catch (Throwable $e) {

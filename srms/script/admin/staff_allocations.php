@@ -50,6 +50,7 @@ try {
 <base href="../">
 <link rel="stylesheet" href="css/main.css">
 </head><body class="app sidebar-mini">
+<header class="app-header"><a class="app-header__logo" href="javascript:void(0);"><?php echo APP_NAME; ?></a><a class="app-sidebar__toggle" href="#" data-toggle="sidebar" aria-label="Hide Sidebar"></a></header>
 <?php include('admin/partials/sidebar.php'); ?>
 <main class="app-content"><div class="app-title"><h1>Manage Modules for <?php echo htmlspecialchars(trim((string)($staff['fname'] ?? '') . ' ' . (string)($staff['lname'] ?? ''))); ?></h1>
 <a class="btn btn-outline-primary" href="admin/role_matrix">Back</a>
@@ -74,4 +75,4 @@ try {
 <?php endif; ?>
 </form>
 </div>
-<?php endif; ?></main></body></html>
+<?php endif; ?></main><script src="js/jquery-3.7.0.min.js"></script><script src="js/bootstrap.min.js"></script><script src="js/main.js"></script></body></html>

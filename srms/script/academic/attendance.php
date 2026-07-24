@@ -11,6 +11,12 @@ app_require_permission('attendance.manage', '../academic');
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	if (!app_can_manage_student_attendance($conn, (string)$account_id, (string)$level)) {
+		app_render_access_error_page('Attendance access restricted', 'Student attendance is only available to admins and staff members who are currently allocated as class teachers.', 403, [
+			'portal' => 'academic',
+			'account_id' => (string)$account_id,
+		]);
+	}
 
 	$myclasses = app_staff_class_teacher_ids($conn, (int)$account_id);
 
@@ -19,12 +25,12 @@ try {
 		$matches = implode(',', array_fill(0, count($myclasses), '?'));
 		$stmt = $conn->prepare("SELECT id, name FROM tbl_classes WHERE id IN ($matches) ORDER BY id");
 		$stmt->execute($myclasses);
-		$classes = $stmt->fetchAll();
+		$classes = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
 
 	$stmt = $conn->prepare("SELECT id, name FROM tbl_terms WHERE status = 1 ORDER BY id");
 	$stmt->execute();
-	$terms = $stmt->fetchAll();
+	$terms = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 	$sessions = [];
 	if (app_table_exists($conn, 'tbl_attendance_sessions') && count($myclasses) > 0) {
@@ -83,9 +89,6 @@ try {
 
 <div class="tile">
 <h3 class="tile-title">New Attendance Session</h3>
-<?php if (count($classes) < 1) { ?>
-<div class="alert alert-warning">No class-teacher assignment found. Only the assigned class teacher can mark student class attendance.</div>
-<?php } ?>
 <form class="row g-3" method="POST" action="teacher/core/new_attendance_session">
 <input type="hidden" name="origin_portal" value="academic">
 <div class="col-md-4">
@@ -93,7 +96,7 @@ try {
 <select class="form-control" name="class_id" required <?php echo count($classes) < 1 ? 'disabled' : ''; ?>>
 <option value="" disabled selected>Select class</option>
 <?php foreach($classes as $c){ ?>
-<option value="<?php echo $c[0]; ?>"><?php echo $c[1]; ?></option>
+<option value="<?php echo (int)$c['id']; ?>"><?php echo htmlspecialchars((string)$c['name']); ?></option>
 <?php } ?>
 </select>
 </div>
@@ -102,7 +105,7 @@ try {
 <select class="form-control" name="term_id" <?php echo count($classes) < 1 ? 'disabled' : ''; ?>>
 <option value="">(optional)</option>
 <?php foreach($terms as $t){ ?>
-<option value="<?php echo $t[0]; ?>"><?php echo $t[1]; ?></option>
+<option value="<?php echo (int)$t['id']; ?>"><?php echo htmlspecialchars((string)$t['name']); ?></option>
 <?php } ?>
 </select>
 </div>

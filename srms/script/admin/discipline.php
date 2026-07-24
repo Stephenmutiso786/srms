@@ -52,7 +52,17 @@ try {
 </style>
 </head>
 <body class="app sidebar-mini">
-<header class="app-header"><a class="app-header__logo" href="javascript:void(0);"><?php echo APP_NAME; ?></a><a class="app-sidebar__toggle" href="#" data-toggle="sidebar" aria-label="Hide Sidebar"></a></header>
+<header class="app-header"><a class="app-header__logo" href="javascript:void(0);"><?php echo APP_NAME; ?></a>
+<a class="app-sidebar__toggle" href="#" data-toggle="sidebar" aria-label="Hide Sidebar"></a>
+<ul class="app-nav">
+<li class="dropdown"><a class="app-nav__item" href="#" data-bs-toggle="dropdown" aria-label="Open Profile Menu"><i class="bi bi-person fs-4"></i></a>
+<ul class="dropdown-menu settings-menu dropdown-menu-right">
+<li><a class="dropdown-item" href="admin/profile"><i class="bi bi-person me-2 fs-5"></i> Profile</a></li>
+<li><a class="dropdown-item" href="logout"><i class="bi bi-box-arrow-right me-2 fs-5"></i> Logout</a></li>
+</ul>
+</li>
+</ul>
+</header>
 <?php include('admin/partials/sidebar.php'); ?>
 <main class="app-content">
 <div class="app-title"><div><h1>Discipline Cases</h1><p>Review and resolve teacher-submitted incidents.</p></div></div>
@@ -83,6 +93,14 @@ try {
 <input class="form-control form-control-sm" type="text" name="action_taken" placeholder="Action taken" value="<?php echo htmlspecialchars((string)($case['action_taken'] ?? '')); ?>">
 <button class="btn btn-sm btn-outline-primary" type="submit">Save</button>
 </form>
+<div class="d-flex flex-wrap gap-1 mt-2">
+<a class="btn btn-sm btn-outline-secondary" href="academic/discipline_letter.php?id=<?php echo (int)$case['id']; ?>" target="_blank">Print Letter</a>
+<form method="POST" action="admin/core/send_discipline_notice.php" class="d-inline">
+<input type="hidden" name="case_id" value="<?php echo (int)$case['id']; ?>">
+<input type="hidden" name="return_to" value="../../admin/discipline.php">
+<button class="btn btn-sm btn-outline-success" type="submit">Send WhatsApp Notice</button>
+</form>
+</div>
 </td>
 </tr>
 <?php endforeach; ?>

@@ -90,18 +90,18 @@ $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
 $empty_classes = array();
 
-$stmt = $conn->prepare("SELECT * FROM tbl_classes");
+$stmt = $conn->prepare("SELECT id, name FROM tbl_classes");
 $stmt->execute();
-$classes = $stmt->fetchAll();
+$classes = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 foreach ($classes as $value) {
-$empty_classes[$value[0]] = $value[1];
+$empty_classes[(string)($value['id'] ?? '')] = (string)($value['name'] ?? '');
 }
 
 
-$stmt = $conn->prepare("SELECT * FROM tbl_students WHERE class IN ($matches)");
+$stmt = $conn->prepare("SELECT id, fname, mname, lname, gender, class, display_image FROM tbl_students WHERE class IN ($matches)");
 $stmt->execute($students);
-$result = $stmt->fetchAll();
+$result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 foreach($result as $row)
 {
@@ -110,19 +110,21 @@ foreach($result as $row)
 <tr>
 <td width="10">
 <?php
-if ($row[9] == "DEFAULT") {
-?><img src="images/students/<?php echo $row[4]; ?>.png" class="avatar_img_sm"><?php
+$displayImage = (string)($row['display_image'] ?? 'DEFAULT');
+$genderImage = (string)($row['gender'] ?? '');
+if ($displayImage === "DEFAULT" || $displayImage === '') {
+?><img src="images/students/<?php echo htmlspecialchars($genderImage); ?>.png" class="avatar_img_sm"><?php
 }else{
-?><img src="images/students/<?php echo $row[9]; ?>" class="avatar_img_sm"><?php
+?><img src="images/students/<?php echo htmlspecialchars($displayImage); ?>" class="avatar_img_sm"><?php
 }
 ?>
 </td>
-<td><?php echo $row[0]; ?></td>
-<td><?php echo $row[1]; ?></td>
-<td><?php echo $row[2]; ?></td>
-<td><?php echo $row[3]; ?></td>
-<td><?php echo $row[4]; ?></td>
-<td><?php echo $empty_classes[$row[6]]; ?></td>
+<td><?php echo htmlspecialchars((string)($row['id'] ?? '')); ?></td>
+<td><?php echo htmlspecialchars((string)($row['fname'] ?? '')); ?></td>
+<td><?php echo htmlspecialchars((string)($row['mname'] ?? '')); ?></td>
+<td><?php echo htmlspecialchars((string)($row['lname'] ?? '')); ?></td>
+<td><?php echo htmlspecialchars((string)($row['gender'] ?? '')); ?></td>
+<td><?php echo htmlspecialchars((string)($empty_classes[(string)($row['class'] ?? '')] ?? '')); ?></td>
 </tr>
 <?php
 }

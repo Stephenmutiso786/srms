@@ -8,6 +8,11 @@ require_once('const/rbac.php');
 
 app_require_discipline_access();
 
+$leadershipTitle = trim((string)($designation ?? 'Academic Leadership'));
+if ($leadershipTitle === '') {
+	$leadershipTitle = 'Academic Leadership';
+}
+
 $caseId = (int)($_GET['id'] ?? 0);
 if ($caseId < 1) {
 	header('location:discipline.php');
@@ -80,11 +85,11 @@ body{font-family:Arial,sans-serif;color:#111;margin:40px}
 	<p>This is to formally notify the parent or guardian that the above-named learner has been involved in the following disciplinary matter:</p>
 	<p><?php echo nl2br(htmlspecialchars((string)$case['description'])); ?></p>
 	<p><strong>Action Taken / Recommended:</strong> <?php echo htmlspecialchars((string)($case['action_taken'] ?: $case['action_recommended'])); ?></p>
-	<p>You are required to bring your parent/guardian to school on or before <strong><?php echo date('Y-m-d', strtotime('+3 days')); ?></strong> for discussion with the Deputy Headteacher.</p>
+	<p>You are required to bring your parent/guardian to school on or before <strong><?php echo date('Y-m-d', strtotime('+3 days')); ?></strong> for discussion with the <?php echo htmlspecialchars($leadershipTitle); ?>.</p>
 	<p>Failure to comply may lead to further disciplinary action.</p>
 	<div class="sign">
 		<div>Parent/Guardian Signature: ____________________</div>
-		<div>Deputy Headteacher Signature: ____________________</div>
+		<div><?php echo htmlspecialchars($leadershipTitle); ?> Signature: ____________________</div>
 	</div>
 	<?php else: ?>
 	<p>Case not found.</p>
