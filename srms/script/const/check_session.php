@@ -110,6 +110,26 @@ function app_requested_staff_module(): string
 	return '';
 }
 
+function app_teacher_password_change_gate_path(): string
+{
+	$path = parse_url((string)($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH);
+	return is_string($path) ? strtolower(trim($path, '/')) : '';
+}
+
+function app_teacher_password_change_gate_allows_current_request(): bool
+{
+	$path = app_teacher_password_change_gate_path();
+	if ($path === '') {
+		return false;
+	}
+	return str_ends_with($path, 'teacher/force_password_change')
+		|| str_ends_with($path, 'teacher/force_password_change.php')
+		|| str_ends_with($path, 'teacher/core/update_password')
+		|| str_ends_with($path, 'teacher/core/update_password.php')
+		|| str_ends_with($path, 'logout')
+		|| str_ends_with($path, 'logout.php');
+}
+
 function app_module_level_bridge_rules(): array
 {
 	return [
@@ -206,6 +226,7 @@ try {
 
 	// Staff roles: admin(0), academic(1), teacher(2), accountant(5), etc.
 	if ($levelInt !== 3 && $levelInt !== 4) {
+		app_ensure_staff_password_policy_columns($conn);
 		$stmt = $conn->prepare("SELECT ls.session_key, ls.ip_address, s.*
 			FROM tbl_login_sessions ls
 			JOIN tbl_staff s ON s.id = ls.staff
@@ -236,7 +257,7 @@ try {
 		}
 
 		$status = (string)($row['status'] ?? '0');
-		if ($status !== "1") {
+		if ($status !== "1" && !$isSuperAdminController) {
 			$res = "2";
 			app_set_auth_error(403, 'Account disabled', 'The staff account tied to this session is inactive.', [
 				'request_uri' => (string)($_SERVER['REQUEST_URI'] ?? ''),
@@ -262,12 +283,48 @@ try {
 			$level = "0";
 		}
 
+		try {
+			if (function_exists('app_ensure_school_subscription_schema')) {
+				app_ensure_school_subscription_schema($conn);
+			}
+			$currentSchoolId = function_exists('app_current_school_id') ? app_current_school_id() : 0;
+			if ($currentSchoolId > 0 && function_exists('app_school_is_access_disabled') && app_school_is_access_disabled($conn, $currentSchoolId)) {
+				$message = function_exists('app_school_is_suspended') && app_school_is_suspended($conn, $currentSchoolId)
+					? 'Your school account is currently suspended.'
+					: 'Your school subscription has expired or is outside the configured term window.';
+				app_set_auth_error(403, 'School locked', $message, [
+					'school_id' => $currentSchoolId,
+					'request_uri' => (string)($_SERVER['REQUEST_URI'] ?? ''),
+				]);
+				http_response_code(403);
+				echo htmlspecialchars($message, ENT_QUOTES, 'UTF-8');
+				exit;
+			}
+			if ($currentSchoolId > 0 && function_exists('app_school_is_pending') && app_school_is_pending($conn, $currentSchoolId) && !$isSuperAdminController) {
+				$message = 'Your school application is still waiting for approval.';
+				app_set_auth_error(403, 'Approval pending', $message, [
+					'school_id' => $currentSchoolId,
+					'request_uri' => (string)($_SERVER['REQUEST_URI'] ?? ''),
+				]);
+				http_response_code(403);
+				echo htmlspecialchars($message, ENT_QUOTES, 'UTF-8');
+				exit;
+			}
+		} catch (Throwable $e) {
+			// Keep auth flow alive even if subscription metadata cannot be read.
+		}
+
 		// Use consolidated impersonation handler
 		app_handle_impersonation_setup($conn, $impersonationRow, 'staff', (string)$account_id, (string)$level, trim($fname . ' ' . $lname), $designation, 'admin/core/stop_impersonation');
 
 		app_online_touch($conn, $session_key);
 		$portal = app_staff_login_portal($conn, (int)$account_id, (string)$level);
 		$GLOBALS['app_staff_portal_home'] = $portal;
+		if ($portal === 'super_admin') {
+			app_set_auth_error(200, 'Authenticated', 'The session was validated successfully.', []);
+			$res = "1";
+			return;
+		}
 		app_enforce_portal_route_permission($conn, $portal, (string)$account_id, (string)$level, '../');
 		app_set_auth_error(200, 'Authenticated', 'The session was validated successfully.', []);
 		$res = "1";
@@ -324,9 +381,38 @@ try {
 		$email = (string)$row['email'];
 		$class = (string)$row['class'];
 		$login = (string)$row['password'];
-		$level = (string)$row['level'];
-		$img = (string)$row['display_image'];
-		$designation = app_level_title_label((int)$level);
+			$level = (string)$row['level'];
+			$img = (string)$row['display_image'];
+			$designation = app_level_title_label((int)$level);
+			try {
+				if (function_exists('app_ensure_school_subscription_schema')) {
+					app_ensure_school_subscription_schema($conn);
+				}
+				$currentSchoolId = function_exists('app_current_school_id') ? app_current_school_id() : 0;
+				if ($currentSchoolId > 0 && function_exists('app_school_is_access_disabled') && app_school_is_access_disabled($conn, $currentSchoolId)) {
+					$message = function_exists('app_school_is_suspended') && app_school_is_suspended($conn, $currentSchoolId)
+						? 'Your school account is currently suspended.'
+						: 'Your school subscription has expired or is outside the configured term window.';
+					app_set_auth_error(403, 'School locked', $message, [
+						'school_id' => $currentSchoolId,
+						'request_uri' => (string)($_SERVER['REQUEST_URI'] ?? ''),
+					]);
+					http_response_code(403);
+					echo htmlspecialchars($message, ENT_QUOTES, 'UTF-8');
+					exit;
+				}
+				if ($currentSchoolId > 0 && function_exists('app_school_is_pending') && app_school_is_pending($conn, $currentSchoolId) && !$isSuperAdminController) {
+					$message = 'Your school application is still waiting for approval.';
+					app_set_auth_error(403, 'Approval pending', $message, [
+						'school_id' => $currentSchoolId,
+						'request_uri' => (string)($_SERVER['REQUEST_URI'] ?? ''),
+					]);
+					http_response_code(403);
+					echo htmlspecialchars($message, ENT_QUOTES, 'UTF-8');
+					exit;
+				}
+			} catch (Throwable $e) {
+			}
 
 		$stmt = $conn->prepare("SELECT name FROM tbl_classes WHERE id = ? LIMIT 1");
 		$stmt->execute([$class]);
@@ -388,11 +474,40 @@ try {
 		$account_id = (string)$row['id'];
 		$fname = (string)$row['fname'];
 		$lname = (string)$row['lname'];
-		$phone = (string)($row['phone'] ?? '');
-		$email = (string)$row['email'];
-		$login = (string)$row['password'];
-		$level = "4";
-		$designation = 'Parent';
+			$phone = (string)($row['phone'] ?? '');
+			$email = (string)$row['email'];
+			$login = (string)$row['password'];
+			$level = "4";
+			$designation = 'Parent';
+			try {
+				if (function_exists('app_ensure_school_subscription_schema')) {
+					app_ensure_school_subscription_schema($conn);
+				}
+				$currentSchoolId = function_exists('app_current_school_id') ? app_current_school_id() : 0;
+				if ($currentSchoolId > 0 && function_exists('app_school_is_access_disabled') && app_school_is_access_disabled($conn, $currentSchoolId)) {
+					$message = function_exists('app_school_is_suspended') && app_school_is_suspended($conn, $currentSchoolId)
+						? 'Your school account is currently suspended.'
+						: 'Your school subscription has expired or is outside the configured term window.';
+					app_set_auth_error(403, 'School locked', $message, [
+						'school_id' => $currentSchoolId,
+						'request_uri' => (string)($_SERVER['REQUEST_URI'] ?? ''),
+					]);
+					http_response_code(403);
+					echo htmlspecialchars($message, ENT_QUOTES, 'UTF-8');
+					exit;
+				}
+				if ($currentSchoolId > 0 && function_exists('app_school_is_pending') && app_school_is_pending($conn, $currentSchoolId) && !$isSuperAdminController) {
+					$message = 'Your school application is still waiting for approval.';
+					app_set_auth_error(403, 'Approval pending', $message, [
+						'school_id' => $currentSchoolId,
+						'request_uri' => (string)($_SERVER['REQUEST_URI'] ?? ''),
+					]);
+					http_response_code(403);
+					echo htmlspecialchars($message, ENT_QUOTES, 'UTF-8');
+					exit;
+				}
+			} catch (Throwable $e) {
+			}
 
 		// Use consolidated impersonation handler
 		app_handle_impersonation_setup($conn, $impersonationRow, 'parent', (string)$account_id, (string)$level, trim($fname . ' ' . $lname), 'Parent', 'admin/core/stop_impersonation');
