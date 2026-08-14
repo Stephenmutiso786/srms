@@ -5,19 +5,20 @@ require_once('const/public_media.php');
 
 $schoolName = (defined('WBName') && trim((string)WBName) !== '') ? (string)WBName : (defined('APP_NAME') && trim((string)APP_NAME) !== '' ? (string)APP_NAME : 'ELIMU HUB');
 $schoolLogo = (defined('WBLogo') && trim((string)WBLogo) !== '') ? 'images/logo/' . trim((string)WBLogo) : 'images/logo/school_logo.png';
-$schoolMotto = 'Nurturing Excellence Through CBE Education';
-$schoolTagline = 'A trusted learning community shaping future-ready leaders.';
-$schoolLocation = 'Kiunduani, Kibwezi West';
-$schoolMapUrl = 'https://maps.app.goo.gl/fqhaetnW4G6hBmHs7';
-$schoolPhone = '+25417876564';
-$schoolEmail = (defined('WBEmail') && trim((string)WBEmail) !== '') ? (string)WBEmail : 'info@kyandulu.school';
+$schoolMotto = 'Real school management for every school';
+$schoolTagline = 'A complete platform for administration, teaching, communication, and learning.';
+$schoolLocation = 'Available to all schools on the platform';
+$schoolMapUrl = 'https://maps.google.com';
+$schoolPhone = '+254700000000';
+$schoolEmail = (defined('WBEmail') && trim((string)WBEmail) !== '') ? (string)WBEmail : 'support@schoolhub.tech';
 $portalLoginHref = 'index.php';
 $learnerElearningLoginHref = 'index.php?redirect_to=elearning';
+$schoolRegisterHref = 'school-register.php';
 
-$aboutText = $schoolName . ' is a learning institution in ' . $schoolLocation . ' committed to quality CBE education. We nurture every learner through academic excellence, character development, creativity, and practical life skills.';
-$visionText = 'To develop responsible, skilled, and confident learners for tomorrow.';
-$missionText = 'To deliver inclusive, learner-centered education through strong teaching, mentorship, and community partnership.';
-$coreValues = 'Integrity, Discipline, Respect, Teamwork, and Excellence.';
+$aboutText = $schoolName . ' is a modern school management platform that helps schools run admissions, academics, reports, communication, fees, timetables, and e-learning in one place.';
+$visionText = 'To make school administration simple, real-time, and accessible to every school.';
+$missionText = 'To deliver reliable school software that serves administrators, teachers, students, and parents from one platform.';
+$coreValues = 'Accuracy, Transparency, Reliability, Security, and Support.';
 
 $offers = [
 	['title' => 'Academics', 'description' => 'Competency-Based Curriculum from PP1 to Grade 9.'],
@@ -38,17 +39,29 @@ $facilities = [
 ];
 
 $newsItems = [
-	['title' => 'Upcoming Parents Meeting', 'description' => 'Term stakeholder engagement and learner progress briefing.'],
-	['title' => 'Sports Day Preparations', 'description' => 'Inter-class games and athletics training currently underway.'],
-	['title' => 'Academic Calendar Highlights', 'description' => 'Continuous assessment weeks and exam schedules published.'],
+	['title' => 'School Onboarding', 'description' => 'Register a new school, seed the workspace, and start managing users immediately.'],
+	['title' => 'Portal Access', 'description' => 'Teachers, students, and parents log in through separate secure portals.'],
+	['title' => 'Platform Control', 'description' => 'Super admins manage subscriptions, feature flags, and school activation.'],
 ];
 
 $conn = null;
+$shouldLoadSchoolData = false;
 try {
-	$conn = app_db();
-	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	if (session_status() !== PHP_SESSION_ACTIVE) {
+		@session_start();
+	}
+	$shouldLoadSchoolData = !empty($_SESSION['school_id']) || !empty($_SESSION['user_id']) || !empty($_SESSION['user']);
 } catch (Throwable $e) {
-	$conn = null;
+	$shouldLoadSchoolData = false;
+}
+
+if ($shouldLoadSchoolData) {
+	try {
+		$conn = app_db();
+		$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	} catch (Throwable $e) {
+		$conn = null;
+	}
 }
 
 $offers = array_values(array_filter($offers, function ($item) {
@@ -57,46 +70,8 @@ $offers = array_values(array_filter($offers, function ($item) {
 }));
 
 if (isset($conn) && $conn instanceof PDO) {
-	$schoolMotto = app_setting_get($conn, 'public_school_motto', $schoolMotto);
-	$schoolTagline = app_setting_get($conn, 'public_school_tagline', $schoolTagline);
-	$schoolLocation = app_setting_get($conn, 'public_school_location', $schoolLocation);
-	$schoolMapUrl = app_setting_get($conn, 'public_school_location_map_url', $schoolMapUrl);
-	$schoolPhone = app_setting_get($conn, 'public_school_phone', $schoolPhone);
-	$schoolEmail = app_setting_get($conn, 'public_school_email', $schoolEmail);
-	$aboutText = app_setting_get($conn, 'public_about_text', $aboutText);
-	$visionText = app_setting_get($conn, 'public_vision_text', $visionText);
-	$missionText = app_setting_get($conn, 'public_mission_text', $missionText);
-	$coreValues = app_setting_get($conn, 'public_core_values', $coreValues);
-
-	$rawOffers = app_setting_get($conn, 'public_offers_items', '');
-	if (trim($rawOffers) !== '') {
-		$offers = [];
-		foreach (preg_split('/\r\n|\r|\n/', $rawOffers) as $line) {
-			$parts = array_map('trim', explode('|', (string)$line, 2));
-			if (empty($parts[0])) { continue; }
-			$offers[] = ['title' => $parts[0], 'description' => $parts[1] ?? ''];
-		}
-	}
-
-	$rawFacilities = app_setting_get($conn, 'public_facilities_items', '');
-	if (trim($rawFacilities) !== '') {
-		$facilities = [];
-		foreach (preg_split('/\r\n|\r|\n/', $rawFacilities) as $line) {
-			$parts = array_map('trim', explode('|', (string)$line, 2));
-			if (empty($parts[0])) { continue; }
-			$facilities[] = ['title' => $parts[0], 'description' => $parts[1] ?? ''];
-		}
-	}
-
-	$rawNews = app_setting_get($conn, 'public_news_items', '');
-	if (trim($rawNews) !== '') {
-		$newsItems = [];
-		foreach (preg_split('/\r\n|\r|\n/', $rawNews) as $line) {
-			$parts = array_map('trim', explode('|', (string)$line, 2));
-			if (empty($parts[0])) { continue; }
-			$newsItems[] = ['title' => $parts[0], 'description' => $parts[1] ?? ''];
-		}
-	}
+	// Public homepage uses neutral platform defaults so old school-specific
+	// content does not leak onto the platform landing page.
 }
 
 $captions = array(
@@ -157,6 +132,8 @@ if (count($slides) === 0) {
 <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+	<meta http-equiv="Pragma" content="no-cache">
 	<title><?php echo htmlspecialchars($schoolName); ?> | Main Website</title>
 	<link rel="manifest" href="manifest.webmanifest">
 	<meta name="theme-color" content="#006400">
@@ -732,11 +709,12 @@ if (count($slides) === 0) {
 	<div class="entry-overlay" id="entryOverlay" role="dialog" aria-modal="true" aria-label="Choose where to go">
 		<div class="entry-card">
 			<h2>Welcome to <?php echo htmlspecialchars($schoolName); ?></h2>
-			<p>Start by exploring the school website, or continue to portal login. Learners can also go directly to E-learning login.</p>
+			<p>Start by exploring the school website, register a new school account, or continue to portal login. Learners can also go directly to E-learning login.</p>
 			<div class="entry-actions">
-				<a class="btn btn-primary" href="<?php echo htmlspecialchars($portalLoginHref); ?>"><i class="bi bi-box-arrow-in-right"></i> Portal Login</a>
+				<a class="btn btn-primary" href="<?php echo htmlspecialchars($portalLoginHref); ?>"><i class="bi bi-box-arrow-in-right"></i> Platform Login</a>
 				<a class="btn btn-secondary" href="<?php echo htmlspecialchars($learnerElearningLoginHref); ?>"><i class="bi bi-mortarboard"></i> Learner E-learning Login</a>
-				<button type="button" class="btn" id="continueBrowsingBtn" style="background:#eef6f1;color:#1f5f3f;"><i class="bi bi-globe2"></i> Continue Browsing</button>
+				<a class="btn" href="<?php echo htmlspecialchars($schoolRegisterHref); ?>" style="background:#eef6f1;color:#1f5f3f;"><i class="bi bi-building-add"></i> Register School</a>
+				<a class="btn" href="#about" id="continueBrowsingBtn" style="background:#eef2f7;color:#18324d;"><i class="bi bi-arrow-down"></i> Continue Browsing</a>
 			</div>
 		</div>
 	</div>
@@ -753,6 +731,7 @@ if (count($slides) === 0) {
 			<a href="#contact">Contact</a>
 			<a href="<?php echo htmlspecialchars($learnerElearningLoginHref); ?>">Learner E-learning</a>
 			<a href="<?php echo htmlspecialchars($portalLoginHref); ?>">Portal Login</a>
+			<a href="<?php echo htmlspecialchars($schoolRegisterHref); ?>">Register School</a>
 		</div>
 	</nav>
 
@@ -766,6 +745,7 @@ if (count($slides) === 0) {
 				<div class="hero-actions">
 					<a class="btn btn-primary" href="<?php echo htmlspecialchars($portalLoginHref); ?>"><i class="bi bi-box-arrow-in-right"></i> Portal Login</a>
 					<a class="btn btn-secondary" href="<?php echo htmlspecialchars($learnerElearningLoginHref); ?>"><i class="bi bi-mortarboard"></i> Learner E-learning</a>
+					<a class="btn btn-secondary" href="<?php echo htmlspecialchars($schoolRegisterHref); ?>"><i class="bi bi-building-add"></i> Register School</a>
 					<a class="btn btn-secondary" href="#contact"><i class="bi bi-telephone"></i> Contact Us</a>
 				</div>
 			</div>
@@ -858,7 +838,7 @@ if (count($slides) === 0) {
 					</form>
 				</div>
 				<div class="map-wrap">
-					<iframe title="School location map" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="https://maps.google.com/maps?q=Kiunduani%20Kibwezi%20West&t=&z=13&ie=UTF8&iwloc=&output=embed"></iframe>
+					<iframe title="Platform location map" loading="lazy" referrerpolicy="no-referrer-when-downgrade" src="<?php echo htmlspecialchars($schoolMapUrl); ?>"></iframe>
 				</div>
 			</div>
 		</div>
@@ -1093,8 +1073,24 @@ if (count($slides) === 0) {
 		if (!('serviceWorker' in navigator)) {
 			return;
 		}
-		navigator.serviceWorker.register('service-worker.js').catch(function () {
-			return null;
+		navigator.serviceWorker.getRegistrations().then(function (registrations) {
+			return Promise.all(registrations.map(function (registration) {
+				return registration.unregister();
+			}));
+		}).then(function () {
+			if ('caches' in window) {
+				return caches.keys().then(function (keys) {
+					return Promise.all(keys.filter(function (key) {
+						return key.indexOf('elimu-hub-public-') === 0 || key.indexOf('srms-') === 0;
+					}).map(function (key) {
+						return caches.delete(key);
+					}));
+				});
+			}
+		}).finally(function () {
+			navigator.serviceWorker.register('service-worker.js?v=2').catch(function () {
+				return null;
+			});
 		});
 
 		var notifyBtn = document.getElementById('notifyBtn');

@@ -3,7 +3,9 @@ session_start();
 require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/public_media.php');
-$schoolTitle = (defined('WBName') && WBName !== '') ? WBName : APP_NAME;
+$platformTitle = (defined('APP_NAME') && APP_NAME !== '') ? APP_NAME : 'SRMS';
+$platformSubtitle = 'One login for super admins, school admins, teachers, students, and parents across every school.';
+$platformLogo = 'images/logo/school_logo.png';
 $redirectTo = isset($_GET['redirect_to']) ? trim((string)$_GET['redirect_to']) : '';
 $redirectTo = preg_replace('/[^a-zA-Z0-9_\/-]/', '', $redirectTo);
 $redirectTo = ltrim($redirectTo, '/');
@@ -43,6 +45,8 @@ try {
 <head>
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+<meta http-equiv="Pragma" content="no-cache">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" type="text/css" href="css/main.css">
 <link rel="icon" href="images/icon.ico">
@@ -51,7 +55,7 @@ try {
 <link rel="apple-touch-icon" href="images/pwa/icon-192.png">
 <link rel="stylesheet" type="text/css" href="cdn.jsdelivr.net/npm/bootstrap-icons%401.10.5/font/bootstrap-icons.css">
 <link type="text/css" rel="stylesheet" href="loader/waitMe.css">
-<title><?php echo $schoolTitle; ?> - Login</title>
+<title><?php echo $platformTitle; ?> - Login</title>
 <style>
 .login-content {
   position: relative;
@@ -129,12 +133,13 @@ try {
 <div class="login-box">
 
 <form class="login-form app_frm" action="core/auth" autocomplete="OFF" method="POST">
-<center><img height="140" src="images/logo/<?php echo WBLogo; ?>"></center>
-<h4 class="login-head"><?php echo $schoolTitle; ?></h4>
-<p class="text-center"><?php echo $schoolTitle; ?> — <?php echo APP_TAGLINE; ?></p>
+<center><img height="140" src="<?php echo htmlspecialchars($platformLogo, ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo htmlspecialchars($platformTitle, ENT_QUOTES, 'UTF-8'); ?>"></center>
+<h4 class="login-head"><?php echo $platformTitle; ?></h4>
+<p class="text-center"><?php echo htmlspecialchars($platformSubtitle, ENT_QUOTES, 'UTF-8'); ?></p>
+<p class="text-center small text-muted mb-3"><?php echo APP_TAGLINE; ?></p>
 <div class="mb-3">
 <label class="form-label">USERNAME</label>
-<input class="form-control" type="text" placeholder="Email or Registration Number" required name="username">
+<input class="form-control" type="text" placeholder="Email, staff number, or admission number" required name="username">
 </div>
 <div class="mb-3">
 <label class="form-label">PASSWORD</label>
@@ -150,13 +155,13 @@ try {
 </div>
 <input type="hidden" name="redirect_to" id="redirectToInput" value="<?php echo htmlspecialchars($redirectTo, ENT_QUOTES, 'UTF-8'); ?>">
 <div class="mb-3 btn-container d-grid">
-<button type="submit" class="btn btn-primary btn-block app_btn" id="portalLoginBtn"><i class="bi bi-box-arrow-in-right me-2 fs-5"></i>SIGN IN</button>
+<button type="submit" class="btn btn-primary btn-block app_btn" id="portalLoginBtn"><i class="bi bi-box-arrow-in-right me-2 fs-5"></i>SIGN IN TO PLATFORM</button>
 </div>
 <div class="mb-3 btn-container d-grid">
 <button type="submit" class="btn btn-block elearning-login-btn" id="elearningLoginBtn" name="login_mode" value="elearning"><i class="bi bi-mortarboard-fill me-2 fs-5"></i>E-LEARNING LOGIN</button>
 </div>
 <div class="mb-3 btn-container d-grid">
-<a href="school_main_website.php" class="btn btn-primary btn-block app_btn" style="font-weight:700;"><i class="bi bi-globe2 me-2 fs-5"></i>visit the  school main website</a>
+<a href="school_main_website.php" class="btn btn-primary btn-block app_btn" style="font-weight:700;"><i class="bi bi-globe2 me-2 fs-5"></i>OPEN PLATFORM WEBSITE</a>
 </div>
 <div class="mb-3 btn-container d-grid">
 <a href="status" class="btn btn-outline-secondary btn-block" style="font-weight:700;"><i class="bi bi-heart-pulse me-2 fs-5"></i>system status</a>
@@ -167,12 +172,13 @@ try {
 </form>
 
 <form class="forget-form app_frm" action="core/forgot_pw" method="POST" autocomplete="OFF">
-<center><img height="140" src="images/logo/<?php echo WBLogo; ?>"></center>
-<h4 class="login-head"><?php echo $schoolTitle; ?></h4>
-<p class="text-center"><?php echo $schoolTitle; ?> — <?php echo APP_TAGLINE; ?></p>
+<center><img height="140" src="<?php echo htmlspecialchars($platformLogo, ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo htmlspecialchars($platformTitle, ENT_QUOTES, 'UTF-8'); ?>"></center>
+<h4 class="login-head"><?php echo $platformTitle; ?></h4>
+<p class="text-center"><?php echo htmlspecialchars($platformSubtitle, ENT_QUOTES, 'UTF-8'); ?></p>
+<p class="text-center small text-muted mb-3"><?php echo APP_TAGLINE; ?></p>
 <div class="mb-3">
 <label class="form-label">USERNAME</label>
-<input class="form-control" type="text" placeholder="Email or Registration Number" required name="username">
+<input class="form-control" type="text" placeholder="Email, staff number, or admission number" required name="username">
 </div>
 <div class="mb-3 btn-container d-grid">
 <button type="submit" class="btn btn-primary btn-block app_btn"><i class="bi bi-unlock me-2 fs-5"></i>RESET PASSWORD</button>
@@ -227,7 +233,23 @@ $('#elearningLoginBtn').on('click', function () {
 });
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('service-worker.js').catch(function () { return null; });
+  navigator.serviceWorker.getRegistrations().then(function (registrations) {
+    return Promise.all(registrations.map(function (registration) {
+      return registration.unregister();
+    }));
+  }).then(function () {
+    if ('caches' in window) {
+      return caches.keys().then(function (keys) {
+        return Promise.all(keys.filter(function (key) {
+          return key.indexOf('elimu-hub-public-') === 0 || key.indexOf('srms-') === 0;
+        }).map(function (key) {
+          return caches.delete(key);
+        }));
+      });
+    }
+  }).finally(function () {
+    navigator.serviceWorker.register('service-worker.js?v=2').catch(function () { return null; });
+  });
 }
 </script>
 <?php require_once('const/check-reply.php'); ?>
