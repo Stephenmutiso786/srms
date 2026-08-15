@@ -37,19 +37,28 @@ try {
 			WHERE s.approval_status = 'pending'
 			ORDER BY s.id DESC");
 		$pendingSchools = $stmt->fetchAll(PDO::FETCH_ASSOC);
-		if ($schoolFilter !== '') {
-			$stmt = $conn->prepare("SELECT id, name, logo, result_system, allow_results, package_tier, support_plan, term_start_date, term_end_date, is_locked, is_suspended, approval_status, mpesa_enabled, sms_balance FROM tbl_school WHERE name LIKE ? ORDER BY id DESC");
-			$stmt->execute(['%' . $schoolFilter . '%']);
-		} else {
-			$stmt = $conn->query("SELECT id, name, logo, result_system, allow_results, package_tier, support_plan, term_start_date, term_end_date, is_locked, is_suspended, approval_status, mpesa_enabled, sms_balance FROM tbl_school ORDER BY id DESC");
+		try {
+			if ($schoolFilter !== '') {
+				$stmt = $conn->prepare('SELECT * FROM tbl_school WHERE name LIKE ? ORDER BY id DESC');
+				$stmt->execute(['%' . $schoolFilter . '%']);
+			} else {
+				$stmt = $conn->query('SELECT * FROM tbl_school ORDER BY id DESC');
+			}
+			$schools = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		} catch (Throwable $e) {
+			$schools = [];
 		}
-		$schools = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
 	if (app_table_exists($conn, 'tbl_staff')) {
-		$stmt = $conn->prepare("SELECT id, fname, lname, email, level, status FROM tbl_staff WHERE level = 9 ORDER BY id DESC");
-		$stmt->execute();
-		$owners = $stmt->fetchAll(PDO::FETCH_ASSOC);
-		$stats['owners'] = count($owners);
+		try {
+			$stmt = $conn->prepare('SELECT id, fname, lname, email, level, status FROM tbl_staff WHERE level = 9 ORDER BY id DESC');
+			$stmt->execute();
+			$owners = $stmt->fetchAll(PDO::FETCH_ASSOC);
+			$stats['owners'] = count($owners);
+		} catch (Throwable $e) {
+			$owners = [];
+			$stats['owners'] = 0;
+		}
 	}
 	$schoolIdForCounts = $selectedSchoolId > 0 ? $selectedSchoolId : 0;
 	if ($schoolIdForCounts > 0) {
