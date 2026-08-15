@@ -288,7 +288,7 @@ try {
 				app_ensure_school_subscription_schema($conn);
 			}
 			$currentSchoolId = function_exists('app_current_school_id') ? app_current_school_id() : 0;
-			if ($currentSchoolId > 0 && function_exists('app_school_is_access_disabled') && app_school_is_access_disabled($conn, $currentSchoolId)) {
+			if ($currentSchoolId > 0 && function_exists('app_school_is_access_disabled') && app_school_is_access_disabled($conn, $currentSchoolId) && !$isSuperAdminController) {
 				$message = function_exists('app_school_is_suspended') && app_school_is_suspended($conn, $currentSchoolId)
 					? 'Your school account is currently suspended.'
 					: 'Your school subscription has expired or is outside the configured term window.';
@@ -389,7 +389,7 @@ try {
 					app_ensure_school_subscription_schema($conn);
 				}
 				$currentSchoolId = function_exists('app_current_school_id') ? app_current_school_id() : 0;
-				if ($currentSchoolId > 0 && function_exists('app_school_is_access_disabled') && app_school_is_access_disabled($conn, $currentSchoolId)) {
+				if ($currentSchoolId > 0 && function_exists('app_school_is_access_disabled') && app_school_is_access_disabled($conn, $currentSchoolId) && !$isSuperAdminController) {
 					$message = function_exists('app_school_is_suspended') && app_school_is_suspended($conn, $currentSchoolId)
 						? 'Your school account is currently suspended.'
 						: 'Your school subscription has expired or is outside the configured term window.';
@@ -484,7 +484,7 @@ try {
 					app_ensure_school_subscription_schema($conn);
 				}
 				$currentSchoolId = function_exists('app_current_school_id') ? app_current_school_id() : 0;
-				if ($currentSchoolId > 0 && function_exists('app_school_is_access_disabled') && app_school_is_access_disabled($conn, $currentSchoolId)) {
+				if ($currentSchoolId > 0 && function_exists('app_school_is_access_disabled') && app_school_is_access_disabled($conn, $currentSchoolId) && !$isSuperAdminController) {
 					$message = function_exists('app_school_is_suspended') && app_school_is_suspended($conn, $currentSchoolId)
 						? 'Your school account is currently suspended.'
 						: 'Your school subscription has expired or is outside the configured term window.';
