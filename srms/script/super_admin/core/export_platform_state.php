@@ -12,6 +12,7 @@ if ($res !== '1' || !$isSuperAdmin) {
 
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+app_ensure_school_subscription_schema($conn);
 $payload = [
 	'exported_at' => date('c'),
 	'schools' => [],

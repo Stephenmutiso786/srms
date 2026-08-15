@@ -26,6 +26,7 @@ if (!is_array($data)) {
 
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+app_ensure_school_subscription_schema($conn);
 $conn->beginTransaction();
 try {
 	foreach ((array)($data['schools'] ?? []) as $school) {
