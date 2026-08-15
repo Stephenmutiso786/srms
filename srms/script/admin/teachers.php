@@ -10,6 +10,7 @@ $teacherControlAllowed = $res === "1" && ((int)$level === 1 || app_current_user_
 if (!$teacherControlAllowed) { header("location:../"); exit; }
 
 $isSuperAdminController = false;
+$isHeadteacherController = false;
 $teacherStats = [
 	'total' => 0,
 	'active' => 0,
@@ -24,6 +25,7 @@ try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 	$isSuperAdminController = app_is_super_admin_controller($conn, (string)($account_id ?? ''), (string)($level ?? ''));
+	$isHeadteacherController = app_staff_designation_key($conn, (int)($account_id ?? 0), (string)($level ?? '')) === 'headteacher';
 	$onlineMaps = app_online_fetch_maps($conn, 180);
 	$onlineStaff = isset($onlineMaps['staff']) && is_array($onlineMaps['staff']) ? $onlineMaps['staff'] : [];
 	$stmt = $conn->prepare("SELECT * FROM tbl_staff WHERE level IN (0,1,2,5,9) ORDER BY status DESC, fname ASC, lname ASC");
@@ -111,10 +113,10 @@ try {
 <div class="tile-body d-flex flex-wrap gap-2 align-items-center justify-content-between">
 <div>
 <strong>Teacher control panel</strong>
-<div class="text-muted">Use this module to create, edit, block, delete, and impersonate staff accounts. Leadership and admin accounts, including the accountant, are reserved for the super admin.</div>
+<div class="text-muted">Use this module to create, edit, block, delete, and impersonate staff accounts. Leadership and admin accounts, including the accountant, are reserved for the super admin or headteacher.</div>
 </div>
 <div class="d-flex flex-wrap gap-2">
-<?php if ($isSuperAdminController) { ?>
+<?php if ($isSuperAdminController || $isHeadteacherController) { ?>
 <button class="btn btn-danger btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#addAdminModal">Create Admin Account</button>
 <?php } ?>
 <button class="btn btn-primary btn-sm" type="button" data-bs-toggle="modal" data-bs-target="#addModal">Add Teacher</button>
@@ -168,7 +170,7 @@ try {
 <div class="modal-body">
 <form class="app_frm" method="POST" autocomplete="OFF" action="admin/core/new_user2">
 <div class="alert alert-warning mb-3">
-Only the super admin can create and manage these leadership and admin accounts, including Headteacher, Deputy Headteacher, Senior Teacher, and Accountant.
+Only the super admin or headteacher can create and manage these leadership and admin accounts, including Headteacher, Deputy Headteacher, Senior Teacher, and Accountant.
 </div>
 <div class="mb-2">
 <label class="form-label">First Name</label>

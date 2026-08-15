@@ -3,113 +3,182 @@ chdir('../../');
 session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
+require_once('const/report_engine.php');
 if (!isset($res) || $res !== "1" || !isset($level) || $level !== "2") { header("location:../../"); exit; }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-$uploadCheck = app_validate_upload($_FILES['file'], ['csv']);
-if (!$uploadCheck['ok']) {
-$_SESSION['reply'] = array (array("error", $uploadCheck['message']));
-header("location:../import_results");
-exit;
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+  header("location:../import_results");
+  exit;
 }
-$file = $_FILES['file']['tmp_name'];
-$file = fopen($file, "r");
-$st_rec = 0;
 
-$term = $_POST['term'];
-$class = $_POST['class'];
-$subject = $_POST['subject'];
+$term = (int)($_POST['term'] ?? 0);
+$class = (int)($_POST['class'] ?? 0);
+$subject = (int)($_POST['subject'] ?? 0);
 $examId = (int)($_POST['exam'] ?? 0);
-$hadExistingResults = false;
+$pasteResults = trim((string)($_POST['paste_results'] ?? ''));
+$hasPasteResults = $pasteResults !== '';
+$hasUpload = !empty($_FILES['file']['tmp_name']);
+
+if (!$hasPasteResults && !$hasUpload) {
+	$_SESSION['reply'] = array(array("error", "Paste results or upload a CSV file."));
+	header("location:../import_results");
+	exit;
+}
+
+if ($term < 1 || $class < 1 || $subject < 1 || $examId < 1) {
+	$_SESSION['reply'] = array(array("error", "Select term, class, subject, and exam."));
+	header("location:../import_results");
+	exit;
+}
 
 try {
-$conn = app_db();
-$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-$useExamId = app_column_exists($conn, 'tbl_exam_results', 'exam_id');
+	$conn = app_db();
+	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	$useExamId = app_column_exists($conn, 'tbl_exam_results', 'exam_id');
 
-if (app_results_locked($conn, (int)$class, (int)$term)) {
-	$_SESSION['reply'] = array (array("error","Results are locked for this class/term. Contact admin."));
+	if (app_results_locked($conn, $class, $term)) {
+		$_SESSION['reply'] = array(array("error","Results are locked for this class/term. Contact admin."));
+		header("location:../import_results");
+		exit;
+	}
+	if ($useExamId) {
+		$stmt = $conn->prepare("SELECT COALESCE(status, 'draft') AS status FROM tbl_exams WHERE id = ? AND class_id = ? AND term_id = ? LIMIT 1");
+		$stmt->execute([$examId, $class, $term]);
+		if (strtolower(trim((string)$stmt->fetchColumn())) === 'published') {
+			throw new RuntimeException("Published exams are view-only.");
+		}
+	}
+
+	$stmt = $conn->prepare("SELECT id, fname, mname, lname FROM tbl_students WHERE class = ? ORDER BY id");
+	$stmt->execute([$class]);
+	$studentRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	$studentOrder = [];
+	foreach ($studentRows as $studentRow) {
+		$fullName = trim(implode(' ', array_filter([
+			(string)($studentRow['fname'] ?? ''),
+			(string)($studentRow['mname'] ?? ''),
+			(string)($studentRow['lname'] ?? ''),
+		], static fn($value) => trim((string)$value) !== '')));
+		$studentOrder[] = [
+			'id' => (string)($studentRow['id'] ?? ''),
+			'name' => $fullName,
+			'key' => strtolower(preg_replace('/\s+/', ' ', trim($fullName))),
+		];
+	}
+
+	$findStudentByName = function (string $name) use ($studentOrder): ?array {
+		$key = strtolower(preg_replace('/\s+/', ' ', trim($name)));
+		foreach ($studentOrder as $student) {
+			if ($student['key'] === $key) {
+				return $student;
+			}
+		}
+		foreach ($studentOrder as $student) {
+			if ($key !== '' && str_contains($student['key'], $key)) {
+				return $student;
+			}
+		}
+		return null;
+	};
+
+	$rows = [];
+	if ($hasPasteResults) {
+		foreach (preg_split('/\r\n|\r|\n/', $pasteResults) as $line) {
+			$line = trim((string)$line);
+			if ($line !== '') {
+				$rows[] = $line;
+			}
+		}
+		if (count($rows) !== count($studentOrder)) {
+			throw new RuntimeException('Pasted row count must match the class list exactly.');
+		}
+	} else {
+		$uploadCheck = app_validate_upload($_FILES['file'], ['csv']);
+		if (!$uploadCheck['ok']) {
+			throw new RuntimeException($uploadCheck['message']);
+		}
+		$handle = fopen($_FILES['file']['tmp_name'], 'r');
+		if (!$handle) {
+			throw new RuntimeException("Failed to open CSV file.");
+		}
+		$st_rec = 0;
+		while (($r = fgetcsv($handle, 10000, ",")) !== false) {
+			if ($st_rec === 0) { $st_rec++; continue; }
+			$rows[] = $r;
+		}
+		fclose($handle);
+	}
+
+	$hadExistingResults = false;
+	foreach ($rows as $index => $rawRow) {
+		$studentId = '';
+		$score = null;
+		if ($hasPasteResults) {
+			$line = trim((string)$rawRow);
+			if (preg_match('/^\s*(.+?)\s*(?:,|\||\t|\s{2,})\s*(-?\d+(?:\.\d+)?)\s*$/', $line, $m)) {
+				$match = $findStudentByName((string)$m[1]);
+				if (!$match) {
+					throw new RuntimeException('Unmatched student name on pasted row '.($index + 1).'.');
+				}
+				$studentId = (string)$match['id'];
+				$score = (float)$m[2];
+			} elseif (preg_match('/^\s*(-?\d+(?:\.\d+)?)\s*$/', $line, $m)) {
+				if (!isset($studentOrder[$index])) {
+					throw new RuntimeException('Pasted row count does not match the class list.');
+				}
+				$studentId = (string)$studentOrder[$index]['id'];
+				$score = (float)$m[1];
+			} else {
+				throw new RuntimeException('Unrecognized pasted format on row '.($index + 1).'.');
+			}
+		} else {
+			$cells = array_pad((array)$rawRow, 3, '');
+			$studentId = trim((string)$cells[0]);
+			$scoreRaw = trim((string)$cells[2]);
+			if ($studentId === '' || $scoreRaw === '' || !is_numeric($scoreRaw)) {
+				continue;
+			}
+			$score = (float)$scoreRaw;
+		}
+
+		if ($studentId === '' || $score === null) {
+			continue;
+		}
+		if ($score < 0 || $score > 100) {
+			throw new RuntimeException('Scores must be between 0 and 100.');
+		}
+
+		if ($useExamId) {
+			$stmt = $conn->prepare("SELECT id FROM tbl_exam_results WHERE student = ? AND class = ? AND subject_combination = ? AND term = ? AND exam_id = ? LIMIT 1");
+			$stmt->execute([$studentId, $class, $subject, $term, $examId]);
+			$existingId = $stmt->fetchColumn();
+			if (!$existingId) {
+				$stmt = $conn->prepare("INSERT INTO tbl_exam_results (student, class, subject_combination, term, score, exam_id) VALUES (?,?,?,?,?,?)");
+				$stmt->execute([$studentId, $class, $subject, $term, $score, $examId]);
+			} else {
+				$stmt = $conn->prepare("UPDATE tbl_exam_results SET score = ? WHERE id = ?");
+				$stmt->execute([$score, $existingId]);
+				$hadExistingResults = true;
+			}
+		} else {
+			$stmt = $conn->prepare("SELECT id FROM tbl_exam_results WHERE student = ? AND class = ? AND subject_combination = ? AND term = ? LIMIT 1");
+			$stmt->execute([$studentId, $class, $subject, $term]);
+			$existingId = $stmt->fetchColumn();
+			if (!$existingId) {
+				$stmt = $conn->prepare("INSERT INTO tbl_exam_results (student, class, subject_combination, term, score) VALUES (?,?,?,?,?)");
+				$stmt->execute([$studentId, $class, $subject, $term, $score]);
+			} else {
+				$hadExistingResults = true;
+			}
+		}
+	}
+
+	$_SESSION['reply'] = array(array("success", $hadExistingResults ? 'Results import completed, previous results were not changed' : 'Results import completed'));
+	header("location:../import_results");
+	exit;
+} catch (Throwable $e) {
+	error_log("[".__FILE__.":".__LINE__."] ".$e->getMessage());
+	$_SESSION['reply'] = array(array("error", "Import failed: ".$e->getMessage()));
 	header("location:../import_results");
 	exit;
 }
-
-if ($useExamId && $examId < 1) {
-	$_SESSION['reply'] = array (array("error","Select a valid exam before importing results."));
-	header("location:../import_results");
-	exit;
-}
-
-while (($r = fgetcsv($file, 10000, ",")) !== FALSE) {
-
-if ($st_rec == 0) {
-
-}else{
-
-$cells = array_pad($r, 3, '');
-$csvRow = [
-	'reg_no' => trim((string)$cells[0]),
-	'student_name' => trim((string)$cells[1]),
-	'score' => trim((string)$cells[2]),
-];
-
-$reg_no = $csvRow['reg_no'];
-$score = $csvRow['score'];
-
-if ($reg_no === '' || $score === '') {
-	$st_rec++;
-	continue;
-}
-
-if ($useExamId) {
-	$stmt = $conn->prepare("SELECT id FROM tbl_exam_results WHERE student = ? AND class = ? AND subject_combination = ? AND term = ? AND exam_id = ? LIMIT 1");
-	$stmt->execute([$reg_no, $class, $subject, $term, $examId]);
-	$existingId = $stmt->fetchColumn();
-	if (!$existingId) {
-		$stmt = $conn->prepare("INSERT INTO tbl_exam_results (student, class, subject_combination, term, score, exam_id) VALUES (?,?,?,?,?,?)");
-		$stmt->execute([$reg_no, $class, $subject, $term, $score, $examId]);
-	} else {
-		$stmt = $conn->prepare("UPDATE tbl_exam_results SET score = ? WHERE id = ?");
-		$stmt->execute([$score, $existingId]);
-		$hadExistingResults = true;
-	}
-} else {
-	$stmt = $conn->prepare("SELECT 1 FROM tbl_exam_results WHERE student = ? AND class=? AND subject_combination=? AND term = ? LIMIT 1");
-	$stmt->execute([$reg_no, $class, $subject, $term]);
-	$exists = (bool)$stmt->fetchColumn();
-
-	if (!$exists) {
-		$stmt = $conn->prepare("INSERT INTO tbl_exam_results (student, class, subject_combination, term, score) VALUES (?,?,?,?,?)");
-		$stmt->execute([$reg_no, $class, $subject, $term, $score]);
-	} else {
-		$hadExistingResults = true;
-	}
-}
-
-
-}
-$st_rec++;
-}
-
-
-if (!$hadExistingResults) {
-$_SESSION['reply'] = array (array("success",'Results import completed'));
-header("location:../import_results");
-}else{
-$_SESSION['reply'] = array (array("success",'Results import completed, previous results were not changed'));
-header("location:../import_results");
-}
-
-
-}catch(PDOException $e)
-{
-error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
-echo "Connection failed.";
-}
-
-
-
-
-}else{
-header("location:../");
-}
-?>

@@ -5,7 +5,9 @@ require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
 require_once('const/report_engine.php');
-if ($res == "1" && $level == "2") {}else{header("location:../");}
+require_once('const/rbac.php');
+$canOverrideMarks = app_current_user_can_override_marks();
+if ($res == "1" && ($level == "2" || $canOverrideMarks)) {}else{header("location:../");}
 
 if (!isset($_SESSION['exam_entry'])) {
   header("location:./exam_marks_entry");
@@ -45,7 +47,7 @@ try {
   if (!$exam) {
     throw new RuntimeException("Exam not found.");
   }
-  if (!app_exam_teacher_can_reenter($conn, $examId, $subjectComb, (int)$account_id, (string)($exam['status'] ?? 'draft'))) {
+  if (!app_exam_teacher_can_reenter($conn, $examId, $subjectComb, (int)$account_id, (string)($exam['status'] ?? 'draft')) && !$canOverrideMarks) {
     throw new RuntimeException("Exam is not active for mark entry.");
   }
 
@@ -63,7 +65,7 @@ try {
     WHERE sc.id = ?");
   $stmt->execute([$subjectComb]);
   $combo = $stmt->fetch(PDO::FETCH_ASSOC);
-  if (!$combo || (int)$combo['teacher'] !== (int)$account_id) {
+  if (!$combo || !app_teacher_can_enter_exam_subject($conn, (int)$account_id, $examId, $subjectComb)) {
     throw new RuntimeException("Not assigned to this subject.");
   }
   $classList = app_unserialize($combo['class']);

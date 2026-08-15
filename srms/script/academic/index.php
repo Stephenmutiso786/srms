@@ -36,7 +36,10 @@ try {
 	$promotionQueue = app_promotion_queue_summary($conn);
 	$roleNames = app_staff_role_names($conn, (int)$account_id);
 	$visibleModules = app_portal_visible_modules($conn, 'academic', (string)$account_id, (string)$level);
-	$showMarksEntryShortcut = app_staff_has_active_teaching_assignment($conn, (int)($account_id ?? 0)) && app_has_permission($conn, (string)($account_id ?? ''), (string)($level ?? ''), 'marks.enter');
+	$showMarksEntryShortcut = (
+		app_staff_has_active_teaching_assignment($conn, (int)($account_id ?? 0))
+		|| app_current_user_can_override_marks()
+	) && app_has_permission($conn, (string)($account_id ?? ''), (string)($level ?? ''), 'marks.enter');
 	$showAttendanceShortcut = app_staff_has_active_teaching_assignment($conn, (int)($account_id ?? 0)) && app_has_permission($conn, (string)($account_id ?? ''), (string)($level ?? ''), 'attendance.manage');
 	if (app_table_exists($conn, 'tbl_discipline_cases')) {
 		$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_discipline_cases WHERE COALESCE(case_status, 'Reported') IN ('Reported','Under Investigation','Hearing Scheduled')");

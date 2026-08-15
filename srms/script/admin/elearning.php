@@ -11,6 +11,7 @@ $courses = [];
 $lessons = [];
 $assignments = [];
 $liveClasses = [];
+$elearningWarnings = [];
 $progressStats = [
 	'tracked_learners' => 0,
 	'avg_completion' => 0,
@@ -25,12 +26,13 @@ try {
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
 	if (app_table_exists($conn, 'tbl_courses')) {
-		$stmt = $conn->prepare("SELECT c.*, cl.name AS class_name, sb.name AS subject_name, st.fname, st.lname
+		$courseSql = "SELECT c.*, cl.name AS class_name, sb.name AS subject_name, st.fname, st.lname
 			FROM tbl_courses c
 			LEFT JOIN tbl_classes cl ON cl.id = c.class_id
 			LEFT JOIN tbl_subjects sb ON sb.id = c.subject_id
 			LEFT JOIN tbl_staff st ON st.id = c.teacher_id
-			ORDER BY c.created_at DESC");
+			ORDER BY c.created_at DESC";
+		$stmt = $conn->prepare($courseSql);
 		$stmt->execute();
 		$courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
@@ -81,8 +83,12 @@ try {
 			$progressStats['avg_completion'] = round($totalPct / count($rows), 2);
 		}
 	}
+
+	if (empty($courses) && empty($lessons) && empty($assignments) && empty($liveClasses)) {
+		$elearningWarnings[] = 'No e-learning records have been created yet for this school.';
+	}
 } catch (Throwable $e) {
-	$_SESSION['reply'] = array (array("danger", "Failed to load e-learning data."));
+	$elearningWarnings[] = 'E-learning data could not be loaded. Check course setup, permissions, and database connectivity.';
 }
 ?>
 <!DOCTYPE html>
@@ -121,6 +127,17 @@ try {
 </div>
 </div>
 
+<?php if (!empty($elearningWarnings)): ?>
+<div class="tile">
+	<div class="tile-body">
+		<?php foreach ($elearningWarnings as $warning): ?>
+			<div class="alert alert-warning mb-2"><?php echo htmlspecialchars($warning); ?></div>
+		<?php endforeach; ?>
+		<p class="mb-0">This view only shows real school content. If modules were not configured, create classes, subjects, teachers, and courses first.</p>
+	</div>
+</div>
+<?php endif; ?>
+
 <div class="row mb-3">
 <div class="col-md-3"><div class="tile tile-colored bg-primary"><div class="tile-body"><h4><?php echo (int)$progressStats['tracked_learners']; ?></h4><p>Tracked Learners</p></div></div></div>
 <div class="col-md-3"><div class="tile tile-colored bg-info"><div class="tile-body"><h4><?php echo number_format((float)$progressStats['avg_completion'], 1); ?>%</h4><p>Avg Completion</p></div></div></div>
@@ -134,14 +151,16 @@ try {
 <table class="table table-hover">
 <thead><tr><th>Name</th><th>Class</th><th>Subject</th><th>Teacher</th></tr></thead>
 <tbody>
-<?php foreach ($courses as $course): ?>
+<?php if (empty($courses)): ?>
+<tr><td colspan="4" class="text-muted">No courses found.</td></tr>
+<?php else: foreach ($courses as $course): ?>
 <tr>
 <td><?php echo htmlspecialchars($course['name']); ?></td>
 <td><?php echo htmlspecialchars($course['class_name']); ?></td>
 <td><?php echo htmlspecialchars($course['subject_name']); ?></td>
 <td><?php echo htmlspecialchars(trim(($course['fname'] ?? '').' '.($course['lname'] ?? ''))); ?></td>
 </tr>
-<?php endforeach; ?>
+<?php endforeach; endif; ?>
 </tbody>
 </table>
 </div>
@@ -153,13 +172,15 @@ try {
 <table class="table table-hover">
 <thead><tr><th>Course</th><th>Title</th><th>Strand</th></tr></thead>
 <tbody>
-<?php foreach ($lessons as $lesson): ?>
+<?php if (empty($lessons)): ?>
+<tr><td colspan="3" class="text-muted">No lessons found.</td></tr>
+<?php else: foreach ($lessons as $lesson): ?>
 <tr>
 <td><?php echo htmlspecialchars($lesson['course_name']); ?></td>
 <td><?php echo htmlspecialchars($lesson['title']); ?></td>
 <td><?php echo htmlspecialchars($lesson['strand']); ?></td>
 </tr>
-<?php endforeach; ?>
+<?php endforeach; endif; ?>
 </tbody>
 </table>
 </div>
@@ -171,13 +192,15 @@ try {
 <table class="table table-hover">
 <thead><tr><th>Course</th><th>Title</th><th>Due</th></tr></thead>
 <tbody>
-<?php foreach ($assignments as $assignment): ?>
+<?php if (empty($assignments)): ?>
+<tr><td colspan="3" class="text-muted">No assignments found.</td></tr>
+<?php else: foreach ($assignments as $assignment): ?>
 <tr>
 <td><?php echo htmlspecialchars($assignment['course_name']); ?></td>
 <td><?php echo htmlspecialchars($assignment['title']); ?></td>
 <td><?php echo htmlspecialchars($assignment['due_date']); ?></td>
 </tr>
-<?php endforeach; ?>
+<?php endforeach; endif; ?>
 </tbody>
 </table>
 </div>
@@ -189,14 +212,16 @@ try {
 <table class="table table-hover">
 <thead><tr><th>Course</th><th>Title</th><th>Start</th><th>Platform</th></tr></thead>
 <tbody>
-<?php foreach ($liveClasses as $live): ?>
+<?php if (empty($liveClasses)): ?>
+<tr><td colspan="4" class="text-muted">No live classes found.</td></tr>
+<?php else: foreach ($liveClasses as $live): ?>
 <tr>
 <td><?php echo htmlspecialchars($live['course_name']); ?></td>
 <td><?php echo htmlspecialchars($live['title']); ?></td>
 <td><?php echo htmlspecialchars($live['start_time']); ?></td>
 <td><?php echo htmlspecialchars($live['platform']); ?></td>
 </tr>
-<?php endforeach; ?>
+<?php endforeach; endif; ?>
 </tbody>
 </table>
 </div>

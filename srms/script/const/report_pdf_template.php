@@ -16,6 +16,11 @@ function app_report_verify_pdf_url(string $verificationCode): string
     return rtrim(app_base_url(), '/') . '/verify_report_pdf?code=' . urlencode($verificationCode);
 }
 
+function app_report_default_student_photo_path(): string
+{
+    return 'images/students/default_passport.jpeg';
+}
+
 function app_report_student_photo_html(PDO $conn, string $studentId): array
 {
     $photoPath = '';
@@ -25,6 +30,14 @@ function app_report_student_photo_html(PDO $conn, string $studentId): array
         if ($payload) {
             $photoPath = (string)($payload['photo_path'] ?? '');
             $photoExists = (bool)($payload['photo_exists'] ?? false);
+        }
+    }
+
+    if (!$photoExists) {
+        $defaultPath = app_report_default_student_photo_path();
+        if (app_pdf_image_path_is_safe($defaultPath) && is_file($defaultPath)) {
+            $photoPath = $defaultPath;
+            $photoExists = true;
         }
     }
 
@@ -81,6 +94,16 @@ function app_report_pick_single_page_scale(TCPDF $pdf, string $html, float $topM
 }
 
 function app_report_card_pdf_html(PDO $conn, array $payload): string
+{
+    $settings = function_exists('report_get_settings') ? report_get_settings($conn) : [];
+    $template = (string)($settings['report_card_template'] ?? '2');
+    if ($template === '1') {
+        return app_report_card_pdf_html_template_one($conn, $payload);
+    }
+    return app_report_card_pdf_html_template_two($conn, $payload);
+}
+
+function app_report_card_pdf_html_template_one(PDO $conn, array $payload): string
 {
     $schoolName = defined('WBName') ? (string)WBName : (defined('APP_NAME') ? (string)APP_NAME : 'School');
     $schoolMotto = defined('WBMotto') ? trim((string)WBMotto) : '';
@@ -212,6 +235,99 @@ function app_report_card_pdf_html(PDO $conn, array $payload): string
         . '</div></body></html>';
 }
 
+function app_report_card_pdf_html_template_two(PDO $conn, array $payload): string
+{
+    $schoolName = defined('WBName') ? (string)WBName : (defined('APP_NAME') ? (string)APP_NAME : 'School');
+    $schoolContact = trim(implode(' | ', array_filter([trim((string)WBAddress), trim((string)WBPhone), trim((string)WBEmail)])));
+    $headteacherTitle = defined('WBHeadteacherTitle') ? trim((string)WBHeadteacherTitle) : 'Headteacher';
+    $logoPath = 'images/logo/' . trim((string)WBLogo);
+    $logoExists = trim((string)WBLogo) !== '' && app_pdf_image_path_is_safe($logoPath) && is_file($logoPath);
+    list($photoPath, $photoExists) = app_report_student_photo_html($conn, (string)($payload['student_id'] ?? ''));
+    $photoExists = $photoExists && app_pdf_image_path_is_safe($photoPath) && is_file($photoPath);
+
+    $studentName = (string)($payload['student_name'] ?? '');
+    $studentId = (string)($payload['student_id'] ?? '');
+    $schoolId = (string)($payload['school_id'] ?? '');
+    $className = (string)($payload['class_name'] ?? '');
+    $termName = (string)($payload['term_name'] ?? '');
+    $examName = (string)($payload['exam_summary']['exam_name'] ?? 'END TERM COMBINED');
+    $overallGrade = (string)($payload['exam_summary']['grade'] ?? $payload['card']['grade'] ?? 'N/A');
+    $kcpeScore = (string)($payload['kcpe_score'] ?? 'N/A');
+    $card = is_array($payload['card'] ?? null) ? $payload['card'] : [];
+    $rows = is_array($payload['exam_breakdown'] ?? null) && !empty($payload['exam_breakdown']) ? $payload['exam_breakdown'] : (is_array($card['subjects'] ?? null) ? $card['subjects'] : []);
+    $totalPoints = 0.0;
+    foreach ($rows as $subjectRow) {
+        $subjectPoints = app_report_card_subject_points_value((array)$subjectRow);
+        if ($subjectPoints !== null) {
+            $totalPoints += $subjectPoints;
+        }
+    }
+    $subjectCount = count($rows);
+    $meanPoints = $subjectCount > 0 ? ($totalPoints / $subjectCount) : 0.0;
+
+    $subjectRows = '';
+    foreach ($rows as $subject) {
+        $subjectRows .= '<tr>'
+            . '<td style="padding:5px 6px;border:1px solid #c7d6dc;">' . htmlspecialchars((string)($subject['subject_name'] ?? ''), ENT_QUOTES, 'UTF-8') . '</td>'
+            . '<td style="padding:5px 6px;border:1px solid #c7d6dc;text-align:center;">' . app_report_card_subject_points_display((array)$subject) . '</td>'
+            . '<td style="padding:5px 6px;border:1px solid #c7d6dc;text-align:center;">' . htmlspecialchars((string)($subject['grade'] ?? ''), ENT_QUOTES, 'UTF-8') . '</td>'
+            . '</tr>';
+    }
+    if ($subjectRows === '') {
+        $subjectRows = '<tr><td colspan="3" style="padding:5px 6px;border:1px solid #c7d6dc;text-align:center;">No subject data available.</td></tr>';
+    }
+
+    $photoHtml = $photoExists && $photoPath !== ''
+        ? '<img src="' . htmlspecialchars($photoPath, ENT_QUOTES, 'UTF-8') . '" alt="Student Photo">'
+        : '<div style="font-size:18px;font-weight:700;color:#1f4d75;">' . htmlspecialchars(strtoupper(substr($studentName !== '' ? $studentName : $studentId, 0, 1)), ENT_QUOTES, 'UTF-8') . '</div>';
+
+    $logoHtml = $logoExists && $logoPath !== ''
+        ? '<img src="' . htmlspecialchars($logoPath, ENT_QUOTES, 'UTF-8') . '" alt="School Logo" style="max-width:100%;max-height:100%;object-fit:contain;">'
+        : '<div style="font-size:22px;font-weight:900;color:#0f766e;">' . htmlspecialchars(strtoupper(substr($schoolName, 0, 1)), ENT_QUOTES, 'UTF-8') . '</div>';
+
+    return '<!doctype html><html><head><meta charset="utf-8"><title>Report Card</title>'
+        . '<style>'
+        . 'body{margin:0;padding:0;font-family:helvetica,arial,sans-serif;color:#163042;background:#fff;}'
+        . '.wrap{padding:10px 12px;}'
+        . '.banner{display:flex;align-items:center;justify-content:space-between;gap:14px;background:linear-gradient(135deg,#0f766e 0%,#135e75 100%);color:#fff;padding:16px 18px;border-radius:14px 14px 0 0;}'
+        . '.brand{display:flex;align-items:center;gap:12px;}'
+        . '.logo{width:66px;height:66px;border-radius:14px;overflow:hidden;background:rgba(255,255,255,.14);display:flex;align-items:center;justify-content:center;}'
+        . '.logo img{width:100%;height:100%;object-fit:contain;}'
+        . '.brand h1{margin:0;font-size:16pt;line-height:1.05;}'
+        . '.brand p{margin:3px 0 0;font-size:7.5pt;opacity:.95;}'
+        . '.chip{font-size:8.5pt;font-weight:800;background:rgba(255,255,255,.14);padding:7px 11px;border:1px solid rgba(255,255,255,.2);border-radius:999px;}'
+        . '.section{border-left:1px solid #d7e1e8;border-right:1px solid #d7e1e8;border-bottom:1px solid #d7e1e8;padding:12px 14px;}'
+        . '.grid{width:100%;border-collapse:collapse;}'
+        . '.grid td{vertical-align:top;padding:0;}'
+        . '.photo-box{width:112px;height:132px;border:1px solid #d7e1e8;border-radius:14px;overflow:hidden;background:#f8fbfd;text-align:center;vertical-align:middle;}'
+        . '.photo-box img{width:100%;height:100%;object-fit:cover;}'
+        . '.identity{width:100%;border-collapse:separate;border-spacing:10px;}'
+        . '.field{background:#f8fbfd;border:1px solid #e3ebf1;border-radius:12px;padding:8px 10px;}'
+        . '.field .label{font-size:7pt;text-transform:uppercase;letter-spacing:.08em;color:#627181;margin-bottom:3px;font-weight:700;}'
+        . '.field .value{font-size:9pt;font-weight:800;color:#163042;word-break:break-word;}'
+        . '.summary{width:100%;border-collapse:collapse;margin-top:10px;}'
+        . '.summary td{border:1px solid #c7d6dc;padding:7px 8px;font-size:8pt;}'
+        . '.summary .label{font-weight:700;background:#edf8f6;width:18%;}'
+        . '.title{margin-top:12px;background:#0f766e;color:#fff;padding:7px 10px;font-weight:800;font-size:10pt;text-align:center;border-radius:10px;}'
+        . '.subjects{width:100%;border-collapse:collapse;margin-top:10px;}'
+        . '.subjects th{border:1px solid #c7d6dc;background:#eaf7f5;padding:6px 7px;font-size:8pt;text-align:left;}'
+        . '.subjects td{font-size:8pt;}'
+        . '.footer{display:flex;gap:12px;align-items:flex-end;margin-top:12px;}'
+        . '.remarks{flex:1;border:1px solid #d7e1e8;border-radius:14px;background:#fafcfe;padding:10px 12px;}'
+        . '.remarks p{margin:5px 0;font-size:8pt;}'
+        . '.qr{width:92px;height:92px;border:1px solid #d7e1e8;border-radius:14px;background:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:6px;}'
+        . '.qr img{width:78px;height:78px;object-fit:contain;}'
+        . '</style></head><body><div class="wrap">'
+        . '<div class="banner"><div class="brand"><div class="logo">' . $logoHtml . '</div><div><h1>' . htmlspecialchars($schoolName, ENT_QUOTES, 'UTF-8') . '</h1><p>' . htmlspecialchars($schoolContact, ENT_QUOTES, 'UTF-8') . '</p></div></div><div class="chip">DEFAULT REPORT FORM</div></div>'
+        . '<div class="section">'
+        . '<div class="grid"><table class="grid"><tr><td style="width:120px;"><div class="photo-box">' . $photoHtml . '</div></td><td><table class="identity"><tr><td style="width:50%;"><div class="field"><div class="label">Student Name</div><div class="value">' . htmlspecialchars($studentName, ENT_QUOTES, 'UTF-8') . '</div></div></td><td style="width:50%;"><div class="field"><div class="label">Admission No.</div><div class="value">' . htmlspecialchars($schoolId !== '' ? $schoolId : $studentId, ENT_QUOTES, 'UTF-8') . '</div></div></td></tr><tr><td><div class="field"><div class="label">Class</div><div class="value">' . htmlspecialchars($className, ENT_QUOTES, 'UTF-8') . '</div></div></td><td><div class="field"><div class="label">Term</div><div class="value">' . htmlspecialchars($termName, ENT_QUOTES, 'UTF-8') . '</div></div></td></tr><tr><td><div class="field"><div class="label">Exam</div><div class="value">' . htmlspecialchars($examName, ENT_QUOTES, 'UTF-8') . '</div></div></td><td><div class="field"><div class="label">KCPE</div><div class="value">' . htmlspecialchars($kcpeScore, ENT_QUOTES, 'UTF-8') . '</div></div></td></tr></table></td></tr></table></div>'
+        . '<table class="summary"><tr><td class="label">Overall Grade</td><td>' . htmlspecialchars($overallGrade, ENT_QUOTES, 'UTF-8') . '</td><td class="label">Mean Points</td><td>' . number_format($meanPoints, 2) . '</td><td class="label">Subjects</td><td>' . (int)$subjectCount . '</td></tr></table>'
+        . '<div class="title">SUBJECT BREAKDOWN</div>'
+        . '<table class="subjects"><thead><tr><th>Subject</th><th style="width:18%;text-align:center;">Score</th><th style="width:18%;text-align:center;">Grade</th></tr></thead><tbody>' . $subjectRows . '</tbody></table>'
+        . '<div class="footer"><div class="remarks"><p><strong>Remarks</strong></p><p><strong>Class Teacher:</strong> ' . htmlspecialchars((string)($card['teacher_comment'] ?? $card['remark'] ?? ''), ENT_QUOTES, 'UTF-8') . '</p><p><strong>Headteacher:</strong> ' . htmlspecialchars((string)($card['headteacher_comment'] ?? $card['remark'] ?? ''), ENT_QUOTES, 'UTF-8') . '</p><p><strong>' . htmlspecialchars($headteacherTitle, ENT_QUOTES, 'UTF-8') . ':</strong> ' . htmlspecialchars($schoolName, ENT_QUOTES, 'UTF-8') . '</p></div><div class="qr"><img src="' . htmlspecialchars(app_report_card_qr_src((string)($card['verification_code'] ?? '')), ENT_QUOTES, 'UTF-8') . '" alt="QR Code"></div></div>'
+        . '</div></div></body></html>';
+}
+
 function app_output_single_page_report_pdf(PDO $conn, TCPDF $pdf, array $payload): void
 {
     $pdf->setPrintHeader(false);
@@ -219,7 +335,7 @@ function app_output_single_page_report_pdf(PDO $conn, TCPDF $pdf, array $payload
     // Force a single-page layout; content is positioned manually.
     $pdf->SetAutoPageBreak(false, 0);
     // set conservative top margin so content fits evenly on the page
-    $pdf->SetMargins(10, 12, 10);
+    $pdf->SetMargins(8, 10, 8);
     $pdf->SetTitle('Academic Report Card');
     $pdf->AddPage('P', 'A4');
 
@@ -328,10 +444,10 @@ function app_output_single_page_report_pdf(PDO $conn, TCPDF $pdf, array $payload
     $pageW = (float)$pdf->getPageWidth();
     $pageH = (float)$pdf->getPageHeight();
     // Match the TCPDF margins above for consistent positioning
-    $margin = 12.0;
+    $margin = 8.0;
     $innerW = $pageW - ($margin * 2);
     // make left column narrower so main table gets more horizontal space
-    $leftW = 72.0;
+    $leftW = 80.0;
     $rightW = $innerW - $leftW - 2.0;
 
     $hex = static function (string $hexColor): array {
@@ -346,12 +462,12 @@ function app_output_single_page_report_pdf(PDO $conn, TCPDF $pdf, array $payload
         $pdf->SetFillColor($r, $g, $b);
         $pdf->Rect($x, $y, $w, 6, 'F');
         $pdf->SetTextColor(255, 255, 255);
-        $pdf->SetFont('helvetica', 'B', 8.2);
+        $pdf->SetFont('helvetica', 'B', 9.0);
         $pdf->SetXY($x + 1, $y + 0.7);
         $pdf->Cell($w - 2, 4, $title, 0, 0, 'L', false);
         if ($subtitle !== '') {
             $pdf->SetTextColor(82, 93, 103);
-            $pdf->SetFont('helvetica', '', 6.3);
+            $pdf->SetFont('helvetica', '', 7.0);
             $pdf->SetXY($x + 1, $y + 6.6);
             $pdf->Cell($w - 2, 3, $subtitle, 0, 0, 'L', false);
         }
@@ -361,21 +477,21 @@ function app_output_single_page_report_pdf(PDO $conn, TCPDF $pdf, array $payload
         $pdf->SetDrawColor(215, 215, 215);
         $pdf->SetFillColor(244, 244, 244);
         $pdf->Rect($x, $y, $w, 13.5, 'DF');
-        $pdf->SetFont('helvetica', 'B', 6.9);
+        $pdf->SetFont('helvetica', 'B', 7.6);
         $pdf->SetXY($x + 1.3, $y + 1.2);
         $pdf->Cell($w - 2.6, 2.8, $label, 0, 1, 'L');
-        $pdf->SetFont('helvetica', 'B', 9.2);
+        $pdf->SetFont('helvetica', 'B', 10.2);
         $pdf->SetX($x + 1.3);
         $pdf->Cell($w - 2.6, 4.0, $value, 0, 1, 'L');
         if ($note !== '') {
-            $pdf->SetFont('helvetica', '', 6.0);
+            $pdf->SetFont('helvetica', '', 6.6);
             $pdf->SetX($x + 1.3);
             $pdf->Cell($w - 2.6, 2.3, $note, 0, 1, 'L');
         }
     };
     $drawBar = static function (TCPDF $pdf, float $x, float $y, float $w, string $label, ?float $value, string $color, string $suffix = '') use ($hex): void {
         [$r, $g, $b] = $hex($color);
-        $pdf->SetFont('helvetica', '', 6.5);
+        $pdf->SetFont('helvetica', '', 7.2);
         $pdf->SetXY($x, $y);
         $pdf->Cell($w, 3.2, $label, 0, 1, 'L');
         $pdf->SetDrawColor(224, 232, 238);
@@ -385,7 +501,7 @@ function app_output_single_page_report_pdf(PDO $conn, TCPDF $pdf, array $payload
         if ($fill > 0) {
             $pdf->Rect($x, $y + 3.3, $fill, 3.6, 'F');
         }
-        $pdf->SetFont('helvetica', 'B', 6.2);
+        $pdf->SetFont('helvetica', 'B', 6.8);
         $pdf->SetXY($x, $y + 7.0);
         $pdf->Cell($w, 2.6, ($value === null ? 'N/A' : number_format($value, 2)) . ($suffix !== '' ? ' ' . $suffix : ''), 0, 0, 'R');
     };
@@ -418,8 +534,8 @@ function app_output_single_page_report_pdf(PDO $conn, TCPDF $pdf, array $payload
     
     // ==== HEADER: Logo (LEFT) | School Name (CENTER-LEFT) | Photo (RIGHT) ====
     $headerY = $margin + 2;
-    $logoSize = 20;  // 20mm logo
-    $photoSize = 20;  // 20mm photo
+    $logoSize = 24;  // 24mm logo
+    $photoSize = 24;  // 24mm photo
     $gapSize = 2;    // gap between sections
     
     // LEFT SECTION: Logo
@@ -432,19 +548,19 @@ function app_output_single_page_report_pdf(PDO $conn, TCPDF $pdf, array $payload
     $textX = $logoX + $logoSize + $gapSize;
     $textMaxWidth = $innerW - $logoSize - $photoSize - ($gapSize * 3);
     
-    $pdf->SetFont('helvetica', 'B', 12.5);
+    $pdf->SetFont('helvetica', 'B', 14.5);
     $pdf->SetTextColor(31, 77, 117);
     $pdf->SetXY($textX, $headerY + 1);
     $pdf->Cell($textMaxWidth, 6.0, $schoolName, 0, 1, 'L');
 
     if ($schoolMotto !== '') {
-        $pdf->SetFont('helvetica', 'I', 7.0);
+        $pdf->SetFont('helvetica', 'I', 8.0);
         $pdf->SetTextColor(62, 98, 132);
         $pdf->SetX($textX);
         $pdf->Cell($textMaxWidth, 3.5, $schoolMotto, 0, 1, 'L');
     }
     
-    $pdf->SetFont('helvetica', '', 8.0);
+    $pdf->SetFont('helvetica', '', 9.0);
     $pdf->SetTextColor(27, 39, 51);
     $pdf->SetX($textX);
     $pdf->Cell($textMaxWidth, 4.0, $schoolContact, 0, 1, 'L');
@@ -472,19 +588,19 @@ function app_output_single_page_report_pdf(PDO $conn, TCPDF $pdf, array $payload
     $pdf->SetY($bannerY);
     $pdf->SetFillColor(26, 163, 207);
     $pdf->SetTextColor(255, 255, 255);
-    $pdf->SetFont('helvetica', 'B', 8.5);
+    $pdf->SetFont('helvetica', 'B', 10.0);
     $pdf->SetX($margin);
     $pdf->Cell($innerW, 5.6, 'ACADEMIC REPORT FORM - ' . strtoupper($className) . ' - ' . strtoupper($examName) . ' - ' . strtoupper($termName), 0, 1, 'C', true);
     $pdf->SetFillColor(236, 246, 251);
     $pdf->SetTextColor(31, 77, 117);
-    $pdf->SetFont('helvetica', '', 6.8);
+    $pdf->SetFont('helvetica', '', 7.8);
     $pdf->SetX($margin);
     $pdf->Cell($innerW, 4.0, 'Generated: ' . $generatedDate . ' | Academic Year: ' . $academicYear, 0, 1, 'C', true);
     
     $pdf->SetTextColor(27, 39, 51);
     
     // ==== STUDENT DETAILS GRID (moved above the subject table) ====
-    $pdf->SetFont('helvetica', '', 7.4);
+    $pdf->SetFont('helvetica', '', 8.4);
     $pdf->SetFillColor(238, 246, 251);
     // small gap after banner
     $pdf->SetY($pdf->GetY() + 4);
@@ -494,18 +610,18 @@ function app_output_single_page_report_pdf(PDO $conn, TCPDF $pdf, array $payload
 
     // Row 1: Name, Class, ADM No, Attendance
     $pdf->SetX($margin + 2);
-    $pdf->Cell($gridCellW, 5.0, 'Name: ' . $studentName, 0, 0, 'L', true);
-    $pdf->Cell($gridCellW, 5.0, 'Class: ' . $className, 0, 0, 'L', true);
-    $pdf->Cell($gridCellW, 5.0, 'ADM No: ' . ($schoolId !== '' ? $schoolId : $studentId), 0, 0, 'L', true);
-    $pdf->Cell($gridCellW, 5.0, 'Attendance: ' . $attendanceText, 0, 1, 'L', true);
+    $pdf->Cell($gridCellW, 5.8, 'Name: ' . $studentName, 0, 0, 'L', true);
+    $pdf->Cell($gridCellW, 5.8, 'Class: ' . $className, 0, 0, 'L', true);
+    $pdf->Cell($gridCellW, 5.8, 'ADM No: ' . ($schoolId !== '' ? $schoolId : $studentId), 0, 0, 'L', true);
+    $pdf->Cell($gridCellW, 5.8, 'Attendance: ' . $attendanceText, 0, 1, 'L', true);
 
     // Row 2: CBE Mean, Grade, Term, Fees Balance
     $pdf->SetX($margin + 2);
-    $pdf->SetFont('helvetica', 'B', 7.4);
-    $pdf->Cell($gridCellW, 5.0, 'CBE Mean: ' . number_format($currentMean, 2), 0, 0, 'L', true);
-    $pdf->Cell($gridCellW, 5.0, 'Grade: ' . $overallGrade, 0, 0, 'L', true);
-    $pdf->Cell($gridCellW, 5.0, 'Term: ' . $termName, 0, 0, 'L', true);
-    $pdf->Cell($gridCellW, 5.0, 'Fees Balance: ' . $feesText, 0, 1, 'L', true);
+    $pdf->SetFont('helvetica', 'B', 8.0);
+    $pdf->Cell($gridCellW, 5.8, 'CBE Mean: ' . number_format($currentMean, 2), 0, 0, 'L', true);
+    $pdf->Cell($gridCellW, 5.8, 'Grade: ' . $overallGrade, 0, 0, 'L', true);
+    $pdf->Cell($gridCellW, 5.8, 'Term: ' . $termName, 0, 0, 'L', true);
+    $pdf->Cell($gridCellW, 5.8, 'Fees Balance: ' . $feesText, 0, 1, 'L', true);
 
     $pdf->SetTextColor(27, 39, 51);
 
@@ -516,17 +632,17 @@ function app_output_single_page_report_pdf(PDO $conn, TCPDF $pdf, array $payload
     $availableContentHeight = max(78.0, $footerTopY - $contentStartY);
     $remarksH = $rowCount >= 16 ? 18.0 : ($rowCount >= 12 ? 20.0 : 24.0);
     $sectionGap = $rowCount >= 16 ? 2.0 : 3.0;
-    $tableHeaderH = $rowCount >= 16 ? 4.0 : 4.8;
-    $chartTitlePad = $rowCount >= 16 ? 7.5 : 8.5;
+    $tableHeaderH = $rowCount >= 16 ? 4.8 : 5.5;
+    $chartTitlePad = $rowCount >= 16 ? 8.2 : 9.2;
     $usableSectionHeight = max(48.0, $availableContentHeight - $remarksH - ($sectionGap * 2) - $tableHeaderH - $chartTitlePad);
     $baseUnit = $usableSectionHeight / max(1.0, $rowCount * 1.62);
-    $rowH = max(2.15, min(4.2, $baseUnit * 0.88));
-    $groupH = max(2.3, min(5.4, $baseUnit * 0.82));
+    $rowH = max(2.6, min(4.8, $baseUnit * 0.95));
+    $groupH = max(2.6, min(5.8, $baseUnit * 0.88));
     $chartH = $chartTitlePad + ($groupH * $rowCount);
-    $tableFont = max(4.7, min(5.8, $rowH + 0.95));
-    $tableHeaderFont = max(5.3, min(6.6, $tableFont + 0.55));
-    $remarksFont = max(5.0, min(6.2, $tableFont));
-    $remarksLineH = max(4.0, min(5.5, $remarksFont * 0.82));
+    $tableFont = max(5.2, min(6.4, $rowH + 1.0));
+    $tableHeaderFont = max(5.8, min(7.4, $tableFont + 0.7));
+    $remarksFont = max(5.4, min(6.8, $tableFont));
+    $remarksLineH = max(4.4, min(6.0, $remarksFont * 0.86));
 
     $pdf->SetFont('helvetica', 'B', $tableHeaderFont);
     $pdf->SetFillColor(243, 247, 251);

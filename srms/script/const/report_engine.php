@@ -159,18 +159,24 @@ function report_get_settings(PDO $conn): array
 		'best_of' => 0,
 		'use_weights' => 1,
 		'require_fees_clear' => 0,
+		'report_card_template' => '2',
 	];
 	if (!app_table_exists($conn, 'tbl_result_settings')) {
 		return $settings;
 	}
 	try {
-		$stmt = $conn->prepare("SELECT best_of, use_weights, require_fees_clear FROM tbl_result_settings ORDER BY id DESC LIMIT 1");
+		$hasTemplateColumn = app_column_exists($conn, 'tbl_result_settings', 'report_card_template');
+		$select = "best_of, use_weights, require_fees_clear" . ($hasTemplateColumn ? ", report_card_template" : "");
+		$stmt = $conn->prepare("SELECT {$select} FROM tbl_result_settings ORDER BY id DESC LIMIT 1");
 		$stmt->execute();
 		$row = $stmt->fetch(PDO::FETCH_ASSOC);
 		if ($row) {
 			$settings['best_of'] = (int)$row['best_of'];
 			$settings['use_weights'] = (int)$row['use_weights'];
 			$settings['require_fees_clear'] = (int)$row['require_fees_clear'];
+			if (isset($row['report_card_template']) && $row['report_card_template'] !== '') {
+				$settings['report_card_template'] = (string)$row['report_card_template'];
+			}
 		}
 	} catch (Throwable $e) {
 		return $settings;
@@ -1297,13 +1303,31 @@ function report_fetch_subjects_for_class(PDO $conn, int $classId, int $termId = 
 {
 	$allowedSubjectIds = app_class_subject_ids($conn, $classId);
 	$allowedSubjectLookup = !empty($allowedSubjectIds) ? array_fill_keys(array_map('intval', $allowedSubjectIds), true) : [];
-	$stmt = $conn->prepare("SELECT sc.id AS combination_id, sc.class, sc.subject, sc.teacher, s.name AS subject_name, st.fname, st.lname
-		FROM tbl_subject_combinations sc
-		LEFT JOIN tbl_subjects s ON s.id = sc.subject
-		LEFT JOIN tbl_staff st ON st.id = sc.teacher");
-	$stmt->execute();
 	$subjectsById = [];
 	$resultCombos = [];
+
+	$rows = [];
+	if (app_table_exists($conn, 'tbl_subject_combinations')) {
+		$stmt = $conn->prepare("SELECT sc.id AS combination_id, sc.class, sc.subject, sc.teacher, s.name AS subject_name, st.fname, st.lname
+			FROM tbl_subject_combinations sc
+			LEFT JOIN tbl_subjects s ON s.id = sc.subject
+			LEFT JOIN tbl_staff st ON st.id = sc.teacher");
+		$stmt->execute();
+		$rows = array_merge($rows, $stmt->fetchAll(PDO::FETCH_ASSOC));
+	}
+	if (app_table_exists($conn, 'tbl_teacher_assignments')) {
+		$stmt = $conn->prepare("SELECT ta.id AS combination_id, ta.class_id AS class, ta.subject_id AS subject, ta.teacher_id AS teacher, s.name AS subject_name, st.fname, st.lname
+			FROM tbl_teacher_assignments ta
+			LEFT JOIN tbl_subjects s ON s.id = ta.subject_id
+			LEFT JOIN tbl_staff st ON st.id = ta.teacher_id
+			WHERE ta.class_id = ? AND ta.status = 1");
+		$stmt->execute([$classId]);
+		foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+			$row['class'] = json_encode([(int)$classId]);
+			$rows[] = $row;
+		}
+	}
+
 	if ($examId > 0 && $termId > 0 && app_table_exists($conn, 'tbl_exam_results') && app_column_exists($conn, 'tbl_exam_results', 'exam_id')) {
 		$stmtResults = $conn->prepare("SELECT DISTINCT subject_combination FROM tbl_exam_results WHERE class = ? AND term = ? AND exam_id = ?");
 		$stmtResults->execute([$classId, $termId, $examId]);
@@ -1311,8 +1335,11 @@ function report_fetch_subjects_for_class(PDO $conn, int $classId, int $termId = 
 			$resultCombos[(int)$combinationId] = true;
 		}
 	}
-	foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
-		$classList = app_unserialize($row['class']);
+	foreach ($rows as $row) {
+		$classList = is_array($row['class']) ? $row['class'] : app_unserialize((string)$row['class']);
+		if (empty($classList) && isset($row['class']) && (int)$row['class'] === $classId) {
+			$classList = [$classId];
+		}
 		if (in_array((string)$classId, $classList, true) || in_array($classId, $classList, true)) {
 			$subjectId = (int)$row['subject'];
 			if (!empty($allowedSubjectLookup) && !isset($allowedSubjectLookup[$subjectId])) {
@@ -1417,6 +1444,20 @@ function report_grade_points_from_label(string $grade): float
 	];
 
 	return (float)($map[$label] ?? 0.0);
+}
+
+function report_card_should_hide_subject_teacher_names(string $className): bool
+{
+	$normalized = strtolower(trim(preg_replace('/\s+/', ' ', $className)));
+	if ($normalized === '') {
+		return false;
+	}
+
+	if (preg_match('/^grade\s*([4-9])(?:\s|$)/', $normalized, $matches)) {
+		return true;
+	}
+
+	return false;
 }
 
 function report_assessment_mode_uses_points(?string $assessmentMode): bool

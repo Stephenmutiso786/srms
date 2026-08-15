@@ -29,6 +29,8 @@ $total = 0;
 $success = 0;
 $failed = 0;
 $details = [];
+$importedClassIds = [];
+$defaultClassId = (int)($_POST['class_id'] ?? 0);
 
 try {
 	$conn = app_db();
@@ -57,17 +59,26 @@ try {
 		$pos = array_search($key, $headers, true);
 		return $pos === false ? -1 : $pos;
 	};
+	$get = function (array $row, array $keys, string $default = '') use ($idx) {
+		foreach ($keys as $key) {
+			$pos = $idx($key);
+			if ($pos >= 0 && array_key_exists($pos, $row)) {
+				return (string)$row[$pos];
+			}
+		}
+		return $default;
+	};
 
 	while (($row = fgetcsv($handle)) !== false) {
 		$total++;
-		$studentId = $row[$idx('student_id')] ?? $row[$idx('id')] ?? '';
-		$fname = $row[$idx('fname')] ?? '';
-		$mname = $row[$idx('mname')] ?? '';
-		$lname = $row[$idx('lname')] ?? '';
-		$gender = $row[$idx('gender')] ?? 'Male';
-		$email = $row[$idx('email')] ?? '';
-		$classIdRaw = $row[$idx('class_id')] ?? '';
-		$className = $row[$idx('class_name')] ?? $row[$idx('class')] ?? '';
+		$studentId = $get($row, ['student_id', 'admission_number', 'adm_no', 'reg_no', 'id']);
+		$fname = $get($row, ['fname', 'first_name', 'firstname', 'first name']);
+		$mname = $get($row, ['mname', 'middle_name', 'middlename', 'middle name']);
+		$lname = $get($row, ['lname', 'last_name', 'lastname', 'last name', 'surname']);
+		$gender = $get($row, ['gender', 'sex'], 'Male');
+		$email = $get($row, ['email', 'email_address']);
+		$classIdRaw = $get($row, ['class_id']);
+		$className = $get($row, ['class_name', 'class']);
 
 		$studentId = trim((string)$studentId);
 		$fname = trim((string)$fname);
@@ -78,10 +89,17 @@ try {
 		$classIdRaw = trim((string)$classIdRaw);
 		$className = trim((string)$className);
 
-		if ($studentId === '' || $fname === '' || $lname === '' || $email === '') {
+		if ($studentId === '') {
+			$studentId = app_next_student_registration_number($conn);
+		}
+
+		if ($fname === '' || $lname === '') {
 			$failed++;
-			$details[] = "Row $total missing required fields.";
+			$details[] = "Row $total missing first name or last name.";
 			continue;
+		}
+		if ($email === '') {
+			$email = app_generate_student_login_email($conn, $fname, $lname, (string)$classId);
 		}
 
 		$classId = 0;
@@ -89,6 +107,8 @@ try {
 			$classId = (int)$classIdRaw;
 		} elseif ($className !== '') {
 			$classId = $classesMap[strtolower($className)] ?? 0;
+		} elseif ($defaultClassId > 0) {
+			$classId = $defaultClassId;
 		}
 
 		if ($classId < 1) {
@@ -104,11 +124,18 @@ try {
 		$hash = password_hash($pwd, PASSWORD_DEFAULT);
 
 		try {
-			$stmt = $conn->prepare("SELECT 1 FROM tbl_students WHERE id = ? OR email = ? LIMIT 1");
-			$stmt->execute([$studentId, $email]);
+			$duplicateSql = "SELECT 1 FROM tbl_students WHERE id = ?";
+			$params = [$studentId];
+			if ($email !== '') {
+				$duplicateSql .= " OR email = ?";
+				$params[] = $email;
+			}
+			$duplicateSql .= " LIMIT 1";
+			$stmt = $conn->prepare($duplicateSql);
+			$stmt->execute($params);
 			if ($stmt->fetchColumn()) {
 				$failed++;
-				$details[] = "Row $total duplicate student.";
+				$details[] = "Row $total duplicate student ID".($email !== '' ? " or email" : "").".";
 				continue;
 			}
 
@@ -121,6 +148,7 @@ try {
 				$stmt->execute([$studentId, $fname, $mname, $lname, $gender, $email, $classId, $hash, 3, 1]);
 			}
 			$success++;
+			$importedClassIds[(string)$classId] = (string)$classId;
 		} catch (Throwable $e) {
 			$failed++;
 			$details[] = "Row $total error: ".$e->getMessage();
@@ -134,8 +162,15 @@ try {
 		$stmt->execute(['students', $total, $success, $failed, implode("\n", $details), $account_id]);
 	}
 
-	$_SESSION['reply'] = array (array("success", "Import done. Total: $total, Success: $success, Failed: $failed"));
-	header("location:../import_export");
+	$message = "Import done. Total: $total, Success: $success, Failed: $failed";
+	if ($failed > 0 && !empty($details)) {
+		$message .= ". ".implode(' ', array_slice($details, 0, 3));
+	}
+	if ($success > 0) {
+		$_SESSION['student_list'] = array_values($importedClassIds);
+	}
+	$_SESSION['reply'] = array (array($success > 0 ? "success" : "danger", $message));
+	header("location:".($success > 0 ? "../students" : "../import_export"));
 } catch (Throwable $e) {
 	$_SESSION['reply'] = array (array("danger", "Import failed: ".$e->getMessage()));
 	header("location:../import_export");

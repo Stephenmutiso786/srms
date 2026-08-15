@@ -62,29 +62,7 @@ if (getenv('DB_DSN')) {
 
 // App branding
 $envAppName = trim((string)(getenv('APP_NAME') ?: ''));
-$appName = '';
-if ($envAppName !== '') {
-	$appName = $envAppName;
-} else {
-	// Try to read school name from database (fallback to SRMS)
-	try {
-		$tmpOptions = [
-			PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-			PDO::ATTR_TIMEOUT => (DBConnectTimeout > 0 ? DBConnectTimeout : 5),
-		];
-		$tmpPdo = new PDO(DB_DSN, DBUser, DBPass, $tmpOptions);
-		$tmpPdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-		$stmt = $tmpPdo->prepare("SELECT name FROM tbl_school ORDER BY id ASC LIMIT 1");
-		$stmt->execute();
-		$row = $stmt->fetch(PDO::FETCH_ASSOC);
-		if ($row && !empty($row['name'])) {
-			$appName = trim((string)$row['name']);
-		}
-	} catch (Throwable $e) {
-		// ignore and fallback
-	}
-}
-if ($appName === '') { $appName = 'SRMS'; }
+$appName = $envAppName !== '' ? $envAppName : 'ELIMU HUB';
 DEFINE('APP_NAME', $appName);
 DEFINE('APP_TAGLINE', getenv('APP_TAGLINE') ?: 'Student Results Management System');
 DEFINE('APP_URL', rtrim(getenv('APP_URL') ?: '', '/'));
@@ -169,7 +147,110 @@ function app_db(): PDO
 
 	$pdo = app_db_connect();
 	app_migrate_cbc_to_cbe_schema($pdo);
+	app_ensure_student_tenant_schema($pdo);
+	app_ensure_school_subscription_schema($pdo);
+	app_ensure_super_admin_account($pdo);
 	return $pdo;
+}
+
+function app_ensure_student_tenant_schema(PDO $conn): void
+{
+	if (!app_table_exists($conn, 'tbl_students')) {
+		return;
+	}
+
+	if (!app_column_exists($conn, 'tbl_students', 'tenant_school_id')) {
+		$conn->exec("ALTER TABLE tbl_students ADD COLUMN tenant_school_id int DEFAULT NULL");
+	}
+
+	if (!app_table_exists($conn, 'tbl_classes')) {
+		return;
+	}
+
+	try {
+		$defaultSchoolId = 0;
+		if (app_table_exists($conn, 'tbl_school')) {
+			try {
+				$stmt = $conn->query("SELECT id FROM tbl_school ORDER BY id ASC LIMIT 1");
+				$defaultSchoolId = (int)$stmt->fetchColumn();
+			} catch (Throwable $e) {
+				$defaultSchoolId = 0;
+			}
+		}
+
+		$stmt = $conn->query("SELECT st.id, c.school_id
+			FROM tbl_students st
+			LEFT JOIN tbl_classes c ON c.id = st.class
+			WHERE st.tenant_school_id IS NULL");
+		$update = $conn->prepare("UPDATE tbl_students SET tenant_school_id = ? WHERE id = ?");
+		foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+			$tenantSchoolId = (int)($row['school_id'] ?? 0);
+			if ($tenantSchoolId < 1) {
+				$tenantSchoolId = $defaultSchoolId;
+			}
+			if ($tenantSchoolId > 0) {
+				$update->execute([$tenantSchoolId, (string)$row['id']]);
+			}
+		}
+	} catch (Throwable $e) {
+		// Best effort only.
+	}
+}
+
+function app_ensure_super_admin_account(PDO $conn): void
+{
+	try {
+		if (!app_table_exists($conn, 'tbl_staff')) {
+			return;
+		}
+
+		$ownerEmail = strtolower(trim(app_super_admin_owner_email()));
+		$ownerPassword = (string)(getenv('SUPER_ADMIN_PASSWORD') ?: '');
+		if ($ownerEmail === '' || $ownerPassword === '') {
+			return;
+		}
+		$hashed = password_hash($ownerPassword, PASSWORD_DEFAULT);
+
+		$stmt = $conn->prepare('SELECT id FROM tbl_staff WHERE LOWER(email) = ? LIMIT 1');
+		$stmt->execute([$ownerEmail]);
+		$existingId = (int)$stmt->fetchColumn();
+		if ($existingId > 0) {
+			$updateFields = ['email = ?', 'password = ?', 'level = 9', 'status = 1'];
+			$updateValues = [$ownerEmail, $hashed];
+			if (app_column_exists($conn, 'tbl_staff', 'force_password_change')) {
+				$updateFields[] = 'force_password_change = 0';
+			}
+			$staffSchoolId = null;
+			if (app_column_exists($conn, 'tbl_staff', 'school_id')) {
+				$staffSchoolId = app_generate_school_id($conn, app_staff_prefix(9), (int)date('Y'), 'tbl_staff');
+				$updateFields[] = 'school_id = COALESCE(school_id, ?)';
+				$updateValues[] = $staffSchoolId;
+			}
+			$updateValues[] = $existingId;
+			$update = $conn->prepare('UPDATE tbl_staff SET ' . implode(', ', $updateFields) . ' WHERE id = ?');
+			$update->execute($updateValues);
+			return;
+		}
+
+		$firstName = trim((string)(getenv('SUPER_ADMIN_FIRST_NAME') ?: 'Super'));
+		$lastName = trim((string)(getenv('SUPER_ADMIN_LAST_NAME') ?: 'Admin'));
+		$gender = trim((string)(getenv('SUPER_ADMIN_GENDER') ?: 'Male'));
+		if ($gender === '') {
+			$gender = 'Male';
+		}
+
+		if (app_column_exists($conn, 'tbl_staff', 'school_id')) {
+			$prefix = app_staff_prefix(9);
+			$schoolId = app_generate_school_id($conn, $prefix, (int)date('Y'), 'tbl_staff');
+			$stmt = $conn->prepare('INSERT INTO tbl_staff (fname, lname, gender, email, password, level, status, school_id) VALUES (?,?,?,?,?,?,?,?)');
+			$stmt->execute([$firstName, $lastName, $gender, $ownerEmail, $hashed, 9, 1, $schoolId]);
+		} else {
+			$stmt = $conn->prepare('INSERT INTO tbl_staff (fname, lname, gender, email, password, level, status) VALUES (?,?,?,?,?,?,?)');
+			$stmt->execute([$firstName, $lastName, $gender, $ownerEmail, $hashed, 9, 1]);
+		}
+	} catch (Throwable $e) {
+		// Keep the app running even if bootstrap seeding fails.
+	}
 }
 
 function app_db_connect(?int $timeoutOverride = null): PDO
@@ -473,20 +554,36 @@ function app_generate_school_id(PDO $conn, string $prefix, int $year, string $ta
 	$prefix = strtoupper(trim($prefix));
 	$year = $year > 0 ? $year : (int)date('Y');
 	$like = $prefix.'-'.$year.'-%';
+	$number = 1;
 
-	do {
-		$stmt = $conn->prepare("SELECT COUNT(*) FROM {$table} WHERE school_id LIKE ?");
+	try {
+		$stmt = $conn->prepare("SELECT school_id FROM {$table} WHERE school_id LIKE ? ORDER BY school_id DESC LIMIT 1");
 		$stmt->execute([$like]);
-		$count = (int)$stmt->fetchColumn();
-		$number = $count + 1;
-		$schoolId = sprintf('%s-%d-%04d', $prefix, $year, $number);
+		$lastSchoolId = trim((string)$stmt->fetchColumn());
+		if ($lastSchoolId !== '') {
+			$parts = explode('-', $lastSchoolId);
+			$lastNumber = (int)array_pop($parts);
+			if ($lastNumber > 0) {
+				$number = $lastNumber + 1;
+			}
+		}
+	} catch (Throwable $e) {
+		$number = 1;
+	}
 
+	$attempts = 0;
+	while ($attempts < 25) {
+		$schoolId = sprintf('%s-%d-%04d', $prefix, $year, $number);
 		$stmt = $conn->prepare("SELECT 1 FROM {$table} WHERE school_id = ? LIMIT 1");
 		$stmt->execute([$schoolId]);
-		$exists = $stmt->fetchColumn();
-	} while ($exists);
+		if (!$stmt->fetchColumn()) {
+			return $schoolId;
+		}
+		$number++;
+		$attempts++;
+	}
 
-	return $schoolId;
+	return sprintf('%s-%d-%04d-%s', $prefix, $year, $number, strtoupper(substr(bin2hex(random_bytes(2)), 0, 4)));
 }
 
 function app_staff_prefix(string $level): string
@@ -723,7 +820,8 @@ function app_staff_primary_title(PDO $conn, int $staffId, string $level = ''): s
 
 function app_super_admin_owner_email(): string
 {
-	return 'super@admin';
+	$email = trim((string)(getenv('SUPER_ADMIN_EMAIL') ?: 'super@admin'));
+	return $email !== '' ? $email : 'super@admin';
 }
 
 function app_find_role_id_by_name(PDO $conn, string $roleName): int
@@ -851,6 +949,329 @@ function app_is_super_admin_controller(PDO $conn, string $accountId = '', string
 	return (int)$level === 9;
 }
 
+function app_current_school_id(): int
+{
+	if (isset($_SESSION['school_id'])) {
+		return (int)$_SESSION['school_id'];
+	}
+	if (isset($_GET['school_id'])) {
+		return max(0, (int)$_GET['school_id']);
+	}
+	return 0;
+}
+
+function app_set_current_school_id(int $schoolId): void
+{
+	$_SESSION['school_id'] = $schoolId > 0 ? $schoolId : null;
+}
+
+function app_school_row(PDO $conn, ?int $schoolId = null): array
+{
+	$schoolId = $schoolId ?? app_current_school_id();
+	$default = [
+		'id' => 0,
+		'name' => defined('APP_NAME') ? APP_NAME : 'SRMS',
+		'logo' => 'school_logo.png',
+		'result_system' => 1,
+		'allow_results' => 1,
+		'package_tier' => 'elimu_hub',
+		'term_start_date' => null,
+		'term_end_date' => null,
+		'is_locked' => 0,
+		'is_suspended' => 0,
+		'approval_status' => 'approved',
+		'application_email_sent_at' => null,
+		'approved_at' => null,
+		'approved_by' => null,
+	];
+	if (!app_table_exists($conn, 'tbl_school')) {
+		return $default;
+	}
+	try {
+		if ($schoolId > 0) {
+			$stmt = $conn->prepare('SELECT * FROM tbl_school WHERE id = ? LIMIT 1');
+			$stmt->execute([$schoolId]);
+		} else {
+			$stmt = $conn->query('SELECT * FROM tbl_school ORDER BY id ASC LIMIT 1');
+		}
+		$row = $stmt->fetch(PDO::FETCH_ASSOC);
+		if (!$row) {
+			return $default;
+		}
+		return [
+			'id' => (int)($row['id'] ?? 0),
+			'name' => trim((string)($row['name'] ?? $default['name'])),
+			'logo' => trim((string)($row['logo'] ?? $default['logo'])),
+			'result_system' => (int)($row['result_system'] ?? $default['result_system']),
+			'allow_results' => (int)($row['allow_results'] ?? $default['allow_results']),
+			'package_tier' => trim((string)($row['package_tier'] ?? $default['package_tier'])),
+			'term_start_date' => $row['term_start_date'] ?? $default['term_start_date'],
+			'term_end_date' => $row['term_end_date'] ?? $default['term_end_date'],
+			'is_locked' => (int)($row['is_locked'] ?? $default['is_locked']),
+			'is_suspended' => (int)($row['is_suspended'] ?? $default['is_suspended']),
+			'approval_status' => trim((string)($row['approval_status'] ?? $default['approval_status'])),
+			'application_email_sent_at' => $row['application_email_sent_at'] ?? $default['application_email_sent_at'],
+			'approved_at' => $row['approved_at'] ?? $default['approved_at'],
+			'approved_by' => $row['approved_by'] ?? $default['approved_by'],
+		];
+	} catch (Throwable $e) {
+		return $default;
+	}
+}
+
+function app_ensure_school_subscription_schema(PDO $conn): void
+{
+	if (!app_table_exists($conn, 'tbl_school')) {
+		return;
+	}
+	$columns = [
+		'package_tier' => "ALTER TABLE tbl_school ADD COLUMN package_tier varchar(30) NOT NULL DEFAULT 'elimu_hub'",
+		'term_start_date' => "ALTER TABLE tbl_school ADD COLUMN term_start_date date DEFAULT NULL",
+		'term_end_date' => "ALTER TABLE tbl_school ADD COLUMN term_end_date date DEFAULT NULL",
+		'is_locked' => "ALTER TABLE tbl_school ADD COLUMN is_locked tinyint(1) NOT NULL DEFAULT 0",
+		'is_suspended' => "ALTER TABLE tbl_school ADD COLUMN is_suspended tinyint(1) NOT NULL DEFAULT 0",
+		'sms_balance' => "ALTER TABLE tbl_school ADD COLUMN sms_balance int NOT NULL DEFAULT 0",
+		'support_plan' => "ALTER TABLE tbl_school ADD COLUMN support_plan varchar(30) NOT NULL DEFAULT 'basic'",
+		'mpesa_enabled' => "ALTER TABLE tbl_school ADD COLUMN mpesa_enabled tinyint(1) NOT NULL DEFAULT 1",
+		'approval_status' => "ALTER TABLE tbl_school ADD COLUMN approval_status varchar(20) NOT NULL DEFAULT 'approved'",
+		'application_email_sent_at' => "ALTER TABLE tbl_school ADD COLUMN application_email_sent_at datetime DEFAULT NULL",
+		'approved_at' => "ALTER TABLE tbl_school ADD COLUMN approved_at datetime DEFAULT NULL",
+		'approved_by' => "ALTER TABLE tbl_school ADD COLUMN approved_by int DEFAULT NULL",
+	];
+	foreach ($columns as $column => $sql) {
+		if (!app_column_exists($conn, 'tbl_school', $column)) {
+			try {
+				$conn->exec($sql);
+			} catch (Throwable $e) {
+				if (stripos($e->getMessage(), 'Duplicate column name') === false && stripos($e->getMessage(), 'duplicate column') === false) {
+					throw $e;
+				}
+			}
+		}
+	}
+}
+
+function app_school_is_locked(PDO $conn, ?int $schoolId = null): bool
+{
+	$row = app_school_row($conn, $schoolId);
+	if ((int)($row['is_locked'] ?? 0) === 1) {
+		return true;
+	}
+	$start = trim((string)($row['term_start_date'] ?? ''));
+	$end = trim((string)($row['term_end_date'] ?? ''));
+	if ($start !== '' && $end !== '') {
+		$today = date('Y-m-d');
+		if ($today < $start || $today > $end) {
+			return true;
+		}
+	}
+	return false;
+}
+
+function app_school_is_suspended(PDO $conn, ?int $schoolId = null): bool
+{
+	$row = app_school_row($conn, $schoolId);
+	return (int)($row['is_suspended'] ?? 0) === 1;
+}
+
+function app_school_is_access_disabled(PDO $conn, ?int $schoolId = null): bool
+{
+	return app_school_is_locked($conn, $schoolId) || app_school_is_suspended($conn, $schoolId);
+}
+
+function app_school_is_pending(PDO $conn, ?int $schoolId = null): bool
+{
+	$row = app_school_row($conn, $schoolId);
+	return strtolower(trim((string)($row['approval_status'] ?? 'approved'))) === 'pending';
+}
+
+function app_school_mark_pending(PDO $conn, int $schoolId): void
+{
+	if ($schoolId < 1 || !app_table_exists($conn, 'tbl_school')) {
+		return;
+	}
+	$fields = ['approval_status = \'pending\'', 'approved_at = NULL', 'approved_by = NULL', 'is_locked = 1'];
+	if (app_column_exists($conn, 'tbl_school', 'application_email_sent_at')) {
+		$fields[] = 'application_email_sent_at = NULL';
+	}
+	$stmt = $conn->prepare('UPDATE tbl_school SET ' . implode(', ', $fields) . ' WHERE id = ?');
+	$stmt->execute([$schoolId]);
+}
+
+function app_school_mark_approved(PDO $conn, int $schoolId, int $approvedBy = 0): void
+{
+	if ($schoolId < 1 || !app_table_exists($conn, 'tbl_school')) {
+		return;
+	}
+	$fields = [
+		"approval_status = 'approved'",
+		'is_locked = 0',
+		'is_suspended = 0',
+		'approved_at = NOW()',
+	];
+	if ($approvedBy > 0) {
+		$fields[] = 'approved_by = ?';
+	}
+	$values = [];
+	if ($approvedBy > 0) {
+		$values[] = $approvedBy;
+	}
+	$values[] = $schoolId;
+	$stmt = $conn->prepare('UPDATE tbl_school SET ' . implode(', ', $fields) . ' WHERE id = ?');
+	$stmt->execute($values);
+}
+
+function app_school_package_features(string $tier): array
+{
+	$tier = strtolower(trim($tier));
+	if ($tier === 'elimu_hub_pro') {
+		return [
+			'all_modules' => true,
+			'support_24_7' => true,
+			'sms_enabled' => true,
+			'mpesa_enabled' => true,
+		];
+	}
+	return [
+		'all_modules' => false,
+		'support_24_7' => false,
+		'sms_enabled' => true,
+		'mpesa_enabled' => true,
+	];
+}
+
+function app_seed_school_workspace(PDO $conn, int $schoolId, string $schoolName = '', bool $seedDefaults = true): array
+{
+	$result = ['classes' => 0, 'subjects' => 0, 'staff' => 0];
+	if ($schoolId < 1) {
+		return $result;
+	}
+
+	if (!$seedDefaults) {
+		return $result;
+	}
+
+	$defaultClasses = [
+		['Form 1', 7],
+		['Form 2', 8],
+		['Form 3', 9],
+		['Form 4', 10],
+	];
+	$defaultSubjects = [
+		['Mathematics', 'MATH'],
+		['English', 'ENG'],
+		['Kiswahili', 'KIS'],
+		['Biology', 'BIO'],
+		['Chemistry', 'CHEM'],
+		['Physics', 'PHY'],
+		['Geography', 'GEO'],
+		['History', 'HIST'],
+		['CRE', 'CRE'],
+		['Business Studies', 'BUS'],
+		['Agriculture', 'AGR'],
+		['Computer Studies', 'COMP'],
+	];
+
+		if (app_table_exists($conn, 'tbl_classes')) {
+			$classesExist = app_column_exists($conn, 'tbl_classes', 'school_id');
+			if ($classesExist) {
+				$stmt = $conn->prepare('SELECT COUNT(*) FROM tbl_classes WHERE school_id = ?');
+				$stmt->execute([$schoolId]);
+				if ((int)$stmt->fetchColumn() === 0) {
+					if (!app_column_exists($conn, 'tbl_classes', 'school_id')) {
+						$conn->exec("ALTER TABLE tbl_classes ADD COLUMN school_id int DEFAULT NULL");
+					}
+					$classHasRegistrationDate = app_column_exists($conn, 'tbl_classes', 'registration_date');
+					$insert = $classHasRegistrationDate
+						? $conn->prepare('INSERT INTO tbl_classes (school_id, name, registration_date, grade) VALUES (?,?,?,?)')
+						: $conn->prepare('INSERT INTO tbl_classes (school_id, name, grade) VALUES (?,?,?)');
+					foreach ($defaultClasses as $classRow) {
+						if ($classHasRegistrationDate) {
+							$insert->execute([$schoolId, $classRow[0], date('Y-m-d'), $classRow[1]]);
+						} else {
+							$insert->execute([$schoolId, $classRow[0], $classRow[1]]);
+						}
+						$result['classes']++;
+					}
+				}
+			}
+	}
+
+	if (app_table_exists($conn, 'tbl_subjects')) {
+		$subjectsExist = app_column_exists($conn, 'tbl_subjects', 'school_id');
+		if ($subjectsExist) {
+			$stmt = $conn->prepare('SELECT COUNT(*) FROM tbl_subjects WHERE school_id = ?');
+			$stmt->execute([$schoolId]);
+				if ((int)$stmt->fetchColumn() === 0) {
+					if (!app_column_exists($conn, 'tbl_subjects', 'school_id')) {
+						$conn->exec("ALTER TABLE tbl_subjects ADD COLUMN school_id int DEFAULT NULL");
+					}
+					$subjectHasCode = app_column_exists($conn, 'tbl_subjects', 'code');
+					$insert = $subjectHasCode
+						? $conn->prepare('INSERT INTO tbl_subjects (school_id, name, code) VALUES (?,?,?)')
+						: $conn->prepare('INSERT INTO tbl_subjects (school_id, name) VALUES (?,?)');
+					foreach ($defaultSubjects as $subjectRow) {
+						if ($subjectHasCode) {
+							$insert->execute([$schoolId, $subjectRow[0], $subjectRow[1]]);
+						} else {
+							$insert->execute([$schoolId, $subjectRow[0]]);
+						}
+						$result['subjects']++;
+					}
+				}
+			}
+	}
+
+	if (app_table_exists($conn, 'tbl_staff') && app_column_exists($conn, 'tbl_staff', 'school_id')) {
+		$stmt = $conn->prepare('SELECT COUNT(*) FROM tbl_staff WHERE school_id = ? AND level = 0');
+		$stmt->execute([$schoolId]);
+		if ((int)$stmt->fetchColumn() === 0) {
+			$adminEmail = strtolower(preg_replace('/[^a-z0-9]+/i', '.', trim($schoolName !== '' ? $schoolName : 'school'))) . '.admin@local';
+			$adminEmail = preg_replace('/\.+/', '.', trim($adminEmail, '.'));
+			if ($adminEmail === '@local') {
+				$adminEmail = 'school.admin@local';
+			}
+			$tempPassword = bin2hex(random_bytes(4));
+			$hash = password_hash($tempPassword, PASSWORD_DEFAULT);
+				$staffColumns = ['fname', 'lname', 'gender', 'email', 'password', 'level', 'status', 'school_id', 'force_password_change'];
+				$staffValues = ['School', 'Administrator', 'Male', $adminEmail, $hash, 0, 1, $schoolId, 1];
+				if (app_column_exists($conn, 'tbl_staff', 'registration_date')) {
+					$staffColumns[] = 'registration_date';
+					$staffValues[] = date('Y-m-d');
+				}
+				$placeholders = implode(',', array_fill(0, count($staffColumns), '?'));
+				$insert = $conn->prepare('INSERT INTO tbl_staff (' . implode(', ', $staffColumns) . ") VALUES ({$placeholders})");
+				$insert->execute($staffValues);
+			$result['staff']++;
+			$result['admin_email'] = $adminEmail;
+			$result['admin_password'] = $tempPassword;
+		}
+	}
+
+	return $result;
+}
+
+function app_student_tenant_school_id(PDO $conn, array $studentRow): int
+{
+	$tenantSchoolId = (int)($studentRow['tenant_school_id'] ?? 0);
+	if ($tenantSchoolId > 0) {
+		return $tenantSchoolId;
+	}
+
+	$classId = (int)($studentRow['class'] ?? 0);
+	if ($classId > 0 && app_table_exists($conn, 'tbl_classes') && app_column_exists($conn, 'tbl_classes', 'school_id')) {
+		try {
+			$stmt = $conn->prepare('SELECT school_id FROM tbl_classes WHERE id = ? LIMIT 1');
+			$stmt->execute([$classId]);
+			return (int)$stmt->fetchColumn();
+		} catch (Throwable $e) {
+			return 0;
+		}
+	}
+
+	return 0;
+}
+
 function app_staff_has_permission_code(PDO $conn, int $staffId, string $permissionCode): bool
 {
 	static $cache = [];
@@ -882,6 +1303,9 @@ function app_staff_has_permission_code(PDO $conn, int $staffId, string $permissi
 
 function app_staff_login_portal(PDO $conn, int $staffId, string $level): string
 {
+	if (app_is_super_admin_controller($conn, (string)$staffId, $level)) {
+		return 'super_admin';
+	}
 	// Check primary staff level first (not BOM permissions)
 	if (in_array($level, ['0', '9'], true)) {
 		return 'admin';
@@ -1579,6 +2003,96 @@ function app_ensure_sms_wallet_tables(PDO $conn): void
 		$stmt = $conn->prepare("INSERT INTO tbl_sms_wallets (id, wallet_name, phone_number, balance_tokens, status) VALUES (1, 'School SMS Wallet', '', 0, 1)");
 		$stmt->execute();
 	}
+}
+
+function app_ensure_sms_settings_table(PDO $conn): void
+{
+	if (!app_table_exists($conn, 'tbl_sms_settings')) {
+		if (defined('DBDriver') && DBDriver === 'pgsql') {
+			$conn->exec("CREATE TABLE IF NOT EXISTS tbl_sms_settings (
+			id integer GENERATED BY DEFAULT AS IDENTITY NOT NULL,
+			provider varchar(80) NOT NULL DEFAULT 'custom',
+			api_url varchar(255) NOT NULL DEFAULT '',
+			api_key varchar(200) NOT NULL DEFAULT '',
+			sender_id varchar(50) NOT NULL DEFAULT '',
+			status integer NOT NULL DEFAULT 0,
+			created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (id)
+		)");
+		} else {
+			$conn->exec("CREATE TABLE IF NOT EXISTS tbl_sms_settings (
+			id int NOT NULL AUTO_INCREMENT,
+			provider varchar(80) NOT NULL DEFAULT 'custom',
+			api_url varchar(255) NOT NULL DEFAULT '',
+			api_key varchar(200) NOT NULL DEFAULT '',
+			sender_id varchar(50) NOT NULL DEFAULT '',
+			status int NOT NULL DEFAULT 0,
+			created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (id)
+		)");
+		}
+	}
+
+	try {
+		$stmt = $conn->prepare('SELECT id FROM tbl_sms_settings ORDER BY id ASC LIMIT 1');
+		$stmt->execute();
+		if (!$stmt->fetchColumn()) {
+			$stmt = $conn->prepare("INSERT INTO tbl_sms_settings (provider, api_url, api_key, sender_id, status) VALUES (?,?,?,?,?)");
+			$stmt->execute(['ots', 'https://sms.ots.co.ke/api/services/sendsms', '', '', 0]);
+		}
+	} catch (Throwable $e) {
+		error_log('['.__FILE__.':'.__LINE__.'] '.$e->getMessage());
+	}
+}
+
+function app_ensure_staff_password_policy_columns(PDO $conn): void
+{
+	static $done = false;
+	if ($done || !app_table_exists($conn, 'tbl_staff')) {
+		$done = true;
+		return;
+	}
+
+	if (!app_column_exists($conn, 'tbl_staff', 'force_password_change')) {
+		if (defined('DBDriver') && DBDriver === 'pgsql') {
+			$conn->exec("ALTER TABLE tbl_staff ADD COLUMN IF NOT EXISTS force_password_change integer NOT NULL DEFAULT 0");
+		} else {
+			$conn->exec("ALTER TABLE tbl_staff ADD COLUMN force_password_change int NOT NULL DEFAULT 0");
+		}
+	}
+
+	if (!app_column_exists($conn, 'tbl_staff', 'password_changed_at')) {
+		if (defined('DBDriver') && DBDriver === 'pgsql') {
+			$conn->exec("ALTER TABLE tbl_staff ADD COLUMN IF NOT EXISTS password_changed_at timestamp NULL");
+		} else {
+			$conn->exec("ALTER TABLE tbl_staff ADD COLUMN password_changed_at datetime NULL");
+		}
+	}
+
+	$done = true;
+}
+
+function app_staff_password_is_default(string $passwordHash): bool
+{
+	foreach (['Password123', '12345678'] as $defaultPassword) {
+		if ($passwordHash !== '' && password_verify($defaultPassword, $passwordHash)) {
+			return true;
+		}
+	}
+	return false;
+}
+
+function app_staff_requires_password_change(array $staffRow, string $effectiveLevel): bool
+{
+	if ((string)$effectiveLevel !== '2') {
+		return false;
+	}
+
+	if ((int)($staffRow['force_password_change'] ?? 0) === 1) {
+		return true;
+	}
+
+	return app_staff_password_is_default((string)($staffRow['password'] ?? ''));
 }
 
 function app_ensure_mpesa_request_fields(PDO $conn): void
@@ -2475,6 +2989,34 @@ function app_exam_teacher_can_reenter(PDO $conn, int $examId, int $subjectCombin
 	return app_exam_submission_status_for_teacher($conn, $examId, $subjectCombinationId, $teacherId) === 'rejected';
 }
 
+function app_teacher_can_enter_exam_subject(PDO $conn, int $teacherId, int $examId, int $subjectCombinationId): bool
+{
+	if ($teacherId < 1 || $examId < 1 || $subjectCombinationId < 1) {
+		return false;
+	}
+	if (app_current_user_can_override_marks()) {
+		return true;
+	}
+	if (!app_table_exists($conn, 'tbl_subject_combinations')) {
+		return false;
+	}
+	$stmt = $conn->prepare("SELECT teacher, subject, class FROM tbl_subject_combinations WHERE id = ? LIMIT 1");
+	$stmt->execute([$subjectCombinationId]);
+	$combo = $stmt->fetch(PDO::FETCH_ASSOC);
+	if (!$combo) {
+		return false;
+	}
+	if ((int)$combo['teacher'] === (int)$teacherId) {
+		return true;
+	}
+	if (!app_table_exists($conn, 'tbl_teacher_assignments')) {
+		return false;
+	}
+	$stmt = $conn->prepare("SELECT 1 FROM tbl_teacher_assignments WHERE teacher_id = ? AND subject_id = ? AND class_id = ? AND status = 1 LIMIT 1");
+	$stmt->execute([$teacherId, (int)$combo['subject'], (int)$combo['class']]);
+	return (bool)$stmt->fetchColumn();
+}
+
 function app_exam_status_badge(string $status): string
 {
 	$normalized = strtolower(trim($status));
@@ -2684,6 +3226,27 @@ function app_ensure_promotion_workflow_schema(PDO $conn): void
 			foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) as $studentId) {
 				$schoolId = app_generate_school_id($conn, 'STD', (int)date('Y'), 'tbl_students');
 				$update->execute([$schoolId, (string)$studentId]);
+			}
+		} catch (Throwable $e) {
+			// Best effort only.
+		}
+	}
+
+	if (app_table_exists($conn, 'tbl_students') && !app_column_exists($conn, 'tbl_students', 'tenant_school_id')) {
+		$conn->exec("ALTER TABLE tbl_students ADD COLUMN tenant_school_id int DEFAULT NULL");
+	}
+	if (app_table_exists($conn, 'tbl_students') && app_column_exists($conn, 'tbl_students', 'tenant_school_id') && app_table_exists($conn, 'tbl_classes') && app_column_exists($conn, 'tbl_classes', 'school_id')) {
+		try {
+			$stmt = $conn->query("SELECT st.id, c.school_id
+				FROM tbl_students st
+				LEFT JOIN tbl_classes c ON c.id = st.class
+				WHERE st.tenant_school_id IS NULL");
+			$update = $conn->prepare("UPDATE tbl_students SET tenant_school_id = ? WHERE id = ?");
+			foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+				$tenantSchoolId = (int)($row['school_id'] ?? 0);
+				if ($tenantSchoolId > 0) {
+					$update->execute([$tenantSchoolId, (string)$row['id']]);
+				}
 			}
 		} catch (Throwable $e) {
 			// Best effort only.
@@ -4708,6 +5271,47 @@ function app_next_student_registration_number(PDO $conn): string
 	} catch (Throwable $e) {
 		return (string)$start;
 	}
+}
+
+function app_generate_student_email(PDO $conn, string $studentId): string
+{
+	return app_generate_student_login_email($conn, (string)$studentId, '', '');
+}
+
+function app_generate_student_login_email(PDO $conn, string $fname, string $lname = '', string $classRef = ''): string
+{
+	$localParts = [];
+	foreach ([$fname, $lname] as $part) {
+		$part = strtolower((string)preg_replace('/[^a-z0-9]+/', '.', trim($part)));
+		$part = trim($part, '.');
+		if ($part !== '') {
+			$localParts[] = $part;
+		}
+	}
+	if (empty($localParts)) {
+		$localParts[] = 'student';
+	}
+	$baseLocal = implode('.', $localParts);
+
+	$classSlug = strtolower((string)preg_replace('/[^a-z0-9]+/', '', trim($classRef)));
+	$domain = 'student' . ($classSlug !== '' ? $classSlug : 'login');
+	if (preg_match('/(\d+)/', $classSlug, $match)) {
+		$domain = 'studentgrade' . $match[1];
+	}
+
+	$email = $baseLocal . '@' . $domain;
+	$counter = 1;
+	do {
+		$stmt = $conn->prepare("SELECT 1 FROM tbl_staff WHERE email = ? UNION SELECT 1 FROM tbl_students WHERE email = ? LIMIT 1");
+		$stmt->execute([$email, $email]);
+		$exists = (bool)$stmt->fetchColumn();
+		if ($exists) {
+			$counter++;
+			$email = $baseLocal . $counter . '@' . $domain;
+		}
+	} while ($exists);
+
+	return $email;
 }
 
 function app_default_overall_grading_rows(): array
@@ -7301,6 +7905,30 @@ function app_staff_is_active_class_teacher(PDO $conn, int $staffId, int $classId
 		return (bool)$stmt->fetchColumn();
 	} catch (Throwable $e) {
 		return false;
+	}
+}
+
+function app_class_teacher_name(PDO $conn, int $classId): string
+{
+	if ($classId < 1) {
+		return '';
+	}
+
+	app_ensure_class_teachers_table($conn);
+	if (!app_table_exists($conn, 'tbl_class_teachers')) {
+		return '';
+	}
+
+	try {
+		$stmt = $conn->prepare("SELECT concat_ws(' ', s.fname, s.lname) AS teacher_name
+			FROM tbl_class_teachers ct
+			JOIN tbl_staff s ON s.id = ct.teacher_id
+			WHERE ct.class_id = ? AND ct.active = 1
+			LIMIT 1");
+		$stmt->execute([$classId]);
+		return trim((string)$stmt->fetchColumn());
+	} catch (Throwable $e) {
+		return '';
 	}
 }
 

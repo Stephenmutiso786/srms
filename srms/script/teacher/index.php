@@ -6,7 +6,8 @@ require_once('const/school.php');
 require_once('const/check_session.php');
 require_once('const/rbac.php');
 require_once('const/report_engine.php');
-if ($res == "1" && $level == "2") {}else{header("location:../"); exit;}
+$canOverrideMarks = app_current_user_can_override_marks();
+if ($res == "1" && ($level == "2" || $canOverrideMarks)) {}else{header("location:../"); exit;}
 
 $notifications = [];
 $announcements = [];
@@ -30,14 +31,19 @@ $promotionQueue = [];
 $autoPromotionRun = [];
 $isSeniorTeacher = false;
 $teacherGapWarnings = [];
+$classTeacherClassIds = [];
+$classTeacherPanels = [];
+$dashboardEntryCards = [];
 $error = '';
 $showDownloadsShortcut = false;
+$isClassTeacher = false;
 
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-	$year = (int)date('Y');
-
+	$schoolId = app_current_school_id();
+	$hasClassSchool = app_column_exists($conn, 'tbl_classes', 'school_id');
+	$hasStudentSchool = app_column_exists($conn, 'tbl_students', 'school_id');
 	if (app_table_exists($conn, 'tbl_teacher_assignments')) {
 		$stmt = $conn->prepare("SELECT ta.class_id, ta.subject_id, ta.term_id,
 			c.name AS class_name, s.name AS subject_name, t.name AS term_name
@@ -45,9 +51,9 @@ try {
 			LEFT JOIN tbl_classes c ON c.id = ta.class_id
 			LEFT JOIN tbl_subjects s ON s.id = ta.subject_id
 			LEFT JOIN tbl_terms t ON t.id = ta.term_id
-			WHERE ta.teacher_id = ? AND ta.status = 1 AND ta.year = ?
+			WHERE ta.teacher_id = ? AND ta.status = 1
 			ORDER BY ta.class_id, ta.subject_id");
-		$stmt->execute([(int)$account_id, $year]);
+		$stmt->execute([(int)$account_id]);
 		$assignments = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	} else {
 		$stmt = $conn->prepare("SELECT sc.subject AS subject_id, s.name AS subject_name, c.id AS class_id, c.name AS class_name
@@ -60,6 +66,8 @@ try {
 	}
 
 	$roleNames = app_staff_role_names($conn, (int)$account_id);
+	$classTeacherClassIds = app_staff_class_teacher_ids($conn, (int)$account_id);
+	$isClassTeacher = !empty($classTeacherClassIds);
 	$isSeniorTeacher = in_array('Senior Teacher', $roleNames, true) || app_staff_has_role_name($conn, (int)$account_id, 'Senior Teacher');
 	if ($isSeniorTeacher) {
 		app_ensure_promotion_workflow_schema($conn);
@@ -85,6 +93,14 @@ try {
 			$termOptions[(int)$assignment['term_id']] = (string)$assignment['term_name'];
 		}
 	}
+	if (!empty($classTeacherClassIds)) {
+		$placeholders = implode(',', array_fill(0, count($classTeacherClassIds), '?'));
+		$stmt = $conn->prepare("SELECT id, name FROM tbl_classes WHERE id IN ($placeholders) ORDER BY name");
+		$stmt->execute($classTeacherClassIds);
+		foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $classRow) {
+			$classOptions[(int)$classRow['id']] = (string)$classRow['name'];
+		}
+	}
 	$classOptions = app_sort_named_options($classOptions, 'class');
 	$termOptions = app_sort_named_options($termOptions, 'term');
 
@@ -93,9 +109,75 @@ try {
 
 	if (!empty($classOptions)) {
 		$placeholders = implode(',', array_fill(0, count($classOptions), '?'));
-		$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_students WHERE class IN ($placeholders)");
-		$stmt->execute(array_keys($classOptions));
+		$studentSql = $hasStudentSchool
+			? "SELECT COUNT(*) FROM tbl_students WHERE class IN ($placeholders) AND (school_id IS NULL OR school_id = ?)"
+			: "SELECT COUNT(*) FROM tbl_students WHERE class IN ($placeholders)";
+		$stmt = $conn->prepare($studentSql);
+		$params = array_keys($classOptions);
+		if ($hasStudentSchool) {
+			$params[] = $schoolId;
+		}
+		$stmt->execute($params);
 		$summary['students'] = (int)$stmt->fetchColumn();
+	}
+
+	foreach ($classTeacherClassIds as $ctClassId) {
+		$classNameForPanel = $classOptions[(int)$ctClassId] ?? '';
+		if ($classNameForPanel === '') {
+			$stmt = $conn->prepare("SELECT name FROM tbl_classes WHERE id = ? LIMIT 1");
+			$stmt->execute([(int)$ctClassId]);
+			$classNameForPanel = (string)$stmt->fetchColumn();
+		}
+
+		$panelStudentSql = $hasStudentSchool
+			? "SELECT id, school_id, concat_ws(' ', fname, mname, lname) AS student_name, gender
+				FROM tbl_students
+				WHERE class = ? AND (school_id IS NULL OR school_id = ?)
+				ORDER BY fname, lname
+				LIMIT 30"
+			: "SELECT id, school_id, concat_ws(' ', fname, mname, lname) AS student_name, gender
+				FROM tbl_students
+				WHERE class = ?
+				ORDER BY fname, lname
+				LIMIT 30";
+		$stmt = $conn->prepare($panelStudentSql);
+		$stmt->execute($hasStudentSchool ? [(int)$ctClassId, $schoolId] : [(int)$ctClassId]);
+		$panelStudents = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+		$panelTeachers = [];
+		if (app_table_exists($conn, 'tbl_teacher_assignments')) {
+			$stmt = $conn->prepare("SELECT DISTINCT st.id, concat_ws(' ', st.fname, st.lname) AS teacher_name, sb.name AS subject_name, tr.name AS term_name
+				FROM tbl_teacher_assignments ta
+				JOIN tbl_staff st ON st.id = ta.teacher_id
+				JOIN tbl_subjects sb ON sb.id = ta.subject_id
+				LEFT JOIN tbl_terms tr ON tr.id = ta.term_id
+				WHERE ta.class_id = ? AND ta.status = 1
+				ORDER BY sb.name, teacher_name");
+			$stmt->execute([(int)$ctClassId]);
+			$panelTeachers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		}
+
+		$performance = ['entries' => 0, 'average' => 0.0, 'best' => 0.0];
+		if (app_table_exists($conn, 'tbl_exam_results')) {
+			$stmt = $conn->prepare("SELECT COUNT(*) AS entries, AVG(score) AS average_score, MAX(score) AS best_score
+				FROM tbl_exam_results
+				WHERE class = ?");
+			$stmt->execute([(int)$ctClassId]);
+			$perfRow = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+			$performance = [
+				'entries' => (int)($perfRow['entries'] ?? 0),
+				'average' => round((float)($perfRow['average_score'] ?? 0), 2),
+				'best' => round((float)($perfRow['best_score'] ?? 0), 2),
+			];
+		}
+
+		$classTeacherPanels[] = [
+			'class_id' => (int)$ctClassId,
+			'class_name' => $classNameForPanel !== '' ? $classNameForPanel : ('Class #' . (int)$ctClassId),
+			'students' => $panelStudents,
+			'teachers' => $panelTeachers,
+			'performance' => $performance,
+		];
 	}
 
 	if ($selectedClass < 1 && !empty($classOptions)) {
@@ -139,6 +221,71 @@ try {
 				'missing_students_count' => (int)($missingSubject['missing_students_count'] ?? 0),
 				'missing_students' => array_slice((array)($missingSubject['missing_students'] ?? []), 0, 5),
 			];
+		}
+	}
+
+	foreach ($examOptions as $examId => $examRow) {
+		foreach ($assignments as $assignment) {
+			if ((int)($assignment['class_id'] ?? 0) !== (int)($examRow['class_id'] ?? 0)) {
+				continue;
+			}
+			if ((int)($assignment['term_id'] ?? 0) > 0 && (int)($assignment['term_id'] ?? 0) !== (int)($examRow['term_id'] ?? 0)) {
+				continue;
+			}
+			if (!app_exam_has_subject($conn, (int)$examId, (int)($assignment['subject_id'] ?? 0))) {
+				continue;
+			}
+			$comboId = app_get_teacher_subject_combination_id($conn, (int)$account_id, (int)$assignment['subject_id'], (int)$examRow['class_id'], true);
+			if ($comboId < 1) {
+				continue;
+			}
+			$dashboardEntryCards[] = [
+				'exam_id' => (int)$examId,
+				'exam_name' => (string)($examRow['name'] ?? ''),
+				'class_name' => (string)($classOptions[(int)($examRow['class_id'] ?? 0)] ?? ''),
+				'term_name' => (string)($termOptions[(int)($examRow['term_id'] ?? 0)] ?? ''),
+				'assessment_mode' => (string)($examRow['assessment_mode'] ?? 'normal'),
+				'subject_combination' => $comboId,
+				'subject_name' => (string)($assignment['subject_name'] ?? ''),
+			];
+		}
+	}
+
+	if ($canOverrideMarks) {
+		$subjectSql = app_column_exists($conn, 'tbl_subjects', 'school_id')
+			? "SELECT id, name FROM tbl_subjects WHERE school_id IS NULL OR school_id = ? ORDER BY name"
+			: "SELECT id, name FROM tbl_subjects ORDER BY name";
+		$stmt = $conn->prepare($subjectSql);
+		$stmt->execute(app_column_exists($conn, 'tbl_subjects', 'school_id') ? [$schoolId] : []);
+		$allSubjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+		foreach ($examOptions as $examId => $examRow) {
+			$examSubjectIds = app_exam_subject_ids($conn, (int)$examId);
+			$subjectPool = !empty($examSubjectIds) ? $examSubjectIds : array_map(static fn($r) => (int)$r['id'], $allSubjects);
+			foreach ($subjectPool as $subjectId) {
+				$subjectName = '';
+				foreach ($allSubjects as $subjectRow) {
+					if ((int)$subjectRow['id'] === (int)$subjectId) {
+						$subjectName = (string)$subjectRow['name'];
+						break;
+					}
+				}
+				if ($subjectName === '') {
+					continue;
+				}
+				$comboId = app_get_teacher_subject_combination_id($conn, (int)$account_id, (int)$subjectId, (int)$examRow['class_id'], true);
+				if ($comboId < 1) {
+					continue;
+				}
+				$dashboardEntryCards[] = [
+					'exam_id' => (int)$examId,
+					'exam_name' => (string)($examRow['name'] ?? ''),
+					'class_name' => (string)($classOptions[(int)($examRow['class_id'] ?? 0)] ?? ''),
+					'term_name' => (string)($termOptions[(int)($examRow['term_id'] ?? 0)] ?? ''),
+					'assessment_mode' => (string)($examRow['assessment_mode'] ?? 'normal'),
+					'subject_combination' => $comboId,
+					'subject_name' => $subjectName,
+				];
+			}
 		}
 	}
 
@@ -341,9 +488,23 @@ body.app{background:#f4f7f6}
 
 	<?php include('teacher/partials/sidebar.php'); ?>
 	<main class="app-content dashboard">
-			<?php if ($error !== '') { ?>
-			<div class="tile"><div class="alert alert-danger mb-0"><?php echo htmlspecialchars($error); ?></div></div>
-			<?php } else { ?>
+	<?php if ($error !== '') { ?>
+	<div class="tile"><div class="alert alert-danger mb-0"><?php echo htmlspecialchars($error); ?></div></div>
+	<?php } else { ?>
+			<?php if ($isClassTeacher) { ?>
+			<div class="tile mb-3">
+				<div class="alert alert-primary mb-0 d-flex flex-wrap align-items-center justify-content-between gap-3">
+					<div>
+						<div class="fw-bold">Class Admin Access</div>
+						<div class="small mb-0">You are allocated as class teacher for <?php echo count($classTeacherClassIds); ?> class<?php echo count($classTeacherClassIds) === 1 ? '' : 'es'; ?>. Your dashboard shows class-admin tools, attendance, and class lists for those classes.</div>
+					</div>
+					<div class="d-flex flex-wrap gap-2">
+						<span class="badge bg-light text-dark border">Role: Class Admin</span>
+						<span class="badge bg-light text-dark border">Role: Teacher</span>
+					</div>
+				</div>
+			</div>
+			<?php } ?>
 			<div class="dashboard-hero">
 				<div class="d-flex justify-content-between flex-wrap gap-3">
 					<div class="hero-main">
@@ -377,7 +538,7 @@ body.app{background:#f4f7f6}
 							<option value="0">No Exam Found</option>
 						<?php endif; ?>
 					</select>
-					<a class="btn btn-light" href="teacher/exam_marks_entry">Open Exams</a>
+					<a class="btn btn-light" href="teacher/exam_marks_entry">Open Allocated Marks</a>
 					<?php if ($showDownloadsShortcut): ?>
 					<a class="btn btn-light" href="teacher/downloads_center">Downloads Hub</a>
 					<?php endif; ?>
@@ -399,10 +560,43 @@ body.app{background:#f4f7f6}
 					</div>
 					<?php endforeach; ?>
 					<div class="mt-2">
-						<a class="btn btn-sm btn-outline-danger" href="teacher/exam_marks_entry">Open Marks Entry</a>
+						<a class="btn btn-sm btn-outline-danger" href="teacher/exam_marks_entry">Open Allocated Marks</a>
 					</div>
 				</div>
 			</div>
+			<?php } ?>
+
+			<?php if (!empty($dashboardEntryCards)) { ?>
+			<section class="tile mb-3">
+				<h3 class="tile-title">Allocated Exam Entries</h3>
+				<div class="small text-muted mb-3">These are the exact exam and subject combinations available to you right now.</div>
+				<div class="row g-3">
+					<?php foreach ($dashboardEntryCards as $card): ?>
+					<div class="col-md-6 col-lg-4">
+						<div class="border rounded-4 p-3 h-100" style="background:linear-gradient(180deg,#ffffff,#f7fbf9);">
+							<div class="d-flex justify-content-between gap-2 mb-2">
+								<div>
+									<div class="fw-bold text-success"><?php echo htmlspecialchars((string)$card['exam_name']); ?></div>
+									<div class="small text-muted"><?php echo htmlspecialchars((string)$card['class_name'] . ' · ' . (string)$card['term_name']); ?></div>
+								</div>
+								<span class="badge bg-light text-dark"><?php echo htmlspecialchars(strtoupper((string)$card['assessment_mode'])); ?></span>
+							</div>
+							<div class="mb-3">
+								<div class="small text-muted">Subject</div>
+								<div class="fw-bold"><?php echo htmlspecialchars((string)$card['subject_name']); ?></div>
+							</div>
+							<form method="POST" action="teacher/core/start_exam_entry">
+								<input type="hidden" name="exam_id" value="<?php echo (int)$card['exam_id']; ?>">
+								<input type="hidden" name="subject_combination" value="<?php echo (int)$card['subject_combination']; ?>">
+								<input type="hidden" name="assessment_mode" value="<?php echo htmlspecialchars((string)$card['assessment_mode']); ?>">
+								<input type="hidden" name="origin_portal" value="teacher">
+								<button class="btn btn-sm btn-primary w-100" type="submit">Open Marks Entry</button>
+							</form>
+						</div>
+					</div>
+					<?php endforeach; ?>
+				</div>
+			</section>
 			<?php } ?>
 
 			<div class="dashboard-stats">
@@ -412,6 +606,75 @@ body.app{background:#f4f7f6}
 				<div class="stat-card"><div class="label">Selected Avg</div><div class="value"><?php echo number_format((float)$summary['avg'],2); ?></div></div>
 				<div class="stat-card"><div class="label">Best Score</div><div class="value"><?php echo number_format((float)$summary['best'],0); ?></div></div>
 			</div>
+
+			<?php if (!empty($classTeacherPanels)): ?>
+			<section class="tile mb-3">
+				<h3 class="tile-title">My Class Teacher Classes</h3>
+				<div class="small text-muted mb-3">Students, subject teachers, and performance overview for classes allocated to you as class teacher.</div>
+				<div class="mb-3">
+					<span class="badge bg-primary me-2">Class Admin</span>
+					<span class="badge bg-secondary">Teacher</span>
+				</div>
+				<?php foreach ($classTeacherPanels as $panel): ?>
+				<div class="border rounded p-3 mb-3">
+					<div class="d-flex flex-wrap justify-content-between gap-2 mb-3">
+						<div>
+							<h5 class="mb-1"><?php echo htmlspecialchars((string)$panel['class_name']); ?></h5>
+							<div class="small text-muted">Class teacher view</div>
+						</div>
+						<div class="d-flex flex-wrap gap-2">
+							<span class="badge bg-light text-dark border">Students: <?php echo count((array)$panel['students']); ?></span>
+							<span class="badge bg-light text-dark border">Marks: <?php echo (int)$panel['performance']['entries']; ?></span>
+							<span class="badge bg-light text-dark border">Average: <?php echo number_format((float)$panel['performance']['average'], 2); ?></span>
+							<span class="badge bg-light text-dark border">Best: <?php echo number_format((float)$panel['performance']['best'], 2); ?></span>
+						</div>
+					</div>
+					<div class="row">
+						<div class="col-md-6 mb-3">
+							<h6 class="fw-bold">Teachers Teaching This Class</h6>
+							<div class="table-responsive">
+								<table class="table table-sm table-hover">
+									<thead><tr><th>Subject</th><th>Teacher</th><th>Term</th></tr></thead>
+									<tbody>
+									<?php if (empty($panel['teachers'])): ?><tr><td colspan="3" class="text-muted">No subject teachers allocated yet.</td></tr><?php endif; ?>
+									<?php foreach ((array)$panel['teachers'] as $teacherRow): ?>
+									<tr>
+										<td><?php echo htmlspecialchars((string)$teacherRow['subject_name']); ?></td>
+										<td><?php echo htmlspecialchars((string)$teacherRow['teacher_name']); ?></td>
+										<td><?php echo htmlspecialchars((string)($teacherRow['term_name'] ?? '')); ?></td>
+									</tr>
+									<?php endforeach; ?>
+									</tbody>
+								</table>
+							</div>
+						</div>
+						<div class="col-md-6 mb-3">
+							<h6 class="fw-bold">Students In This Class</h6>
+							<div class="table-responsive">
+								<table class="table table-sm table-hover">
+									<thead><tr><th>Student</th><th>School ID</th><th>Gender</th></tr></thead>
+									<tbody>
+									<?php if (empty($panel['students'])): ?><tr><td colspan="3" class="text-muted">No students found in this class.</td></tr><?php endif; ?>
+									<?php foreach ((array)$panel['students'] as $studentRow): ?>
+									<tr>
+										<td><?php echo htmlspecialchars((string)$studentRow['student_name']); ?></td>
+										<td><?php echo htmlspecialchars((string)($studentRow['school_id'] ?: $studentRow['id'])); ?></td>
+										<td><?php echo htmlspecialchars((string)$studentRow['gender']); ?></td>
+									</tr>
+									<?php endforeach; ?>
+									</tbody>
+								</table>
+							</div>
+						</div>
+					</div>
+					<div class="d-flex flex-wrap gap-2">
+						<a class="btn btn-outline-primary btn-sm" href="teacher/print_class_list?class_id=<?php echo (int)$panel['class_id']; ?>">Print Class List</a>
+						<a class="btn btn-outline-secondary btn-sm" href="teacher/class_report?class_id=<?php echo (int)$panel['class_id']; ?>">Open Class Report</a>
+					</div>
+				</div>
+				<?php endforeach; ?>
+			</section>
+			<?php endif; ?>
 
 			<div class="access-grid mb-3">
 				<div class="access-card roles">

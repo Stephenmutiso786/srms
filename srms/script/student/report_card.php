@@ -80,9 +80,7 @@ try {
 				break;
 			}
 		}
-		if (!$isPublished) {
-			$card = null;
-		} elseif (app_table_exists($conn, 'tbl_report_cards')) {
+		if (app_table_exists($conn, 'tbl_report_cards')) {
 			if ($selectedExam) {
 				$examSummary = report_exam_summary($conn, $studentId, (int)$class, $termId, (int)$selectedExam['id']);
 				$examBreakdown = report_exam_subject_breakdown($conn, $studentId, (int)$class, $termId, (int)$selectedExam['id']);
@@ -137,7 +135,7 @@ try {
 	background: #fff;
 	border: 1px solid var(--report-line);
 	border-radius: 18px;
-	padding: 14px 16px;
+	padding: 16px 18px;
 	box-shadow: 0 14px 40px rgba(17, 61, 103, 0.08);
 }
 
@@ -183,14 +181,14 @@ try {
 }
 
 .report-brand__name {
-	font-size: 1.32rem;
+	font-size: 1.48rem;
 	font-weight: 800;
 	line-height: 1.05;
 	margin: 0;
 }
 
 .report-brand__meta {
-	font-size: 0.79rem;
+	font-size: 0.88rem;
 	line-height: 1.45;
 	opacity: 0.92;
 }
@@ -207,21 +205,21 @@ try {
 }
 
 .report-section {
-	padding: 24px;
+	padding: 28px;
 	border-bottom: 1px solid var(--report-line);
 	background: linear-gradient(180deg, #fff 0%, #fbfdff 100%);
 }
 
 .student-grid {
 	display: grid;
-	grid-template-columns: 176px minmax(0, 1.4fr) minmax(0, 1.05fr);
-	gap: 18px;
+	grid-template-columns: 192px minmax(0, 1.4fr) minmax(0, 1.08fr);
+	gap: 22px;
 	align-items: stretch;
 }
 
 .student-photo {
-	width: 176px;
-	height: 204px;
+	width: 192px;
+	height: 224px;
 	border-radius: 18px;
 	border: 1px solid var(--report-line);
 	background: linear-gradient(180deg, #f9fcff 0%, #eef6fb 100%);
@@ -238,7 +236,7 @@ try {
 }
 
 .student-fallback {
-	font-size: 2rem;
+	font-size: 2.2rem;
 	font-weight: 800;
 	color: #1f4d75;
 	letter-spacing: 0.05em;
@@ -258,8 +256,8 @@ try {
 .snapshot-card__head,
 .data-card__head,
 .remarks-card__head {
-	padding: 10px 12px;
-	font-size: 0.78rem;
+	padding: 12px 14px;
+	font-size: 0.84rem;
 	font-weight: 800;
 	text-transform: uppercase;
 	letter-spacing: 0.06em;
@@ -271,11 +269,11 @@ try {
 .snapshot-card__body,
 .remarks-card__body,
 .data-card__body {
-	padding: 18px 20px;
+	padding: 20px 22px;
 }
 
 .student-details {
-	padding: 22px 24px;
+	padding: 26px 28px;
 	border: 1px solid var(--report-line);
 	border-radius: 20px;
 	background: linear-gradient(180deg, #fcfdff 0%, var(--report-soft) 100%);
@@ -284,13 +282,13 @@ try {
 
 .student-details h2 {
 	margin: 0 0 6px;
-	font-size: 1.42rem;
+	font-size: 1.6rem;
 	color: var(--report-ink);
 }
 
 .student-details p {
 	margin: 5px 0;
-	font-size: 0.95rem;
+	font-size: 1rem;
 	color: #324450;
 }
 
@@ -303,7 +301,7 @@ try {
 
 .pill {
 	border-radius: 14px;
-	padding: 11px 10px;
+	padding: 13px 12px;
 	background: #fff;
 	border: 1px solid var(--report-line);
 	font-size: 0.82rem;
@@ -313,7 +311,7 @@ try {
 
 .pill strong {
 	display: block;
-	font-size: 1.06rem;
+	font-size: 1.14rem;
 	margin-top: 4px;
 	color: var(--report-ink);
 }
@@ -325,13 +323,13 @@ try {
 
 .snapshot-row {
 	display: grid;
-	grid-template-columns: 112px 1fr;
-	gap: 10px;
+	grid-template-columns: 124px 1fr;
+	gap: 12px;
 	align-items: center;
 }
 
 .snapshot-row span {
-	font-size: 0.78rem;
+	font-size: 0.86rem;
 	color: #49606e;
 	white-space: nowrap;
 	overflow: hidden;
@@ -367,30 +365,30 @@ try {
 .stats-grid {
 	display: grid;
 	grid-template-columns: repeat(6, minmax(0, 1fr));
-	gap: 12px;
+	gap: 14px;
 	margin-top: 16px;
 }
 
 .stat-card {
 	background: linear-gradient(180deg, #fcfdff 0%, #f0f4f8 100%);
-	padding: 14px 11px;
+	padding: 16px 13px;
 	text-align: center;
 	border: 1px solid var(--report-line);
 	border-radius: 14px;
-	font-size: 0.84rem;
+	font-size: 0.94rem;
 	color: #30414d;
 }
 .stat-card strong {
 	display: block;
 	margin-top: 5px;
-	font-size: 1.06rem;
+	font-size: 1.16rem;
 	color: var(--report-ink);
 }
 
 .stat-card .dev {
 	display: block;
 	margin-top: 4px;
-	font-size: 0.76rem;
+	font-size: 0.84rem;
 	font-weight: 700;
 }
 
@@ -409,8 +407,8 @@ try {
 .performance-head {
 	background: linear-gradient(90deg, #0f2f4a, #1b4c73);
 	color: #fff;
-	padding: 12px 16px;
-	font-size: 0.82rem;
+	padding: 14px 18px;
+	font-size: 0.9rem;
 	font-weight: 800;
 	text-transform: uppercase;
 	letter-spacing: 0.05em;
@@ -424,16 +422,16 @@ try {
 .report-table th,
 .report-table td {
 	border: 1px solid #cad7e2;
-	padding: 11px 8px;
+	padding: 13px 10px;
 	text-align: left;
-	font-size: 0.86rem;
+	font-size: 0.98rem;
 	color: #1f2f3a;
 }
 .report-table thead th {
 	background: #f2f6fa;
 	font-weight: 700;
 	text-transform: uppercase;
-	font-size: 0.72rem;
+	font-size: 0.82rem;
 	letter-spacing: 0.03em;
 }
 .report-table td.center,
@@ -457,7 +455,7 @@ try {
 }
 .remarks p {
 	margin: 7px 0;
-	font-size: 0.88rem;
+	font-size: 0.98rem;
 	color: #293843;
 }
 
@@ -471,7 +469,7 @@ try {
 
 .verifier__body {
 	padding: 14px;
-	font-size: 0.86rem;
+	font-size: 0.96rem;
 	line-height: 1.45;
 	color: #31414d;
 }
@@ -481,8 +479,8 @@ try {
 	background: linear-gradient(90deg, #0f2f4a, #184f73);
 	color: #fff;
 	border-radius: 999px;
-	padding: 6px 10px;
-	font-size: 0.74rem;
+	padding: 7px 12px;
+	font-size: 0.82rem;
 	font-weight: 800;
 	text-transform: uppercase;
 	letter-spacing: 0.04em;
@@ -603,7 +601,7 @@ try {
 
 <?php if (!$card): ?>
 <div class="report-empty">
-	<p class="text-muted mb-0">This report is not visible yet. Current release stage: <strong><?php echo htmlspecialchars(ucfirst($publicationState)); ?></strong>. It will appear here after the school publishes results.</p>
+	<p class="text-muted mb-0">No report card could be generated yet. Current release stage: <strong><?php echo htmlspecialchars(ucfirst($publicationState)); ?></strong>.</p>
 </div>
 <?php else: ?>
 <?php
@@ -614,6 +612,11 @@ $logoExists = trim((string)WBLogo) !== '' && is_file($logoPath);
 <?php if ($blockReport): ?>
 <div class="report-empty mb-3" style="border-left:6px solid #d18b00;">
 	<p class="mb-0"><strong>Report card is temporarily unavailable until the fees balance is cleared.</strong></p>
+</div>
+<?php endif; ?>
+<?php if (!$isPublished): ?>
+<div class="report-empty mb-3" style="border-left:6px solid #00aeef;">
+	<p class="mb-0"><strong>Preview mode:</strong> results are not published yet, but the report card template is shown here for review.</p>
 </div>
 <?php endif; ?>
 <div class="report-actions d-flex flex-wrap gap-2">

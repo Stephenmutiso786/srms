@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS tbl_result_settings (
   best_of integer NOT NULL DEFAULT 0,
   use_weights integer NOT NULL DEFAULT 1,
   require_fees_clear integer NOT NULL DEFAULT 0,
+  report_card_template varchar(10) NOT NULL DEFAULT '2',
   created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id)
 );

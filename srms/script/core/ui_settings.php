@@ -18,21 +18,12 @@ try {
 
     // Try to include app and school branding
     $appName = defined('APP_NAME') ? APP_NAME : '';
-    $school = ['id' => null, 'name' => $appName, 'logo' => ''];
-    if (app_table_exists($conn, 'tbl_school')) {
-        try {
-            $s = $conn->prepare("SELECT id, name, logo FROM tbl_school ORDER BY id ASC LIMIT 1");
-            $s->execute();
-            $sr = $s->fetch(PDO::FETCH_ASSOC);
-            if ($sr) {
-                $school['id'] = isset($sr['id']) ? (int)$sr['id'] : null;
-                $school['name'] = trim((string)($sr['name'] ?? $appName));
-                $school['logo'] = trim((string)($sr['logo'] ?? ''));
-            }
-        } catch (Throwable $e) {
-            // ignore
-        }
-    }
+    $schoolRow = app_school_row($conn);
+    $school = [
+        'id' => $schoolRow['id'] > 0 ? (int)$schoolRow['id'] : null,
+        'name' => trim((string)($schoolRow['name'] ?? $appName)),
+        'logo' => trim((string)($schoolRow['logo'] ?? '')),
+    ];
 
     echo json_encode([
         'ok' => true,

@@ -3,6 +3,7 @@ chdir('../../');
 session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
+require_once('const/rbac.php');
 
 if ($res != "1" || $level != "2") { header("location:../"); exit; }
 
@@ -63,9 +64,12 @@ try {
 		throw new RuntimeException("Results are locked for this class/term.");
 	}
 
-	// Validate teacher assignment to subject + class
-	$stmt = $conn->prepare("SELECT class FROM tbl_subject_combinations WHERE teacher = ? AND subject = ?");
-	$stmt->execute([$account_id, $subjectId]);
+	$canOverrideMarks = app_current_user_can_override_marks();
+	// Validate teacher assignment to subject + class unless headteacher overrides
+	$stmt = $conn->prepare($canOverrideMarks
+		? "SELECT class FROM tbl_subject_combinations WHERE subject = ?"
+		: "SELECT class FROM tbl_subject_combinations WHERE teacher = ? AND subject = ?");
+	$stmt->execute($canOverrideMarks ? [$subjectId] : [$account_id, $subjectId]);
 	$combo = $stmt->fetch(PDO::FETCH_ASSOC);
 	if (!$combo) {
 		throw new RuntimeException("Not assigned to this subject.");

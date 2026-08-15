@@ -3,6 +3,7 @@ chdir('../../');
 session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
+require_once('const/rbac.php');
 
 header('Content-Type: application/json');
 
@@ -94,7 +95,7 @@ try {
 	$stmt = $conn->prepare("SELECT class, teacher FROM tbl_subject_combinations WHERE id = ?");
 	$stmt->execute([$combinationId]);
 	$combo = $stmt->fetch(PDO::FETCH_ASSOC);
-	if (!$combo || (int)$combo['teacher'] !== (int)$account_id) {
+	if (!$combo || (!app_current_user_can_override_marks() && (int)$combo['teacher'] !== (int)$account_id)) {
 		echo json_encode(['ok' => false, 'message' => 'Not assigned to this subject']);
 		exit;
 	}

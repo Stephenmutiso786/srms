@@ -1,6 +1,6 @@
 <?php
 $basePath = rtrim(str_replace('\\', '/', dirname((string)($_SERVER['SCRIPT_NAME'] ?? '/srms/index.php'))), '/');
-$target = ($basePath === '' ? '' : $basePath) . '/script/';
+$target = ($basePath === '' ? '' : $basePath) . '/script/school_main_website.php';
 
 if (!headers_sent()) {
 	header('Location: ' . $target, true, 302);

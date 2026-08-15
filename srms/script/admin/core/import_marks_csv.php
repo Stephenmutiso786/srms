@@ -13,22 +13,19 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 	exit;
 }
 
-if (empty($_FILES['file']['tmp_name'])) {
-	$_SESSION['reply'] = array (array("danger", "Upload a CSV file."));
-	header("location:../import_export");
-	exit;
-}
-$uploadCheck = app_validate_upload($_FILES['file'], ['csv']);
-if (!$uploadCheck['ok']) {
-	$_SESSION['reply'] = array (array("danger", $uploadCheck['message']));
-	header("location:../import_export");
-	exit;
-}
-
 $classIdForm = (int)($_POST['class_id'] ?? 0);
 $termIdForm = (int)($_POST['term_id'] ?? 0);
 $subjectIdForm = (int)($_POST['subject_id'] ?? 0);
 $examIdForm = (int)($_POST['exam_id'] ?? 0);
+$pasteMarks = trim((string)($_POST['paste_marks'] ?? ''));
+$hasPasteMarks = $pasteMarks !== '';
+$hasUpload = !empty($_FILES['file']['tmp_name']);
+
+if (!$hasPasteMarks && !$hasUpload) {
+	$_SESSION['reply'] = array (array("danger", "Paste marks or upload a CSV file."));
+	header("location:../import_export");
+	exit;
+}
 
 if ($classIdForm < 1 || $termIdForm < 1 || $subjectIdForm < 1 || $examIdForm < 1) {
 	$_SESSION['reply'] = array (array("danger", "Select class, term, subject, and exam."));
@@ -76,32 +73,115 @@ try {
 		throw new RuntimeException("No subject combination found for selected class/subject.");
 	}
 
-	$handle = fopen($_FILES['file']['tmp_name'], 'r');
-	if (!$handle) {
-		throw new RuntimeException("Failed to read file.");
+	$students = [];
+	$stmt = $conn->prepare("SELECT id, fname, mname, lname FROM tbl_students WHERE class = ? ORDER BY id");
+	$stmt->execute([$classIdForm]);
+	$students = $stmt->fetchAll(PDO::FETCH_ASSOC);
+	$studentOrder = [];
+	foreach ($students as $studentRow) {
+		$studentId = (string)($studentRow['id'] ?? '');
+		$fullName = trim(implode(' ', array_filter([
+			(string)($studentRow['fname'] ?? ''),
+			(string)($studentRow['mname'] ?? ''),
+			(string)($studentRow['lname'] ?? ''),
+		], static fn($value) => trim((string)$value) !== '')));
+		$studentOrder[] = [
+			'id' => $studentId,
+			'name' => $fullName,
+			'key' => strtolower(preg_replace('/\s+/', ' ', trim($fullName))),
+		];
 	}
 
-	$headers = fgetcsv($handle);
-	if (!$headers) {
-		throw new RuntimeException("Missing CSV headers.");
+	$rows = [];
+	if ($hasPasteMarks) {
+		$lines = preg_split('/\r\n|\r|\n/', $pasteMarks);
+		foreach ($lines as $line) {
+			$line = trim((string)$line);
+			if ($line === '') {
+				continue;
+			}
+			$rows[] = $line;
+		}
+	} else {
+		$uploadCheck = app_validate_upload($_FILES['file'], ['csv']);
+		if (!$uploadCheck['ok']) {
+			throw new RuntimeException($uploadCheck['message']);
+		}
+		$handle = fopen($_FILES['file']['tmp_name'], 'r');
+		if (!$handle) {
+			throw new RuntimeException("Failed to read file.");
+		}
+		$headers = fgetcsv($handle);
+		if (!$headers) {
+			throw new RuntimeException("Missing CSV headers.");
+		}
+		$headers = array_map(function ($h) { return strtolower(trim((string)$h)); }, $headers);
+		$idx = function ($key) use ($headers) {
+			$pos = array_search($key, $headers, true);
+			return $pos === false ? -1 : $pos;
+		};
+		while (($row = fgetcsv($handle)) !== false) {
+			$rows[] = $row;
+		}
+		fclose($handle);
 	}
-	$headers = array_map(function ($h) { return strtolower(trim((string)$h)); }, $headers);
 
-	$idx = function ($key) use ($headers) {
-		$pos = array_search($key, $headers, true);
-		return $pos === false ? -1 : $pos;
+	$findStudentByName = function (string $name) use ($studentOrder): ?array {
+		$key = strtolower(preg_replace('/\s+/', ' ', trim($name)));
+		foreach ($studentOrder as $student) {
+			if ($student['key'] === $key) {
+				return $student;
+			}
+		}
+		foreach ($studentOrder as $student) {
+			if ($key !== '' && str_contains($student['key'], $key)) {
+				return $student;
+			}
+		}
+		return null;
 	};
 
-	while (($row = fgetcsv($handle)) !== false) {
+	$rowIndex = 0;
+	foreach ($rows as $rawRow) {
 		$total++;
-		$studentId = trim((string)($row[$idx('student_id')] ?? $row[$idx('student')] ?? ''));
-		$score = $row[$idx('score')] ?? '';
-		$score = is_numeric($score) ? (float)$score : null;
+		$studentId = '';
+		$score = null;
 
-		if ($studentId === '' || $score === null) {
-			$failed++;
-			$details[] = "Row $total missing student or score.";
-			continue;
+		if ($hasPasteMarks) {
+			$rowIndex++;
+			$line = trim((string)$rawRow);
+			if (preg_match('/^\s*(.+?)\s*(?:,|\||\t|\s{2,})\s*(-?\d+(?:\.\d+)?)\s*$/', $line, $matches)) {
+				$studentName = trim((string)$matches[1]);
+				$score = (float)$matches[2];
+				$matched = $findStudentByName($studentName);
+				if (!$matched) {
+					$failed++;
+					$details[] = "Row $total student name not found: $studentName.";
+					continue;
+				}
+				$studentId = (string)$matched['id'];
+			} elseif (preg_match('/^\s*(-?\d+(?:\.\d+)?)\s*$/', $line, $matches)) {
+				$score = (float)$matches[1];
+				if (!isset($studentOrder[$rowIndex - 1])) {
+					$failed++;
+					$details[] = "Row $total has no matching student in class order.";
+					continue;
+				}
+				$studentId = (string)$studentOrder[$rowIndex - 1]['id'];
+			} else {
+				$failed++;
+				$details[] = "Row $total is not in a recognized paste format.";
+				continue;
+			}
+		} else {
+			$studentId = trim((string)($rawRow[$idx('student_id')] ?? $rawRow[$idx('student')] ?? ''));
+			$score = $rawRow[$idx('score')] ?? '';
+			$score = is_numeric($score) ? (float)$score : null;
+			if ($studentId === '' || $score === null) {
+				$failed++;
+				$details[] = "Row $total missing student or score.";
+				continue;
+			}
 		}
 
 		try {
@@ -186,8 +266,6 @@ try {
 			$details[] = "Row $total error: ".$e->getMessage();
 		}
 	}
-
-	fclose($handle);
 
 	if (app_table_exists($conn, 'tbl_import_logs')) {
 		$stmt = $conn->prepare("INSERT INTO tbl_import_logs (import_type, total, success, failed, details, created_by) VALUES (?,?,?,?,?,?)");

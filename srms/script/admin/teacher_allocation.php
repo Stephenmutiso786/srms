@@ -15,6 +15,7 @@ $subjects = [];
 $terms = [];
 $assignments = [];
 $year = (int)date('Y');
+$canManageAllocations = app_current_user_has_any_permission(['teacher.allocate', 'academic.manage']) || ((string)$level === '1' && app_staff_designation_key(app_db(), (int)($account_id ?? 0), (string)($level ?? '')) === 'headteacher');
 
 try {
 	$conn = app_db();
@@ -175,11 +176,19 @@ try {
 <div class="tile-body">
 <h3 class="tile-title">Current Subject Teacher Allocations</h3>
 <p class="text-muted">Use this list to review which teachers are handling each class subject after class setup has been defined.</p>
+<?php if ($canManageAllocations): ?>
+<form method="POST" action="admin/core/teacher_assignment_bulk_delete" id="bulkDeleteForm">
+<?php endif; ?>
 <div class="table-responsive">
 <table class="table table-hover">
 <thead>
-<tr>
-<th>Teacher</th>
+	<tr>
+		<th style="width:42px;">
+		<?php if ($canManageAllocations): ?>
+		<input type="checkbox" id="selectAllAllocations">
+		<?php endif; ?>
+		</th>
+		<th>Teacher</th>
 <th>Class</th>
 <th>Subject</th>
 <th>Term</th>
@@ -190,6 +199,11 @@ try {
 <tbody>
 <?php foreach ($assignments as $row): ?>
 <tr>
+<td>
+<?php if ($canManageAllocations): ?>
+<input type="checkbox" class="allocation-check" name="assignment_ids[]" value="<?php echo (int)$row['id']; ?>" data-teacher-id="<?php echo (int)$row['teacher_id']; ?>">
+<?php endif; ?>
+</td>
 <td><?php echo htmlspecialchars($row['fname'].' '.$row['lname']); ?></td>
 <td><?php echo htmlspecialchars($row['class_name']); ?></td>
 <td><?php echo htmlspecialchars($row['subject_name']); ?></td>
@@ -205,6 +219,11 @@ try {
 	data-year="<?php echo $row['year']; ?>">
 	Edit
 </button>
+<?php if ($canManageAllocations): ?>
+<button type="button" class="btn btn-sm btn-outline-secondary select-teacher-allocations" data-teacher-id="<?php echo (int)$row['teacher_id']; ?>">
+	Select Teacher
+</button>
+<?php endif; ?>
 <a onclick="del('admin/core/teacher_assignment_delete?id=<?php echo $row['id']; ?>', 'Delete allocation?');" href="javascript:void(0);" class="btn btn-sm btn-danger">Delete</a>
 </td>
 </tr>
@@ -212,6 +231,13 @@ try {
 </tbody>
 </table>
 </div>
+<?php if ($canManageAllocations): ?>
+<div class="d-flex flex-wrap gap-2 mt-3">
+<button type="submit" class="btn btn-danger" onclick="return confirm('Delete all selected allocations?');">Delete Selected</button>
+<button type="button" class="btn btn-outline-secondary" id="clearSelectionBtn">Clear Selection</button>
+</div>
+</form>
+<?php endif; ?>
 </div>
 </div>
 </div>
@@ -303,6 +329,45 @@ $('#class_id').on('change', function () {
 	applySubjectFilter(false);
 });
 $('#subject_ids').on('change', updateSelectionSummary);
+const selectAllAllocations = document.getElementById('selectAllAllocations');
+if (selectAllAllocations) {
+	selectAllAllocations.addEventListener('change', function () {
+		document.querySelectorAll('.allocation-check').forEach(function (box) {
+			box.checked = selectAllAllocations.checked;
+		});
+	});
+}
+const clearSelectionBtn = document.getElementById('clearSelectionBtn');
+if (clearSelectionBtn) {
+	clearSelectionBtn.addEventListener('click', function () {
+		document.querySelectorAll('.allocation-check').forEach(function (box) {
+			box.checked = false;
+		});
+		if (selectAllAllocations) {
+			selectAllAllocations.checked = false;
+		}
+	});
+}
+document.querySelectorAll('.select-teacher-allocations').forEach(function (button) {
+	button.addEventListener('click', function () {
+		const teacherId = String(button.dataset.teacherId || '');
+		if (!teacherId) {
+			return;
+		}
+		document.querySelectorAll('.allocation-check').forEach(function (box) {
+			if (String(box.dataset.teacherId || '') === teacherId) {
+				box.checked = true;
+			}
+		});
+		if (selectAllAllocations) {
+			const allChecked = Array.from(document.querySelectorAll('.allocation-check')).length > 0
+				&& Array.from(document.querySelectorAll('.allocation-check')).every(function (box) {
+					return box.checked;
+				});
+			selectAllAllocations.checked = allChecked;
+		}
+	});
+});
 applySubjectFilter(false);
 setFormMode(false);
 </script>

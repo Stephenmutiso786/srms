@@ -295,7 +295,6 @@ try {
           <th class="sticky-col sticky-1">Pos</th>
           <th class="sticky-col sticky-2">School ID</th>
           <th class="sticky-col sticky-3">Student</th>
-          <th class="sticky-col sticky-4">Gender</th>
           <?php foreach ($subjects as $subject): ?>
           <th><?php echo htmlspecialchars((string)($subject['subject_name'] ?? 'Subject')); ?></th>
           <?php endforeach; ?>
@@ -317,7 +316,6 @@ try {
           <td class="sticky-col sticky-1"><?php echo htmlspecialchars((string)($row['position_text'] ?? $row['position'] ?? '-')); ?></td>
           <td class="sticky-col sticky-2"><?php echo htmlspecialchars((string)($row['school_id'] !== '' ? $row['school_id'] : $row['student_id'])); ?></td>
           <td class="sticky-col sticky-3"><?php echo htmlspecialchars((string)$row['student_name']); ?></td>
-          <td class="sticky-col sticky-4"><?php echo htmlspecialchars((string)($row['gender'] ?? '')); ?></td>
           <?php foreach ($subjects as $subject): ?>
           <?php
             $subjectId = (int)($subject['subject'] ?? 0);

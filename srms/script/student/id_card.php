@@ -106,7 +106,7 @@ $verifyUrl = $payload ? idcard_verify_url($payload['school_id']) : '#';
 </div>
 <div class="id-body">
 <div class="id-photo">
-<?php if ($payload['photo_exists']) { ?><img src="<?php echo htmlspecialchars($payload['photo_path']); ?>" alt="student photo"><?php } else { ?><div class="id-photo-fallback"><?php echo htmlspecialchars($payload['initials']); ?></div><?php } ?>
+<?php if (!empty($payload['photo_exists'])) { ?><img src="<?php echo htmlspecialchars($payload['photo_path']); ?>" alt="student photo"><?php } else { ?><img src="images/students/default_passport.jpeg" alt="student photo"><?php } ?>
 </div>
 <div class="id-info">
 <h3><?php echo htmlspecialchars($payload['name']); ?></h3>

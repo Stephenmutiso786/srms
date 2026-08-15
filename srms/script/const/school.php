@@ -5,35 +5,44 @@ $schoolResSysFromDb = 1;
 $schoolResAviFromDb = 1;
 $schoolHeadteacherNameFromDb = '';
 $schoolHeadteacherTitleFromDb = 'Headteacher';
+$schoolDeputyHeadteacherNameFromDb = '';
+$schoolDeputyHeadteacherTitleFromDb = 'Deputy Headteacher';
 $schoolHeadteacherSignatureFromDb = '';
 $schoolStampFromDb = '';
+$conn = null;
 
-try
-{
-$conn = app_db();
-$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-$stmt = $conn->prepare("SELECT * FROM tbl_school LIMIT 1");
-$stmt->execute();
-$result = $stmt->fetchAll(PDO::FETCH_ASSOC);
-foreach($result as $row)
-{
-	$schoolNameFromDb = trim((string)($row['school_name'] ?? $row['name'] ?? ''));
-	$schoolLogoFromDb = trim((string)($row['school_logo'] ?? $row['logo'] ?? $schoolLogoFromDb));
-	$schoolResSysFromDb = (int)($row['res_system'] ?? $row['result_system'] ?? $schoolResSysFromDb);
-	$schoolResAviFromDb = (int)($row['res_avi'] ?? $row['allow_results'] ?? $schoolResAviFromDb);
+$isPublicBootstrap = true;
+try {
+	if (session_status() !== PHP_SESSION_ACTIVE) {
+		@session_start();
+	}
+	$isPublicBootstrap = empty($_SESSION['school_id']) && empty($_SESSION['user_id']) && empty($_SESSION['user']);
+} catch (Throwable $e) {
+	$isPublicBootstrap = true;
 }
 
-	if (function_exists('app_setting_get')) {
-		$schoolHeadteacherNameFromDb = trim((string)app_setting_get($conn, 'headteacher_name', ''));
-		$schoolHeadteacherTitleFromDb = trim((string)app_setting_get($conn, 'headteacher_title', 'Headteacher'));
-		$schoolHeadteacherSignatureFromDb = trim((string)app_setting_get($conn, 'headteacher_signature_path', ''));
-		$schoolStampFromDb = trim((string)app_setting_get($conn, 'school_stamp_path', ''));
-	}
+if (!$isPublicBootstrap) {
+	try {
+		$conn = app_db();
+		$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-}catch(PDOException $e)
-{
-// Allow pages to render even if DB is not configured yet.
+		$schoolRow = app_school_row($conn);
+		$schoolNameFromDb = trim((string)($schoolRow['name'] ?? ''));
+		$schoolLogoFromDb = trim((string)($schoolRow['logo'] ?? $schoolLogoFromDb));
+		$schoolResSysFromDb = (int)($schoolRow['result_system'] ?? $schoolResSysFromDb);
+		$schoolResAviFromDb = (int)($schoolRow['allow_results'] ?? $schoolResAviFromDb);
+
+		if (function_exists('app_setting_get')) {
+			$schoolHeadteacherNameFromDb = trim((string)app_setting_get($conn, 'headteacher_name', ''));
+			$schoolHeadteacherTitleFromDb = trim((string)app_setting_get($conn, 'headteacher_title', 'Headteacher'));
+			$schoolDeputyHeadteacherNameFromDb = trim((string)app_setting_get($conn, 'deputy_headteacher_name', ''));
+			$schoolDeputyHeadteacherTitleFromDb = trim((string)app_setting_get($conn, 'deputy_headteacher_title', 'Deputy Headteacher'));
+			$schoolHeadteacherSignatureFromDb = trim((string)app_setting_get($conn, 'headteacher_signature_path', ''));
+			$schoolStampFromDb = trim((string)app_setting_get($conn, 'school_stamp_path', ''));
+		}
+	} catch (Throwable $e) {
+		// Allow public pages to render even if the school database is unavailable.
+	}
 }
 
 if (!defined('WBName')) {
@@ -100,6 +109,8 @@ if (!defined('WBEmail')) {
 
 if (!defined('WBHeadteacherName')) { DEFINE('WBHeadteacherName', $schoolHeadteacherNameFromDb); }
 if (!defined('WBHeadteacherTitle')) { DEFINE('WBHeadteacherTitle', $schoolHeadteacherTitleFromDb !== '' ? $schoolHeadteacherTitleFromDb : 'Headteacher'); }
+if (!defined('WBDeputyHeadteacherName')) { DEFINE('WBDeputyHeadteacherName', $schoolDeputyHeadteacherNameFromDb); }
+if (!defined('WBDeputyHeadteacherTitle')) { DEFINE('WBDeputyHeadteacherTitle', $schoolDeputyHeadteacherTitleFromDb !== '' ? $schoolDeputyHeadteacherTitleFromDb : 'Deputy Headteacher'); }
 if (!defined('WBHeadteacherSignature')) { DEFINE('WBHeadteacherSignature', $schoolHeadteacherSignatureFromDb); }
 if (!defined('WBSchoolStamp')) { DEFINE('WBSchoolStamp', $schoolStampFromDb); }
 
@@ -108,7 +119,7 @@ try {
 		DEFINE('WBLogo', 'school_logo.png');
 	}
 	$logoFile = trim((string)WBLogo);
-	if ($logoFile !== '') {
+	if ($logoFile !== '' && $conn instanceof PDO) {
 		$logoPath = 'images/logo/' . $logoFile;
 		if (!is_file($logoPath)) {
 			$blobB64 = app_setting_get($conn, 'school_logo_blob_b64', '');

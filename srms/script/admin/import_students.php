@@ -55,8 +55,22 @@ if ($res == "1" && $level == "0") {}else{header("location:../");}
 <h3 class="tile-title">Import Students</h3>
 <form enctype="multipart/form-data" action="admin/core/import_students" class="app_frm" method="POST" autocomplete="OFF">
 <div class="mb-2">
+<label class="form-label">Paste Students</label>
+<textarea name="paste_students" class="form-control" rows="10" placeholder="One student per line.
+Examples:
+John Smith
+John, Paul, Smith
+John | Paul | Smith | Male | john@example.com"></textarea>
+<div class="form-text">One student per line. Use spaces, commas, or pipes between names. Optional columns: first name, middle name, last name, gender, email.</div>
+</div>
+
+<div class="mb-2">
+<div class="text-center fw-semibold text-uppercase small text-muted my-2">or</div>
+</div>
+
+<div class="mb-2">
 <label class="form-label">Excel File</label>
-<input required accept=".xlsx" type="file" name="file" class="form-control" accept="application/msexcel">
+<input accept=".xlsx" type="file" name="file" class="form-control" accept="application/msexcel">
 </div>
 
 <div class="mb-2">
@@ -67,9 +81,14 @@ if ($res == "1" && $level == "0") {}else{header("location:../");}
 try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$schoolId = app_current_school_id();
+$hasSchoolId = app_column_exists($conn, 'tbl_classes', 'school_id');
 
-$stmt = $conn->prepare("SELECT id, name FROM tbl_classes ORDER BY name");
-$stmt->execute();
+$classSql = $hasSchoolId
+	? "SELECT id, name FROM tbl_classes WHERE school_id IS NULL OR school_id = ? ORDER BY name"
+	: "SELECT id, name FROM tbl_classes ORDER BY name";
+$stmt = $conn->prepare($classSql);
+$stmt->execute($hasSchoolId ? [$schoolId] : []);
 $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 foreach($result as $row)
@@ -89,7 +108,7 @@ echo "Connection failed.";
 </div>
 
 <div class="alert alert-info">
-Download excel template from <a download href="templates/import_students.xlsx" class="alert-link">here</a>
+You can paste names directly or upload the simple excel template from <a download href="templates/import_students.xlsx" class="alert-link">here</a>. For pasted import, admission number is generated automatically.
 </div>
 <div class="">
 <button class="btn btn-primary app_btn" type="submit">Import Students</button>

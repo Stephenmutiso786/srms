@@ -22,6 +22,7 @@ $durationMinutes = max(30, min(180, (int)($_POST['duration_minutes'] ?? 40)));
 $breakMinutes = max(0, min(60, (int)($_POST['break_minutes'] ?? 10)));
 $firstStartTime = trim((string)($_POST['first_start_time'] ?? '08:00'));
 $roomPrefix = trim((string)($_POST['room_prefix'] ?? 'Class Room'));
+$allowDoubleLessons = (int)($_POST['allow_double_lessons'] ?? 1) === 1;
 $clearExisting = (int)($_POST['clear_existing'] ?? 1) === 1;
 $days = array_values(array_filter(array_map('trim', explode(',', (string)($_POST['days'] ?? '')))));
 
@@ -202,12 +203,13 @@ function app_timetable_build_for_class(PDO $conn, array $options, array &$existi
 
 	$allSlots = [];
 	foreach ($slotTemplate as $slotMeta) {
-		foreach ($days as $day) {
+	foreach ($days as $day) {
 			$allSlots[] = [
 				'day_name' => $day,
 				'session_label' => $slotMeta['session_label'],
 				'start_time' => $slotMeta['start_time'],
 				'end_time' => $slotMeta['end_time'],
+				'session_index' => (int)preg_replace('/\D+/', '', $slotMeta['session_label']),
 			];
 		}
 	}
@@ -244,11 +246,20 @@ function app_timetable_build_for_class(PDO $conn, array $options, array &$existi
 			}
 
 			$spreadPenalty = $dailyLoad * 10;
+			if ($allowDoubleLessons && $dailyLoad === 1) {
+				$spreadPenalty -= 6;
+			}
 			$dayLoad = 0;
 			foreach ($subjectDailyCount as $subjectLoads) {
 				$dayLoad += (int)($subjectLoads[$slot['day_name']] ?? 0);
 			}
 			$score = $spreadPenalty + $dayLoad;
+			if ($allowDoubleLessons && isset($subjectDailyCount[$subjectId][$slot['day_name']])) {
+				$existingCount = (int)$subjectDailyCount[$subjectId][$slot['day_name']];
+				if ($existingCount === 1 && !empty($allSlots)) {
+					$score -= 4;
+				}
+			}
 			if ($score < $bestScore) {
 				$bestScore = $score;
 				$bestSlot = $candidate;

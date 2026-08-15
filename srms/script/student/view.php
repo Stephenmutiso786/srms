@@ -71,13 +71,11 @@ try {
 <tr><th colspan="2"><div class="row">
 <div class="col-xs-6 col-md-3">
 <a href="javascript:void(0);" data-toggle="modal" class="img-rounded">
-<?php
-if ($img == "DEFAULT") {
-?><img src="images/students/<?php echo $gender; ?>.png" class="avatar_img"><?php
-}else{
-?><img src="images/students/<?php echo $img; ?>" class="avatar_img"><?php
-}
-?>
+<?php if ($img == "DEFAULT") { ?>
+<img src="images/students/default_passport.jpeg" class="avatar_img" alt="Student photo">
+<?php } else { ?>
+<img src="images/students/<?php echo $img; ?>" class="avatar_img" alt="Student photo">
+<?php } ?>
 </a>
 </div>
 

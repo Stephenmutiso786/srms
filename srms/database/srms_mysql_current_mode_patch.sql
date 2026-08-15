@@ -14,12 +14,13 @@ CREATE TABLE IF NOT EXISTS tbl_result_settings (
   best_of int NOT NULL DEFAULT 0,
   use_weights tinyint(1) NOT NULL DEFAULT 1,
   require_fees_clear tinyint(1) NOT NULL DEFAULT 0,
+  report_card_template varchar(10) NOT NULL DEFAULT '2',
   created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-INSERT INTO tbl_result_settings (best_of, use_weights, require_fees_clear)
-SELECT 0, 1, 0
+INSERT INTO tbl_result_settings (best_of, use_weights, require_fees_clear, report_card_template)
+SELECT 0, 1, 0, '2'
 WHERE NOT EXISTS (SELECT 1 FROM tbl_result_settings);
 
 CREATE TABLE IF NOT EXISTS tbl_subject_weights (

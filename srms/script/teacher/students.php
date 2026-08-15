@@ -5,21 +5,11 @@ require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
 if ($res == "1" && $level == "2") {}else{header("location:../");}
-if (!isset($_SESSION['student_list'])) {
-header("location:./");
-}
-$students = isset($_SESSION['student_list']) && is_array($_SESSION['student_list']) ? $_SESSION['student_list'] : [];
-$students = array_values(array_filter($students, function ($value) {
+$selectedClasses = isset($_SESSION['student_list']) && is_array($_SESSION['student_list']) ? $_SESSION['student_list'] : [];
+$selectedClasses = array_values(array_filter($selectedClasses, function ($value) {
 	return $value !== '' && $value !== null;
 }));
-if (empty($students)) {
-header("location:./");
-exit;
-}
-// $matches = implode(',', $students);
-// $matches = preg_replace('/[A-Z0-9]/', '?', $matches);
-$matches = str_split(str_repeat("?", count($students)));
-$matches = implode(',', $matches);
+$schoolId = function_exists('app_current_school_id') ? app_current_school_id() : 0;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -87,20 +77,43 @@ $matches = implode(',', $matches);
 try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$hasTenantSchoolId = app_column_exists($conn, 'tbl_students', 'tenant_school_id');
 
 $empty_classes = array();
 
-$stmt = $conn->prepare("SELECT id, name FROM tbl_classes");
-$stmt->execute();
+$classSql = "SELECT id, name FROM tbl_classes";
+$classParams = [];
+if (app_column_exists($conn, 'tbl_classes', 'school_id') && $schoolId > 0) {
+	$classSql .= " WHERE school_id IS NULL OR school_id = ?";
+	$classParams[] = $schoolId;
+}
+$stmt = $conn->prepare($classSql . " ORDER BY name ASC");
+$stmt->execute($classParams);
 $classes = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 foreach ($classes as $value) {
 $empty_classes[(string)($value['id'] ?? '')] = (string)($value['name'] ?? '');
 }
 
-
-$stmt = $conn->prepare("SELECT id, fname, mname, lname, gender, class, display_image FROM tbl_students WHERE class IN ($matches)");
-$stmt->execute($students);
+$studentSql = "SELECT st.id, st.fname, st.mname, st.lname, st.gender, st.class, st.display_image
+	FROM tbl_students st";
+$studentParams = [];
+if ($hasTenantSchoolId && $schoolId > 0) {
+	$studentSql .= " WHERE (st.tenant_school_id IS NULL OR st.tenant_school_id = ?)";
+	$studentParams[] = $schoolId;
+} elseif (app_column_exists($conn, 'tbl_classes', 'school_id') && $schoolId > 0) {
+	$studentSql .= " LEFT JOIN tbl_classes c ON c.id = st.class";
+	$studentSql .= " WHERE (c.school_id IS NULL OR c.school_id = ?)";
+	$studentParams[] = $schoolId;
+}
+if (!empty($selectedClasses)) {
+	$classPlaceholders = implode(',', array_fill(0, count($selectedClasses), '?'));
+	$studentSql .= (strpos($studentSql, ' WHERE ') === false ? ' WHERE ' : ' AND ') . "class IN ($classPlaceholders)";
+	$studentParams = array_merge($studentParams, $selectedClasses);
+}
+$studentSql .= " ORDER BY id";
+$stmt = $conn->prepare($studentSql);
+$stmt->execute($studentParams);
 $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 foreach($result as $row)
@@ -111,9 +124,8 @@ foreach($result as $row)
 <td width="10">
 <?php
 $displayImage = (string)($row['display_image'] ?? 'DEFAULT');
-$genderImage = (string)($row['gender'] ?? '');
 if ($displayImage === "DEFAULT" || $displayImage === '') {
-?><img src="images/students/<?php echo htmlspecialchars($genderImage); ?>.png" class="avatar_img_sm"><?php
+?><img src="images/students/default_passport.jpeg" class="avatar_img_sm" alt="Student photo"><?php
 }else{
 ?><img src="images/students/<?php echo htmlspecialchars($displayImage); ?>" class="avatar_img_sm"><?php
 }

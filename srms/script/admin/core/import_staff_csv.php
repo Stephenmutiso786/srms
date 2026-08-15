@@ -33,6 +33,7 @@ $details = [];
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	app_ensure_staff_password_policy_columns($conn);
 	app_require_unlocked('staff', '../import_export');
 
 	$handle = fopen($_FILES['file']['tmp_name'], 'r');
@@ -50,21 +51,35 @@ try {
 		$pos = array_search($key, $headers, true);
 		return $pos === false ? -1 : $pos;
 	};
+	$get = function (array $row, array $keys, string $default = '') use ($idx) {
+		foreach ($keys as $key) {
+			$pos = $idx($key);
+			if ($pos >= 0 && array_key_exists($pos, $row)) {
+				return (string)$row[$pos];
+			}
+		}
+		return $default;
+	};
 
 	while (($row = fgetcsv($handle)) !== false) {
 		$total++;
-		$fname = trim((string)($row[$idx('fname')] ?? ''));
-		$lname = trim((string)($row[$idx('lname')] ?? ''));
-		$gender = trim((string)($row[$idx('gender')] ?? 'Male'));
-		$email = trim((string)($row[$idx('email')] ?? ''));
+		$fname = trim($get($row, ['fname', 'first_name', 'firstname', 'first name']));
+		$lname = trim($get($row, ['lname', 'last_name', 'lastname', 'last name', 'surname']));
+		$gender = trim($get($row, ['gender', 'sex'], 'Male'));
+		$email = trim($get($row, ['email', 'email_address']));
+		$password = trim($get($row, ['password']));
 
-		if ($fname === '' || $lname === '' || $email === '') {
+		if ($fname === '' || $lname === '') {
 			$failed++;
-			$details[] = "Row $total missing required fields.";
+			$details[] = "Row $total missing first name or last name.";
 			continue;
 		}
+		if ($email === '') {
+			$email = strtolower(preg_replace('/[^a-z0-9]+/', '.', $fname.'.'.$lname.'.'.$total)).'@teachers.local';
+		}
+		$email = trim($email, '.');
 
-		$pwd = getenv('DEFAULT_STAFF_PASSWORD') ?: 'Password123';
+		$pwd = $password !== '' ? $password : (getenv('DEFAULT_STAFF_PASSWORD') ?: 'Password123');
 		$hash = password_hash($pwd, PASSWORD_DEFAULT);
 
 		try {
@@ -78,11 +93,19 @@ try {
 
 			if (app_column_exists($conn, 'tbl_staff', 'school_id')) {
 				$schoolId = app_generate_school_id($conn, 'TCH', (int)date('Y'), 'tbl_staff');
-				$stmt = $conn->prepare("INSERT INTO tbl_staff (fname, lname, gender, email, password, level, status, school_id) VALUES (?,?,?,?,?,?,?,?)");
-				$stmt->execute([$fname, $lname, $gender, $email, $hash, 2, 1, $schoolId]);
+				$stmt = app_column_exists($conn, 'tbl_staff', 'force_password_change')
+					? $conn->prepare("INSERT INTO tbl_staff (fname, lname, gender, email, password, level, status, school_id, force_password_change) VALUES (?,?,?,?,?,?,?,?,?)")
+					: $conn->prepare("INSERT INTO tbl_staff (fname, lname, gender, email, password, level, status, school_id) VALUES (?,?,?,?,?,?,?,?)");
+				$params = [$fname, $lname, $gender, $email, $hash, 2, 1, $schoolId];
+				if (app_column_exists($conn, 'tbl_staff', 'force_password_change')) { $params[] = 1; }
+				$stmt->execute($params);
 			} else {
-				$stmt = $conn->prepare("INSERT INTO tbl_staff (fname, lname, gender, email, password, level, status) VALUES (?,?,?,?,?,?,?)");
-				$stmt->execute([$fname, $lname, $gender, $email, $hash, 2, 1]);
+				$stmt = app_column_exists($conn, 'tbl_staff', 'force_password_change')
+					? $conn->prepare("INSERT INTO tbl_staff (fname, lname, gender, email, password, level, status, force_password_change) VALUES (?,?,?,?,?,?,?,?)")
+					: $conn->prepare("INSERT INTO tbl_staff (fname, lname, gender, email, password, level, status) VALUES (?,?,?,?,?,?,?)");
+				$params = [$fname, $lname, $gender, $email, $hash, 2, 1];
+				if (app_column_exists($conn, 'tbl_staff', 'force_password_change')) { $params[] = 1; }
+				$stmt->execute($params);
 			}
 			$success++;
 		} catch (Throwable $e) {

@@ -26,9 +26,13 @@ $photo = serialize($_FILES["image"]);
 try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$schoolId = function_exists('app_current_school_id') ? app_current_school_id() : 0;
 
 if ($reg_no === '') {
 	$reg_no = app_next_student_registration_number($conn);
+}
+if (trim((string)$email) === '') {
+	$email = app_generate_student_login_email($conn, (string)$fname, (string)$lname, (string)$class);
 }
 
 $isPgsql = (defined('DBDriver') && DBDriver === 'pgsql');
@@ -74,9 +78,14 @@ $img = 'DEFAULT';
 }
 
 if (app_column_exists($conn, 'tbl_students', 'school_id')) {
-  $schoolId = app_generate_school_id($conn, 'STD', (int)date('Y'), 'tbl_students');
-  $stmt = $conn->prepare("INSERT INTO tbl_students (id, school_id, fname, mname, lname, gender, email, class, password, display_image) VALUES (?,?,?,?,?,?,?,?,?,?)");
-  $stmt->execute([$reg_no, $schoolId, $fname, $mname, $lname, $gender, $email, $class, $pass, $img]);
+  $schoolScopedId = app_generate_school_id($conn, 'STD', (int)date('Y'), 'tbl_students');
+  if (app_column_exists($conn, 'tbl_students', 'tenant_school_id')) {
+    $stmt = $conn->prepare("INSERT INTO tbl_students (id, school_id, tenant_school_id, fname, mname, lname, gender, email, class, password, display_image) VALUES (?,?,?,?,?,?,?,?,?,?,?)");
+    $stmt->execute([$reg_no, $schoolScopedId, $schoolId > 0 ? $schoolId : null, $fname, $mname, $lname, $gender, $email, $class, $pass, $img]);
+  } else {
+    $stmt = $conn->prepare("INSERT INTO tbl_students (id, school_id, fname, mname, lname, gender, email, class, password, display_image) VALUES (?,?,?,?,?,?,?,?,?,?)");
+    $stmt->execute([$reg_no, $schoolScopedId, $fname, $mname, $lname, $gender, $email, $class, $pass, $img]);
+  }
 } else {
   $stmt = $conn->prepare("INSERT INTO tbl_students (id, fname, mname, lname, gender, email, class, password, display_image) VALUES (?,?,?,?,?,?,?,?,?)");
   $stmt->execute([$reg_no, $fname, $mname, $lname, $gender, $email, $class, $pass, $img]);

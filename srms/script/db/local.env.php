@@ -12,6 +12,8 @@ putenv('DB_NAME=srms');
 putenv('DB_CHARSET=utf8mb4');
 putenv('APP_NAME=ELIMU HUB');
 putenv('AFRICASTALKING_USERNAME=kyandulu_primary_school');
+putenv('SUPER_ADMIN_EMAIL=super@admin');
+putenv('SUPER_ADMIN_PASSWORD=2006@shawn_Mutiso');
 
 // If you need to enable debug behaviours locally, you can set more vars here.
 // e.g. putenv('APP_SECRET=dev');

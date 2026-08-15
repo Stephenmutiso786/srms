@@ -5,10 +5,12 @@ require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/school.php');
 require_once('const/report_engine.php');
-if ($res == "1" && $level == "2") {}else{header("location:../");}
+$canOverrideMarks = app_current_user_can_override_marks();
+if ($res == "1" && ($level == "2" || $canOverrideMarks)) {}else{header("location:../");}
 
 $exams = [];
 $classSubjects = [];
+$availableEntryCards = [];
 $useTeacherAssignments = false;
 $examModeMap = [];
 $rejectedMarksCount = 0;
@@ -30,14 +32,8 @@ try {
 
   $combos = [];
   $useTeacherAssignments = app_table_exists($conn, 'tbl_teacher_assignments');
-  $stmt = $conn->prepare("SELECT sc.id, sc.class, sc.subject, s.name AS subject_name
-    FROM tbl_subject_combinations sc
-    LEFT JOIN tbl_subjects s ON sc.subject = s.id
-    WHERE sc.teacher = ?");
-  $stmt->execute([$account_id]);
-  $combos = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
   $classIds = [];
+  $assignments = [];
 
   if ($useTeacherAssignments) {
     $stmt = $conn->prepare("SELECT ta.class_id, ta.subject_id, ta.term_id, s.name AS subject_name
@@ -71,7 +67,7 @@ try {
         if ((int)$assignment['class_id'] !== (int)$exam['class_id']) {
           continue;
         }
-        if (!app_teacher_assignment_is_effective($conn, (int)$account_id, (int)$exam['class_id'], (int)$assignment['subject_id'], (int)$exam['term_id'], (int)($exam['year'] ?? date('Y')))) {
+        if ((int)$assignment['term_id'] > 0 && (int)$assignment['term_id'] !== (int)$exam['term_id']) {
           continue;
         }
         if (!empty($allowedSubjectIds) && !in_array((int)$assignment['subject_id'], $allowedSubjectIds, true)) {
@@ -86,6 +82,72 @@ try {
         }
       }
     }
+  }
+
+  if ($canOverrideMarks) {
+    $stmt = $conn->prepare("SELECT id, name, class_id, term_id, COALESCE(assessment_mode, 'normal') AS assessment_mode,
+      c.name AS class_name, t.name AS term_name
+      FROM tbl_exams e
+      LEFT JOIN tbl_classes c ON c.id = e.class_id
+      LEFT JOIN tbl_terms t ON t.id = e.term_id
+      WHERE e.status IN ('active', 'open') AND COALESCE(e.assessment_mode, 'normal') <> 'consolidated'
+      ORDER BY e.created_at DESC, e.id DESC");
+    $stmt->execute();
+    $allHeadteacherExams = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $stmt = $conn->prepare("SELECT id, name FROM tbl_subjects ORDER BY name");
+    $stmt->execute();
+    $allSubjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    foreach ($allHeadteacherExams as $exam) {
+      $examSubjectIds = app_exam_subject_ids($conn, (int)$exam['id']);
+      $subjectPool = !empty($examSubjectIds) ? $examSubjectIds : array_map(static fn($r) => (int)$r['id'], $allSubjects);
+      foreach ($subjectPool as $subjectId) {
+        $subjectName = '';
+        foreach ($allSubjects as $subjectRow) {
+          if ((int)$subjectRow['id'] === (int)$subjectId) {
+            $subjectName = (string)$subjectRow['name'];
+            break;
+          }
+        }
+        if ($subjectName === '') {
+          continue;
+        }
+        $comboId = app_get_teacher_subject_combination_id($conn, (int)$account_id, (int)$subjectId, (int)$exam['class_id'], true);
+        if ($comboId < 1) {
+          continue;
+        }
+        $classSubjects[(int)$exam['id']][$comboId] = [
+          'id' => $comboId,
+          'name' => $subjectName
+        ];
+        $availableEntryCards[] = [
+          'exam_id' => (int)$exam['id'],
+          'exam_name' => (string)$exam['name'],
+          'class_name' => (string)($exam['class_name'] ?? ''),
+          'term_name' => (string)($exam['term_name'] ?? ''),
+          'assessment_mode' => (string)($exam['assessment_mode'] ?? 'normal'),
+          'subject_id' => $comboId,
+          'subject_name' => $subjectName,
+        ];
+      }
+    }
+  }
+
+  if ($canOverrideMarks) {
+    $stmt = $conn->prepare("SELECT sc.id, sc.class, sc.subject, s.name AS subject_name
+      FROM tbl_subject_combinations sc
+      LEFT JOIN tbl_subjects s ON sc.subject = s.id
+      ORDER BY sc.id DESC");
+    $stmt->execute();
+    $combos = $stmt->fetchAll(PDO::FETCH_ASSOC);
+  } elseif (empty($assignments)) {
+    $stmt = $conn->prepare("SELECT sc.id, sc.class, sc.subject, s.name AS subject_name
+      FROM tbl_subject_combinations sc
+      LEFT JOIN tbl_subjects s ON sc.subject = s.id
+      WHERE sc.teacher = ?");
+    $stmt->execute([$account_id]);
+    $combos = $stmt->fetchAll(PDO::FETCH_ASSOC);
   } else {
     foreach ($combos as $combo) {
       $classes = app_unserialize($combo['class']);
@@ -126,6 +188,20 @@ try {
         'subject_name' => (string)($missingSubject['subject_name'] ?? ''),
         'missing_students_count' => (int)($missingSubject['missing_students_count'] ?? 0),
         'missing_students' => array_slice((array)($missingSubject['missing_students'] ?? []), 0, 5),
+      ];
+    }
+    foreach ((array)($classSubjects[(int)$exam['id']] ?? []) as $subjectRow) {
+      if (empty($subjectRow['id']) || empty($subjectRow['name'])) {
+        continue;
+      }
+      $availableEntryCards[] = [
+        'exam_id' => (int)$exam['id'],
+        'exam_name' => (string)($exam['name'] ?? ''),
+        'class_name' => (string)($exam['class_name'] ?? ''),
+        'term_name' => (string)($exam['term_name'] ?? ''),
+        'assessment_mode' => (string)($exam['assessment_mode'] ?? 'normal'),
+        'subject_id' => (int)$subjectRow['id'],
+        'subject_name' => (string)$subjectRow['name'],
       ];
     }
   }
@@ -273,6 +349,41 @@ body.exam-entry-page{background:linear-gradient(180deg,#eef5f2 0%,#f7fbf9 45%,#e
     <div class="workflow-card"><div class="label">Print sheet</div><div class="value">One click</div></div>
   </div>
 </section>
+
+<?php if (!empty($availableEntryCards)) { ?>
+<div class="tile mb-3">
+  <div class="tile-body">
+    <h3 class="tile-title">Real Allocated Entries</h3>
+    <p class="text-muted mb-3">These are the exam and subject combinations that are actually available from your allocations and exam setup.</p>
+    <div class="row g-3">
+      <?php foreach ($availableEntryCards as $card): ?>
+      <div class="col-md-6 col-lg-4">
+        <div class="border rounded-4 p-3 h-100" style="background:linear-gradient(180deg,#ffffff,#f7fbf9);">
+          <div class="d-flex justify-content-between gap-2 mb-2">
+            <div>
+              <div class="fw-bold text-success"><?php echo htmlspecialchars($card['exam_name']); ?></div>
+              <div class="small text-muted"><?php echo htmlspecialchars($card['class_name'] . ' · ' . $card['term_name']); ?></div>
+            </div>
+            <span class="badge bg-light text-dark"><?php echo htmlspecialchars(strtoupper((string)$card['assessment_mode'])); ?></span>
+          </div>
+          <div class="mb-3">
+            <div class="small text-muted">Subject</div>
+            <div class="fw-bold"><?php echo htmlspecialchars($card['subject_name']); ?></div>
+          </div>
+          <form method="POST" action="teacher/core/start_exam_entry">
+            <input type="hidden" name="exam_id" value="<?php echo (int)$card['exam_id']; ?>">
+            <input type="hidden" name="subject_combination" value="<?php echo (int)$card['subject_id']; ?>">
+            <input type="hidden" name="assessment_mode" value="<?php echo htmlspecialchars((string)$card['assessment_mode']); ?>">
+            <input type="hidden" name="origin_portal" value="teacher">
+            <button class="btn btn-sm btn-primary w-100" type="submit">Open Marks Entry</button>
+          </form>
+        </div>
+      </div>
+      <?php endforeach; ?>
+    </div>
+  </div>
+</div>
+<?php } ?>
 
 <div class="row">
 <div class="col-md-6 center_form">

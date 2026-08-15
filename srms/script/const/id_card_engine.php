@@ -27,22 +27,17 @@ if (!function_exists('app_pdf_image_path_is_safe')) {
 
 function idcard_school_meta(PDO $conn): array
 {
-	$meta = [
-		'name' => defined('WBName') ? WBName : (defined('APP_NAME') ? APP_NAME : 'School'),
-		'logo' => defined('WBLogo') ? WBLogo : '',
+	$school = function_exists('app_school_row') ? app_school_row($conn) : [];
+	return [
+		'name' => (string)($school['name'] ?? (defined('WBName') ? WBName : (defined('APP_NAME') ? APP_NAME : 'School'))),
+		'logo' => (string)($school['logo'] ?? (defined('WBLogo') ? WBLogo : '')),
 		'tagline' => 'Learner Identity Card',
 	];
-	try {
-		$stmt = $conn->prepare("SELECT name, logo FROM tbl_school LIMIT 1");
-		$stmt->execute();
-		$row = $stmt->fetch(PDO::FETCH_ASSOC);
-		if ($row) {
-			$meta['name'] = (string)($row['name'] ?? $meta['name']);
-			$meta['logo'] = (string)($row['logo'] ?? $meta['logo']);
-		}
-	} catch (Throwable $e) {
-	}
-	return $meta;
+}
+
+function idcard_default_student_photo_path(): string
+{
+	return 'images/students/default_passport.jpeg';
 }
 
 function idcard_student_payload(PDO $conn, string $studentId): ?array
@@ -58,7 +53,10 @@ function idcard_student_payload(PDO $conn, string $studentId): ?array
 		return null;
 	}
 
-	$photo = 'images/students/' . (($row['display_image'] ?? 'DEFAULT') === 'DEFAULT' ? (($row['gender'] ?? 'Male') . '.png') : $row['display_image']);
+	$photo = 'images/students/' . (($row['display_image'] ?? 'DEFAULT') === 'DEFAULT' ? 'default_passport.jpeg' : $row['display_image']);
+	if (!is_file($photo)) {
+		$photo = idcard_default_student_photo_path();
+	}
 	$fullName = trim(($row['fname'] ?? '') . ' ' . ($row['mname'] ?? '') . ' ' . ($row['lname'] ?? ''));
 	$schoolId = (string)($row['school_id'] ?? '');
 	if ($schoolId === '') {

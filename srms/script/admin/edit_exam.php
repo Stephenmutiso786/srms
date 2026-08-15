@@ -134,7 +134,7 @@ try {
 	<div class="tile">
 		<div class="tile-body">
 			<?php if (in_array((string)$exam['status'], ['finalized', 'published'], true)) { ?>
-			<div class="alert alert-warning">This exam is already <?php echo htmlspecialchars($exam['status']); ?>. Only metadata changes that do not affect locked marks should be attempted.</div>
+			<div class="alert alert-warning">This exam is already <?php echo htmlspecialchars($exam['status']); ?>. You can still add subjects, and the exam will reopen for mark entry without clearing the existing submissions.</div>
 			<?php } ?>
 			<form class="app_frm" action="admin/core/update_exam" method="POST">
 				<input type="hidden" name="exam_id" value="<?php echo (int)$exam['id']; ?>">
@@ -224,7 +224,7 @@ try {
 							</option>
 							<?php endforeach; ?>
 						</select>
-						<div class="small text-muted mt-1">Only subjects assigned to the selected class should be included in this exam.</div>
+						<div class="small text-muted mt-1">Only subjects assigned to the selected class should be included in this exam. For finalized exams, adding a new subject reopens the exam for that subject while keeping existing marks.</div>
 					</div>
 				</div>
 				<div class="d-flex gap-2">

@@ -22,17 +22,25 @@ try {
 	app_ensure_class_cbe_level_schema($conn);
 	app_ensure_exam_grading_schema($conn);
 	app_ensure_class_teachers_table($conn);
+	$schoolId = app_current_school_id();
+	$hasSchoolId = app_column_exists($conn, 'tbl_classes', 'school_id');
 	$teachers = app_staff_instructional_picker_rows($conn);
-	$stmt = $conn->prepare("SELECT id, name FROM tbl_subjects ORDER BY name");
-	$stmt->execute();
+	$subjectSql = app_column_exists($conn, 'tbl_subjects', 'school_id')
+		? "SELECT id, name FROM tbl_subjects WHERE school_id IS NULL OR school_id = ? ORDER BY name"
+		: "SELECT id, name FROM tbl_subjects ORDER BY name";
+	$stmt = $conn->prepare($subjectSql);
+	$stmt->execute(app_column_exists($conn, 'tbl_subjects', 'school_id') ? [$schoolId] : []);
 	$subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	if (app_table_exists($conn, 'tbl_grading_systems')) {
 		$stmt = $conn->prepare("SELECT id, name, type FROM tbl_grading_systems WHERE is_active = 1 ORDER BY is_default DESC, name ASC");
 		$stmt->execute();
 		$gradingSystems = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	}
-	$stmt = $conn->prepare("SELECT id, name FROM tbl_classes ORDER BY name");
-	$stmt->execute();
+	$classSql = $hasSchoolId
+		? "SELECT id, name FROM tbl_classes WHERE school_id IS NULL OR school_id = ? ORDER BY name"
+		: "SELECT id, name FROM tbl_classes ORDER BY name";
+	$stmt = $conn->prepare($classSql);
+	$stmt->execute($hasSchoolId ? [$schoolId] : []);
 	$classRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	app_sort_class_rows($classRows);
 	foreach ($classRows as $classRow) {

@@ -56,7 +56,7 @@ try {
 		throw new RuntimeException("Subject combination not found.");
 	}
 
-	if ((int)$subjectData['teacher'] !== (int)$account_id) {
+	if (!app_current_user_can_override_marks() && (int)$subjectData['teacher'] !== (int)$account_id) {
 		throw new RuntimeException("Not allowed to enter marks for this subject.");
 	}
 

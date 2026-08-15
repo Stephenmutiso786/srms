@@ -26,6 +26,9 @@ $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 if ($reg_no === '') {
 	$reg_no = app_next_student_registration_number($conn);
 }
+if (trim((string)$email) === '') {
+	$email = app_generate_student_login_email($conn, (string)$fname, (string)$lname, (string)$class);
+}
 
 $isPgsql = (defined('DBDriver') && DBDriver === 'pgsql');
 $stmt = $isPgsql

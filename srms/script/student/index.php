@@ -6,6 +6,7 @@ require_once('const/school.php');
 require_once('const/check_session.php');
 require_once('const/report_engine.php');
 require_once('const/id_card_engine.php');
+require_once('const/mpesa.php');
 if ($res == "1" && $level == "3") {}else{header("location:../"); exit;}
 
 $notifications = [];
@@ -40,6 +41,7 @@ $reportCard = null;
 $assessmentMode = 'normal';
 $visibleModules = [];
 $allocatedModules = [];
+$mpesaEnabled = false;
 $error = '';
 
 try {
@@ -211,6 +213,7 @@ try {
 
 		$visibleModules = app_current_user_visible_portal_modules('student');
 		$allocatedModules = app_current_user_allocated_portal_modules('student');
+		$mpesaEnabled = (int)mpesa_config($conn)['enabled'] === 1;
 } catch (Throwable $e) {
 	error_log("[".__FILE__.":".__LINE__." Throwable] " . $e->getMessage());
 	$error = "An internal error occurred.";
@@ -327,6 +330,17 @@ body.app{background:var(--student-bg)}
 			<p><?php echo htmlspecialchars($studentName); ?><?php echo !empty($act_class) ? ' - '.htmlspecialchars((string)$act_class) : ''; ?></p>
 		</div>
 	</div>
+	<?php if ($mpesaEnabled) { ?>
+	<div class="analytics-panel mb-3">
+		<div class="panel-body d-flex flex-wrap justify-content-between align-items-center gap-2">
+			<div>
+				<div class="section-title mb-1">Fees Payment</div>
+				<div class="text-muted">M-Pesa is enabled. Open the fees page to continue payment.</div>
+			</div>
+			<a class="btn btn-success" href="student/fees"><i class="bi bi-cash-coin me-1"></i>Pay Fees</a>
+		</div>
+	</div>
+	<?php } ?>
 
 	<div class="portal-content">
 		<div class="section-title">Quick Module Access</div>

@@ -77,9 +77,7 @@ try {
 <?php if ($photoExists) { ?>
 <img src="<?php echo htmlspecialchars($photoPath); ?>" alt="Student photo" class="avatar_img" style="max-width:160px;max-height:180px;object-fit:cover;">
 <?php } else { ?>
-<div class="d-inline-flex align-items-center justify-content-center bg-light rounded-3" style="width:160px;height:180px;font-size:3rem;font-weight:800;color:#0d64b0;">
-<?php echo htmlspecialchars(strtoupper(substr($fname,0,1).substr($lname,0,1))); ?>
-</div>
+<img src="images/students/default_passport.jpeg" alt="Student photo" class="avatar_img" style="max-width:160px;max-height:180px;object-fit:cover;">
 <?php } ?>
 <div class="mt-3 fw-semibold"><?php echo htmlspecialchars($fname . ' ' . $lname); ?></div>
 <div class="text-muted"><?php echo htmlspecialchars($schoolId !== '' ? $schoolId : $account_id); ?></div>

@@ -1,12 +1,12 @@
 {
-  "name": "Kyandulu Primary School",
-  "short_name": "Kyandulu PS",
+  "name": "Elimu Hub",
+  "short_name": "Elimu Hub",
   "id": "/script/",
   "start_url": "./school_main_website.php",
   "scope": "./",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#006400",
+  "theme_color": "#1f5f3f",
   "icons": [
     {
       "src": "images/pwa/icon-192.png",

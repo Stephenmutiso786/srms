@@ -19,6 +19,7 @@ $showDownloadsShortcut = false;
 $adminAnnouncements = [];
 $promotionQueue = [];
 $autoPromotionRun = [];
+$classMemberSummary = [];
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
@@ -27,10 +28,20 @@ try {
 	$promotionQueue = app_promotion_queue_summary($conn);
 		$students_total = (int)$conn->query("SELECT COUNT(*) FROM tbl_students")->fetchColumn();
 		$teachers_total = (int)$conn->query("SELECT COUNT(*) FROM tbl_staff WHERE level = 2")->fetchColumn();
-		$showMarksEntryShortcut = app_staff_has_active_teaching_assignment($conn, (int)($account_id ?? 0)) && app_has_permission($conn, (string)($account_id ?? ''), (string)($level ?? ''), 'marks.enter');
-		$showAttendanceShortcut = app_staff_has_active_teaching_assignment($conn, (int)($account_id ?? 0)) && app_has_permission($conn, (string)($account_id ?? ''), (string)($level ?? ''), 'attendance.manage');
-		$showTermsShortcut = app_has_permission($conn, (string)($account_id ?? ''), (string)($level ?? ''), 'academic.manage') || app_has_permission($conn, (string)($account_id ?? ''), (string)($level ?? ''), 'system.manage');
-		$showDownloadsShortcut = app_has_permission($conn, (string)($account_id ?? ''), (string)($level ?? ''), 'report.view') || app_has_permission($conn, (string)($account_id ?? ''), (string)($level ?? ''), 'report.generate');
+		$showMarksEntryShortcut = (
+			app_staff_has_active_teaching_assignment($conn, (int)($account_id ?? 0))
+			|| app_current_user_can_override_marks()
+		) && app_has_permission($conn, (string)($account_id ?? ''), (string)($level ?? ''), 'marks.enter');
+	$showAttendanceShortcut = app_staff_has_active_teaching_assignment($conn, (int)($account_id ?? 0)) && app_has_permission($conn, (string)($account_id ?? ''), (string)($level ?? ''), 'attendance.manage');
+	$showTermsShortcut = app_has_permission($conn, (string)($account_id ?? ''), (string)($level ?? ''), 'academic.manage') || app_has_permission($conn, (string)($account_id ?? ''), (string)($level ?? ''), 'system.manage');
+	$showDownloadsShortcut = app_has_permission($conn, (string)($account_id ?? ''), (string)($level ?? ''), 'report.view') || app_has_permission($conn, (string)($account_id ?? ''), (string)($level ?? ''), 'report.generate');
+	$stmt = $conn->prepare("SELECT c.id, c.name, COUNT(s.id) AS student_count
+		FROM tbl_classes c
+		LEFT JOIN tbl_students s ON s.class = c.id
+		GROUP BY c.id, c.name
+		ORDER BY c.name");
+	$stmt->execute();
+	$classMemberSummary = $stmt->fetchAll(PDO::FETCH_ASSOC);
 		if (app_table_exists($conn, 'tbl_notifications')) {
 			$stmt = $conn->prepare("SELECT title, message, created_at FROM tbl_notifications WHERE audience IN ('all','staff') ORDER BY created_at DESC LIMIT 5");
 			$stmt->execute();
@@ -308,6 +319,31 @@ $networkAccess = app_network_access_data();
 </div>
 
 <div class="dashboard-grid">
+	<div class="tile">
+		<h3 class="tile-title">Class Members</h3>
+		<div class="small text-muted mb-3">Total learners in each class, shown for leadership oversight.</div>
+		<div class="table-responsive">
+			<table class="table table-sm table-hover align-middle mb-0">
+				<thead>
+					<tr>
+						<th>Class</th>
+						<th class="text-end">Learners</th>
+					</tr>
+				</thead>
+				<tbody>
+					<?php if (empty($classMemberSummary)) { ?>
+					<tr><td colspan="2" class="text-muted">No classes found.</td></tr>
+					<?php } ?>
+					<?php foreach ($classMemberSummary as $classRow) { ?>
+					<tr>
+						<td><?php echo htmlspecialchars((string)$classRow['name']); ?></td>
+						<td class="text-end fw-bold"><?php echo number_format((int)$classRow['student_count']); ?></td>
+					</tr>
+					<?php } ?>
+				</tbody>
+			</table>
+		</div>
+	</div>
 	<div class="tile">
 		<h3 class="tile-title">Announcements</h3>
 		<div class="note-list">

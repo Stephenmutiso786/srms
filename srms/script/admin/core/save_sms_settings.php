@@ -23,6 +23,7 @@ $status = (int)($_POST['status'] ?? 0);
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	app_ensure_sms_settings_table($conn);
 
 	if (!app_table_exists($conn, 'tbl_sms_settings')) {
 		$_SESSION['reply'] = array (array("danger", "SMS settings table missing. Run migration 017."));

@@ -182,7 +182,7 @@ class SimpleXLSXGen {
 					if ( $v === null || $v === '' ) {
 						continue;
 					}
-					$vl = mb_strlen( (string) $v );
+					$vl = function_exists('mb_strlen') ? mb_strlen( (string) $v ) : strlen( (string) $v );
 
 					$COL[ $CUR_COL ] = max( $vl, $COL[ $CUR_COL ] );
 
@@ -214,7 +214,7 @@ class SimpleXLSXGen {
 						} elseif ( preg_match('/^(\d\d\d\d)-(\d\d)-(\d\d) (\d\d):(\d\d):(\d\d)$/', $v, $m ) ) {
 							$cv = $this->date2excel( $m[1], $m[2], $m[3], $m[4], $m[5], $m[6] );
 							$cs = 6; // [22] m/d/yy h:mm
-						} elseif ( mb_strlen( $v ) > 160 ) {
+						} elseif ( (function_exists('mb_strlen') ? mb_strlen( $v ) : strlen( $v )) > 160 ) {
 							$ct = 'inlineStr';
 							$cv = str_replace(['&','<','>',"\x03"],['&amp;','&lt;','&gt;',''], $v);
 						} else {
@@ -274,7 +274,7 @@ class SimpleXLSXGen {
 			}
 
 			$e = [];
-			$e['uncsize'] = mb_strlen($data, '8bit');
+			$e['uncsize'] = function_exists('mb_strlen') ? mb_strlen($data, '8bit') : strlen($data);
 
 			// if data to compress is too small, just store it
 			if($e['uncsize'] < 256){
@@ -285,7 +285,7 @@ class SimpleXLSXGen {
 			} else{ // otherwise, compress it
 				$zdata = gzcompress($data);
 				$zdata = substr(substr($zdata, 0, - 4 ), 2); // fix crc bug (thanks to Eric Mueller)
-				$e['comsize'] = mb_strlen($zdata, '8bit');
+				$e['comsize'] = function_exists('mb_strlen') ? mb_strlen($zdata, '8bit') : strlen($zdata);
 				$e['vneeded'] = 10;
 				$e['cmethod'] = 8;
 			}
@@ -318,7 +318,7 @@ class SimpleXLSXGen {
 			fwrite($fh, pack('V', $e['crc_32']));  // crc-32
 			fwrite($fh, pack('I', $e['comsize'])); // compressed_size
 			fwrite($fh, pack('I', $e['uncsize'])); // uncompressed_size
-			fwrite($fh, pack('s', mb_strlen($cfilename, '8bit')));   // file_name_length
+			fwrite($fh, pack('s', function_exists('mb_strlen') ? mb_strlen($cfilename, '8bit') : strlen($cfilename)));   // file_name_length
 			/** @noinspection DisconnectedForeachInstructionInspection */
 			fwrite($fh, pack('s', 0));  // extra_field_length
 			fwrite($fh, $cfilename);    // file_name
@@ -339,9 +339,9 @@ class SimpleXLSXGen {
 			$cdrec .= pack('V', $e['crc_32']);  // crc32
 			$cdrec .= pack('V', $e['comsize']); // compressed filesize
 			$cdrec .= pack('V', $e['uncsize']); // uncompressed filesize
-			$cdrec .= pack('v', mb_strlen($cfilename,'8bit')); // file name length
+			$cdrec .= pack('v', function_exists('mb_strlen') ? mb_strlen($cfilename,'8bit') : strlen($cfilename)); // file name length
 			$cdrec .= pack('v', 0);                // extra field length
-			$cdrec .= pack('v', mb_strlen($e['comments'],'8bit')); // file comment length
+			$cdrec .= pack('v', function_exists('mb_strlen') ? mb_strlen($e['comments'],'8bit') : strlen($e['comments'])); // file comment length
 			$cdrec .= pack('v', 0); // disk number start
 			$cdrec .= pack('v', 0); // internal file attributes
 			$cdrec .= pack('V', $e['external_attributes']); // internal file attributes
@@ -358,9 +358,9 @@ class SimpleXLSXGen {
 		fwrite($fh, pack('v', 0)); // number of the disk with the start of the central directory
 		fwrite($fh, pack('v', count( $this->template ))); // total # of entries "on this disk"
 		fwrite($fh, pack('v', count( $this->template ))); // total # of entries overall
-		fwrite($fh, pack('V', mb_strlen($cdrec,'8bit')));     // size of central dir
+		fwrite($fh, pack('V', function_exists('mb_strlen') ? mb_strlen($cdrec,'8bit') : strlen($cdrec)));     // size of central dir
 		fwrite($fh, pack('V', $before_cd));         // offset to start of central dir
-		fwrite($fh, pack('v', mb_strlen($zipComments,'8bit'))); // .zip file comment length
+		fwrite($fh, pack('v', function_exists('mb_strlen') ? mb_strlen($zipComments,'8bit') : strlen($zipComments))); // .zip file comment length
 		fwrite($fh, $zipComments);
 
 		return true;

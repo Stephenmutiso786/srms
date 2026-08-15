@@ -11,6 +11,7 @@ app_require_unlocked('communication', 'admin');
 
 $wallet = ['wallet_name' => 'School SMS Wallet', 'phone_number' => '', 'balance_tokens' => 0, 'status' => 1];
 $topups = [];
+$school = [];
 $error = '';
 
 try {
@@ -25,6 +26,7 @@ try {
 	if ($row) {
 		$wallet = $row;
 	}
+	$school = app_school_row($conn, app_current_school_id());
 
 	if (app_table_exists($conn, 'tbl_sms_topup_requests')) {
 		$stmt = $conn->prepare("SELECT phone, tokens, amount, status, customer_message, created_at, updated_at FROM tbl_sms_topup_requests ORDER BY id DESC LIMIT 10");
@@ -87,6 +89,17 @@ try {
         <div class="col-6"><div class="border rounded p-3"><div class="text-muted small">Wallet</div><div class="fw-bold"><?php echo htmlspecialchars((string)$wallet['wallet_name']); ?></div></div></div>
         <div class="col-6"><div class="border rounded p-3"><div class="text-muted small">Balance</div><div class="fw-bold"><?php echo number_format((int)$wallet['balance_tokens']); ?> tokens</div></div></div>
         <div class="col-12"><div class="border rounded p-3"><div class="text-muted small">Default Payment Rule</div><div class="fw-bold">1 SMS token = 1 SMS segment</div></div></div>
+      </div>
+    </div>
+
+    <div class="tile mb-3">
+      <h3 class="tile-title">Current School Allocation</h3>
+      <div class="row g-3">
+        <div class="col-12"><div class="border rounded p-3"><div class="text-muted small">School</div><div class="fw-bold"><?php echo htmlspecialchars((string)($school['name'] ?? 'Unknown school')); ?></div></div></div>
+        <div class="col-6"><div class="border rounded p-3"><div class="text-muted small">Package</div><div class="fw-bold"><?php echo htmlspecialchars(strtoupper((string)($school['package_tier'] ?? 'elimu_hub'))); ?></div></div></div>
+        <div class="col-6"><div class="border rounded p-3"><div class="text-muted small">SMS Balance</div><div class="fw-bold"><?php echo number_format((int)($school['sms_balance'] ?? 0)); ?> tokens</div></div></div>
+        <div class="col-6"><div class="border rounded p-3"><div class="text-muted small">M-Pesa</div><div class="fw-bold"><?php echo ((int)($school['mpesa_enabled'] ?? 1) === 1 ? 'Enabled' : 'Disabled'); ?></div></div></div>
+        <div class="col-6"><div class="border rounded p-3"><div class="text-muted small">Support</div><div class="fw-bold"><?php echo htmlspecialchars((string)($school['support_plan'] ?? 'basic')); ?></div></div></div>
       </div>
     </div>
 

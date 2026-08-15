@@ -282,15 +282,10 @@ try {
 			if (!app_table_exists($conn, 'tbl_exam_mark_submissions')) {
 				throw new RuntimeException("Marks submission workflow is not installed.");
 			}
-			$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_exam_mark_submissions WHERE exam_id = ? AND status = 'submitted'");
-			$stmt->execute([$examId]);
-			if ((int)$stmt->fetchColumn() > 0) {
-				throw new RuntimeException("Some mark sheets are still awaiting review.");
-			}
-			$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_exam_mark_submissions WHERE exam_id = ? AND status = 'reviewed'");
+			$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_exam_mark_submissions WHERE exam_id = ? AND status IN ('submitted','reviewed','finalized')");
 			$stmt->execute([$examId]);
 			if ((int)$stmt->fetchColumn() < 1) {
-				throw new RuntimeException("Review at least one submitted mark sheet before marking the exam as reviewed.");
+				throw new RuntimeException("No mark sheets have been submitted for this exam yet.");
 			}
 		}
 	}
@@ -304,33 +299,27 @@ try {
 			if (!app_table_exists($conn, 'tbl_cbe_mark_submissions')) {
 				throw new RuntimeException("CBE marks submission workflow is not installed.");
 			}
-			$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_cbe_mark_submissions WHERE class_id = ? AND term_id = ? AND status IN ('draft','submitted','rejected')");
-			$stmt->execute([(int)$exam['class_id'], (int)$exam['term_id']]);
-			if ((int)$stmt->fetchColumn() > 0) {
-				throw new RuntimeException("Finalize only after all CBE mark sheets are approved.");
-			}
+			$stmt = $conn->prepare("UPDATE tbl_cbe_mark_submissions SET status = 'approved', reviewed_at = CURRENT_TIMESTAMP, reviewed_by = COALESCE(reviewed_by, ?) WHERE class_id = ? AND term_id = ? AND status IN ('submitted','draft')");
+			$stmt->execute([(int)$account_id, (int)$exam['class_id'], (int)$exam['term_id']]);
 			$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_cbe_mark_submissions WHERE class_id = ? AND term_id = ?");
 			$stmt->execute([(int)$exam['class_id'], (int)$exam['term_id']]);
 			if ((int)$stmt->fetchColumn() < 1) {
 				throw new RuntimeException("No CBE mark sheets have been submitted for this exam yet.");
 			}
-			$stmt = $conn->prepare("UPDATE tbl_cbe_mark_submissions SET status = 'finalized', reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ? WHERE class_id = ? AND term_id = ? AND status = 'approved'");
+			$stmt = $conn->prepare("UPDATE tbl_cbe_mark_submissions SET status = 'finalized', reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ? WHERE class_id = ? AND term_id = ? AND status IN ('submitted','approved')");
 			$stmt->execute([(int)$account_id, (int)$exam['class_id'], (int)$exam['term_id']]);
 		} else {
 			if (!app_table_exists($conn, 'tbl_exam_mark_submissions')) {
 				throw new RuntimeException("Marks submission workflow is not installed.");
 			}
-			$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_exam_mark_submissions WHERE exam_id = ? AND status IN ('draft','submitted','rejected')");
-			$stmt->execute([$examId]);
-			if ((int)$stmt->fetchColumn() > 0) {
-				throw new RuntimeException("Finalize only after all mark sheets are reviewed.");
-			}
+			$stmt = $conn->prepare("UPDATE tbl_exam_mark_submissions SET status = 'reviewed', reviewed_at = CURRENT_TIMESTAMP, reviewed_by = COALESCE(reviewed_by, ?) WHERE exam_id = ? AND status IN ('submitted','draft','reviewed','finalized')");
+			$stmt->execute([(int)$account_id, $examId]);
 			$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_exam_mark_submissions WHERE exam_id = ?");
 			$stmt->execute([$examId]);
 			if ((int)$stmt->fetchColumn() < 1) {
 				throw new RuntimeException("No mark sheets have been submitted for this exam yet.");
 			}
-			$stmt = $conn->prepare("UPDATE tbl_exam_mark_submissions SET status = 'finalized', reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ? WHERE exam_id = ? AND status = 'reviewed'");
+			$stmt = $conn->prepare("UPDATE tbl_exam_mark_submissions SET status = 'finalized', reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ? WHERE exam_id = ? AND status IN ('submitted','reviewed','draft','finalized')");
 			$stmt->execute([(int)$account_id, $examId]);
 		}
 	}
@@ -401,11 +390,11 @@ try {
 
 	if ($status === 'draft') {
 		if ($assessmentMode === 'cbe' && app_table_exists($conn, 'tbl_cbe_mark_submissions')) {
-			$stmt = $conn->prepare("UPDATE tbl_cbe_mark_submissions SET status = 'draft', reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ? WHERE class_id = ? AND term_id = ? AND status IN ('submitted','approved')");
-			$stmt->execute([(int)$account_id, (int)$exam['class_id'], (int)$exam['term_id']]);
+			$stmt = $conn->prepare("UPDATE tbl_cbe_mark_submissions SET status = 'draft', reviewed_at = NULL, reviewed_by = NULL, review_note = NULL WHERE class_id = ? AND term_id = ? AND status IN ('submitted','approved','finalized')");
+			$stmt->execute([(int)$exam['class_id'], (int)$exam['term_id']]);
 		} elseif (app_table_exists($conn, 'tbl_exam_mark_submissions')) {
-			$stmt = $conn->prepare("UPDATE tbl_exam_mark_submissions SET status = 'draft', reviewed_at = CURRENT_TIMESTAMP, reviewed_by = ? WHERE exam_id = ? AND status IN ('submitted','reviewed')");
-			$stmt->execute([(int)$account_id, $examId]);
+			$stmt = $conn->prepare("UPDATE tbl_exam_mark_submissions SET status = 'draft', reviewed_at = NULL, reviewed_by = NULL, review_note = NULL WHERE exam_id = ? AND status IN ('submitted','reviewed','finalized')");
+			$stmt->execute([$examId]);
 		}
 	}
 

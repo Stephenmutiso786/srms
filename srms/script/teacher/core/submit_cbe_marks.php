@@ -4,6 +4,7 @@ session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/school.php');
+require_once('const/rbac.php');
 if ($res == "1" && $level == "2") {}else{header("location:../");}
 
 function app_exam_entry_redirect_target(string $portal, string $page): string
@@ -44,7 +45,7 @@ try {
   $stmt = $conn->prepare("SELECT id, class, teacher FROM tbl_subject_combinations WHERE id = ?");
   $stmt->execute([$subjectComb]);
   $combo = $stmt->fetch(PDO::FETCH_ASSOC);
-  if (!$combo || (int)$combo['teacher'] !== (int)$account_id) {
+  if (!$combo || (!app_current_user_can_override_marks() && (int)$combo['teacher'] !== (int)$account_id)) {
     throw new RuntimeException("Not assigned to this subject.");
   }
   $classList = app_unserialize($combo['class']);

@@ -163,6 +163,7 @@ try {
 	$stmt = $conn->prepare("SELECT name FROM tbl_terms WHERE id = ? LIMIT 1");
 	$stmt->execute([$termId]);
 	$termName = (string)$stmt->fetchColumn();
+	$classTeacherName = app_class_teacher_name($conn, $classId);
 	$examName = '';
 	if ($examId > 0) {
 		$stmt = $conn->prepare("SELECT name FROM tbl_exams WHERE id = ? LIMIT 1");
@@ -214,6 +215,10 @@ try {
 		. '<td width="25%"><strong>Lowest Mean:</strong> ' . number_format($lowestMean, 2) . '</td>'
 		. '<td width="25%"><strong>Printed:</strong> ' . date('d M Y') . '</td>'
 		. '</tr>'
+		. '<tr>'
+		. '<td width="50%"><strong>Class Teacher:</strong> ' . htmlspecialchars($classTeacherName !== '' ? $classTeacherName : 'Not allocated', ENT_QUOTES, 'UTF-8') . '</td>'
+		. '<td width="50%"><strong>Deputy Headteacher:</strong> ' . htmlspecialchars(defined('WBDeputyHeadteacherName') && trim((string)WBDeputyHeadteacherName) !== '' ? (string)WBDeputyHeadteacherName : '____________________', ENT_QUOTES, 'UTF-8') . '</td>'
+		. '</tr>'
 		. '</table>';
 	$pdf->writeHTML($headerHtml, true, false, true, false, '');
 
@@ -223,7 +228,6 @@ try {
 	$wPos = $compactMode ? 9 : 10;
 	$wAdm = $compactMode ? 15 : 17;
 	$wName = $compactMode ? 26 : 30;
-	$wGender = 7;
 	$wTotal = 10;
 	$wAvg = 10;
 	$wGrade = 9;
@@ -235,7 +239,7 @@ try {
 	$headerHeight = $compactMode ? 4.8 : 5.5;
 	$rowHeight = $compactMode ? 4.4 : 5;
 
-	$fixedWithoutSubjects = $wPos + $wAdm + $wName + $wGender + $wTotal + $wAvg + $wGrade + $wTrend;
+	$fixedWithoutSubjects = $wPos + $wAdm + $wName + $wTotal + $wAvg + $wGrade + $wTrend;
 	$availableForSubjects = $printableWidth - $fixedWithoutSubjects;
 	$wPerSubject = $subjectCount > 0 ? floor(($availableForSubjects) / $subjectCount) : 0;
 	$wPerSubject = max($subjectCount > 0 ? 3 : 0, min($minPerSubject, $wPerSubject));
@@ -246,7 +250,6 @@ try {
 		$wPos *= $widthScale;
 		$wAdm *= $widthScale;
 		$wName *= $widthScale;
-		$wGender *= $widthScale;
 		$wPerSubject *= $widthScale;
 		$wTotal *= $widthScale;
 		$wAvg *= $widthScale;
@@ -265,13 +268,12 @@ try {
 	$nameLimit = $subjectCount >= 12 ? 10 : ($subjectCount >= 8 ? 12 : 18);
 	$admLimit = $subjectCount >= 12 ? 6 : 8;
 
-	$drawHeader = function () use ($pdf, $subjects, $wPos, $wAdm, $wName, $wGender, $wPerSubject, $wTotal, $wAvg, $wGrade, $wTrend, $headerFont, $headerHeight, $subjectCount): void {
+	$drawHeader = function () use ($pdf, $subjects, $wPos, $wAdm, $wName, $wPerSubject, $wTotal, $wAvg, $wGrade, $wTrend, $headerFont, $headerHeight, $subjectCount): void {
 		$pdf->SetFont('helvetica', 'B', $headerFont);
 		$pdf->SetFillColor(233, 241, 247);
 		$pdf->Cell($wPos, $headerHeight, 'Pos', 1, 0, 'C', true);
 		$pdf->Cell($wAdm, $headerHeight, 'Adm', 1, 0, 'C', true);
 		$pdf->Cell($wName, $headerHeight, 'Name', 1, 0, 'L', true);
-		$pdf->Cell($wGender, $headerHeight, 'Sex', 1, 0, 'C', true);
 		foreach ($subjects as $subject) {
 			$pdf->Cell($wPerSubject, $headerHeight, merit_pdf_subject_label((string)($subject['subject_name'] ?? 'Subject')), 1, 0, 'C', true);
 		}
@@ -299,7 +301,6 @@ try {
 		$pdf->Cell($wPos, $rowHeight, (string)($row['position_text'] ?? $row['position'] ?? '-'), 1, 0, 'C');
 		$pdf->Cell($wAdm, $rowHeight, merit_pdf_fit_text((string)($row['school_id'] !== '' ? $row['school_id'] : $row['student_id']), $admLimit), 1, 0, 'C');
 		$pdf->Cell($wName, $rowHeight, merit_pdf_fit_text((string)($row['student_name'] ?? ''), $nameLimit), 1, 0, 'L');
-		$pdf->Cell($wGender, $rowHeight, substr((string)($row['gender'] ?? ''), 0, 1), 1, 0, 'C');
 		foreach ($subjects as $subject) {
 			$subjectId = (int)($subject['subject'] ?? 0);
 			$value = $row['subject_scores'][$subjectId] ?? null;
@@ -355,6 +356,10 @@ try {
 	$pdf->Cell(54, 5.5, $termName, 1, 0, 'L');
 	$pdf->Cell(32, 5.5, 'Printed Date', 1, 0, 'L', true);
 	$pdf->Cell(62, 5.5, date('Y-m-d'), 1, 1, 'L');
+	$pdf->Cell(32, 5.5, 'Class Teacher', 1, 0, 'L', true);
+	$pdf->Cell(54, 5.5, $classTeacherName !== '' ? $classTeacherName : 'Not allocated', 1, 0, 'L');
+	$pdf->Cell(32, 5.5, defined('WBDeputyHeadteacherTitle') ? (string)WBDeputyHeadteacherTitle : 'Deputy Headteacher', 1, 0, 'L', true);
+	$pdf->Cell(62, 5.5, defined('WBDeputyHeadteacherName') && trim((string)WBDeputyHeadteacherName) !== '' ? (string)WBDeputyHeadteacherName : '____________________', 1, 1, 'L');
 
 	merit_pdf_ensure_space($pdf, 78, $summaryHeaderWriter);
 
@@ -401,9 +406,11 @@ try {
 	$headteacherMeta = app_pdf_brand_headteacher_meta();
 	$headteacherName = trim((string)($headteacherMeta['name'] ?? ''));
 	$headteacherTitle = trim((string)($headteacherMeta['title'] ?? 'Headteacher'));
+	$deputyHeadteacherName = defined('WBDeputyHeadteacherName') ? trim((string)WBDeputyHeadteacherName) : '';
+	$deputyHeadteacherTitle = defined('WBDeputyHeadteacherTitle') ? trim((string)WBDeputyHeadteacherTitle) : 'Deputy Headteacher';
 	$approvalRows = [
-		['role' => 'Class Teacher', 'name' => '____________________', 'date' => date('Y-m-d')],
-		['role' => 'Deputy Headteacher', 'name' => '____________________', 'date' => date('Y-m-d')],
+		['role' => 'Class Teacher', 'name' => ($classTeacherName !== '' ? $classTeacherName : '____________________'), 'date' => date('Y-m-d')],
+		['role' => $deputyHeadteacherTitle !== '' ? $deputyHeadteacherTitle : 'Deputy Headteacher', 'name' => ($deputyHeadteacherName !== '' ? $deputyHeadteacherName : '____________________'), 'date' => date('Y-m-d')],
 		['role' => $headteacherTitle !== '' ? $headteacherTitle : 'Headteacher', 'name' => ($headteacherName !== '' ? $headteacherName : '____________________'), 'date' => date('Y-m-d')],
 	];
 	foreach ($approvalRows as $approvalRow) {

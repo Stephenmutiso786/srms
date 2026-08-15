@@ -5,7 +5,8 @@ require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/school.php');
 require_once('const/report_engine.php');
-if ($res == "1" && $level == "2") {}else{header("location:../"); exit;}
+$canOverrideMarks = app_current_user_can_override_marks();
+if ($res == "1" && ($level == "2" || $canOverrideMarks)) {}else{header("location:../"); exit;}
 
 header('Content-Type: application/json');
 
@@ -60,7 +61,7 @@ try {
 	$stmt = $conn->prepare("SELECT id, class, teacher FROM tbl_subject_combinations WHERE id = ?");
 	$stmt->execute([$subjectComb]);
 	$combo = $stmt->fetch(PDO::FETCH_ASSOC);
-	if (!$combo || (int)$combo['teacher'] !== (int)$account_id) {
+	if (!$combo || (!$canOverrideMarks && (int)$combo['teacher'] !== (int)$account_id)) {
 		echo json_encode(['ok' => false, 'message' => 'Not assigned']);
 		exit;
 	}

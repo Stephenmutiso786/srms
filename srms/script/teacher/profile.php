@@ -116,7 +116,7 @@ try {
 </div>
 <div class="mb-3">
 <label class="form-label">Confirm New Password</label>
-<input type="password" class="form-control" id="cnpass" placeholder="Repeat your new password">
+<input type="password" class="form-control" id="cnpass" name="cnpassword" placeholder="Repeat your new password">
 </div>
 
 <button type="submit" id="sub_btnp" name="submit" value="1" class="btn btn-primary">Change Password</button>

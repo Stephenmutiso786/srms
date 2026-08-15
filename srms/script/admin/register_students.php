@@ -12,9 +12,14 @@ $jssChoiceMap = [];
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	$schoolId = app_current_school_id();
+	$hasSchoolId = app_column_exists($conn, 'tbl_classes', 'school_id');
 	$nextAdmissionNumber = app_next_student_registration_number($conn);
-	$stmt = $conn->prepare("SELECT id, name FROM tbl_classes ORDER BY name");
-	$stmt->execute();
+	$classSql = $hasSchoolId
+		? "SELECT id, name FROM tbl_classes WHERE school_id IS NULL OR school_id = ? ORDER BY name"
+		: "SELECT id, name FROM tbl_classes ORDER BY name";
+	$stmt = $conn->prepare($classSql);
+	$stmt->execute($hasSchoolId ? [$schoolId] : []);
 	$classRows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	$jssChoiceMap = app_cbe_jss_choice_id_map($conn);
 } catch (Throwable $e) {
@@ -137,7 +142,7 @@ try {
 
 <div class="mb-2">
 <label class="form-label">Email</label>
-<input name="email" required class="form-control" type="text" placeholder="Enter email address">
+<input name="email" class="form-control" type="text" placeholder="Leave blank to auto-generate">
 </div>
 <div class="mb-2">
 <label class="form-label">Password</label>

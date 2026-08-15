@@ -2,6 +2,13 @@
 
 SRMS is a single PHP Student Results Management System (MySQL or Postgres) with one application root at `srms/script/`.
 
+## Cross-platform options
+
+- Windows installer: `windows/SRMS.iss`
+- Linux portable bundle: `cross-platform/linux/`
+- Docker deployment: `cross-platform/docker/`
+- VirtualBox VM notes: `cross-platform/vm/`
+
 ## Setup
 
 - Import the schema:

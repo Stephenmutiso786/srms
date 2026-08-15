@@ -4,7 +4,9 @@ session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
 require_once('const/school.php');
-if ($res == "1" && $level == "2") {}else{header("location:../");}
+require_once('const/rbac.php');
+$canOverrideMarks = app_current_user_can_override_marks();
+if ($res == "1" && ($level == "2" || $canOverrideMarks)) {}else{header("location:../");}
 
 function app_exam_entry_redirect_target(string $portal, string $page): string
 {
@@ -51,7 +53,7 @@ try {
   }
 
   // If exam is not active/open, allow entry only when this teacher has a rejected submission for this exam+subject
-  if (!in_array((string)($exam['status'] ?? ''), ['active','open'], true)) {
+  if (!in_array((string)($exam['status'] ?? ''), ['active','open'], true) && !$canOverrideMarks) {
     if (app_table_exists($conn, 'tbl_exam_mark_submissions')) {
       $chk = $conn->prepare("SELECT id FROM tbl_exam_mark_submissions WHERE exam_id = ? AND subject_combination_id = ? AND teacher_id = ? AND status = 'rejected' LIMIT 1");
       $chk->execute([$examId, $subjectComb, (int)$account_id]);
@@ -68,11 +70,10 @@ try {
   if (app_is_exam_locked($conn, $examId)) {
     throw new RuntimeException("This exam is locked and cannot be edited. Contact the administration if you need to make changes.");
   }
-
   $stmt = $conn->prepare("SELECT id, class, teacher, subject FROM tbl_subject_combinations WHERE id = ?");
   $stmt->execute([$subjectComb]);
   $combo = $stmt->fetch(PDO::FETCH_ASSOC);
-  if (!$combo || (int)$combo['teacher'] !== (int)$account_id) {
+  if (!$combo || !app_teacher_can_enter_exam_subject($conn, (int)$account_id, $examId, $subjectComb)) {
     throw new RuntimeException("Not assigned to that subject.");
   }
   $classList = app_unserialize($combo['class']);
@@ -81,13 +82,6 @@ try {
   }
   if (!app_exam_has_subject($conn, (int)$exam['id'], (int)$combo['subject'])) {
     throw new RuntimeException("That subject is not enabled for this exam.");
-  }
-
-  if (app_table_exists($conn, 'tbl_teacher_assignments')) {
-    if (!app_teacher_assignment_is_effective($conn, (int)$account_id, (int)$exam['class_id'], (int)$combo['subject'], (int)$exam['term_id'], (int)($exam['year'] ?? date('Y')))) {
-      throw new RuntimeException("No active assignment for this class/subject/term.");
-    }
-    app_sync_subject_combination($conn, (int)$account_id, (int)$combo['subject'], (int)$exam['class_id'], false);
   }
 
   $examMode = app_exam_assessment_mode($conn, (int)$exam['id']);

@@ -170,6 +170,26 @@ function app_current_user_has_any_permission(array $permissions): bool
 	return false;
 }
 
+function app_current_user_is_headteacher(): bool
+{
+	if (!isset($GLOBALS['account_id']) || !isset($GLOBALS['level'])) {
+		return false;
+	}
+
+	try {
+		$conn = app_db();
+		$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+		return app_staff_designation_key($conn, (int)$GLOBALS['account_id'], (string)$GLOBALS['level']) === 'headteacher';
+	} catch (Throwable $e) {
+		return (string)($GLOBALS['level'] ?? '') === '0';
+	}
+}
+
+function app_current_user_can_override_marks(): bool
+{
+	return isset($GLOBALS['level']) && ((int)$GLOBALS['level'] === 9 || app_current_user_is_headteacher());
+}
+
 function app_staff_role_names(PDO $conn, int $staffId): array
 {
 	if ($staffId < 1 || !app_table_exists($conn, 'tbl_user_roles') || !app_table_exists($conn, 'tbl_roles')) {
@@ -541,6 +561,7 @@ function app_teacher_portal_module_catalog(): array
 		['key' => 'results', 'label' => 'Results', 'href' => 'teacher/manage_results', 'icon' => 'feather icon-graph', 'description' => 'Review and publish results', 'permissions' => ['report.view', 'report.generate', 'marks.review', 'results.approve'], 'core' => true, 'routes' => ['teacher/results', 'teacher/report_card', 'teacher/class_report', 'teacher/published_analytics', 'teacher/print_mark_sheet', 'teacher/report_card_pdf']],
 		['key' => 'discipline', 'label' => 'Discipline', 'href' => 'teacher/discipline', 'icon' => 'feather icon-alert-triangle', 'description' => 'Learner welfare and discipline', 'permissions' => ['student.leadership.manage'], 'core' => true],
 		['key' => 'students', 'label' => 'Students', 'href' => 'teacher/students', 'icon' => 'feather icon-users', 'description' => 'Student directory and class lists', 'permissions' => ['students.manage', 'report.view'], 'core' => true, 'routes' => ['teacher/list_students', 'teacher/export_students', 'teacher/certificates']],
+		['key' => 'sms', 'label' => 'SMS', 'href' => 'teacher/sms', 'icon' => 'feather icon-message-circle', 'description' => 'Send SMS to assigned classes and direct contacts', 'permissions' => ['communication.send'], 'core' => true, 'routes' => ['teacher/sms_topup']],
 		['key' => 'staff_attendance', 'label' => 'Staff Attendance', 'href' => 'teacher/staff_attendance', 'icon' => 'feather icon-clock', 'description' => 'Monitor staff attendance', 'permissions' => ['attendance.manage'], 'core' => true],
 		['key' => 'exam_timetable', 'label' => 'Exam Timetable', 'href' => 'teacher/exam_timetable', 'icon' => 'feather icon-calendar', 'description' => 'Exam timetable planning', 'permissions' => ['timetable.manage', 'exams.manage'], 'core' => false],
 		['key' => 'grading_system', 'label' => 'Grading System', 'href' => 'teacher/grading-system', 'icon' => 'feather icon-award', 'description' => 'Grading and assessment setup', 'permissions' => ['exams.manage', 'academic.manage'], 'core' => false, 'routes' => ['teacher/division-system']],
@@ -652,6 +673,7 @@ function app_portal_module_catalog(string $portal): array
 			['key' => 'system_diagnostics', 'label' => 'System Diagnostics', 'href' => 'admin/system_diagnostics', 'icon' => 'feather icon-activity', 'description' => 'Diagnostics', 'permissions' => ['system.manage'], 'core' => false],
 			['key' => 'migrations', 'label' => 'Migrations', 'href' => 'admin/migrations', 'icon' => 'feather icon-database', 'description' => 'Database migrations', 'permissions' => ['system.manage'], 'core' => false],
 			['key' => 'module_locks', 'label' => 'Module Locks', 'href' => 'admin/module_locks', 'icon' => 'feather icon-lock', 'description' => 'Module lock control', 'permissions' => ['system.manage'], 'core' => false],
+			['key' => 'support_desk', 'label' => 'Support Desk', 'href' => 'admin/support_desk', 'icon' => 'feather icon-lifebuoy', 'description' => '24/7 support tickets and help', 'permissions' => ['system.manage'], 'core' => false],
 			['key' => 'system', 'label' => 'System Settings', 'href' => 'admin/system', 'icon' => 'feather icon-settings', 'description' => 'Global settings', 'permissions' => ['system.manage'], 'core' => false],
 			['key' => 'how_system_works', 'label' => 'How The System Works', 'href' => 'how_system_works', 'icon' => 'feather icon-help-circle', 'description' => 'Portal guide', 'permissions' => [], 'core' => true],
 		];
@@ -722,10 +744,20 @@ function app_portal_visible_modules(PDO $conn, string $portal, string $staffId, 
 
 	$modules = app_portal_module_catalog($portal);
 	$visible = [];
+	$features = ['all_modules' => true];
+	try {
+		$schoolRow = function_exists('app_school_row') ? app_school_row($conn) : [];
+		$features = function_exists('app_school_package_features') ? app_school_package_features((string)($schoolRow['package_tier'] ?? 'elimu_hub_pro')) : $features;
+	} catch (Throwable $e) {
+		$features = ['all_modules' => true];
+	}
 
 	foreach ($modules as $module) {
 		$moduleKey = strtolower(trim((string)($module['key'] ?? '')));
 		if ($moduleKey === 'attendance' && in_array($portal, ['teacher', 'academic'], true) && !app_can_manage_student_attendance($conn, $staffId, $level)) {
+			continue;
+		}
+		if (empty($features['all_modules']) && empty($module['core'])) {
 			continue;
 		}
 
@@ -1119,6 +1151,10 @@ function app_enforce_portal_route_permission(PDO $conn, string $portal, string $
 
 	$requestRoute = app_request_route_from_portal($portal);
 	if ($requestRoute === '') {
+		return;
+	}
+
+	if ($portal === 'teacher' && in_array($requestRoute, ['teacher/force_password_change', 'teacher/force_password_change.php'], true)) {
 		return;
 	}
 

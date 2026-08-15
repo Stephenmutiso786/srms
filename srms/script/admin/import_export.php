@@ -78,10 +78,19 @@ try {
 <div class="col-md-6">
 <div class="tile">
 <h3 class="tile-title">Import Students (CSV)</h3>
-<p class="text-muted">Headers: student_id,fname,mname,lname,gender,email,class_id OR class_name</p>
+<p class="text-muted">Minimum headers: first_name,last_name. Admission number and email are generated automatically.</p>
 <form class="app_frm" action="admin/core/import_students_csv" method="POST" enctype="multipart/form-data">
 <div class="mb-3">
-<input class="form-control" type="file" name="file" accept=".csv" required>
+<label class="form-label">Class</label>
+<select class="form-control" name="class_id" required>
+<option value="">Select class</option>
+<?php foreach ($classes as $c): ?>
+<option value="<?php echo (int)$c['id']; ?>"><?php echo htmlspecialchars((string)$c['name']); ?></option>
+<?php endforeach; ?>
+</select>
+</div>
+<div class="mb-3">
+<input class="form-control" type="file" name="file" accept=".csv">
 </div>
 <button class="btn btn-primary">Import Students</button>
 </form>
@@ -91,7 +100,7 @@ try {
 <div class="col-md-6">
 <div class="tile">
 <h3 class="tile-title">Import Teachers (CSV)</h3>
-<p class="text-muted">Headers: fname,lname,gender,email,phone (email required)</p>
+<p class="text-muted">Minimum headers: first_name,last_name. Email is optional; password defaults to Password123 and teachers must change it on first login.</p>
 <form class="app_frm" action="admin/core/import_staff_csv" method="POST" enctype="multipart/form-data">
 <div class="mb-3">
 <input class="form-control" type="file" name="file" accept=".csv" required>
@@ -106,8 +115,8 @@ try {
 <div class="col-md-6">
 <div class="tile">
 <h3 class="tile-title">Import Marks (CSV)</h3>
-<p class="text-muted">Headers: student_id,class_id,term_id,subject_id,score</p>
-<div class="alert alert-info">Safety mode is active here. CSV import only fills missing marks and will skip any score that already exists, so existing results are not overwritten.</div>
+<p class="text-muted">You can paste marks in class list order or upload CSV. Pasted lines may be either <code>student name,score</code> or just <code>score</code> per line.</p>
+<div class="alert alert-info">Paste mode follows the class list order shown in the system. If you paste names, the system will match by student name. Existing scores are not overwritten.</div>
 <form class="app_frm" action="admin/core/import_marks_csv" method="POST" enctype="multipart/form-data">
 <div class="row">
 <div class="col-md-4 mb-3">
@@ -145,6 +154,19 @@ try {
 </div>
 </div>
 <div class="mb-3">
+<label class="form-label">Paste Marks</label>
+<textarea class="form-control" name="paste_marks" rows="10" placeholder="Examples:
+John Smith, 84
+Mary Ann 76
+71
+68
+66"></textarea>
+<div class="form-text">Use one row per student. If you paste only scores, they will be applied top-to-bottom in the current class list order. If you paste names, the system will match them to the class list.</div>
+</div>
+<div class="mb-2">
+<div class="text-center fw-semibold text-uppercase small text-muted my-2">or</div>
+</div>
+<div class="mb-3">
 <input class="form-control" type="file" name="file" accept=".csv" required>
 </div>
 <button class="btn btn-primary">Import Marks</button>
@@ -173,6 +195,8 @@ try {
 <div class="d-flex flex-wrap gap-2">
 <a class="btn btn-outline-primary" href="admin/core/export_students?format=csv">Export Students (CSV)</a>
 <a class="btn btn-outline-secondary" href="admin/core/export_students?format=pdf">Export Students (PDF)</a>
+<a class="btn btn-outline-primary" href="admin/core/export_teachers?format=csv">Export Teachers (CSV)</a>
+<a class="btn btn-outline-secondary" href="admin/core/export_teachers?format=pdf">Export Teachers (PDF)</a>
 </div>
 <hr>
 <form class="d-flex flex-wrap gap-2 align-items-end" action="admin/core/export_results" method="GET">

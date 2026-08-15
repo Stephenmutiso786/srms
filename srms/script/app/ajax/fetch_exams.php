@@ -19,6 +19,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		$conn = app_db();
 		$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 		$examOptions = report_term_exam_options($conn, $classId, $termId);
+		if (empty($examOptions) && isset($level) && in_array((string)$level, ['0', '1', '2'], true) && app_table_exists($conn, 'tbl_exams')) {
+			$hasCreatedAt = app_column_exists($conn, 'tbl_exams', 'created_at');
+			$stmt = $conn->prepare("SELECT id, name, COALESCE(status, 'draft') AS status, COALESCE(assessment_mode, 'normal') AS assessment_mode
+				FROM tbl_exams
+				WHERE class_id = ? AND term_id = ? AND COALESCE(status, 'draft') IN ('active', 'open', 'published')
+				ORDER BY " . ($hasCreatedAt ? "created_at DESC, " : "") . "id DESC");
+			$stmt->execute([$classId, $termId]);
+			$fallback = $stmt->fetchAll(PDO::FETCH_ASSOC);
+			foreach ($fallback as $row) {
+				$status = strtolower(trim((string)($row['status'] ?? 'draft')));
+				if ($status === 'open') {
+					$status = 'active';
+				}
+				$examOptions[] = [
+					'id' => (int)($row['id'] ?? 0),
+					'name' => (string)($row['name'] ?? ''),
+					'status' => $status,
+					'assessment_mode' => strtolower(trim((string)($row['assessment_mode'] ?? 'normal'))),
+					'type_name' => '',
+				];
+			}
+		}
 		if (empty($examOptions) && $includeUnpublished && isset($level) && in_array((string)$level, ['0', '1'], true) && app_table_exists($conn, 'tbl_exams')) {
 			$hasCreatedAt = app_column_exists($conn, 'tbl_exams', 'created_at');
 			$stmt = $conn->prepare("SELECT id, name, COALESCE(status, 'draft') AS status FROM tbl_exams WHERE class_id = ? AND term_id = ? ORDER BY " . ($hasCreatedAt ? "created_at DESC, " : "") . "id DESC");

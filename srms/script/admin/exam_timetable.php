@@ -23,13 +23,15 @@ $error = '';
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	$hasSchoolId = app_column_exists($conn, 'tbl_classes', 'school_id');
 
 	if (!app_table_exists($conn, 'tbl_exam_schedule')) {
 		throw new RuntimeException("Exam timetable is not installed. Run migration 005_exam_timetable.sql.");
 	}
 
-	$stmt = $conn->prepare("SELECT id, name FROM tbl_classes ORDER BY id");
-	$stmt->execute();
+	$classSql = $hasSchoolId ? "SELECT id, name FROM tbl_classes WHERE school_id IS NULL OR school_id = ? ORDER BY id" : "SELECT id, name FROM tbl_classes ORDER BY id";
+	$stmt = $conn->prepare($classSql);
+	$stmt->execute($hasSchoolId ? [app_current_school_id()] : []);
 	$classes = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 	$stmt = $conn->prepare("SELECT id, name FROM tbl_terms ORDER BY id DESC");

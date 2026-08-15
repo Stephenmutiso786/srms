@@ -54,13 +54,14 @@ if (!$currentStaff) {
 $currentLevel = (string)($currentStaff['level'] ?? '');
 $currentIsAdminManaged = app_staff_is_admin_managed($conn, $id, $currentLevel);
 $requestedIsAdminManaged = in_array($designation, ['headteacher', 'deputy_headteacher', 'senior_teacher', 'accountant'], true);
-if (($currentIsAdminManaged || $requestedIsAdminManaged) && !$isSuperAdminController) {
-	$_SESSION['reply'] = array (array("danger",'Only the super admin can edit leadership or admin accounts.'));
+$isHeadteacherController = app_staff_designation_key($conn, (int)($account_id ?? 0), (string)($level ?? '')) === 'headteacher';
+if (($currentIsAdminManaged || $requestedIsAdminManaged) && !$isSuperAdminController && !$isHeadteacherController) {
+	$_SESSION['reply'] = array (array("danger",'Only the super admin or headteacher can edit leadership or admin accounts.'));
 	header("location:../teachers");
 	exit;
 }
 
-if (!$isSuperAdminController && $designation !== 'teacher') {
+if (!$isSuperAdminController && !$isHeadteacherController && $designation !== 'teacher') {
 	$designation = 'teacher';
 	$role = '2';
 }

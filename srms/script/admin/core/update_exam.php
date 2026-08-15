@@ -82,10 +82,6 @@ try {
 		}
 	}
 
-	if (in_array((string)$exam['status'], ['finalized', 'published'], true)) {
-		throw new RuntimeException("Finalized or published exams cannot be edited.");
-	}
-
 	$hasMarks = false;
 	if (app_table_exists($conn, 'tbl_exam_mark_submissions')) {
 		$stmt = $conn->prepare("SELECT COUNT(*) FROM tbl_exam_mark_submissions WHERE exam_id = ?");
@@ -98,16 +94,29 @@ try {
 		$hasMarks = ((int)$stmt->fetchColumn() > 0);
 	}
 
+	$lockedStatuses = ['finalized', 'published'];
+	$isLockedExam = in_array((string)$exam['status'], $lockedStatuses, true);
 	if ($hasMarks && ((int)$exam['class_id'] !== $classId || (int)$exam['term_id'] !== $termId || (int)($exam['grading_system_id'] ?? 0) !== $gradingSystemId)) {
 		throw new RuntimeException("Class, term, or grading system cannot be changed after marks have been entered.");
 	}
 
-	if ($hasMarks) {
+	$currentSubjects = [];
+	$addedSubjects = [];
+	if ($hasMarks || $isLockedExam) {
 		$currentSubjects = app_exam_subject_ids($conn, $examId);
 		sort($currentSubjects);
 		$nextSubjects = $subjectIds;
 		sort($nextSubjects);
-		if ($currentSubjects !== $nextSubjects) {
+		if ($isLockedExam) {
+			$addedSubjects = array_values(array_diff($nextSubjects, $currentSubjects));
+			$removedSubjects = array_values(array_diff($currentSubjects, $nextSubjects));
+			if (!empty($removedSubjects)) {
+				throw new RuntimeException("Finalized exams can only have subjects added, not removed.");
+			}
+			if (($classId !== (int)$exam['class_id'] || $termId !== (int)$exam['term_id'] || $gradingSystemId !== (int)($exam['grading_system_id'] ?? 0)) && !empty($currentSubjects)) {
+				throw new RuntimeException("Finalized exams cannot change class, term, or grading system.");
+			}
+		} elseif ($currentSubjects !== $nextSubjects) {
 			throw new RuntimeException("Subjects cannot be changed after marks have been entered.");
 		}
 	}
@@ -149,8 +158,12 @@ try {
 		throw new RuntimeException("Another exam with the same name already exists for that class and term.");
 	}
 
-	$stmt = $conn->prepare("UPDATE tbl_exams SET name = ?, class_id = ?, term_id = ?, exam_type_id = ?, grading_system_id = ?, assessment_mode = ? WHERE id = ?");
-	$stmt->execute([$name, $classId, $termId, $examTypeId, $gradingSystemId, $assessmentMode, $examId]);
+	$nextStatus = (string)$exam['status'];
+	if ($isLockedExam && !empty($addedSubjects)) {
+		$nextStatus = 'active';
+	}
+	$stmt = $conn->prepare("UPDATE tbl_exams SET name = ?, class_id = ?, term_id = ?, exam_type_id = ?, grading_system_id = ?, assessment_mode = ?, status = ? WHERE id = ?");
+	$stmt->execute([$name, $classId, $termId, $examTypeId, $gradingSystemId, $assessmentMode, $nextStatus, $examId]);
 
 	if (DBDriver === 'pgsql') {
 		$stmt = $conn->prepare("INSERT INTO tbl_exam_weights (exam_id, weight_percentage) VALUES (?, ?)

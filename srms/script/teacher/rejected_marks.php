@@ -3,11 +3,13 @@ chdir('../');
 session_start();
 require_once('db/config.php');
 require_once('const/check_session.php');
+require_once('const/rbac.php');
 require_once('const/school.php');
 if ($res == "1" && $level == "2") {}else{header("location:../");}
 
 $rejectedMarks = [];
 $error = '';
+$canOverrideMarks = app_current_user_can_override_marks();
 
 try {
   $conn = app_db();
@@ -117,7 +119,7 @@ try {
       $openable = false;
       $openReason = 'Exam not found.';
     }
-    if ($openable && !app_exam_teacher_can_reenter($conn, (int)$exam['id'], $subjectCombId, (int)$account_id, (string)($exam['status'] ?? ''))) {
+    if ($openable && !$canOverrideMarks && !app_exam_teacher_can_reenter($conn, (int)$exam['id'], $subjectCombId, (int)$account_id, (string)($exam['status'] ?? ''))) {
       $openable = false;
       $openReason = 'This rejected submission is not available for correction right now.';
     }
@@ -131,7 +133,7 @@ try {
       }
     }
     if ($openable) {
-      if ((int)$combo['teacher'] !== (int)$account_id) {
+      if (!app_teacher_can_enter_exam_subject($conn, (int)$account_id, (int)$exam['id'], $subjectCombId)) {
         $openable = false;
         $openReason = 'You are not assigned to that subject.';
       }
@@ -149,7 +151,7 @@ try {
         $openReason = 'That subject is not enabled for this exam.';
       }
     }
-    if ($openable && app_table_exists($conn, 'tbl_teacher_assignments')) {
+    if ($openable && !$canOverrideMarks && app_table_exists($conn, 'tbl_teacher_assignments')) {
       $stmt = $conn->prepare("SELECT id FROM tbl_teacher_assignments
         WHERE teacher_id = ? AND class_id = ? AND subject_id = ? AND status = 1
         AND (term_id = ? OR term_id IS NULL OR term_id = 0)

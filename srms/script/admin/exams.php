@@ -218,7 +218,7 @@ try {
 <div class="col-md-7">
 <div class="tile">
 <h3 class="tile-title">Create Exam</h3>
-<p class="text-muted">Create the assessment structure first, choose whether it is a normal exam, CBE assessment, or a consolidated average. Consolidated exams are auto-computed from selected exams, so they skip manual mark review and go straight to finalization and publishing.</p>
+<p class="text-muted">Create the assessment structure first, choose whether it is a normal exam, CBE assessment, or a consolidated average. Consolidated exams are auto-computed from selected exams, so they skip manual review and go straight to finalization and publishing. Normal exams can be activated, returned to draft, and reviewed again after reactivation; submitted marks will be auto-promoted so finalization is not blocked by review status.</p>
 <div class="d-flex flex-wrap gap-2 mb-3">
 	<a class="btn btn-outline-primary btn-sm" href="admin/exam_timetable"><i class="bi bi-calendar-event me-1"></i>Manage Timetable</a>
 	<a class="btn btn-outline-secondary btn-sm" href="admin/results_locks"><i class="bi bi-lock me-1"></i>Results Locks</a>
@@ -405,7 +405,7 @@ $missingSubjectNames = array_map(static function ($row) {
 	<?php if (in_array((string)($exam['status'] ?? ''), ['active','reviewed'], true)) { ?>
 	<form class="d-inline" action="admin/core/update_exam_status" method="POST">
 		<input type="hidden" name="exam_id" value="<?php echo (int)$exam['id']; ?>">
-		<button type="submit" class="btn btn-sm btn-outline-secondary" name="status" value="draft">Back to Draft</button>
+		<button type="submit" class="btn btn-sm btn-outline-secondary" name="status" value="draft">Back to Draft and Reopen Marks</button>
 	</form>
 	<?php } ?>
 	</div>

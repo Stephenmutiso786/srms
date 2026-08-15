@@ -105,11 +105,17 @@ $matches = implode(',', $matches);
 try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+$schoolId = app_current_school_id();
+$hasSchoolId = app_column_exists($conn, 'tbl_students', 'school_id');
+$hasTenantSchoolId = app_column_exists($conn, 'tbl_students', 'tenant_school_id');
 
 $empty_classes = array();
 
-$stmt = $conn->prepare("SELECT id, name FROM tbl_classes ORDER BY name");
-$stmt->execute();
+$classSql = app_column_exists($conn, 'tbl_classes', 'school_id')
+	? "SELECT id, name FROM tbl_classes WHERE school_id IS NULL OR school_id = ? ORDER BY name"
+	: "SELECT id, name FROM tbl_classes ORDER BY name";
+$stmt = $conn->prepare($classSql);
+$stmt->execute(app_column_exists($conn, 'tbl_classes', 'school_id') ? [$schoolId] : []);
 $classes = $stmt->fetchAll(PDO::FETCH_ASSOC);
 $jssChoiceMap = app_cbe_jss_choice_id_map($conn);
 
@@ -118,8 +124,21 @@ $empty_classes[(string)$value['id']] = (string)$value['name'];
 }
 
 
-$stmt = $conn->prepare("SELECT * FROM tbl_students WHERE class IN ($matches)");
-$stmt->execute($students);
+$studentSql = "SELECT * FROM tbl_students";
+$studentSql .= " WHERE class IN ($matches)";
+if ($hasTenantSchoolId) {
+	$studentSql .= " AND (tenant_school_id IS NULL OR tenant_school_id = ?)";
+} elseif ($hasSchoolId) {
+	$studentSql .= " AND (school_id IS NULL OR school_id = ?)";
+}
+$stmt = $conn->prepare($studentSql);
+$params = $students;
+if ($hasTenantSchoolId) {
+	$params[] = $schoolId;
+} elseif ($hasSchoolId) {
+	$params[] = $schoolId;
+}
+$stmt->execute($params);
 $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
 $onlineMaps = app_online_fetch_maps($conn, 180);
 $onlineStudents = isset($onlineMaps['students']) && is_array($onlineMaps['students']) ? $onlineMaps['students'] : [];
@@ -136,7 +155,7 @@ $choiceSummary = app_student_subject_choice_summary($conn, (string)$row['id']);
 <td width="10">
 <?php
 if (($row['display_image'] ?? '') == "DEFAULT") {
-?><img src="images/students/<?php echo $row['gender']; ?>.png" class="avatar_img_sm"><?php
+?><img src="images/students/default_passport.jpeg" class="avatar_img_sm" alt="Student photo"><?php
 }else{
 ?><img src="images/students/<?php echo $row['display_image']; ?>" class="avatar_img_sm"><?php
 }
@@ -295,7 +314,7 @@ echo "Connection failed.";
 
 <div class="mb-2">
 <label class="form-label">Email</label>
-<input id="email" name="email" required class="form-control" type="text" placeholder="Enter email address">
+<input id="email" name="email" class="form-control" type="text" placeholder="Leave blank to auto-generate">
 </div>
 
 <div class="mb-3">

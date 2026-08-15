@@ -156,7 +156,8 @@ if ($redirectTo !== '') {
 	}
 }
 
-header("location:../".$portal);
+$baseUrl = app_base_url();
+header("location:" . ($baseUrl !== '' ? $baseUrl . '/' . ltrim($portal, '/') : "../".$portal));
 exit;
 
 

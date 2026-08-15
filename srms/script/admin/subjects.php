@@ -16,13 +16,21 @@ $assignments = [];
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	$schoolId = app_current_school_id();
+	$hasSchoolId = app_column_exists($conn, 'tbl_subjects', 'school_id');
 
-	$stmt = $conn->prepare("SELECT id, name FROM tbl_subjects ORDER BY name");
-	$stmt->execute();
+	$subjectSql = $hasSchoolId
+		? "SELECT id, name FROM tbl_subjects WHERE school_id IS NULL OR school_id = ? ORDER BY name"
+		: "SELECT id, name FROM tbl_subjects ORDER BY name";
+	$stmt = $conn->prepare($subjectSql);
+	$stmt->execute($hasSchoolId ? [$schoolId] : []);
 	$subjects = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-	$stmt = $conn->prepare("SELECT id, name FROM tbl_classes ORDER BY name");
-	$stmt->execute();
+	$classSql = app_column_exists($conn, 'tbl_classes', 'school_id')
+		? "SELECT id, name FROM tbl_classes WHERE school_id IS NULL OR school_id = ? ORDER BY name"
+		: "SELECT id, name FROM tbl_classes ORDER BY name";
+	$stmt = $conn->prepare($classSql);
+	$stmt->execute(app_column_exists($conn, 'tbl_classes', 'school_id') ? [$schoolId] : []);
 	$classes = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 	if (app_table_exists($conn, 'tbl_subject_class_assignments')) {

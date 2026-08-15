@@ -26,6 +26,8 @@ $appSettings = [
 	'school_website' => '',
 	'headteacher_name' => '',
 	'headteacher_title' => 'Headteacher',
+	'deputy_headteacher_name' => '',
+	'deputy_headteacher_title' => 'Deputy Headteacher',
 	'headteacher_signature_path' => '',
 	'school_stamp_path' => '',
 	'school_timezone' => 'Africa/Nairobi',
@@ -70,19 +72,19 @@ $appSettings = [
 	'top_banner_text' => '',
 	'maintenance_mode_enabled' => '0',
 	'maintenance_mode_message' => 'System is under maintenance. Please try again later.',
-	'public_school_motto' => 'Nurturing Excellence Through CBE Education',
-	'public_school_tagline' => 'A trusted learning community shaping future-ready leaders.',
-	'public_school_location' => 'Kiunduani, Kibwezi West',
-	'public_school_location_map_url' => 'https://maps.app.goo.gl/fqhaetnW4G6hBmHs7',
-	'public_school_phone' => '+25417876564',
+	'public_school_motto' => 'Real school management for every school',
+	'public_school_tagline' => 'A platform for administration, teaching, communication, and learning.',
+	'public_school_location' => 'Available to all schools on the platform',
+	'public_school_location_map_url' => 'https://maps.google.com',
+	'public_school_phone' => '+254700000000',
 	'public_school_email' => '',
 	'public_school_opening_date' => date('Y-m-d'),
 	'public_school_closing_date' => date('Y-m-d'),
 	'public_about_text' => '',
-	'public_vision_text' => 'To develop responsible, skilled, and confident learners for tomorrow.',
-	'public_mission_text' => 'To deliver inclusive, learner-centered education through strong teaching, mentorship, and community partnership.',
-	'public_core_values' => 'Integrity, Discipline, Respect, Teamwork, Excellence',
-	'public_news_items' => "Upcoming Parents Meeting|Term stakeholder engagement and learner progress briefing.\nSports Day Preparations|Inter-class games and athletics training currently underway.\nAcademic Calendar Highlights|Continuous assessment weeks and exam schedules published.",
+	'public_vision_text' => 'To make school administration simple, real-time, and accessible to every school.',
+	'public_mission_text' => 'To deliver reliable school software that serves administrators, teachers, students, and parents from one platform.',
+	'public_core_values' => 'Accuracy, Transparency, Reliability, Security, Support',
+	'public_news_items' => "School Onboarding|Register a new school, seed the workspace, and start managing users immediately.\nPortal Access|Teachers, students, and parents log in through separate secure portals.\nPlatform Control|Super admins manage subscriptions, feature flags, and school activation.",
 	'public_offers_items' => "Academics|Competency-Based Curriculum from PP1 to Grade 9.\nICT Studies|Foundational digital skills and guided computer learning.\nSports & Clubs|Co-curricular activities for fitness, teamwork, and talent growth.\nDay School|Structured day-learning program with strong parent partnership.\nTransport & Meals|Safe school transport and balanced meals for learners.\nQualified Staff|Dedicated teachers and mentorship-focused support team.",
 	'public_facilities_items' => "Science Labs|Practical science exposure in structured learning spaces.\nLibrary|Reading resources that support independent study habits.\nComputer Lab|Guided access to computers and interactive learning tools.\nPlayground|Outdoor spaces for games, sports, and physical development.\nTransport System|Reliable school transport for day learners.\nSafe Environment|Secure and supervised campus for all learners.",
 ];
@@ -103,7 +105,9 @@ try {
 	}
 
 	if (app_table_exists($conn, 'tbl_result_settings')) {
-		$stmt = $conn->prepare("SELECT best_of, use_weights, require_fees_clear FROM tbl_result_settings ORDER BY id DESC LIMIT 1");
+		$hasTemplateColumn = app_column_exists($conn, 'tbl_result_settings', 'report_card_template');
+		$select = "best_of, use_weights, require_fees_clear" . ($hasTemplateColumn ? ", report_card_template" : "");
+		$stmt = $conn->prepare("SELECT {$select} FROM tbl_result_settings ORDER BY id DESC LIMIT 1");
 		$stmt->execute();
 		$row = $stmt->fetch(PDO::FETCH_ASSOC);
 		if ($row) {
@@ -604,6 +608,14 @@ if (count($cbeGrading) < 1) {
 <label class="form-label">Headteacher Title</label>
 <input class="form-control" name="settings[headteacher_title]" value="<?php echo htmlspecialchars($appSettings['headteacher_title']); ?>" placeholder="Headteacher">
 </div>
+<div class="col-md-4 mb-3">
+<label class="form-label">Deputy Headteacher Name</label>
+<input class="form-control" name="settings[deputy_headteacher_name]" value="<?php echo htmlspecialchars($appSettings['deputy_headteacher_name']); ?>" placeholder="e.g. Peter Mwangi">
+</div>
+<div class="col-md-4 mb-3">
+<label class="form-label">Deputy Headteacher Title</label>
+<input class="form-control" name="settings[deputy_headteacher_title]" value="<?php echo htmlspecialchars($appSettings['deputy_headteacher_title']); ?>" placeholder="Deputy Headteacher">
+</div>
 <div class="col-md-8 mb-3">
 <label class="form-label">Address</label>
 <input class="form-control" name="settings[school_address]" value="<?php echo htmlspecialchars($appSettings['school_address']); ?>">
@@ -669,6 +681,17 @@ Last auto-generation: <strong><?php echo htmlspecialchars((string)$appSettings['
 </div>
 <div class="col-md-12">
 <div class="settings-subgroup">Document Branding</div>
+</div>
+<div class="col-md-6 mb-3">
+<label class="form-label">School Logo</label>
+<input class="form-control" type="file" name="school_logo" accept=".jpg,.jpeg,.png,.webp,image/png,image/jpeg,image/webp">
+<small class="text-muted d-block mt-2">Used automatically on report cards, merit lists, ID cards, and printable school forms.</small>
+<?php if (defined('WBLogo') && trim((string)WBLogo) !== '' && is_file('images/logo/' . trim((string)WBLogo))): ?>
+<div class="mt-2 p-2 border rounded bg-light">
+	<div class="small text-muted mb-2">Current logo</div>
+	<img src="images/logo/<?php echo htmlspecialchars((string)WBLogo); ?>" alt="School logo" style="max-width:100%;max-height:100px;object-fit:contain;">
+</div>
+<?php endif; ?>
 </div>
 <div class="col-md-6 mb-3">
 <label class="form-label">Headteacher Signature</label>

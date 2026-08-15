@@ -4,6 +4,7 @@ session_start();
 require_once('db/config.php');
 require_once('const/school.php');
 require_once('const/check_session.php');
+require_once('const/rbac.php');
 if ($res == "1" && $level == "2") {}else{header("location:../");}
 
 if (!isset($_SESSION['cbe_entry'])) {
@@ -54,7 +55,7 @@ try {
 		throw new RuntimeException("Subject combination not found.");
 	}
 
-	if ((int)$subjectData['teacher'] !== (int)$account_id) {
+	if (!app_current_user_can_override_marks() && (int)$subjectData['teacher'] !== (int)$account_id) {
 		throw new RuntimeException("Not allowed to enter marks for this subject.");
 	}
 

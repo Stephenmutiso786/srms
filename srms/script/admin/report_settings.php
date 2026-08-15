@@ -12,6 +12,7 @@ $settings = [
   'best_of' => 0,
   'use_weights' => 1,
   'require_fees_clear' => 0,
+  'report_card_template' => '2',
 ];
 $subjects = [];
 $weights = [];
@@ -22,13 +23,18 @@ try {
 	app_ensure_current_mode_mysql_schema($conn);
 
 	if (app_table_exists($conn, 'tbl_result_settings')) {
-		$stmt = $conn->prepare("SELECT best_of, use_weights, require_fees_clear FROM tbl_result_settings ORDER BY id DESC LIMIT 1");
+		$hasTemplateColumn = app_column_exists($conn, 'tbl_result_settings', 'report_card_template');
+		$select = "best_of, use_weights, require_fees_clear" . ($hasTemplateColumn ? ", report_card_template" : "");
+		$stmt = $conn->prepare("SELECT {$select} FROM tbl_result_settings ORDER BY id DESC LIMIT 1");
 		$stmt->execute();
 		$row = $stmt->fetch(PDO::FETCH_ASSOC);
 		if ($row) {
 			$settings['best_of'] = (int)$row['best_of'];
 			$settings['use_weights'] = (int)$row['use_weights'];
 			$settings['require_fees_clear'] = (int)$row['require_fees_clear'];
+			if (isset($row['report_card_template']) && $row['report_card_template'] !== '') {
+				$settings['report_card_template'] = (string)$row['report_card_template'];
+			}
 		}
 	}
 
@@ -107,6 +113,13 @@ try {
 <option value="0" <?php echo !$settings['require_fees_clear'] ? 'selected' : ''; ?>>No</option>
 </select>
 </div>
+<div class="mb-3">
+<label class="form-label">Default Report Card Template</label>
+<select class="form-control" name="report_card_template">
+<option value="2" <?php echo (string)$settings['report_card_template'] === '2' ? 'selected' : ''; ?>>Template 2 - Default modern card</option>
+<option value="1" <?php echo (string)$settings['report_card_template'] === '1' ? 'selected' : ''; ?>>Template 1 - Current classic card</option>
+</select>
+</div>
 <button class="btn btn-primary">Save Settings</button>
 </form>
 </div>
@@ -142,6 +155,17 @@ try {
 </tbody>
 </table>
 </div>
+</div>
+</div>
+
+<div class="col-md-6">
+<div class="tile">
+<h3 class="tile-title">Template Preview</h3>
+<p class="text-muted">Template 2 is now the default. It places the school logo at the top and gives the student name and identity fields more room.</p>
+<ul class="mb-0">
+<li>Template 1 keeps the existing compact layout.</li>
+<li>Template 2 is the new default report card for the system.</li>
+</ul>
 </div>
 </div>
 </div>

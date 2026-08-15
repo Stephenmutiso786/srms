@@ -115,6 +115,17 @@ function app_mail_fallback_available(): bool {
 	return is_file($binary) && is_executable($binary);
 }
 
+function app_school_message_footer(PDO $conn): string
+{
+	try {
+		$row = function_exists('app_school_row') ? app_school_row($conn) : [];
+		$schoolName = trim((string)($row['name'] ?? (defined('WBName') ? WBName : (defined('APP_NAME') ? APP_NAME : 'School'))));
+		return $schoolName !== '' ? "\n\n--\n" . $schoolName : '';
+	} catch (Throwable $e) {
+		return '';
+	}
+}
+
 function app_send_email(PDO $conn, string $recipient, string $subject, string $message, array $attachments = []): array {
 	$status = 'failed';
 	$error = '';
@@ -130,7 +141,8 @@ function app_send_email(PDO $conn, string $recipient, string $subject, string $m
 			app_configure_mailer_smtp($mail, $smtp);
 
 			$fromName = defined('WBName') ? WBName : (defined('APP_NAME') ? APP_NAME : 'School');
-			app_configure_mailer_common($mail, (string)$smtp['username'], $fromName, $recipient, $subject, $message, $attachments);
+			$messageWithFooter = $message . app_school_message_footer($conn);
+			app_configure_mailer_common($mail, (string)$smtp['username'], $fromName, $recipient, $subject, $messageWithFooter, $attachments);
 
 			if ($mail->send()) {
 				$status = 'sent';
@@ -148,7 +160,8 @@ function app_send_email(PDO $conn, string $recipient, string $subject, string $m
 				$mail = new PHPMailer(true);
 				$fromName = defined('WBName') ? WBName : (defined('APP_NAME') ? APP_NAME : 'School');
 				$mail->isMail();
-				app_configure_mailer_common($mail, (string)$smtp['username'], $fromName, $recipient, $subject, $message, $attachments);
+				$messageWithFooter = $message . app_school_message_footer($conn);
+				app_configure_mailer_common($mail, (string)$smtp['username'], $fromName, $recipient, $subject, $messageWithFooter, $attachments);
 				if ($mail->send()) {
 					$status = 'sent';
 					$provider = 'mail';
@@ -672,8 +685,10 @@ function app_send_sms(PDO $conn, string $recipient, string $message): array {
 	$error = '';
 	$provider = 'custom';
 	$recipient = app_normalize_phone_number($recipient, (string)(getenv('APP_DEFAULT_COUNTRY_CODE') ?: '254'));
-	$walletId = 1;
 	$tokensUsed = app_sms_token_segments($message);
+	$schoolRow = function_exists('app_school_row') ? app_school_row($conn) : [];
+	$schoolId = (int)($schoolRow['id'] ?? 0);
+	$schoolSmsBalance = (int)($schoolRow['sms_balance'] ?? 0);
 	$deductedTokens = false;
 
 	$settings = app_get_sms_settings($conn);
@@ -682,10 +697,9 @@ function app_send_sms(PDO $conn, string $recipient, string $message): array {
 	} elseif ($recipient === '') {
 		$error = 'Recipient phone number missing or invalid';
 	} else {
-		if (app_table_exists($conn, 'tbl_sms_wallets')) {
-			app_ensure_sms_wallet_tables($conn);
-			if ($tokensUsed > 0 && app_sms_wallet_balance($conn, $walletId) < $tokensUsed) {
-				$error = 'Insufficient SMS tokens';
+		if ($schoolId > 0 && app_table_exists($conn, 'tbl_school') && app_column_exists($conn, 'tbl_school', 'sms_balance')) {
+			if ($tokensUsed > 0 && $schoolSmsBalance < $tokensUsed) {
+				$error = 'Insufficient SMS credits for this school';
 				if (app_table_exists($conn, 'tbl_sms_logs')) {
 					$stmt = $conn->prepare("INSERT INTO tbl_sms_logs (recipient, message, status, provider) VALUES (?,?,?,?)");
 					$stmt->execute([$recipient, $message, $status, $provider]);
@@ -696,6 +710,10 @@ function app_send_sms(PDO $conn, string $recipient, string $message): array {
 
 		$provider = $settings['provider'] ?: 'custom';
 		$providerNormalized = strtolower(trim((string)$provider));
+		$schoolFooter = app_school_message_footer($conn);
+		if ($schoolFooter !== '') {
+			$message .= $schoolFooter;
+		}
 		$apiUrl = (string)$settings['api_url'];
 		$apiKey = (string)$settings['api_key'];
 		$senderId = trim((string)($settings['sender_id'] ?? ''));
@@ -725,6 +743,19 @@ function app_send_sms(PDO $conn, string $recipient, string $message): array {
 					'apiKey: ' . $apiKey,
 				];
 			}
+		} elseif (in_array($providerNormalized, ['ots', 'ots_sms', 'olympus', 'olympus_sms', 'olympus sms'], true)) {
+			$payload = http_build_query([
+				'api_key' => $apiKey,
+				'sender_id' => $senderId,
+				'mobile' => $recipient,
+				'to' => $recipient,
+				'message' => $message,
+			]);
+			$headers = [
+				'Content-Type: application/x-www-form-urlencoded',
+				'Accept: application/json',
+				'Authorization: Bearer ' . $apiKey,
+			];
 		} else {
 			$payload = json_encode([
 				'to' => $recipient,
@@ -752,14 +783,29 @@ function app_send_sms(PDO $conn, string $recipient, string $message): array {
 
 			if ($error === '') {
 				if ($httpCode >= 200 && $httpCode < 300) {
-					$status = 'sent';
-					if (app_table_exists($conn, 'tbl_sms_wallets') && $tokensUsed > 0) {
+					$data = json_decode($response, true);
+					$explicitFailure = false;
+					if (is_array($data)) {
+						$statusText = strtolower(trim((string)($data['status'] ?? $data['state'] ?? $data['response'] ?? '')));
+						$successValue = $data['success'] ?? $data['ok'] ?? null;
+						$codeValue = (string)($data['code'] ?? $data['responseCode'] ?? $data['ResponseCode'] ?? '');
+						$explicitFailure = $successValue === false
+							|| in_array($statusText, ['failed', 'fail', 'error', 'rejected'], true)
+							|| ($codeValue !== '' && !in_array($codeValue, ['0', '00', '200', '201'], true));
+					}
+					if ($explicitFailure) {
+						$error = trim((string)($data['message'] ?? $data['error'] ?? $data['description'] ?? 'SMS gateway rejected the message'));
+					} else {
+						$status = 'sent';
+					}
+					if ($status === 'sent' && $schoolId > 0 && app_column_exists($conn, 'tbl_school', 'sms_balance') && $tokensUsed > 0) {
 						try {
-							app_sms_wallet_adjust($conn, $walletId, -$tokensUsed, 'SMS-' . date('YmdHis'), 'Outbound SMS to ' . $recipient, 'usage');
+							$stmt = $conn->prepare('UPDATE tbl_school SET sms_balance = GREATEST(COALESCE(sms_balance, 0) - ?, 0) WHERE id = ?');
+							$stmt->execute([$tokensUsed, $schoolId]);
 							$deductedTokens = true;
 						} catch (Throwable $e) {
 							$status = 'failed';
-							$error = 'SMS sent but token deduction failed';
+							$error = 'SMS sent but credit deduction failed';
 						}
 					}
 				} else {
@@ -775,5 +821,5 @@ function app_send_sms(PDO $conn, string $recipient, string $message): array {
 		$stmt->execute([$recipient, $message, $status, $provider]);
 	}
 
-	return ['ok' => $status === 'sent', 'status' => $status, 'error' => $error];
+	return ['ok' => $status === 'sent', 'status' => $status, 'error' => $error, 'provider' => $provider, 'credits_deducted' => $deductedTokens];
 }

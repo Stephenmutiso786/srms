@@ -15,7 +15,8 @@ try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
-	$stmt = $conn->prepare("SELECT st.id, concat_ws(' ', st.fname, st.mname, st.lname) AS name, st.gender, st.email, c.name AS class_name
+	$schoolIdSelect = app_column_exists($conn, 'tbl_students', 'school_id') ? 'st.school_id' : "'' AS school_id";
+	$stmt = $conn->prepare("SELECT st.id, $schoolIdSelect, st.fname, st.mname, st.lname, concat_ws(' ', st.fname, st.mname, st.lname) AS name, st.gender, st.email, c.name AS class_name
 		FROM tbl_students st
 		LEFT JOIN tbl_classes c ON c.id = st.class
 		ORDER BY st.id");
@@ -49,9 +50,9 @@ try {
 	header('Content-Type: text/csv');
 	header('Content-Disposition: attachment; filename="students.csv"');
 	$out = fopen('php://output', 'w');
-	fputcsv($out, ['student_id','name','gender','email','class']);
+	fputcsv($out, ['admission_number','school_id','first_name','middle_name','last_name','gender','email','class']);
 	foreach ($rows as $r) {
-		fputcsv($out, [$r['id'], $r['name'], $r['gender'], $r['email'], $r['class_name']]);
+		fputcsv($out, [$r['id'], $r['school_id'] ?? '', $r['fname'], $r['mname'], $r['lname'], $r['gender'], $r['email'], $r['class_name']]);
 	}
 	fclose($out);
 	exit;

@@ -27,6 +27,7 @@ $whatsappWebhookUrl = '';
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	app_ensure_sms_settings_table($conn);
 	app_ensure_school_roles($conn);
 	app_ensure_sms_wallet_tables($conn);
 	$smsBalance = app_sms_wallet_balance($conn, 1);
@@ -258,11 +259,16 @@ try {
 <form class="app_frm" action="admin/core/save_sms_settings" method="POST">
 <div class="mb-3">
 <label class="form-label">Provider Name</label>
-<input class="form-control" name="provider" value="<?php echo htmlspecialchars((string)$smsSettings['provider']); ?>" placeholder="Africa's Talking / Twilio / Custom">
+<select class="form-control" name="provider" id="sms_provider">
+<option value="ots" <?php echo strtolower((string)$smsSettings['provider']) === 'ots' ? 'selected' : ''; ?>>Olympus SMS / OTS (sms.ots.co.ke)</option>
+<option value="africastalking" <?php echo strtolower((string)$smsSettings['provider']) === 'africastalking' ? 'selected' : ''; ?>>Africa's Talking</option>
+<option value="custom" <?php echo strtolower((string)$smsSettings['provider']) === 'custom' ? 'selected' : ''; ?>>Custom JSON Gateway</option>
+</select>
 </div>
 <div class="mb-3">
 <label class="form-label">API URL (POST)</label>
-<input class="form-control" name="api_url" value="<?php echo htmlspecialchars((string)$smsSettings['api_url']); ?>" placeholder="https://api.provider.com/send">
+<input class="form-control" name="api_url" id="sms_api_url" value="<?php echo htmlspecialchars((string)$smsSettings['api_url']); ?>" placeholder="https://sms.ots.co.ke/api/services/sendsms">
+<small class="form-text text-muted">For OTS, paste the send endpoint shown in your sms.ots.co.ke dashboard if it differs from the default.</small>
 </div>
 <div class="mb-3">
 <label class="form-label">API Key</label>
@@ -280,6 +286,7 @@ try {
 </select>
 </div>
 <button class="btn btn-primary">Save SMS Settings</button>
+<p class="text-muted small mt-2 mb-0">OTS requests are sent as form POST fields: <code>api_key</code>, <code>sender_id</code>, <code>mobile</code>, <code>to</code>, and <code>message</code>.</p>
 </form>
 </div>
 </div>
@@ -644,6 +651,15 @@ bindSelectAll('selectAllSmsLogs', '.smslog-checkbox');
 bindSelectAll('selectAllSmsLogsHead', '.smslog-checkbox');
 bindSelectAll('selectAllEmailLogs', '.emaillog-checkbox');
 bindSelectAll('selectAllEmailLogsHead', '.emaillog-checkbox');
+var smsProvider = document.getElementById('sms_provider');
+var smsApiUrl = document.getElementById('sms_api_url');
+if (smsProvider && smsApiUrl) {
+  smsProvider.addEventListener('change', function(){
+    if (smsProvider.value === 'ots' && smsApiUrl.value.trim() === '') {
+      smsApiUrl.value = 'https://sms.ots.co.ke/api/services/sendsms';
+    }
+  });
+}
 </script>
 </body>
 </html>

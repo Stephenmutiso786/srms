@@ -7,6 +7,7 @@ require_once('const/school.php');
 require_once('const/rbac.php');
 if ($res != "1") {header("location:../"); exit;}
 app_require_permission('marks.enter', '../admin');
+$canOverrideMarks = app_current_user_can_override_marks();
 
 $exams = [];
 $classSubjects = [];
@@ -29,12 +30,20 @@ try {
   }
 
   $combos = [];
-  $useTeacherAssignments = app_table_exists($conn, 'tbl_teacher_assignments');
-  $stmt = $conn->prepare("SELECT sc.id, sc.class, sc.subject, s.name AS subject_name
-    FROM tbl_subject_combinations sc
-    LEFT JOIN tbl_subjects s ON sc.subject = s.id
-    WHERE sc.teacher = ?");
-  $stmt->execute([$account_id]);
+  $useTeacherAssignments = app_table_exists($conn, 'tbl_teacher_assignments') && !$canOverrideMarks;
+  if ($canOverrideMarks) {
+    $stmt = $conn->prepare("SELECT sc.id, sc.class, sc.subject, s.name AS subject_name
+      FROM tbl_subject_combinations sc
+      LEFT JOIN tbl_subjects s ON sc.subject = s.id
+      ORDER BY sc.id DESC");
+    $stmt->execute();
+  } else {
+    $stmt = $conn->prepare("SELECT sc.id, sc.class, sc.subject, s.name AS subject_name
+      FROM tbl_subject_combinations sc
+      LEFT JOIN tbl_subjects s ON sc.subject = s.id
+      WHERE sc.teacher = ?");
+    $stmt->execute([$account_id]);
+  }
   $combos = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
   $classIds = [];

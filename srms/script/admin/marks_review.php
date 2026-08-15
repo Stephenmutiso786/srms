@@ -76,7 +76,7 @@ try {
 <div class="app-title">
 <div>
 <h1>Marks Review</h1>
-<p>Review submitted mark sheets, return them for correction, and move exams toward finalization.</p>
+<p>Submitted mark sheets are auto-reviewed for finalization. Use this page only to inspect, return, or unlock sheets when correction is needed.</p>
 </div>
 </div>
 

@@ -140,8 +140,10 @@ try {
 
 	$existingSignature = trim((string)app_setting_get($conn, 'headteacher_signature_path', ''));
 	$existingStamp = trim((string)app_setting_get($conn, 'school_stamp_path', ''));
+	$existingLogo = defined('WBLogo') ? trim((string)WBLogo) : '';
 	$signatureDir = app_settings_media_dir('signatures');
 	$stampDir = app_settings_media_dir('stamps');
+	$logoDir = app_settings_media_dir('logo');
 
 	if (!empty($_POST['remove_headteacher_signature']) && $existingSignature !== '') {
 		app_settings_delete_media_file($signatureDir, $existingSignature);
@@ -169,6 +171,31 @@ try {
 			app_settings_delete_media_file($stampDir, $existingStamp);
 		}
 		$settings['school_stamp_path'] = $storedStamp['file_name'];
+	}
+
+	if (!empty($_FILES['school_logo']['name'])) {
+		$storedLogo = app_settings_store_media_upload($_FILES['school_logo'], $logoDir, 'school_logo', (int)$account_id);
+		if (app_table_exists($conn, 'tbl_school')) {
+			$schoolId = app_current_school_id();
+			if ($schoolId > 0) {
+				$stmt = $conn->prepare("UPDATE tbl_school SET logo = ? WHERE id = ?");
+				$stmt->execute([$storedLogo['file_name'], $schoolId]);
+			} else {
+				$stmt = $conn->query("SELECT id FROM tbl_school ORDER BY id ASC LIMIT 1");
+				$firstSchoolId = (int)$stmt->fetchColumn();
+				if ($firstSchoolId > 0) {
+					$stmt = $conn->prepare("UPDATE tbl_school SET logo = ? WHERE id = ?");
+					$stmt->execute([$storedLogo['file_name'], $firstSchoolId]);
+				}
+			}
+		}
+		$logoBinary = @file_get_contents($storedLogo['target_path']);
+		if (is_string($logoBinary) && $logoBinary !== '') {
+			$settings['school_logo_blob_b64'] = base64_encode($logoBinary);
+		}
+		if ($existingLogo !== '' && $existingLogo !== 'school_logo.png' && $existingLogo !== $storedLogo['file_name']) {
+			app_settings_delete_media_file($logoDir, $existingLogo);
+		}
 	}
 
 	foreach ($settings as $key => $value) {

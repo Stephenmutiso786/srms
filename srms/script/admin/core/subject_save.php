@@ -28,17 +28,28 @@ $classIds = array_values(array_unique(array_filter(array_map('intval', $classIds
 try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	$schoolId = function_exists('app_current_school_id') ? app_current_school_id() : 0;
 
 	if (!app_table_exists($conn, 'tbl_subjects')) {
 		throw new RuntimeException("Subjects table not installed.");
 	}
 
 	if ($subjectId > 0) {
-		$stmt = $conn->prepare("UPDATE tbl_subjects SET name = ? WHERE id = ?");
-		$stmt->execute([$name, $subjectId]);
+		if (app_column_exists($conn, 'tbl_subjects', 'school_id')) {
+			$stmt = $conn->prepare("UPDATE tbl_subjects SET name = ?, school_id = COALESCE(school_id, ?) WHERE id = ?");
+			$stmt->execute([$name, $schoolId > 0 ? $schoolId : null, $subjectId]);
+		} else {
+			$stmt = $conn->prepare("UPDATE tbl_subjects SET name = ? WHERE id = ?");
+			$stmt->execute([$name, $subjectId]);
+		}
 	} else {
-		$stmt = $conn->prepare("INSERT INTO tbl_subjects (name) VALUES (?)");
-		$stmt->execute([$name]);
+		if (app_column_exists($conn, 'tbl_subjects', 'school_id')) {
+			$stmt = $conn->prepare("INSERT INTO tbl_subjects (school_id, name) VALUES (?, ?)");
+			$stmt->execute([$schoolId > 0 ? $schoolId : null, $name]);
+		} else {
+			$stmt = $conn->prepare("INSERT INTO tbl_subjects (name) VALUES (?)");
+			$stmt->execute([$name]);
+		}
 		$subjectId = (int)$conn->lastInsertId();
 	}
 

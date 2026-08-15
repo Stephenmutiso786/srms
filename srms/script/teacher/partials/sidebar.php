@@ -39,6 +39,7 @@ function teacher_sidebar_group_label(string $moduleKey): string
     'results' => 'Academic',
     'discipline' => 'Student Welfare',
     'students' => 'Student Welfare',
+    'sms' => 'Student Welfare',
     'staff_attendance' => 'Staff',
     'exam_timetable' => 'Academic',
     'grading_system' => 'Academic',
@@ -61,13 +62,23 @@ foreach ($teacherModules as $module) {
 }
 
 $teacherSidebarGroupOrder = ['Overview', 'Academic', 'Student Welfare', 'Staff', 'Account', 'Support', 'General'];
+$isClassTeacher = false;
+try {
+  $sidebarConn = app_db();
+  $sidebarConn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+  $isClassTeacher = !empty(app_staff_class_teacher_ids($sidebarConn, (int)$account_id));
+} catch (Throwable $e) {
+  $isClassTeacher = false;
+}
 ?>
 <div class="app-sidebar__overlay" data-toggle="sidebar"></div>
 <aside class="app-sidebar">
   <div class="app-sidebar__user">
     <div>
       <p class="app-sidebar__user-name"><?php echo htmlspecialchars($fname.' '.$lname); ?></p>
-      <p class="app-sidebar__user-designation"><?php echo htmlspecialchars((string)($designation ?? 'Teacher')); ?></p>
+      <p class="app-sidebar__user-designation">
+        <?php echo htmlspecialchars(($isClassTeacher ? 'Class Admin' : '') . (($isClassTeacher && !empty($designation)) ? ' / ' : '') . (string)($designation ?? 'Teacher')); ?>
+      </p>
     </div>
   </div>
   <ul class="app-menu">

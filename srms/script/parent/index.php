@@ -6,6 +6,7 @@ require_once('const/school.php');
 require_once('const/check_session.php');
 require_once('const/report_engine.php');
 require_once('const/id_card_engine.php');
+require_once('const/mpesa.php');
 if ($res == "1" && $level == "4") {}else{header("location:../"); exit;}
 
 $students = [];
@@ -23,6 +24,7 @@ $allocatedModules = [];
 $assessmentMode = 'normal';
 $summary = ['children' => 0, 'attendance_rate' => 0, 'avg_score' => 0, 'fees_balance' => 0, 'grade' => 'N/A', 'position' => '-'];
 $error = '';
+$mpesaEnabled = false;
 
 try {
 	$conn = app_db();
@@ -138,6 +140,7 @@ try {
 
 	$visibleModules = app_current_user_visible_portal_modules('parent');
 	$allocatedModules = app_current_user_allocated_portal_modules('parent');
+	$mpesaEnabled = (int)mpesa_config($conn)['enabled'] === 1;
 } catch (Throwable $e) {
 	error_log("[".__FILE__.":".__LINE__." Throwable] " . $e->getMessage());
 	$error = "An internal error occurred.";
@@ -234,6 +237,18 @@ body.app{background:linear-gradient(180deg,#eef5f3 0%,#f4f7f6 40%,#eef3f1 100%)}
 		<div class="tile mb-3">
 			<div class="section-title">Quick Module Access</div>
 			<div class="module-launch-grid">
+				<?php if ($mpesaEnabled) { ?>
+					<a class="module-launch-tile" href="parent/fees">
+						<div class="module-launch-top">
+							<div class="module-launch-icon"><i class="bi bi-cash-coin"></i></div>
+							<div>
+								<div class="module-launch-title">Pay Fees</div>
+								<div class="module-launch-desc">Open the fees page and continue with M-Pesa if available.</div>
+							</div>
+						</div>
+						<span class="module-launch-cta">Pay Now</span>
+					</a>
+				<?php } ?>
 				<?php if (!empty($allocatedModules)) { ?>
 					<?php foreach ($allocatedModules as $module) { ?>
 						<a class="module-launch-tile" href="<?php echo htmlspecialchars((string)$module['href']); ?>">

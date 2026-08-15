@@ -29,6 +29,7 @@ try {
 	$gradeLevel = app_grade_level_from_class_name($name);
 	$cbeBand = app_cbe_class_band($name);
 	$cbeLevel = $cbeBand !== '' ? app_cbe_band_label($cbeBand) : null;
+	$schoolId = function_exists('app_current_school_id') ? app_current_school_id() : 0;
 	if ($gradingSystemId < 1) {
 		$gradingSystemId = (int)(app_class_recommended_grading_system_id($conn, $name) ?? 0);
 	}
@@ -37,8 +38,15 @@ try {
 	if ($stmt->fetchColumn()) {
 		app_reply_redirect('danger', 'Class is already registered.', '../classes');
 	}
-	$stmt = $conn->prepare("INSERT INTO tbl_classes (name, registration_date, grade, cbe_level, grading_system_id) VALUES (?,?,?,?,?)");
-	$stmt->execute([$name, date('Y-m-d G:i:s'), $gradeLevel > 0 ? $gradeLevel : null, $cbeLevel, $gradingSystemId > 0 ? $gradingSystemId : null]);
+	$hasSchoolId = app_column_exists($conn, 'tbl_classes', 'school_id');
+	$insertSql = $hasSchoolId
+		? "INSERT INTO tbl_classes (school_id, name, registration_date, grade, cbe_level, grading_system_id) VALUES (?,?,?,?,?,?)"
+		: "INSERT INTO tbl_classes (name, registration_date, grade, cbe_level, grading_system_id) VALUES (?,?,?,?,?)";
+	$stmt = $conn->prepare($insertSql);
+	$stmt->execute($hasSchoolId
+		? [$schoolId > 0 ? $schoolId : null, $name, date('Y-m-d G:i:s'), $gradeLevel > 0 ? $gradeLevel : null, $cbeLevel, $gradingSystemId > 0 ? $gradingSystemId : null]
+		: [$name, date('Y-m-d G:i:s'), $gradeLevel > 0 ? $gradeLevel : null, $cbeLevel, $gradingSystemId > 0 ? $gradingSystemId : null]
+	);
 	$classId = (int)$conn->lastInsertId();
 	app_save_class_grading_system($conn, $classId, $gradingSystemId > 0 ? $gradingSystemId : null);
 	app_ensure_class_teachers_table($conn);

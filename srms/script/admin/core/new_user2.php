@@ -42,10 +42,12 @@ $pass = password_hash($rawPassword, PASSWORD_DEFAULT);
 try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+app_ensure_staff_password_policy_columns($conn);
 $isSuperAdminController = app_is_super_admin_controller($conn, (string)($account_id ?? ''), (string)($level ?? ''));
+$isHeadteacherController = app_staff_designation_key($conn, (int)($account_id ?? 0), (string)($level ?? '')) === 'headteacher';
 $isAdminManagedDesignation = in_array($designation, ['headteacher', 'deputy_headteacher', 'senior_teacher', 'accountant'], true);
-if ($isAdminManagedDesignation && !$isSuperAdminController) {
-	$_SESSION['reply'] = array (array("danger",'Only the super admin can create leadership or admin accounts.'));
+if ($isAdminManagedDesignation && !$isSuperAdminController && !$isHeadteacherController) {
+	$_SESSION['reply'] = array (array("danger",'Only the super admin or headteacher can create leadership or admin accounts.'));
 	header("location:../teachers");
 	exit;
 }
@@ -62,14 +64,24 @@ $_SESSION['reply'] = array (array("error",'Email is already added'));
 header("location:../teachers");
 }else{
 
+$forcePasswordChange = ((string)$role === '2') ? 1 : 0;
+$hasForcePasswordChange = app_column_exists($conn, 'tbl_staff', 'force_password_change');
 if (app_column_exists($conn, 'tbl_staff', 'school_id')) {
 	$prefix = app_staff_prefix($role);
 	$schoolId = app_generate_school_id($conn, $prefix, (int)date('Y'), 'tbl_staff');
-	$stmt = $conn->prepare("INSERT INTO tbl_staff (fname, lname, gender, email, password, level, status, school_id) VALUES (?,?,?,?,?,?,?,?)");
-	$stmt->execute([$fname, $lname, $gender, $email, $pass, $role, $status, $schoolId]);
+	$stmt = $hasForcePasswordChange
+		? $conn->prepare("INSERT INTO tbl_staff (fname, lname, gender, email, password, level, status, school_id, force_password_change) VALUES (?,?,?,?,?,?,?,?,?)")
+		: $conn->prepare("INSERT INTO tbl_staff (fname, lname, gender, email, password, level, status, school_id) VALUES (?,?,?,?,?,?,?,?)");
+	$params = [$fname, $lname, $gender, $email, $pass, $role, $status, $schoolId];
+	if ($hasForcePasswordChange) { $params[] = $forcePasswordChange; }
+	$stmt->execute($params);
 } else {
-	$stmt = $conn->prepare("INSERT INTO tbl_staff (fname, lname, gender, email, password, level, status) VALUES (?,?,?,?,?,?,?)");
-	$stmt->execute([$fname, $lname, $gender, $email, $pass, $role, $status]);
+	$stmt = $hasForcePasswordChange
+		? $conn->prepare("INSERT INTO tbl_staff (fname, lname, gender, email, password, level, status, force_password_change) VALUES (?,?,?,?,?,?,?,?)")
+		: $conn->prepare("INSERT INTO tbl_staff (fname, lname, gender, email, password, level, status) VALUES (?,?,?,?,?,?,?)");
+	$params = [$fname, $lname, $gender, $email, $pass, $role, $status];
+	if ($hasForcePasswordChange) { $params[] = $forcePasswordChange; }
+	$stmt->execute($params);
 }
 
 $staffId = (int)$conn->lastInsertId();

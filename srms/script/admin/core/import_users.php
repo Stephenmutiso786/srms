@@ -17,35 +17,61 @@ $st_rec = 0;
 try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+app_ensure_staff_password_policy_columns($conn);
 
 if ( $xlsx = SimpleXLSX::parse($file) ) {
+$headers = [];
 foreach( $xlsx->rows() as $r ) {
 
 if ($st_rec == 0) {
-
+	$headers = array_map(function ($h) { return strtolower(trim((string)$h)); }, $r);
 }else{
 
 $cells = array_pad($r, 6, '');
+$cellByHeader = function (array $keys, int $fallbackIndex, string $default = '') use ($headers, $cells) {
+	foreach ($keys as $key) {
+		$pos = array_search($key, $headers, true);
+		if ($pos !== false && array_key_exists($pos, $cells)) {
+			return (string)$cells[$pos];
+		}
+	}
+	return (string)($cells[$fallbackIndex] ?? $default);
+};
 $importRow = [
-	'fname' => ucfirst(trim((string)$cells[0])),
-	'lname' => ucfirst(trim((string)$cells[1])),
-	'email' => trim((string)$cells[2]),
-	'gender' => trim((string)$cells[3]),
-	'status' => trim((string)$cells[4]),
-	'password' => (string)$cells[5],
+	'fname' => ucfirst(trim($cellByHeader(['first_name', 'firstname', 'first name', 'fname'], 0))),
+	'lname' => ucfirst(trim($cellByHeader(['last_name', 'lastname', 'last name', 'lname', 'surname'], 1))),
+	'gender' => trim($cellByHeader(['gender', 'sex', 'gender_optional'], 2, 'Male')),
+	'email' => trim($cellByHeader(['email', 'email_address', 'email_optional'], 3)),
+	'password' => $cellByHeader(['password', 'password_optional'], 4),
+	'status' => trim($cellByHeader(['status', 'status_optional'], 5, 'Active')),
 ];
 
 $fname = $importRow['fname'];
 $lname = $importRow['lname'];
 $email = $importRow['email'];
 $gender = $importRow['gender'];
+if ($gender === '') {
+	$gender = 'Male';
+}
 $role = '2';
-$pass = password_hash($importRow['password'], PASSWORD_DEFAULT);
+$plainPassword = trim((string)$importRow['password']);
+if ($plainPassword === '') {
+	$plainPassword = getenv('DEFAULT_STAFF_PASSWORD') ?: 'Password123';
+}
+$pass = password_hash($plainPassword, PASSWORD_DEFAULT);
 $status = $importRow['status'];
-if ($status == "Active") {
+if ($status === '' || $status == "Active") {
 $status = 1;
 }else{
 $status = 0;
+}
+
+if ($fname === '' || $lname === '') {
+	$st_rec++;
+	continue;
+}
+if ($email === '') {
+	$email = strtolower(preg_replace('/[^a-z0-9]+/', '.', $fname.'.'.$lname.'.'.$st_rec)).'@teachers.local';
 }
 
 $stmt = $conn->prepare("SELECT 1 FROM tbl_staff WHERE email = ? UNION SELECT 1 FROM tbl_students WHERE email = ?");
@@ -63,11 +89,19 @@ if (preg_match('~[0-9]+~', $fname) OR preg_match('~[0-9]+~', $lname)) {
 if (app_column_exists($conn, 'tbl_staff', 'school_id')) {
 	$prefix = app_staff_prefix($role);
 	$schoolId = app_generate_school_id($conn, $prefix, (int)date('Y'), 'tbl_staff');
-	$stmt = $conn->prepare("INSERT INTO tbl_staff (fname, lname, gender, email, password, level, status, school_id) VALUES (?,?,?,?,?,?,?,?)");
-	$stmt->execute([$fname, $lname, $gender, $email, $pass, $role, $status, $schoolId]);
+	$stmt = app_column_exists($conn, 'tbl_staff', 'force_password_change')
+		? $conn->prepare("INSERT INTO tbl_staff (fname, lname, gender, email, password, level, status, school_id, force_password_change) VALUES (?,?,?,?,?,?,?,?,?)")
+		: $conn->prepare("INSERT INTO tbl_staff (fname, lname, gender, email, password, level, status, school_id) VALUES (?,?,?,?,?,?,?,?)");
+	$params = [$fname, $lname, $gender, $email, $pass, $role, $status, $schoolId];
+	if (app_column_exists($conn, 'tbl_staff', 'force_password_change')) { $params[] = 1; }
+	$stmt->execute($params);
 } else {
-	$stmt = $conn->prepare("INSERT INTO tbl_staff (fname, lname, gender, email, password, level, status) VALUES (?,?,?,?,?,?,?)");
-	$stmt->execute([$fname, $lname, $gender, $email, $pass, $role, $status]);
+	$stmt = app_column_exists($conn, 'tbl_staff', 'force_password_change')
+		? $conn->prepare("INSERT INTO tbl_staff (fname, lname, gender, email, password, level, status, force_password_change) VALUES (?,?,?,?,?,?,?,?)")
+		: $conn->prepare("INSERT INTO tbl_staff (fname, lname, gender, email, password, level, status) VALUES (?,?,?,?,?,?,?)");
+	$params = [$fname, $lname, $gender, $email, $pass, $role, $status];
+	if (app_column_exists($conn, 'tbl_staff', 'force_password_change')) { $params[] = 1; }
+	$stmt->execute($params);
 }
 
 }

@@ -288,10 +288,7 @@ foreach($grading as $grade) {
 <td width="10">
 <?php
 if (($row2['display_image'] ?? 'DEFAULT') == "DEFAULT") {
-
-
-
-?><img src="images/students/<?php echo htmlspecialchars((string)($row2['gender'] ?? '')); ?>.png" class="avatar_img_sm"><?php
+?><img src="images/students/default_passport.jpeg" class="avatar_img_sm" alt="Student photo"><?php
 }else{
 ?><img src="images/students/<?php echo htmlspecialchars((string)($row2['display_image'] ?? '')); ?>" class="avatar_img_sm"><?php
 }

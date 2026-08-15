@@ -21,6 +21,9 @@ $photo = serialize($_FILES["image"]);
 try {
 $conn = app_db();
 $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+if (trim((string)$email) === '') {
+	$email = app_generate_student_login_email($conn, (string)$fname, (string)$lname, (string)$class);
+}
 $beforeSnapshot = app_student_archive_payload($conn, (string)$reg_no);
 
 $isPgsql = (defined('DBDriver') && DBDriver === 'pgsql');

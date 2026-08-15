@@ -23,9 +23,11 @@ try {
 	$conn = app_db();
 	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 	app_ensure_school_timetable_table($conn);
+	$hasSchoolId = app_column_exists($conn, 'tbl_classes', 'school_id');
+	$classSql = $hasSchoolId ? "SELECT id, name FROM tbl_classes WHERE school_id IS NULL OR school_id = ? ORDER BY name" : "SELECT id, name FROM tbl_classes ORDER BY name";
 
-	$stmt = $conn->prepare("SELECT id, name FROM tbl_classes ORDER BY name");
-	$stmt->execute();
+	$stmt = $conn->prepare($classSql);
+	$stmt->execute($hasSchoolId ? [app_current_school_id()] : []);
 	$classes = $stmt->fetchAll(PDO::FETCH_ASSOC);
 	foreach ($classes as $classRow) {
 		if ((int)$classRow['id'] === $classId) {
@@ -234,9 +236,16 @@ try {
 			<label class="form-label">First Start</label>
 			<input class="form-control" type="time" name="first_start_time" value="08:00" required>
 		</div>
-		<div class="col-md-3">
+	<div class="col-md-3">
 			<label class="form-label">Room Prefix</label>
 			<input class="form-control" name="room_prefix" value="Class Room" placeholder="Class Room">
+		</div>
+		<div class="col-md-3">
+			<label class="form-label">Double Lessons</label>
+			<select class="form-control" name="allow_double_lessons">
+				<option value="1" selected>Prefer consecutive double lessons</option>
+				<option value="0">Use normal spread only</option>
+			</select>
 		</div>
 		<div class="col-md-5">
 			<label class="form-label">Generation Mode</label>

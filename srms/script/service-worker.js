@@ -1,4 +1,4 @@
-const CACHE_NAME = "kyandulu-school-v11";
+const CACHE_NAME = "elimu-hub-public-v2";
 const urlsToCache = [
   "./",
   "./school_main_website.php",
@@ -93,7 +93,7 @@ self.addEventListener("fetch", (event) => {
 self.addEventListener("push", (event) => {
   const body = event.data ? event.data.text() : "New update available";
   event.waitUntil(
-    self.registration.showNotification("Kyandulu Primary School", {
+    self.registration.showNotification("Elimu Hub", {
       body,
       icon: "./images/pwa/icon-192.png",
       badge: "./images/pwa/icon-192.png"
