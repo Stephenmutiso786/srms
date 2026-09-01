@@ -70,7 +70,7 @@ try {
 <div class="app-title">
 <div>
 <h1>Import / Export Center</h1>
-<p>Bulk upload via CSV and export data in CSV/PDF.</p>
+<p>Bulk upload via CSV and export data in CSV, PDF, or paste-ready TXT.</p>
 </div>
 </div>
 
@@ -100,10 +100,16 @@ try {
 <div class="col-md-6">
 <div class="tile">
 <h3 class="tile-title">Import Teachers (CSV)</h3>
-<p class="text-muted">Minimum headers: first_name,last_name. Email is optional; password defaults to Password123 and teachers must change it on first login.</p>
+<p class="text-muted">Paste one staff name per line, or upload CSV headers: <code>staff_number, first_name, last_name, email, phone_number, gender, employment_type, staff_type, designation, date_joined, role, password</code>. Names-only imports receive a staff number, login email, and temporary password <code>ChangeMe@123</code>; edit the record after importing.</p>
 <form class="app_frm" action="admin/core/import_staff_csv" method="POST" enctype="multipart/form-data">
 <div class="mb-3">
-<input class="form-control" type="file" name="file" accept=".csv" required>
+<input class="form-control" type="file" name="file" accept=".csv">
+</div>
+<div class="mb-3">
+<label class="form-label">Or paste staff names</label>
+<textarea class="form-control" name="paste_staff" rows="6" placeholder="Jane Wanjiku
+Peter Mutua"></textarea>
+<div class="form-text">Use one staff name per line. Names-only entries receive a generated staff number, login email, and temporary password.</div>
 </div>
 <button class="btn btn-primary">Import Teachers</button>
 </form>
@@ -199,6 +205,7 @@ Mary Ann 76
 <a class="btn btn-outline-success" href="admin/core/export_students?format=pdf&amp;group=class">Export Students by Class (PDF)</a>
 <a class="btn btn-outline-primary" href="admin/core/export_teachers?format=csv">Export Teachers (CSV)</a>
 <a class="btn btn-outline-secondary" href="admin/core/export_teachers?format=pdf">Export Teachers (PDF)</a>
+<a class="btn btn-outline-success" href="admin/core/export_teachers?format=txt">Export Teachers (TXT for Paste)</a>
 </div>
 <hr>
 <form class="d-flex flex-wrap gap-2 align-items-end" action="admin/core/export_results" method="GET">

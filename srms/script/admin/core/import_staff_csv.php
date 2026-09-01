@@ -13,16 +13,20 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 	exit;
 }
 
-if (empty($_FILES['file']['tmp_name'])) {
-	$_SESSION['reply'] = array (array("danger", "Upload a CSV file."));
+$pasteStaff = trim((string)($_POST['paste_staff'] ?? ''));
+if (empty($_FILES['file']['tmp_name']) && $pasteStaff === '') {
+	$_SESSION['reply'] = array (array("danger", "Upload a CSV file or paste staff names."));
 	header("location:../import_export");
 	exit;
 }
-$uploadCheck = app_validate_upload($_FILES['file'], ['csv']);
-if (!$uploadCheck['ok']) {
-	$_SESSION['reply'] = array (array("danger", $uploadCheck['message']));
-	header("location:../import_export");
-	exit;
+
+if (!empty($_FILES['file']['tmp_name'])) {
+	$uploadCheck = app_validate_upload($_FILES['file'], ['csv']);
+	if (!$uploadCheck['ok']) {
+		$_SESSION['reply'] = array (array("danger", $uploadCheck['message']));
+		header("location:../import_export");
+		exit;
+	}
 }
 
 $total = 0;
@@ -36,12 +40,23 @@ try {
 	app_ensure_staff_password_policy_columns($conn);
 	app_require_unlocked('staff', '../import_export');
 
-	$handle = fopen($_FILES['file']['tmp_name'], 'r');
+	$handle = !empty($_FILES['file']['tmp_name'])
+		? fopen($_FILES['file']['tmp_name'], 'r')
+		: fopen('php://temp', 'r+');
 	if (!$handle) {
 		throw new RuntimeException("Failed to read file.");
 	}
+	if (empty($_FILES['file']['tmp_name'])) {
+		foreach (preg_split('/\R/', $pasteStaff) as $line) {
+			$line = trim($line);
+			if ($line !== '') {
+				fwrite($handle, $line . PHP_EOL);
+			}
+		}
+		rewind($handle);
+	}
 
-	$headers = fgetcsv($handle);
+	$headers = empty($_FILES['file']['tmp_name']) ? ['first_name', 'last_name'] : fgetcsv($handle);
 	if (!$headers) {
 		throw new RuntimeException("Missing CSV headers.");
 	}
@@ -63,6 +78,10 @@ try {
 
 	while (($row = fgetcsv($handle)) !== false) {
 		$total++;
+		if (empty($_FILES['file']['tmp_name']) && count($row) === 1) {
+			$nameParts = preg_split('/\s+/', trim((string)$row[0]), 2);
+			$row = [$nameParts[0] ?? '', $nameParts[1] ?? ''];
+		}
 		$fname = trim($get($row, ['fname', 'first_name', 'firstname', 'first name']));
 		$lname = trim($get($row, ['lname', 'last_name', 'lastname', 'last name', 'surname']));
 		$gender = trim($get($row, ['gender', 'sex'], 'Male'));
@@ -79,7 +98,7 @@ try {
 		}
 		$email = trim($email, '.');
 
-		$pwd = $password !== '' ? $password : (getenv('DEFAULT_STAFF_PASSWORD') ?: 'Password123');
+		$pwd = $password !== '' ? $password : (getenv('DEFAULT_STAFF_PASSWORD') ?: 'ChangeMe@123');
 		$hash = password_hash($pwd, PASSWORD_DEFAULT);
 
 		try {

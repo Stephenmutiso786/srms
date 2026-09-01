@@ -23,6 +23,18 @@ try {
 	$stmt->execute();
 	$rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+	if ($format === 'txt') {
+		header('Content-Type: text/plain; charset=UTF-8');
+		header('Content-Disposition: attachment; filename="teachers-for-paste.txt"');
+		foreach ($rows as $row) {
+			$name = trim((string)($row['fname'] ?? '') . ' ' . (string)($row['lname'] ?? ''));
+			if ($name !== '') {
+				echo $name . PHP_EOL;
+			}
+		}
+		exit;
+	}
+
 	if ($format === 'pdf') {
 		require_once('tcpdf/tcpdf.php');
 		$pdf = new TCPDF();
