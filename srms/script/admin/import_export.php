@@ -195,6 +195,8 @@ Mary Ann 76
 <div class="d-flex flex-wrap gap-2">
 <a class="btn btn-outline-primary" href="admin/core/export_students?format=csv">Export Students (CSV)</a>
 <a class="btn btn-outline-secondary" href="admin/core/export_students?format=pdf">Export Students (PDF)</a>
+<a class="btn btn-primary" href="admin/core/export_students?format=csv&amp;group=class">Export Students by Class (CSV)</a>
+<a class="btn btn-outline-success" href="admin/core/export_students?format=pdf&amp;group=class">Export Students by Class (PDF)</a>
 <a class="btn btn-outline-primary" href="admin/core/export_teachers?format=csv">Export Teachers (CSV)</a>
 <a class="btn btn-outline-secondary" href="admin/core/export_teachers?format=pdf">Export Teachers (PDF)</a>
 </div>

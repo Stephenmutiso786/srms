@@ -6,6 +6,57 @@ require_once('const/school.php');
 require_once('const/check_session.php');
 
 if ($res == "1" && $level == "0") {}else{header("location:../");}
+$selectedClasses = isset($_SESSION['student_list']) && is_array($_SESSION['student_list']) ? $_SESSION['student_list'] : [];
+$selectedClasses = array_values(array_filter($selectedClasses, static function ($value) {
+	return $value !== '' && $value !== null;
+}));
+$schoolId = function_exists('app_current_school_id') ? app_current_school_id() : 0;
+$classes = [];
+$studentsByClass = [];
+try {
+	$conn = app_db();
+	$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+	$classSql = "SELECT id, name FROM tbl_classes";
+	$classParams = [];
+	if (app_column_exists($conn, 'tbl_classes', 'school_id') && $schoolId > 0) {
+		$classSql .= " WHERE school_id IS NULL OR school_id = ?";
+		$classParams[] = $schoolId;
+	}
+	$stmt = $conn->prepare($classSql . " ORDER BY name ASC");
+	$stmt->execute($classParams);
+	$classes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+	$classNames = [];
+	foreach ($classes as $classRow) {
+		$classNames[(string)$classRow['id']] = (string)$classRow['name'];
+	}
+
+	if (!empty($selectedClasses)) {
+		$placeholders = implode(',', array_fill(0, count($selectedClasses), '?'));
+		$studentSql = "SELECT st.id, st.fname, st.mname, st.lname, st.gender, st.class, st.display_image
+			FROM tbl_students st";
+		$studentParams = [];
+		if (app_column_exists($conn, 'tbl_students', 'tenant_school_id') && $schoolId > 0) {
+			$studentSql .= " WHERE (st.tenant_school_id IS NULL OR st.tenant_school_id = ?)";
+			$studentParams[] = $schoolId;
+		} elseif (app_column_exists($conn, 'tbl_students', 'school_id') && $schoolId > 0) {
+			$studentSql .= " WHERE (st.school_id IS NULL OR st.school_id = ?)";
+			$studentParams[] = $schoolId;
+		}
+		$studentSql .= (strpos($studentSql, ' WHERE ') === false ? ' WHERE ' : ' AND ') . "st.class IN ($placeholders)";
+		$studentParams = array_merge($studentParams, $selectedClasses);
+		$studentSql .= " ORDER BY st.class ASC, st.fname ASC, st.mname ASC, st.lname ASC, st.id ASC";
+		$stmt = $conn->prepare($studentSql);
+		$stmt->execute($studentParams);
+		foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $row) {
+			$className = (string)($classNames[(string)($row['class'] ?? '')] ?? 'Unassigned');
+			$studentsByClass[$className][] = $row;
+		}
+	}
+} catch (Throwable $e) {
+	$classes = [];
+	$studentsByClass = [];
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -60,26 +111,11 @@ if ($res == "1" && $level == "0") {}else{header("location:../");}
 <label class="form-label">Select Class</label>
 <select multiple="true" class="form-control select2" name="class[]" required style="width: 100%;">
 <?php
-try {
-$conn = app_db();
-$conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-
-$stmt = $conn->prepare("SELECT id, name FROM tbl_classes ORDER BY name");
-$stmt->execute();
-$result = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-foreach($result as $row)
+foreach($classes as $row)
 {
 ?>
 <option value="<?php echo (int)$row['id']; ?>"><?php echo htmlspecialchars((string)$row['name']); ?> </option>
 <?php
-}
-
-}catch(PDOException $e)
-{
-error_log("[".__FILE__.":".__LINE__." PDO] " . $e->getMessage());
-echo "Connection failed.";
 }
 ?>
 </select>
@@ -93,6 +129,42 @@ echo "Connection failed.";
 </div>
 </div>
 </div>
+
+<?php if (!empty($selectedClasses)): ?>
+<div class="row mt-3">
+<div class="col-md-12">
+<div class="tile">
+<div class="tile-body">
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+<h3 class="tile-title mb-0">Selected Class Students</h3>
+<form method="POST" action="admin/core/export_students_text" class="d-inline-block">
+<?php foreach ($selectedClasses as $classId): ?>
+<input type="hidden" name="class[]" value="<?php echo htmlspecialchars((string)$classId); ?>">
+<?php endforeach; ?>
+<button type="submit" class="btn btn-outline-primary">Export Text</button>
+</form>
+</div>
+<?php foreach ($studentsByClass as $className => $students): ?>
+<div class="mb-4">
+<h5 class="mb-2"><?php echo htmlspecialchars($className); ?> <small class="text-muted">(<?php echo count($students); ?> students)</small></h5>
+<textarea class="form-control" rows="<?php echo max(4, count($students) + 1); ?>" readonly><?php
+foreach ($students as $student) {
+	echo trim((string)($student['fname'] ?? '') . ' ' . (string)($student['mname'] ?? '') . ' ' . (string)($student['lname'] ?? '')) . PHP_EOL;
+}
+?></textarea>
+</div>
+<?php endforeach; ?>
+</div>
+</div>
+</div>
+</div>
+<?php elseif ($_SERVER['REQUEST_METHOD'] === 'POST'): ?>
+<div class="row mt-3">
+<div class="col-md-12">
+<div class="alert alert-warning">No students found for the selected class list.</div>
+</div>
+</div>
+<?php endif; ?>
 
 
 </main>
