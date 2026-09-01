@@ -109,20 +109,23 @@ try {
 
 <div class="mb-2">
 <label class="form-label">Select Class</label>
-<select multiple="true" class="form-control select2" name="class[]" required style="width: 100%;">
+<select multiple="true" class="form-control select2" name="class[]" required style="width: 100%;" aria-describedby="classSelectionHelp">
 <?php
 foreach($classes as $row)
 {
+	$classId = (string)$row['id'];
+	$isSelected = in_array($classId, array_map('strval', $selectedClasses), true);
 ?>
-<option value="<?php echo (int)$row['id']; ?>"><?php echo htmlspecialchars((string)$row['name']); ?> </option>
+<option value="<?php echo (int)$row['id']; ?>"<?php echo $isSelected ? ' selected' : ''; ?>><?php echo htmlspecialchars((string)$row['name']); ?> </option>
 <?php
 }
 ?>
 </select>
+<div id="classSelectionHelp" class="form-text">Select one or more classes, then fetch their students for copying or export.</div>
 </div>
 
 
-<button type="submit" name="submit" value="1" class="btn btn-primary app_btn">Manage Students</button>
+<button type="submit" name="submit" value="1" class="btn btn-primary app_btn"><i class="bi bi-search me-1"></i>Fetch Students</button>
 </form>
 </div>
 </div>
@@ -144,10 +147,13 @@ foreach($classes as $row)
 <button type="submit" class="btn btn-outline-primary">Export Text</button>
 </form>
 </div>
-<?php foreach ($studentsByClass as $className => $students): ?>
+<?php $classSection = 0; foreach ($studentsByClass as $className => $students): $classSection++; $copyId = 'classRoster' . $classSection; ?>
 <div class="mb-4">
-<h5 class="mb-2"><?php echo htmlspecialchars($className); ?> <small class="text-muted">(<?php echo count($students); ?> students)</small></h5>
-<textarea class="form-control" rows="<?php echo max(4, count($students) + 1); ?>" readonly><?php
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+<h5 class="mb-0"><?php echo htmlspecialchars($className); ?> <small class="text-muted">(<?php echo count($students); ?> students)</small></h5>
+<button type="button" class="btn btn-sm btn-outline-secondary copy-class-roster" data-copy-target="<?php echo $copyId; ?>"><i class="bi bi-copy me-1"></i>Copy Names</button>
+</div>
+<textarea id="<?php echo $copyId; ?>" class="form-control user-select-auto" rows="<?php echo max(4, count($students) + 1); ?>" readonly aria-label="<?php echo htmlspecialchars($className); ?> student names"><?php
 foreach ($students as $student) {
 	echo trim((string)($student['fname'] ?? '') . ' ' . (string)($student['mname'] ?? '') . ' ' . (string)($student['lname'] ?? '')) . PHP_EOL;
 }
@@ -180,6 +186,29 @@ foreach ($students as $student) {
 <?php require_once('const/check-reply.php'); ?>
 <script>
 $('.select2').select2()
+
+document.querySelectorAll('.copy-class-roster').forEach(function (button) {
+	button.addEventListener('click', function () {
+		var target = document.getElementById(button.getAttribute('data-copy-target'));
+		if (!target) return;
+		target.focus();
+		target.select();
+		var copied = function () {
+			var original = button.innerHTML;
+			button.innerHTML = '<i class="bi bi-check2 me-1"></i>Copied';
+			setTimeout(function () { button.innerHTML = original; }, 1400);
+		};
+		if (navigator.clipboard && window.isSecureContext) {
+			navigator.clipboard.writeText(target.value).then(copied).catch(function () {
+				document.execCommand('copy');
+				copied();
+			});
+		} else {
+			document.execCommand('copy');
+			copied();
+		}
+	});
+});
 </script>
 </body>
 

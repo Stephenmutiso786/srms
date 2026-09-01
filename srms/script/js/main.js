@@ -1062,40 +1062,4 @@
 	window.addEventListener('afterprint', appResetScaledTables);
 	window.addEventListener('resize', function () { setTimeout(appResetScaledTables, 80); setTimeout(appAdjustWideTablesForPrint, 220); });
 
-	// Restrict copying/paste/context menu only on admin/teacher portals - PERF: Reduces event overhead
-	var isSensitivePortal = window.location.pathname.indexOf('/admin/') > -1 || 
-	                          window.location.pathname.indexOf('/teacher/') > -1;
-	
-	if (isSensitivePortal) {
-		// Disable right-click
-		document.addEventListener('contextmenu', function(e) {
-			e.preventDefault();
-			return false;
-		});
-
-		// Disable copying
-		document.addEventListener('copy', function(e) {
-			e.preventDefault();
-			return false;
-		});
-
-		// Disable cutting
-		document.addEventListener('cut', function(e) {
-			e.preventDefault();
-			return false;
-		});
-
-		// Disable text selection with keyboard shortcuts
-		document.addEventListener('keydown', function(e) {
-			if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
-				e.preventDefault();
-				return false;
-			}
-			if ((e.ctrlKey || e.metaKey) && e.key === 'x') {
-				e.preventDefault();
-				return false;
-			}
-		});
-	}
-
 })();
